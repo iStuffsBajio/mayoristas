@@ -8,8 +8,8 @@ import Footer from './components/Footer'
 import LoginModal from './components/LoginModal'
 
 const TABS = [
-  { id: 'inventario',  label: 'Consulta de Inventario',  emoji: '📦' },
-  { id: 'personaliza', label: 'Diseña tu Funda',         emoji: '🎨' },
+  { id: 'inventario',  label: 'Consulta de Inventario',  emoji: '📋' },
+  { id: 'personaliza', label: 'Diseña tu Funda',         emoji: '📱' },
 ]
 
 function TabBar({ active, onChange }) {
