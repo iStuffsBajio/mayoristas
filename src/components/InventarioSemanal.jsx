@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { useAuth } from '../context/AuthContext'
+import { inventarioUrl, uploadInventario, s3Configured } from '../lib/s3'
 
 const SUCURSALES = [
   { name: 'León',            slug: 'leon' },
@@ -66,6 +67,7 @@ export default function InventarioSemanal({ onLoginClick }) {
   const [lastUpdate, setLastUpdate] = useState(null)
   const [fileName, setFileName]     = useState(null)
   const [search, setSearch]         = useState('')
+  const [uploading, setUploading]   = useState(false)
   const fileInputRef = useRef(null)
   const searchRef    = useRef(null)
 
@@ -100,37 +102,48 @@ export default function InventarioSemanal({ onLoginClick }) {
     setError(null)
     setAllRows(null)
     setFileName(null)
-    try {
-      const res = await fetch(`/inventarios/${suc.slug}/inventario.xlsx`, { cache: 'no-store' })
-      if (!res.ok) throw new Error()
-      const buf = await res.arrayBuffer()
-      const wb  = XLSX.read(buf, { type: 'array' })
-      const rows = parseWorkbook(wb)
-      if (rows.length === 0) throw new Error()
-      applyRows(rows, 'inventario.xlsx')
-    } catch {
-      setError(`${suc.name}`)
-      setLoading(false)
+    // Intenta cargar desde S3 si está configurado, si no desde la carpeta pública
+    const urls = s3Configured
+      ? [inventarioUrl(suc.slug)]
+      : [`/inventarios/${suc.slug}/inventario.xlsx`]
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { cache: 'no-store' })
+        if (!res.ok) continue
+        const buf  = await res.arrayBuffer()
+        const wb   = XLSX.read(buf, { type: 'array' })
+        const rows = parseWorkbook(wb)
+        if (rows.length === 0) continue
+        applyRows(rows, 'inventario.xlsx')
+        return
+      } catch { continue }
     }
+    setError(`${suc.name}`)
+    setLoading(false)
   }
 
-  const handleFileUpload = (file) => {
+  const handleFileUpload = async (file) => {
     if (!file) return
     setLoading(true)
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      try {
-        const wb   = XLSX.read(e.target.result, { type: 'array' })
-        const rows = parseWorkbook(wb)
-        applyRows(rows, file.name)
-      } catch {
-        setError('No se pudo leer el archivo. Asegúrate de que sea un Excel válido.')
-        setLoading(false)
-      }
-    }
-    reader.readAsArrayBuffer(file)
-    // reset input so same file can be re-selected
+    setUploading(false)
     fileInputRef.current.value = ''
+    try {
+      const buf  = await file.arrayBuffer()
+      const wb   = XLSX.read(buf, { type: 'array' })
+      const rows = parseWorkbook(wb)
+      if (rows.length === 0) throw new Error('Sin datos')
+      // Si S3 está configurado y el usuario tiene permiso, sube el archivo
+      if (s3Configured && canUpload(sucursal.slug)) {
+        setUploading(true)
+        await uploadInventario(sucursal.slug, file)
+        setUploading(false)
+      }
+      applyRows(rows, file.name)
+    } catch (err) {
+      setUploading(false)
+      setError('No se pudo leer o subir el archivo.')
+      setLoading(false)
+    }
   }
 
   // ── Filtrado en tiempo real ──────────────────────────────────────
@@ -186,13 +199,14 @@ export default function InventarioSemanal({ onLoginClick }) {
             <>
               <button
                 onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
                 className="flex items-center gap-2 px-5 py-3 text-sm font-semibold text-white transition-all"
-                style={{ background: 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: '999px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 20px rgba(213,26,122,0.3)' }}
-                onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.04)')}
+                style={{ background: uploading ? 'rgba(0,0,0,0.1)' : 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: '999px', border: 'none', cursor: uploading ? 'default' : 'pointer', boxShadow: uploading ? 'none' : '0 4px 20px rgba(213,26,122,0.3)', color: uploading ? '#999' : 'white' }}
+                onMouseEnter={e => { if (!uploading) e.currentTarget.style.transform = 'scale(1.04)' }}
                 onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
               >
                 <UploadIcon />
-                {allRows ? 'Actualizar Excel' : 'Cargar Excel'}
+                {uploading ? 'Guardando en nube...' : allRows ? 'Actualizar Excel' : 'Cargar Excel'}
               </button>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden"
                 onChange={e => handleFileUpload(e.target.files[0])} />
