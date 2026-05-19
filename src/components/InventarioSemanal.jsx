@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
+import { useAuth } from '../context/AuthContext'
 
 const SUCURSALES = [
   { name: 'León',            slug: 'leon' },
@@ -56,7 +57,8 @@ function HighlightText({ text, query }) {
 
 // ─── Componente principal ────────────────────────────────────────
 
-export default function InventarioSemanal() {
+export default function InventarioSemanal({ onLoginClick }) {
+  const { canUpload, session }      = useAuth()
   const [sucursal, setSucursal]     = useState(SUCURSALES[0])
   const [allRows, setAllRows]       = useState(null)
   const [loading, setLoading]       = useState(false)
@@ -172,36 +174,40 @@ export default function InventarioSemanal() {
           </p>
         </div>
 
-        {/* Botón cargar */}
+        {/* Botón cargar — solo visible para usuarios autenticados de esta sucursal */}
         <div className="flex items-center gap-3 flex-shrink-0">
           {lastUpdate && (
             <span className="text-xs hidden md:block" style={{ color: '#aaa' }}>
               {fmtDate(lastUpdate)}
             </span>
           )}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-2 px-5 py-3 text-sm font-semibold text-white transition-all"
-            style={{
-              background: 'linear-gradient(135deg, #D51A7A, #FF6B1A)',
-              borderRadius: '999px',
-              border: 'none',
-              cursor: 'pointer',
-              boxShadow: '0 4px 20px rgba(213,26,122,0.3)',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.04)')}
-            onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
-          >
-            <UploadIcon />
-            {allRows ? 'Actualizar Excel' : 'Cargar Excel'}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={e => handleFileUpload(e.target.files[0])}
-          />
+
+          {canUpload(sucursal.slug) ? (
+            <>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-5 py-3 text-sm font-semibold text-white transition-all"
+                style={{ background: 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: '999px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 20px rgba(213,26,122,0.3)' }}
+                onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.04)')}
+                onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+              >
+                <UploadIcon />
+                {allRows ? 'Actualizar Excel' : 'Cargar Excel'}
+              </button>
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden"
+                onChange={e => handleFileUpload(e.target.files[0])} />
+            </>
+          ) : (
+            <button
+              onClick={onLoginClick}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-all"
+              style={{ backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.09)', borderRadius: '999px', color: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.09)'; e.currentTarget.style.color = '#0A0A0A' }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.5)' }}
+            >
+              🔒 Acceso sucursales
+            </button>
+          )}
         </div>
       </div>
 
@@ -322,22 +328,31 @@ export default function InventarioSemanal() {
                 Sin inventario cargado — {sucursal.name}
               </p>
               <p style={{ fontSize: 13, color: '#aaa', maxWidth: 340, lineHeight: 1.6 }}>
-                Haz clic en <strong style={{ color: '#D51A7A' }}>Cargar Excel</strong> y selecciona el archivo
-                exportado de tu sistema para esta sucursal.
-                <br />
-                <span style={{ fontSize: 12 }}>
-                  También puedes nombrarlo <code style={{ backgroundColor: '#f0f0f0', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace' }}>inventario.xlsx</code> y colocarlo en{' '}
-                  <code style={{ backgroundColor: '#f0f0f0', padding: '1px 5px', borderRadius: 4, fontFamily: 'monospace' }}>public/inventarios/{sucursal.slug}/</code>
-                </span>
+                {canUpload(sucursal.slug)
+                  ? <>Haz clic en <strong style={{ color: '#D51A7A' }}>Seleccionar archivo Excel</strong> y elige el archivo exportado de tu sistema para esta sucursal.</>
+                  : <>El inventario de esta sucursal aún no ha sido cargado. Inicia sesión como sucursal para subir el archivo.</>
+                }
               </p>
             </div>
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-6 py-3 font-semibold text-white text-sm"
-              style={{ background: 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: '999px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(213,26,122,0.28)' }}
-            >
-              <UploadIcon /> Seleccionar archivo Excel
-            </button>
+            {canUpload(sucursal.slug) ? (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-2 px-6 py-3 font-semibold text-white text-sm"
+                style={{ background: 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: '999px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(213,26,122,0.28)' }}
+              >
+                <UploadIcon /> Seleccionar archivo Excel
+              </button>
+            ) : (
+              <button
+                onClick={onLoginClick}
+                className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-all"
+                style={{ backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.09)', borderRadius: '999px', color: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.09)'; e.currentTarget.style.color = '#0A0A0A' }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.5)' }}
+              >
+                🔒 Iniciar sesión
+              </button>
+            )}
           </div>
         )}
 
