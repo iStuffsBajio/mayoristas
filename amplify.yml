@@ -6,6 +6,7 @@ frontend:
         - npm install
     build:
       commands:
+        - rm -rf node_modules/.vite
         - npm run build
   artifacts:
     baseDirectory: dist
