@@ -3,7 +3,6 @@ import { AuthProvider } from './context/AuthContext'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import InventarioSemanal from './components/InventarioSemanal'
-import InventoryGrid from './components/InventoryGrid'
 import Personalizer from './components/Personalizer'
 import Footer from './components/Footer'
 import LoginModal from './components/LoginModal'
@@ -17,7 +16,6 @@ function AppContent() {
       <main>
         <Hero />
         <InventarioSemanal onLoginClick={() => setShowLogin(true)} />
-        <InventoryGrid />
         <Personalizer />
       </main>
       <Footer />
