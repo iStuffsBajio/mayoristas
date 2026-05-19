@@ -82,7 +82,7 @@ export default function InventarioSemanal({ onLoginClick }) {
     const json = XLSX.utils.sheet_to_json(ws, { defval: '' })
     return json
       .filter(r => r[COL_PRODUCTO] && String(r[COL_PRODUCTO]).trim() !== '')
-      .filter(r => String(r['Departamento']).trim() !== 'Mayoristas')
+      .filter(r => String(r['Departamento'] ?? '').trim().toLowerCase() !== 'mayoristas')
       .map(r => ({
         [COL_PRODUCTO]:   String(r[COL_PRODUCTO]).trim(),
         [COL_EXISTENCIA]: r[COL_EXISTENCIA],
