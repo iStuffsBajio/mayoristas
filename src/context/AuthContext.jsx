@@ -12,15 +12,6 @@ const PASSWORDS = {
 }
 const ADMIN_PASS = import.meta.env.VITE_PASS_ADMIN || ''
 
-// Debug temporal — confirma si las variables llegaron al build
-console.log('[Auth] vars cargadas:', {
-  leon: !!import.meta.env.VITE_PASS_LEON,
-  slp:  !!import.meta.env.VITE_PASS_SLP,
-  ags:  !!import.meta.env.VITE_PASS_AGS,
-  tor:  !!import.meta.env.VITE_PASS_TORREON,
-  admin: !!import.meta.env.VITE_PASS_ADMIN,
-})
-
 const BRANCH_NAMES = {
   'leon':           'León',
   'san-luis':       'San Luis Potosí',
