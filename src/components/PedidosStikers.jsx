@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { uploadStiker, s3Configured } from '../lib/s3'
+import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
 
 const WHATSAPP = '5213315381571'
 
@@ -132,12 +132,12 @@ export default function PedidosStikers() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSubiendo(true)
-    let urlImagen = ''
+    let rutaImagen = ''
     try {
-      if (imageFile && s3Configured) {
-        urlImagen = await uploadStiker(slugSucursal[form.sucursal], imageFile, form.nombre)
+      if (imageFile && dropboxConfigured) {
+        rutaImagen = await uploadStikerDropbox(slugSucursal[form.sucursal], imageFile, form.nombre)
       }
-    } catch { urlImagen = '' }
+    } catch { rutaImagen = '' }
     setSubiendo(false)
 
     const msg = [
@@ -150,7 +150,7 @@ export default function PedidosStikers() {
       `📐 *Tamaño:* ${form.tamanio}`,
       `✏️ *Diseño:* ${form.diseno}`,
       form.notas ? `📝 *Notas:* ${form.notas}` : '',
-      urlImagen ? `🖼️ *Imagen guardada:* ${urlImagen}` : imageFile ? '📎 *Imagen:* Se adjunta en este chat' : '',
+      rutaImagen ? `📁 *Guardado en Dropbox:* ${rutaImagen}` : imageFile ? '📎 *Imagen:* Se adjunta en este chat' : '',
     ].filter(Boolean).join('\n')
 
     window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank')
