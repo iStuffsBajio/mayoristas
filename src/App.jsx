@@ -4,12 +4,14 @@ import Navbar from './components/Navbar'
 import Hero from './components/Hero'
 import InventarioSemanal from './components/InventarioSemanal'
 import Personalizer from './components/Personalizer'
+import PedidosStikers from './components/PedidosStikers'
 import Footer from './components/Footer'
 import LoginModal from './components/LoginModal'
 
 const TABS = [
   { id: 'inventario',  label: 'Consulta de Inventario',  emoji: '📋' },
   { id: 'personaliza', label: 'Diseña tu Funda',         emoji: '📱' },
+  { id: 'stikers',     label: 'Pedidos de Stickers',     emoji: '🏷️' },
 ]
 
 function TabBar({ active, onChange }) {
@@ -60,6 +62,7 @@ function AppContent() {
           </>
         )}
         {activeTab === 'personaliza' && <Personalizer />}
+        {activeTab === 'stikers'     && <PedidosStikers />}
       </main>
       <Footer />
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}

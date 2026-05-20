@@ -1,0 +1,216 @@
+import { useState } from 'react'
+
+const WHATSAPP = '5213315381571'
+
+const SUCURSALES = ['León', 'San Luis Potosí', 'Aguascalientes', 'Torreón']
+const TAMANIOS   = ['Pequeño (5×5 cm)', 'Mediano (10×10 cm)', 'Grande (15×15 cm)', 'Personalizado']
+
+const StikerIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2a10 10 0 0 1 10 10c0 5.52-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2z"/>
+    <path d="M12 12c0 2.76-2.24 5-5 5"/>
+    <path d="M12 12c2.76 0 5-2.24 5-5"/>
+  </svg>
+)
+const WhatsAppIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 2.124.558 4.122 1.532 5.86L.078 23.561a.5.5 0 0 0 .612.612l5.701-1.454A11.94 11.94 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-1.907 0-3.693-.502-5.236-1.379l-.374-.216-3.884.991.991-3.884-.216-.374A9.96 9.96 0 0 1 2 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/>
+  </svg>
+)
+
+const Field = ({ label, children }) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+    <label style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+      {label}
+    </label>
+    {children}
+  </div>
+)
+
+const inputStyle = {
+  width: '100%',
+  padding: '11px 16px',
+  borderRadius: 14,
+  border: '1.5px solid rgba(0,0,0,0.1)',
+  backgroundColor: '#f7f8fa',
+  fontSize: 14,
+  color: '#0A0A0A',
+  outline: 'none',
+  fontFamily: 'inherit',
+  transition: 'border-color 0.15s, background 0.15s',
+  boxSizing: 'border-box',
+}
+
+export default function PedidosStikers() {
+  const [form, setForm] = useState({
+    nombre:    '',
+    telefono:  '',
+    sucursal:  SUCURSALES[0],
+    cantidad:  '',
+    tamanio:   TAMANIOS[0],
+    diseno:    '',
+    notas:     '',
+  })
+  const [enviado, setEnviado] = useState(false)
+
+  const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }))
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const msg = [
+      '🎨 *PEDIDO DE STICKERS - iStuffs*',
+      '',
+      `👤 *Cliente:* ${form.nombre}`,
+      `📞 *Teléfono:* ${form.telefono}`,
+      `🏪 *Sucursal:* ${form.sucursal}`,
+      `📦 *Cantidad:* ${form.cantidad} piezas`,
+      `📐 *Tamaño:* ${form.tamanio}`,
+      `✏️ *Diseño:* ${form.diseno}`,
+      form.notas ? `📝 *Notas:* ${form.notas}` : '',
+    ].filter(Boolean).join('\n')
+
+    const url = `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`
+    window.open(url, '_blank')
+    setEnviado(true)
+    setTimeout(() => setEnviado(false), 5000)
+  }
+
+  const completo = form.nombre && form.telefono && form.cantidad && form.diseno
+
+  return (
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
+
+      {/* Encabezado */}
+      <div className="mb-10">
+        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#D51A7A' }}>
+          Stickers Personalizados
+        </p>
+        <h2 className="text-3xl sm:text-4xl font-black mb-2" style={{ color: '#0A0A0A' }}>
+          Pedidos para tus clientes
+        </h2>
+        <p className="text-sm" style={{ color: '#888' }}>
+          Llena el formulario y te contactamos por WhatsApp para confirmar el diseño y entrega.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+
+        {/* Formulario */}
+        <form onSubmit={handleSubmit}
+          style={{ backgroundColor: '#fff', borderRadius: 28, border: '1px solid rgba(0,0,0,0.08)', padding: '32px 28px', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <Field label="Nombre del cliente">
+              <input value={form.nombre} onChange={set('nombre')} required placeholder="Ej. Juan Pérez"
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }}
+              />
+            </Field>
+            <Field label="Teléfono de contacto">
+              <input value={form.telefono} onChange={set('telefono')} required placeholder="Ej. 477 123 4567" type="tel"
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }}
+              />
+            </Field>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <Field label="Sucursal">
+              <select value={form.sucursal} onChange={set('sucursal')}
+                style={{ ...inputStyle, appearance: 'none', cursor: 'pointer' }}
+                onFocus={e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)' }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)' }}
+              >
+                {SUCURSALES.map(s => <option key={s}>{s}</option>)}
+              </select>
+            </Field>
+            <Field label="Cantidad (piezas)">
+              <input value={form.cantidad} onChange={set('cantidad')} required placeholder="Ej. 50" type="number" min="1"
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }}
+                onBlur={e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }}
+              />
+            </Field>
+          </div>
+
+          <Field label="Tamaño del stiker">
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {TAMANIOS.map(t => (
+                <button key={t} type="button" onClick={() => setForm(f => ({ ...f, tamanio: t }))}
+                  style={{
+                    padding: '8px 16px', borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s',
+                    background: form.tamanio === t ? 'linear-gradient(135deg, #D51A7A, #FF6B1A)' : 'none',
+                    border: form.tamanio === t ? 'none' : '1.5px solid rgba(0,0,0,0.12)',
+                    color: form.tamanio === t ? 'white' : '#555',
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </Field>
+
+          <Field label="Descripción del diseño">
+            <textarea value={form.diseno} onChange={set('diseno')} required rows={3}
+              placeholder="Describe el diseño: colores, logo, texto, estilo, imagen de referencia..."
+              style={{ ...inputStyle, resize: 'vertical', minHeight: 90, lineHeight: 1.5 }}
+              onFocus={e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }}
+            />
+          </Field>
+
+          <Field label="Notas adicionales (opcional)">
+            <textarea value={form.notas} onChange={set('notas')} rows={2}
+              placeholder="Fecha de entrega, instrucciones especiales..."
+              style={{ ...inputStyle, resize: 'vertical', minHeight: 68, lineHeight: 1.5 }}
+              onFocus={e => { e.target.style.borderColor = 'rgba(0,188,242,0.5)'; e.target.style.backgroundColor = 'rgba(0,188,242,0.02)' }}
+              onBlur={e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }}
+            />
+          </Field>
+
+          <button type="submit" disabled={!completo}
+            style={{
+              width: '100%', padding: '14px 0', borderRadius: 999, border: 'none', fontSize: 15, fontWeight: 700, cursor: completo ? 'pointer' : 'default', transition: 'all 0.2s', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              background: completo ? 'linear-gradient(135deg, #25D366, #128C7E)' : 'rgba(0,0,0,0.07)',
+              color: completo ? 'white' : 'rgba(0,0,0,0.28)',
+              boxShadow: completo ? '0 6px 20px rgba(37,211,102,0.3)' : 'none',
+            }}
+            onMouseEnter={e => { if (completo) e.currentTarget.style.transform = 'scale(1.02)' }}
+            onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+          >
+            <WhatsAppIcon />
+            {enviado ? '¡Pedido enviado! 🎉' : 'Enviar pedido por WhatsApp'}
+          </button>
+
+          {!completo && (
+            <p style={{ textAlign: 'center', fontSize: 12, color: '#bbb', marginTop: -8 }}>
+              Completa los campos requeridos para enviar
+            </p>
+          )}
+        </form>
+
+        {/* Panel informativo */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {[
+            { emoji: '✏️', title: 'Diseño personalizado', desc: 'Cualquier logo, texto o imagen que tu cliente traiga. Nuestro equipo lo adapta al formato ideal.' },
+            { emoji: '📐', title: 'Múltiples tamaños', desc: 'Desde pequeños para detalles hasta grandes para escaparates. También hacemos tamaños a la medida.' },
+            { emoji: '⚡', title: 'Entrega rápida', desc: 'Producción express disponible. Confirmamos tiempo de entrega por WhatsApp al recibir el pedido.' },
+            { emoji: '📦', title: 'Pedidos al mayoreo', desc: 'Precios especiales para pedidos grandes. Ideal para eventos, promociones y temporadas.' },
+          ].map(item => (
+            <div key={item.title}
+              style={{ backgroundColor: '#fff', borderRadius: 20, border: '1px solid rgba(0,0,0,0.07)', padding: '20px 22px', display: 'flex', gap: 16, alignItems: 'flex-start', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+              <span style={{ fontSize: 28, flexShrink: 0 }}>{item.emoji}</span>
+              <div>
+                <p style={{ fontWeight: 700, fontSize: 14, color: '#0A0A0A', marginBottom: 4 }}>{item.title}</p>
+                <p style={{ fontSize: 13, color: '#888', lineHeight: 1.6 }}>{item.desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
