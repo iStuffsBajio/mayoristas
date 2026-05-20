@@ -27,6 +27,21 @@ export async function uploadInventario(slug, file) {
   return inventarioUrl(slug)
 }
 
+export async function uploadStiker(slug, file, clienteName) {
+  const ext    = file.name.split('.').pop() || 'jpg'
+  const fecha  = new Date().toISOString().slice(0, 10)
+  const nombre = clienteName.trim().replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-]/g, '')
+  const key    = `stikers/${slug}/${fecha}_${nombre}.${ext}`
+  const body   = await file.arrayBuffer()
+  await s3.send(new PutObjectCommand({
+    Bucket:      BUCKET,
+    Key:         key,
+    Body:        new Uint8Array(body),
+    ContentType: file.type || 'image/jpeg',
+  }))
+  return `https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}`
+}
+
 export const s3Configured = !!(
   import.meta.env.VITE_S3_BUCKET &&
   import.meta.env.VITE_S3_ACCESS_KEY &&

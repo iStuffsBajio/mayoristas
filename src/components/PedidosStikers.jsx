@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { uploadStiker, s3Configured } from '../lib/s3'
 
 const WHATSAPP = '5213315381571'
 
@@ -113,18 +114,32 @@ export default function PedidosStikers() {
     cantidad: '', tamanio: TAMANIOS[0], diseno: '', notas: '',
   })
   const [imageUrl, setImageUrl]   = useState(null)
+  const [imageFile, setImageFile] = useState(null)
   const [enviado, setEnviado]     = useState(false)
+  const [subiendo, setSubiendo]   = useState(false)
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const handleImage = (file) => {
+    setImageFile(file)
     const reader = new FileReader()
     reader.onload = e => setImageUrl(e.target.result)
     reader.readAsDataURL(file)
   }
 
-  const handleSubmit = (e) => {
+  const slugSucursal = { 'León': 'leon', 'San Luis Potosí': 'san-luis', 'Aguascalientes': 'aguascalientes', 'Torreón': 'torreon' }
+
+  const handleSubmit = async (e) => {
     e.preventDefault()
+    setSubiendo(true)
+    let urlImagen = ''
+    try {
+      if (imageFile && s3Configured) {
+        urlImagen = await uploadStiker(slugSucursal[form.sucursal], imageFile, form.nombre)
+      }
+    } catch { urlImagen = '' }
+    setSubiendo(false)
+
     const msg = [
       '🏷️ *PEDIDO DE STICKERS - iStuffs*',
       '',
@@ -135,7 +150,7 @@ export default function PedidosStikers() {
       `📐 *Tamaño:* ${form.tamanio}`,
       `✏️ *Diseño:* ${form.diseno}`,
       form.notas ? `📝 *Notas:* ${form.notas}` : '',
-      imageUrl ? '📎 *Imagen de referencia:* Se adjunta en este chat' : '',
+      urlImagen ? `🖼️ *Imagen guardada:* ${urlImagen}` : imageFile ? '📎 *Imagen:* Se adjunta en este chat' : '',
     ].filter(Boolean).join('\n')
 
     window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank')
@@ -231,7 +246,7 @@ export default function PedidosStikers() {
             onMouseEnter={e => { if (completo) e.currentTarget.style.transform = 'scale(1.02)' }}
             onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
             <WhatsAppIcon />
-            {enviado ? '¡Pedido enviado! 🎉' : 'Enviar pedido por WhatsApp'}
+            {subiendo ? 'Guardando imagen...' : enviado ? '¡Pedido enviado! 🎉' : 'Enviar pedido por WhatsApp'}
           </button>
 
           {imageUrl && (
