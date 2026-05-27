@@ -27,8 +27,13 @@ export async function uploadStikerDropbox(slug, file, clienteName) {
     body: buf,
   })
 
-  if (!res.ok) throw new Error(`Dropbox error: ${res.status}`)
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.status)
+    console.error('[Dropbox] Error al subir:', res.status, err)
+    throw new Error(`Dropbox ${res.status}: ${err}`)
+  }
   const data = await res.json()
+  console.log('[Dropbox] Subido en:', data.path_display)
   return data.path_display
 }
 
