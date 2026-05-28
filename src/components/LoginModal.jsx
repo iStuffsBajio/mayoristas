@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
 const SUCURSALES = [
+  { name: 'Administrador',  slug: 'admin' },
   { name: 'León',            slug: 'leon' },
   { name: 'San Luis Potosí', slug: 'san-luis' },
   { name: 'Aguascalientes',  slug: 'aguascalientes' },
