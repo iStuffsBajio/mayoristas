@@ -22,7 +22,7 @@ export function SiteConfigProvider({ children }) {
       // preserve nested objects
       tabs:             parcial.tabs             ? { ...config.tabs,             ...parcial.tabs }             : config.tabs,
       hero:             parcial.hero             ? { ...config.hero,             ...parcial.hero }             : config.hero,
-      colores:          parcial.colores          ? { ...config.colores,          ...parcial.colores }          : config.colores,
+      colores:          parcial.colores          ? { ...config.colores, ...parcial.colores, gradientes: { ...config.colores.gradientes, ...parcial.colores.gradientes } } : config.colores,
       footer:           parcial.footer           ? { ...config.footer,           ...parcial.footer }           : config.footer,
       dropboxCatalogos: parcial.dropboxCatalogos ? { ...config.dropboxCatalogos, ...parcial.dropboxCatalogos } : config.dropboxCatalogos,
     }

@@ -34,6 +34,10 @@ export const DEFAULT_CONFIG = {
     secundario: '#FF6B1A',
     acento:     '#00BCF2',
     acento2:    '#8DC63F',
+    gradientes: {
+      principal: { angulo: 135, color1: '#D51A7A', color2: '#FF6B1A' },
+      acento:    { angulo: 135, color1: '#00BCF2', color2: '#8DC63F' },
+    },
   },
   footer: {
     descripcion: 'Tu destino de accesorios tecnológicos premium. Diseño, calidad y personalización en un solo lugar.',
@@ -43,6 +47,12 @@ export const DEFAULT_CONFIG = {
     fundas:          '/Espacio familiar/IMPRESORA UV/CATALOGOS/Fundas',
     personalizados:  '/Espacio familiar/IMPRESORA UV/CATALOGOS/Personalizados',
   },
+}
+
+export function gradStr(g) {
+  if (!g) return 'linear-gradient(135deg, #D51A7A, #FF6B1A)'
+  const stops = [g.color1, g.color2, g.color3].filter(Boolean).join(', ')
+  return `linear-gradient(${g.angulo ?? 135}deg, ${stops})`
 }
 
 export async function loadSiteConfig() {

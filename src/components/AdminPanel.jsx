@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSiteConfig } from '../context/SiteConfigContext'
+import { gradStr } from '../lib/siteConfig'
 
 const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
   <div style={{ backgroundColor: '#fff', borderRadius: 24, border: '1px solid rgba(0,0,0,0.08)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -148,7 +149,55 @@ function SeccionHero({ config, save }) {
   )
 }
 
-// ── Sección Colores ───────────────────────────────────────────────────────────
+// ── Sección Colores + Degradados ──────────────────────────────────────────────
+function EditorDegradado({ gradKey, label, gradientes, onChange }) {
+  const g = gradientes?.[gradKey] || { angulo: 135, color1: '#D51A7A', color2: '#FF6B1A' }
+  const preview = gradStr(g)
+
+  const set = field => e => {
+    const val = field === 'angulo' ? Number(e.target.value) : e.target.value
+    onChange(gradKey, { ...g, [field]: val })
+  }
+
+  return (
+    <div style={{ padding: '16px', borderRadius: 16, background: '#f7f8fa', border: '1.5px solid rgba(0,0,0,0.07)' }}>
+      <Label>{label}</Label>
+
+      {/* Preview barra */}
+      <div style={{ height: 48, borderRadius: 12, background: preview, marginBottom: 14, boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }} />
+
+      {/* Ángulo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Ángulo</span>
+        <input type="range" min="0" max="360" value={g.angulo ?? 135} onChange={set('angulo')}
+          style={{ flex: 1, accentColor: '#D51A7A' }} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#555', minWidth: 38, textAlign: 'right' }}>{g.angulo ?? 135}°</span>
+      </div>
+
+      {/* Colores */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {[
+          { field: 'color1', label: 'Color 1' },
+          { field: 'color2', label: 'Color 2' },
+          { field: 'color3', label: 'Color 3 (opcional)' },
+        ].map(({ field, label: fl }) => (
+          <div key={field} style={{ flex: '1 1 80px', minWidth: 80 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>{fl}</span>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input type="color" value={g[field] || '#ffffff'} onChange={set(field)}
+                style={{ width: 36, height: 36, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)', cursor: 'pointer', padding: 2, background: 'white', flexShrink: 0 }} />
+              <input value={g[field] || ''} onChange={set(field)} maxLength={7}
+                placeholder="#000000"
+                style={{ ...inp, padding: '7px 8px', fontFamily: 'monospace', fontSize: 11, width: 80, minWidth: 0 }}
+                onFocus={fp} onBlur={bl} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function SeccionColores({ config, save }) {
   const [colores, setColores] = useState(config.colores)
   const [gLocal, setGLocal]   = useState(false)
@@ -156,7 +205,15 @@ function SeccionColores({ config, save }) {
 
   useEffect(() => { setColores(config.colores) }, [config.colores])
 
-  const set = k => e => setColores(c => ({ ...c, [k]: e.target.value }))
+  const setColor = k => e => setColores(c => ({ ...c, [k]: e.target.value }))
+
+  const setGrad = (gradKey, newG) => setColores(c => ({
+    ...c,
+    gradientes: { ...c.gradientes, [gradKey]: newG },
+    // sincronizar colores sólidos con color1 del degradado correspondiente
+    ...(gradKey === 'principal' ? { primario: newG.color1, secundario: newG.color2 } : {}),
+    ...(gradKey === 'acento'    ? { acento:   newG.color1, acento2:   newG.color2 } : {}),
+  }))
 
   const handleSave = async () => {
     setGLocal(true)
@@ -165,28 +222,43 @@ function SeccionColores({ config, save }) {
     marcar()
   }
 
-  const ITEMS = [
-    { key: 'primario',   label: 'Color primario (rosa)' },
-    { key: 'secundario', label: 'Color secundario (naranja)' },
-    { key: 'acento',     label: 'Acento 1 (azul)' },
-    { key: 'acento2',    label: 'Acento 2 (verde)' },
+  const SOLIDOS = [
+    { key: 'primario',   label: 'Primario' },
+    { key: 'secundario', label: 'Secundario' },
+    { key: 'acento',     label: 'Acento 1' },
+    { key: 'acento2',    label: 'Acento 2' },
   ]
 
   return (
-    <Section title="Colores de la marca" emoji="🎨" onSave={handleSave} guardando={gLocal} guardado={guardado}>
-      <p style={{ fontSize: 12, color: '#aaa', marginBottom: 16, marginTop: -8 }}>Los cambios aplican al recargar la página.</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 14 }}>
-        {ITEMS.map(({ key, label }) => (
-          <div key={key}>
-            <Label>{label}</Label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="color" value={colores[key]} onChange={set(key)}
-                style={{ width: 44, height: 40, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)', cursor: 'pointer', padding: 2, background: '#f7f8fa' }} />
-              <input value={colores[key]} onChange={set(key)} maxLength={7}
-                style={{ ...inp, width: 100, fontFamily: 'monospace', fontSize: 13 }} onFocus={fp} onBlur={bl} />
-            </div>
+    <Section title="Colores y degradados" emoji="🎨" onSave={handleSave} guardando={gLocal} guardado={guardado}>
+      <p style={{ fontSize: 12, color: '#aaa', marginBottom: 16, marginTop: -8 }}>
+        Al editar un degradado, los colores sólidos se sincronizan automáticamente. Los cambios aplican al guardar y recargar.
+      </p>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {/* Degradados */}
+        <EditorDegradado gradKey="principal" label="Degradado principal (botones, textos destacados)"
+          gradientes={colores.gradientes} onChange={setGrad} />
+        <EditorDegradado gradKey="acento"    label="Degradado acento (estadísticas, badges)"
+          gradientes={colores.gradientes} onChange={setGrad} />
+
+        {/* Colores sólidos */}
+        <div style={{ padding: '14px 16px', borderRadius: 16, background: '#f7f8fa', border: '1.5px solid rgba(0,0,0,0.07)' }}>
+          <Label>Colores sólidos (para texto y bordes)</Label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 8 }}>
+            {SOLIDOS.map(({ key, label }) => (
+              <div key={key}>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>{label}</span>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="color" value={colores[key] || '#000000'} onChange={setColor(key)}
+                    style={{ width: 36, height: 36, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)', cursor: 'pointer', padding: 2, background: 'white' }} />
+                  <input value={colores[key] || ''} onChange={setColor(key)} maxLength={7}
+                    style={{ ...inp, padding: '7px 10px', fontFamily: 'monospace', fontSize: 12, width: 90 }} onFocus={fp} onBlur={bl} />
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </Section>
   )
