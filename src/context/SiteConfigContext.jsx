@@ -20,10 +20,11 @@ export function SiteConfigProvider({ children }) {
       ...config,
       ...parcial,
       // preserve nested objects
-      tabs:    parcial.tabs    ? { ...config.tabs,    ...parcial.tabs }    : config.tabs,
-      hero:    parcial.hero    ? { ...config.hero,    ...parcial.hero }    : config.hero,
-      colores: parcial.colores ? { ...config.colores, ...parcial.colores } : config.colores,
-      footer:  parcial.footer  ? { ...config.footer,  ...parcial.footer }  : config.footer,
+      tabs:             parcial.tabs             ? { ...config.tabs,             ...parcial.tabs }             : config.tabs,
+      hero:             parcial.hero             ? { ...config.hero,             ...parcial.hero }             : config.hero,
+      colores:          parcial.colores          ? { ...config.colores,          ...parcial.colores }          : config.colores,
+      footer:           parcial.footer           ? { ...config.footer,           ...parcial.footer }           : config.footer,
+      dropboxCatalogos: parcial.dropboxCatalogos ? { ...config.dropboxCatalogos, ...parcial.dropboxCatalogos } : config.dropboxCatalogos,
     }
     setConfig(next)
     setGuardando(true)

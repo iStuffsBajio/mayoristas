@@ -226,6 +226,46 @@ function SeccionFooter({ config, save }) {
   )
 }
 
+// ── Sección Dropbox Catálogos ─────────────────────────────────────────────────
+function SeccionDropbox({ config, save }) {
+  const [dc, setDc]             = useState(config.dropboxCatalogos || {})
+  const [gLocal, setGLocal]     = useState(false)
+  const [guardado, marcar]      = useGuardado()
+
+  useEffect(() => { setDc(config.dropboxCatalogos || {}) }, [config.dropboxCatalogos])
+
+  const set = k => e => setDc(d => ({ ...d, [k]: e.target.value }))
+
+  const handleSave = async () => {
+    setGLocal(true)
+    await save({ dropboxCatalogos: dc })
+    setGLocal(false)
+    marcar()
+  }
+
+  const ITEMS = [
+    { key: 'fundas',         label: 'Carpeta Stiker Funda para Celular', placeholder: '/Espacio familiar/.../Fundas' },
+    { key: 'personalizados', label: 'Carpeta Stiker Personalizado',      placeholder: '/Espacio familiar/.../Personalizados' },
+  ]
+
+  return (
+    <Section title="Catálogos de Dropbox" emoji="📂" onSave={handleSave} guardando={gLocal} guardado={guardado}>
+      <p style={{ fontSize: 12, color: '#aaa', marginBottom: 16, marginTop: -8 }}>
+        Pon imágenes en estas carpetas de Dropbox desde tu PC y aparecerán automáticamente en la galería de pedidos.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {ITEMS.map(({ key, label, placeholder }) => (
+          <div key={key}>
+            <Label>{label}</Label>
+            <input value={dc[key] || ''} onChange={set(key)} placeholder={placeholder}
+              style={{ ...inp, fontFamily: 'monospace', fontSize: 12 }} onFocus={fp} onBlur={bl} />
+          </div>
+        ))}
+      </div>
+    </Section>
+  )
+}
+
 // ── Panel principal ───────────────────────────────────────────────────────────
 export default function AdminPanel() {
   const { config, save, guardando } = useSiteConfig()
@@ -243,6 +283,7 @@ export default function AdminPanel() {
         <SeccionHero    config={config} save={save} />
         <SeccionColores config={config} save={save} />
         <SeccionFooter  config={config} save={save} />
+        <SeccionDropbox config={config} save={save} />
       </div>
     </section>
   )

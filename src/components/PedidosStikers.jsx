@@ -1,14 +1,12 @@
 import { useState, useRef } from 'react'
 import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
-import GaleriaCatalogo from './GaleriaCatalogo'
+import { useSiteConfig } from '../context/SiteConfigContext'
+import GaleriaDropbox from './GaleriaDropbox'
 
 const WHATSAPP   = '5213315381571'
 const SUCURSALES = ['León', 'San Luis Potosí', 'Aguascalientes', 'Torreón']
 const TAMANIOS   = ['Pequeño (5×5 cm)', 'Mediano (10×10 cm)', 'Grande (15×15 cm)', 'Personalizado']
 const SLUG_MAP   = { 'León': 'leon', 'San Luis Potosí': 'san-luis', 'Aguascalientes': 'aguascalientes', 'Torreón': 'torreon' }
-
-// Tipo de galería por sub-tab
-const GALERIA_TIPO = { funda: 'stiker-fundas', personalizado: 'personalizados' }
 
 const WhatsAppIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -25,28 +23,34 @@ const UploadIcon = () => (
   </svg>
 )
 
-function PhoneMockup({ preview }) {
-  return (
-    <div style={{ position: 'relative', width: 180, height: 360 }}>
-      {preview && (
-        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle, rgba(213,26,122,0.2) 0%, transparent 70%)', filter: 'blur(32px)', transform: 'scale(1.4)', zIndex: 0 }} />
-      )}
-      <div style={{ position: 'relative', zIndex: 1, width: 180, height: 360 }}>
-        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg,#2e2e2e,#111)', borderRadius: 40, border: '2.5px solid rgba(255,255,255,0.12)', boxShadow: '0 30px 60px rgba(0,0,0,0.2)' }} />
-        <div style={{ position: 'absolute', top: 8, left: 8, right: 8, bottom: 8, borderRadius: 34, overflow: 'hidden', backgroundColor: '#000' }}>
-          {preview
-            ? <img src={preview.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'linear-gradient(135deg,#f7f8fa,#ececec)' }}>
-                <span style={{ fontSize: 32 }}>🏷️</span>
-                <span style={{ fontSize: 10, color: '#aaa', fontWeight: 600, textAlign: 'center', padding: '0 12px' }}>Selecciona un ejemplo o sube tu imagen</span>
-              </div>
-          }
-        </div>
-        <div style={{ position: 'absolute', top: 14, left: '50%', transform: 'translateX(-50%)', width: 72, height: 22, backgroundColor: '#000', borderRadius: '0 0 16px 16px', zIndex: 10 }} />
-        <div style={{ position: 'absolute', left: -3, top: 72, width: 3, height: 24, backgroundColor: '#2a2a2a', borderRadius: '3px 0 0 3px' }} />
-        <div style={{ position: 'absolute', left: -3, top: 108, width: 3, height: 40, backgroundColor: '#2a2a2a', borderRadius: '3px 0 0 3px' }} />
-        <div style={{ position: 'absolute', right: -3, top: 100, width: 3, height: 64, backgroundColor: '#2a2a2a', borderRadius: '0 3px 3px 0' }} />
+// Preview grande: muestra la imagen seleccionada en formato destacado
+function PreviewDestacado({ preview, tipo }) {
+  const esStiker = tipo === 'Stiker Funda'
+
+  if (!preview) {
+    return (
+      <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', borderRadius: 24, background: 'linear-gradient(135deg,#f7f8fa,#ececec)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, border: '2px dashed rgba(0,0,0,0.1)' }}>
+        <span style={{ fontSize: 48 }}>{esStiker ? '📱' : '🏷️'}</span>
+        <p style={{ fontSize: 13, color: '#bbb', fontWeight: 600, textAlign: 'center', padding: '0 20px' }}>
+          Selecciona un diseño del catálogo o sube tu imagen
+        </p>
       </div>
+    )
+  }
+
+  return (
+    <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', borderRadius: 24, overflow: 'hidden', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+      <img src={preview.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      {/* Overlay con nombre */}
+      {preview.name && (
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px 14px 12px', background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }}>
+          <p style={{ fontSize: 12, color: 'white', fontWeight: 600, margin: 0 }}>{preview.name.replace(/\.[^.]+$/, '')}</p>
+        </div>
+      )}
+      {/* Marco decorativo para tipo funda */}
+      {esStiker && (
+        <div style={{ position: 'absolute', inset: 0, borderRadius: 24, border: '3px solid rgba(255,255,255,0.15)', pointerEvents: 'none' }} />
+      )}
     </div>
   )
 }
@@ -66,10 +70,9 @@ const inp = {
 const fp = e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }
 const bl = e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }
 
-function FormBase({ tipo, emojiTipo, galeriaTipo }) {
+function FormBase({ tipo, emojiTipo, carpetaDropbox }) {
   const [form, setForm]           = useState({ nombre: '', telefono: '', sucursal: SUCURSALES[0], cantidad: '', tamanio: TAMANIOS[0], descripcion: '' })
   const [preview, setPreview]     = useState(null)
-  const [galeriaItem, setGaleriaItem] = useState(null)
   const [imageFile, setImageFile] = useState(null)
   const [subiendo, setSubiendo]   = useState(false)
   const [enviado, setEnviado]     = useState(false)
@@ -82,13 +85,12 @@ function FormBase({ tipo, emojiTipo, galeriaTipo }) {
   const handleFile = file => {
     if (!file?.type.startsWith('image/')) return
     const r = new FileReader()
-    r.onload = e => { setPreview({ url: e.target.result }); setGaleriaItem(null) }
+    r.onload = e => setPreview({ url: e.target.result, name: file.name })
     r.readAsDataURL(file)
     setImageFile(file)
   }
 
   const handleGaleriaSelect = item => {
-    setGaleriaItem(item)
     setPreview(item)
     setImageFile(null)
   }
@@ -117,6 +119,7 @@ function FormBase({ tipo, emojiTipo, galeriaTipo }) {
       `📦 *Cantidad:* ${form.cantidad} piezas`,
       tipo === 'Stiker Funda' ? '' : `📐 *Tamaño:* ${form.tamanio}`,
       `✏️ *Descripción:* ${form.descripcion}`,
+      preview?.name && !imageFile ? `🖼️ *Diseño:* ${preview.name.replace(/\.[^.]+$/, '')}` : '',
       ruta ? `📁 *Imagen en Dropbox:* ${ruta}` : imageFile ? '📎 *Imagen:* Adjuntar en este chat' : '',
     ].filter(Boolean).join('\n')
 
@@ -128,9 +131,43 @@ function FormBase({ tipo, emojiTipo, galeriaTipo }) {
   const completo = form.nombre && form.telefono && form.cantidad && form.descripcion
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-      {/* Formulario */}
-      <form onSubmit={handleSubmit} className="lg:col-span-2"
+    <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+
+      {/* Preview + galería — columna izquierda */}
+      <div className="lg:col-span-2" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <PreviewDestacado preview={preview} tipo={tipo} />
+
+        {/* Galería Dropbox */}
+        <GaleriaDropbox
+          folderPath={carpetaDropbox}
+          seleccionado={preview}
+          onSelect={handleGaleriaSelect}
+          label={tipo === 'Stiker Funda' ? 'Diseños de funda' : 'Diseños personalizados'}
+        />
+
+        {/* Upload propio */}
+        <div>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>O sube tu propio diseño</p>
+          <div
+            onClick={() => inputRef.current?.click()}
+            onDragOver={e => { e.preventDefault(); setDragging(true) }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]) }}
+            style={{ padding: '12px 14px', borderRadius: 14, cursor: 'pointer', textAlign: 'center', border: `2px dashed ${dragging ? '#D51A7A' : 'rgba(0,0,0,0.12)'}`, backgroundColor: dragging ? 'rgba(213,26,122,0.04)' : 'rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s' }}>
+            <span style={{ color: '#D51A7A', flexShrink: 0 }}><UploadIcon /></span>
+            <div style={{ textAlign: 'left' }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#333', margin: 0 }}>
+                {imageFile ? '✓ ' + imageFile.name.slice(0, 22) + (imageFile.name.length > 22 ? '…' : '') : 'Arrastra o haz clic'}
+              </p>
+              <p style={{ fontSize: 10, color: '#bbb', margin: 0 }}>PNG, JPG · Máx 10 MB</p>
+            </div>
+          </div>
+          <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
+        </div>
+      </div>
+
+      {/* Formulario — columna derecha */}
+      <form onSubmit={handleSubmit} className="lg:col-span-3"
         style={{ backgroundColor: '#fff', borderRadius: 28, border: '1px solid rgba(0,0,0,0.08)', padding: '28px 24px', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -161,74 +198,50 @@ function FormBase({ tipo, emojiTipo, galeriaTipo }) {
         )}
 
         <Field label="Descripción y características">
-          <textarea value={form.descripcion} onChange={set('descripcion')} required rows={4}
+          <textarea value={form.descripcion} onChange={set('descripcion')} required rows={5}
             placeholder={tipo === 'Stiker Funda'
               ? 'Modelo de celular, colores, logo o texto que debe llevar el stiker de funda...'
               : 'Describe el diseño: colores, estilo, texto, materiales, acabado, uso final...'}
-            style={{ ...inp, resize: 'vertical', minHeight: 110, lineHeight: 1.6 }}
+            style={{ ...inp, resize: 'vertical', minHeight: 130, lineHeight: 1.6 }}
             onFocus={fp} onBlur={bl} />
         </Field>
+
+        {/* Diseño seleccionado del catálogo */}
+        {preview && !imageFile && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: 'rgba(213,26,122,0.06)', border: '1px solid rgba(213,26,122,0.15)' }}>
+            <img src={preview.url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+            <div>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#D51A7A', margin: 0 }}>Diseño seleccionado</p>
+              <p style={{ fontSize: 12, color: '#555', margin: 0 }}>{preview.name?.replace(/\.[^.]+$/, '') || 'Diseño del catálogo'}</p>
+            </div>
+            <button type="button" onClick={() => setPreview(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#D51A7A', fontSize: 18, lineHeight: 1 }}>×</button>
+          </div>
+        )}
 
         {errorMsg && <p style={{ fontSize: 12, color: '#D51A7A', marginTop: -8 }}>⚠ {errorMsg}</p>}
 
         <button type="submit" disabled={!completo || subiendo}
-          style={{ width: '100%', padding: '13px 0', borderRadius: 999, border: 'none', fontSize: 14, fontWeight: 700, cursor: completo && !subiendo ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', background: completo && !subiendo ? 'linear-gradient(135deg,#25D366,#128C7E)' : 'rgba(0,0,0,0.07)', color: completo && !subiendo ? 'white' : 'rgba(0,0,0,0.28)', boxShadow: completo && !subiendo ? '0 6px 20px rgba(37,211,102,0.3)' : 'none' }}
+          style={{ width: '100%', padding: '14px 0', borderRadius: 999, border: 'none', fontSize: 15, fontWeight: 700, cursor: completo && !subiendo ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', background: completo && !subiendo ? 'linear-gradient(135deg,#25D366,#128C7E)' : 'rgba(0,0,0,0.07)', color: completo && !subiendo ? 'white' : 'rgba(0,0,0,0.28)', boxShadow: completo && !subiendo ? '0 6px 20px rgba(37,211,102,0.3)' : 'none' }}
           onMouseEnter={e => { if (completo && !subiendo) e.currentTarget.style.transform = 'scale(1.02)' }}
           onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
           <WhatsAppIcon />
           {subiendo ? 'Guardando imagen...' : enviado ? '¡Pedido enviado! 🎉' : 'Enviar pedido por WhatsApp'}
         </button>
       </form>
-
-      {/* Panel derecho: mockup + galería + upload */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
-          <p style={{ fontSize: 11, fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Vista previa</p>
-          <PhoneMockup preview={preview} />
-        </div>
-
-        {/* Galería desde S3 */}
-        <div style={{ width: '100%', maxWidth: 220 }}>
-          <GaleriaCatalogo
-            tipo={galeriaTipo}
-            columnas={3}
-            seleccionado={galeriaItem}
-            onSelect={handleGaleriaSelect}
-          />
-        </div>
-
-        {/* Upload de imagen propia */}
-        <div style={{ width: '100%', maxWidth: 220 }}>
-          <p style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-            O sube tu diseño
-          </p>
-          <div
-            onClick={() => inputRef.current?.click()}
-            onDragOver={e => { e.preventDefault(); setDragging(true) }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]) }}
-            style={{ padding: '14px 16px', borderRadius: 16, cursor: 'pointer', textAlign: 'center', border: `2px dashed ${dragging ? '#D51A7A' : 'rgba(0,0,0,0.14)'}`, backgroundColor: dragging ? 'rgba(213,26,122,0.04)' : 'rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.15s' }}>
-            <span style={{ color: '#D51A7A' }}><UploadIcon /></span>
-            <p style={{ fontSize: 11, fontWeight: 600, color: '#333' }}>
-              {imageFile ? '✓ ' + imageFile.name.slice(0, 20) + (imageFile.name.length > 20 ? '…' : '') : 'Arrastra o haz clic'}
-            </p>
-            <p style={{ fontSize: 10, color: '#bbb' }}>PNG, JPG · Máx 10 MB</p>
-          </div>
-          <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
-        </div>
-      </div>
     </div>
   )
 }
 
 const SUB_TABS = [
-  { id: 'funda',         label: 'Stiker Funda para Celular', emoji: '📱', tipo: 'Stiker Funda',         galeriaTipo: GALERIA_TIPO.funda },
-  { id: 'personalizado', label: 'Stiker Personalizado',      emoji: '✂️',  tipo: 'Stiker Personalizado', galeriaTipo: GALERIA_TIPO.personalizado },
+  { id: 'funda',         label: 'Stiker Funda para Celular', emoji: '📱', tipo: 'Stiker Funda',         configKey: 'fundas' },
+  { id: 'personalizado', label: 'Stiker Personalizado',      emoji: '✂️',  tipo: 'Stiker Personalizado', configKey: 'personalizados' },
 ]
 
 export default function PedidosStikers() {
   const [subTab, setSubTab] = useState('funda')
+  const { config } = useSiteConfig()
   const tab = SUB_TABS.find(t => t.id === subTab)
+  const carpeta = config.dropboxCatalogos?.[tab.configKey] || ''
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
@@ -251,7 +264,7 @@ export default function PedidosStikers() {
         })}
       </div>
 
-      <FormBase key={tab.id} tipo={tab.tipo} emojiTipo={tab.emoji} galeriaTipo={tab.galeriaTipo} />
+      <FormBase key={tab.id} tipo={tab.tipo} emojiTipo={tab.emoji} carpetaDropbox={carpeta} />
     </section>
   )
 }

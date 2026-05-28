@@ -10,7 +10,7 @@ const SLUG_FOLDER = {
   'torreon':        'Torreon',
 }
 
-async function getAccessToken() {
+export async function getAccessToken() {
   const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
