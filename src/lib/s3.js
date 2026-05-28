@@ -74,9 +74,9 @@ export async function loadGaleriaIndex(tipo) {
 
 async function saveGaleriaIndex(tipo, filenames) {
   await s3.send(new PutObjectCommand({
-    Bucket: BUCKET,
-    Key: `galeria/${tipo}/index.json`,
-    Body: JSON.stringify(filenames),
+    Bucket:      BUCKET,
+    Key:         `galeria/${tipo}/index.json`,
+    Body:        new TextEncoder().encode(JSON.stringify(filenames)),
     ContentType: 'application/json',
   }))
 }

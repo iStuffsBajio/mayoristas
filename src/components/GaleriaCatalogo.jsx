@@ -32,7 +32,7 @@ export default function GaleriaCatalogo({ tipo, seleccionado, onSelect, columnas
       setImagenes(prev => [...prev, item])
     } catch (e) {
       console.error('[Galería] Error subiendo:', e)
-      alert('Error al subir la imagen.')
+      alert('Error al subir la imagen:\n' + (e?.message || String(e)))
     } finally {
       setSubiendo(false)
     }
