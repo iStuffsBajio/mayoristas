@@ -1,29 +1,14 @@
 import { useState, useRef } from 'react'
 import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
+import GaleriaCatalogo from './GaleriaCatalogo'
 
 const WHATSAPP   = '5213315381571'
 const SUCURSALES = ['León', 'San Luis Potosí', 'Aguascalientes', 'Torreón']
 const TAMANIOS   = ['Pequeño (5×5 cm)', 'Mediano (10×10 cm)', 'Grande (15×15 cm)', 'Personalizado']
 const SLUG_MAP   = { 'León': 'leon', 'San Luis Potosí': 'san-luis', 'Aguascalientes': 'aguascalientes', 'Torreón': 'torreon' }
 
-// Galería de ejemplos. Para usar fotos reales reemplaza `url: null` con la URL de tu imagen.
-const GALERIA_FUNDA = [
-  { id: 1, url: null, gradient: 'linear-gradient(135deg,#667eea,#764ba2)', label: 'Abstracto' },
-  { id: 2, url: null, gradient: 'linear-gradient(135deg,#f093fb,#f5576c)', label: 'Floral' },
-  { id: 3, url: null, gradient: 'linear-gradient(135deg,#4facfe,#00f2fe)', label: 'Océano' },
-  { id: 4, url: null, gradient: 'linear-gradient(135deg,#43e97b,#38f9d7)', label: 'Natural' },
-  { id: 5, url: null, gradient: 'linear-gradient(135deg,#fa709a,#fee140)', label: 'Sunset' },
-  { id: 6, url: null, gradient: 'linear-gradient(135deg,#a18cd1,#fbc2eb)', label: 'Pastel' },
-]
-
-const GALERIA_PERSONALIZADO = [
-  { id: 1, url: null, gradient: 'linear-gradient(135deg,#0f2027,#203a43,#2c5364)', label: 'Corporativo' },
-  { id: 2, url: null, gradient: 'linear-gradient(135deg,#ff6a00,#ee0979)', label: 'Energía' },
-  { id: 3, url: null, gradient: 'linear-gradient(135deg,#11998e,#38ef7d)', label: 'Eco' },
-  { id: 4, url: null, gradient: 'linear-gradient(135deg,#fc5c7d,#6a82fb)', label: 'Pop' },
-  { id: 5, url: null, gradient: 'linear-gradient(135deg,#f7971e,#ffd200)', label: 'Dorado' },
-  { id: 6, url: null, gradient: 'linear-gradient(135deg,#373b44,#4286f4)', label: 'Noche' },
-]
+// Tipo de galería por sub-tab
+const GALERIA_TIPO = { funda: 'stiker-fundas', personalizado: 'personalizados' }
 
 const WhatsAppIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
@@ -40,45 +25,7 @@ const UploadIcon = () => (
   </svg>
 )
 
-function GaleriaEjemplos({ items, seleccionado, onSelect }) {
-  return (
-    <div style={{ width: '100%' }}>
-      <p style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
-        Ejemplos — toca para previsualizar
-      </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-        {items.map(item => {
-          const activo = seleccionado === item.id
-          return (
-            <button key={item.id} type="button" onClick={() => onSelect(activo ? null : item)}
-              style={{ position: 'relative', aspectRatio: '1', borderRadius: 14, overflow: 'hidden', border: activo ? '2.5px solid #D51A7A' : '2.5px solid transparent', cursor: 'pointer', padding: 0, background: 'none', outline: 'none', transition: 'all 0.15s', boxShadow: activo ? '0 0 0 3px rgba(213,26,122,0.2)' : 'none' }}>
-              {item.url
-                ? <img src={item.url} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <div style={{ width: '100%', height: '100%', background: item.gradient }} />
-              }
-              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 0', background: 'rgba(0,0,0,0.38)', backdropFilter: 'blur(4px)' }}>
-                <span style={{ fontSize: 9, fontWeight: 700, color: 'white', letterSpacing: '0.05em' }}>{item.label}</span>
-              </div>
-              {activo && (
-                <div style={{ position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: '50%', background: '#D51A7A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="white"><path d="M2 5l2.5 2.5L8 3" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/></svg>
-                </div>
-              )}
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 function PhoneMockup({ preview }) {
-  const bg = preview
-    ? preview.url
-      ? null
-      : preview.gradient
-    : null
-
   return (
     <div style={{ position: 'relative', width: 180, height: 360 }}>
       {preview && (
@@ -88,9 +35,7 @@ function PhoneMockup({ preview }) {
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg,#2e2e2e,#111)', borderRadius: 40, border: '2.5px solid rgba(255,255,255,0.12)', boxShadow: '0 30px 60px rgba(0,0,0,0.2)' }} />
         <div style={{ position: 'absolute', top: 8, left: 8, right: 8, bottom: 8, borderRadius: 34, overflow: 'hidden', backgroundColor: '#000' }}>
           {preview
-            ? preview.url
-              ? <img src={preview.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#fff' }} />
-              : <div style={{ width: '100%', height: '100%', background: bg }} />
+            ? <img src={preview.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             : <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'linear-gradient(135deg,#f7f8fa,#ececec)' }}>
                 <span style={{ fontSize: 32 }}>🏷️</span>
                 <span style={{ fontSize: 10, color: '#aaa', fontWeight: 600, textAlign: 'center', padding: '0 12px' }}>Selecciona un ejemplo o sube tu imagen</span>
@@ -121,39 +66,31 @@ const inp = {
 const fp = e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }
 const bl = e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }
 
-function FormBase({ tipo, emojiTipo, galeria }) {
-  const [form, setForm] = useState({ nombre: '', telefono: '', sucursal: SUCURSALES[0], cantidad: '', tamanio: TAMANIOS[0], descripcion: '' })
-  const [preview, setPreview]         = useState(null)   // { id, url, gradient, label } | null
-  const [galeriaId, setGaleriaId]     = useState(null)
-  const [imageFile, setImageFile]     = useState(null)
-  const [subiendo, setSubiendo]       = useState(false)
-  const [enviado, setEnviado]         = useState(false)
-  const [errorMsg, setErrorMsg]       = useState('')
-  const [dragging, setDragging]       = useState(false)
-  const inputRef                      = useRef(null)
+function FormBase({ tipo, emojiTipo, galeriaTipo }) {
+  const [form, setForm]           = useState({ nombre: '', telefono: '', sucursal: SUCURSALES[0], cantidad: '', tamanio: TAMANIOS[0], descripcion: '' })
+  const [preview, setPreview]     = useState(null)
+  const [galeriaItem, setGaleriaItem] = useState(null)
+  const [imageFile, setImageFile] = useState(null)
+  const [subiendo, setSubiendo]   = useState(false)
+  const [enviado, setEnviado]     = useState(false)
+  const [errorMsg, setErrorMsg]   = useState('')
+  const [dragging, setDragging]   = useState(false)
+  const inputRef                  = useRef(null)
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
   const handleFile = file => {
     if (!file?.type.startsWith('image/')) return
     const r = new FileReader()
-    r.onload = e => {
-      setPreview({ url: e.target.result, gradient: null })
-      setGaleriaId(null)
-    }
+    r.onload = e => { setPreview({ url: e.target.result }); setGaleriaItem(null) }
     r.readAsDataURL(file)
     setImageFile(file)
   }
 
   const handleGaleriaSelect = item => {
-    if (!item) {
-      setGaleriaId(null)
-      setPreview(null)
-    } else {
-      setGaleriaId(item.id)
-      setPreview(item)
-      setImageFile(null)
-    }
+    setGaleriaItem(item)
+    setPreview(item)
+    setImageFile(null)
   }
 
   const handleSubmit = async e => {
@@ -245,17 +182,22 @@ function FormBase({ tipo, emojiTipo, galeria }) {
 
       {/* Panel derecho: mockup + galería + upload */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: '100%' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>Vista previa</p>
           <PhoneMockup preview={preview} />
         </div>
 
-        {/* Galería de ejemplos */}
+        {/* Galería desde S3 */}
         <div style={{ width: '100%', maxWidth: 220 }}>
-          <GaleriaEjemplos items={galeria} seleccionado={galeriaId} onSelect={handleGaleriaSelect} />
+          <GaleriaCatalogo
+            tipo={galeriaTipo}
+            columnas={3}
+            seleccionado={galeriaItem}
+            onSelect={handleGaleriaSelect}
+          />
         </div>
 
-        {/* Upload */}
+        {/* Upload de imagen propia */}
         <div style={{ width: '100%', maxWidth: 220 }}>
           <p style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
             O sube tu diseño
@@ -280,8 +222,8 @@ function FormBase({ tipo, emojiTipo, galeria }) {
 }
 
 const SUB_TABS = [
-  { id: 'funda',         label: 'Stiker Funda para Celular', emoji: '📱', tipo: 'Stiker Funda',         galeria: GALERIA_FUNDA },
-  { id: 'personalizado', label: 'Stiker Personalizado',      emoji: '✂️',  tipo: 'Stiker Personalizado', galeria: GALERIA_PERSONALIZADO },
+  { id: 'funda',         label: 'Stiker Funda para Celular', emoji: '📱', tipo: 'Stiker Funda',         galeriaTipo: GALERIA_TIPO.funda },
+  { id: 'personalizado', label: 'Stiker Personalizado',      emoji: '✂️',  tipo: 'Stiker Personalizado', galeriaTipo: GALERIA_TIPO.personalizado },
 ]
 
 export default function PedidosStikers() {
@@ -293,7 +235,7 @@ export default function PedidosStikers() {
       <div className="mb-8">
         <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#D51A7A' }}>Stickers Personalizados</p>
         <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#0A0A0A' }}>Pedidos para tus clientes</h2>
-        <p className="text-sm" style={{ color: '#888' }}>Selecciona un ejemplo o sube la imagen de referencia y envía el pedido por WhatsApp.</p>
+        <p className="text-sm" style={{ color: '#888' }}>Selecciona un diseño del catálogo o sube la imagen de referencia y envía el pedido por WhatsApp.</p>
       </div>
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 28, flexWrap: 'wrap' }}>
@@ -309,7 +251,7 @@ export default function PedidosStikers() {
         })}
       </div>
 
-      <FormBase key={tab.id} tipo={tab.tipo} emojiTipo={tab.emoji} galeria={tab.galeria} />
+      <FormBase key={tab.id} tipo={tab.tipo} emojiTipo={tab.emoji} galeriaTipo={tab.galeriaTipo} />
     </section>
   )
 }

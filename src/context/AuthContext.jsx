@@ -62,8 +62,10 @@ export function AuthProvider({ children }) {
 
   const branchName = session ? BRANCH_NAMES[session.branch] || session.branch : null
 
+  const isAdmin = !!(session?.isAdmin)
+
   return (
-    <AuthContext.Provider value={{ session, login, logout, canUpload, branchName }}>
+    <AuthContext.Provider value={{ session, login, logout, canUpload, branchName, isAdmin }}>
       {children}
     </AuthContext.Provider>
   )
