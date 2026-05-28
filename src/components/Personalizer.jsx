@@ -1,5 +1,17 @@
 import { useState, useRef } from 'react'
 
+// Galería de ejemplos de fundas. Para usar fotos reales reemplaza `url: null` con la URL de tu imagen.
+const GALERIA = [
+  { id: 1, url: null, gradient: 'linear-gradient(135deg,#667eea,#764ba2)', label: 'Abstracto' },
+  { id: 2, url: null, gradient: 'linear-gradient(135deg,#f093fb,#f5576c)', label: 'Floral' },
+  { id: 3, url: null, gradient: 'linear-gradient(135deg,#4facfe,#00f2fe)', label: 'Océano' },
+  { id: 4, url: null, gradient: 'linear-gradient(135deg,#43e97b,#38f9d7)', label: 'Natural' },
+  { id: 5, url: null, gradient: 'linear-gradient(135deg,#fa709a,#fee140)', label: 'Sunset' },
+  { id: 6, url: null, gradient: 'linear-gradient(135deg,#a18cd1,#fbc2eb)', label: 'Pastel' },
+  { id: 7, url: null, gradient: 'linear-gradient(135deg,#0f2027,#203a43,#2c5364)', label: 'Noche' },
+  { id: 8, url: null, gradient: 'linear-gradient(135deg,#ff6a00,#ee0979)', label: 'Fuego' },
+]
+
 const UploadIcon = () => (
   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -14,70 +26,112 @@ const SparkleIcon = () => (
   </svg>
 )
 
-function PhoneMockup({ imageUrl }) {
+function GaleriaEjemplos({ seleccionado, onSelect }) {
+  return (
+    <div>
+      <p style={{ fontSize: 11, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+        Ejemplos de diseños
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        {GALERIA.map(item => {
+          const activo = seleccionado === item.id
+          return (
+            <button key={item.id} type="button" onClick={() => onSelect(activo ? null : item)}
+              style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'hidden', border: activo ? '2.5px solid #D51A7A' : '2.5px solid transparent', cursor: 'pointer', padding: 0, background: 'none', outline: 'none', transition: 'all 0.15s', boxShadow: activo ? '0 0 0 3px rgba(213,26,122,0.2)' : 'none' }}>
+              {item.url
+                ? <img src={item.url} alt={item.label} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', background: item.gradient }} />
+              }
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '3px 0', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
+                <span style={{ fontSize: 8, fontWeight: 700, color: 'white', letterSpacing: '0.04em' }}>{item.label}</span>
+              </div>
+              {activo && (
+                <div style={{ position: 'absolute', top: 3, right: 3, width: 16, height: 16, borderRadius: '50%', background: '#D51A7A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none"><path d="M1.5 4.5l2 2L7.5 2" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </div>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function PhoneMockup({ preview }) {
   return (
     <div style={{ position: 'relative', width: 200, height: 400, margin: '0 auto' }}>
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, #2e2e2e, #111)', borderRadius: 42, border: '2.5px solid rgba(255,255,255,0.12)', boxShadow: '0 40px 80px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)' }} />
-      <div style={{ position: 'absolute', top: 8, left: 8, right: 8, bottom: 8, borderRadius: 36, overflow: 'hidden', backgroundColor: '#000' }}>
-        {imageUrl ? (
-          <img src={imageUrl} alt="Preview funda" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-        ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'linear-gradient(135deg, #0a0a0a, #181818)' }}>
-            <span style={{ fontSize: 52, fontWeight: 900, lineHeight: 1, background: 'linear-gradient(135deg, #00BCF2, #8DC63F)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-              iS
-            </span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontWeight: 500 }}>Tu diseño aquí</span>
-          </div>
+      {preview && (
+        <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle, rgba(213,26,122,0.18) 0%, transparent 70%)', filter: 'blur(32px)', transform: 'scale(1.3)', zIndex: 0 }} />
+      )}
+      <div style={{ position: 'relative', zIndex: 1, width: 200, height: 400 }}>
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, #2e2e2e, #111)', borderRadius: 42, border: '2.5px solid rgba(255,255,255,0.12)', boxShadow: '0 40px 80px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08)' }} />
+        <div style={{ position: 'absolute', top: 8, left: 8, right: 8, bottom: 8, borderRadius: 36, overflow: 'hidden', backgroundColor: '#000' }}>
+          {preview
+            ? preview.url
+              ? <img src={preview.url} alt="Preview funda" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <div style={{ width: '100%', height: '100%', background: preview.gradient }} />
+            : <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'linear-gradient(135deg, #0a0a0a, #181818)' }}>
+                <span style={{ fontSize: 52, fontWeight: 900, lineHeight: 1, background: 'linear-gradient(135deg, #00BCF2, #8DC63F)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>iS</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)', fontWeight: 500 }}>Selecciona un ejemplo</span>
+              </div>
+          }
+        </div>
+        <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', width: 88, height: 26, backgroundColor: '#000', borderRadius: '0 0 20px 20px', zIndex: 10 }} />
+        <div style={{ position: 'absolute', left: -4, top: 80,  width: 4, height: 28, backgroundColor: '#2a2a2a', borderRadius: '4px 0 0 4px' }} />
+        <div style={{ position: 'absolute', left: -4, top: 120, width: 4, height: 44, backgroundColor: '#2a2a2a', borderRadius: '4px 0 0 4px' }} />
+        <div style={{ position: 'absolute', left: -4, top: 176, width: 4, height: 44, backgroundColor: '#2a2a2a', borderRadius: '4px 0 0 4px' }} />
+        <div style={{ position: 'absolute', right: -4, top: 110, width: 4, height: 72, backgroundColor: '#2a2a2a', borderRadius: '0 4px 4px 0' }} />
+        {preview && (
+          <div style={{ position: 'absolute', inset: 0, borderRadius: 42, background: 'linear-gradient(to bottom, transparent 55%, rgba(0,0,0,0.35) 100%)', pointerEvents: 'none' }} />
         )}
       </div>
-      <div style={{ position: 'absolute', top: 16, left: '50%', transform: 'translateX(-50%)', width: 88, height: 26, backgroundColor: '#000', borderRadius: '0 0 20px 20px', zIndex: 10 }} />
-      <div style={{ position: 'absolute', left: -4, top: 80,  width: 4, height: 28, backgroundColor: '#2a2a2a', borderRadius: '4px 0 0 4px' }} />
-      <div style={{ position: 'absolute', left: -4, top: 120, width: 4, height: 44, backgroundColor: '#2a2a2a', borderRadius: '4px 0 0 4px' }} />
-      <div style={{ position: 'absolute', left: -4, top: 176, width: 4, height: 44, backgroundColor: '#2a2a2a', borderRadius: '4px 0 0 4px' }} />
-      <div style={{ position: 'absolute', right: -4, top: 110, width: 4, height: 72, backgroundColor: '#2a2a2a', borderRadius: '0 4px 4px 0' }} />
-      {imageUrl && (
-        <div style={{ position: 'absolute', inset: 0, borderRadius: 42, background: 'linear-gradient(to bottom, transparent 55%, rgba(0,0,0,0.35) 100%)', pointerEvents: 'none' }} />
-      )}
     </div>
   )
 }
 
 export default function Personalizer() {
-  const [imageUrl, setImageUrl] = useState(null)
-  const [dragging, setDragging] = useState(false)
-  const inputRef = useRef(null)
+  const [preview, setPreview]     = useState(null)
+  const [galeriaId, setGaleriaId] = useState(null)
+  const [dragging, setDragging]   = useState(false)
+  const inputRef                  = useRef(null)
 
-  const handleFile = (file) => {
+  const handleFile = file => {
     if (!file || !file.type.startsWith('image/')) return
     const reader = new FileReader()
-    reader.onload = e => setImageUrl(e.target.result)
+    reader.onload = e => {
+      setPreview({ url: e.target.result, gradient: null })
+      setGaleriaId(null)
+    }
     reader.readAsDataURL(file)
+  }
+
+  const handleGaleriaSelect = item => {
+    if (!item) {
+      setGaleriaId(null)
+      setPreview(null)
+    } else {
+      setGaleriaId(item.id)
+      setPreview(item)
+    }
   }
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
       <div
         className="relative overflow-hidden p-8 sm:p-12"
-        style={{
-          backgroundColor: '#f7f8fa',
-          border: '1px solid rgba(0,0,0,0.08)',
-          borderRadius: '32px',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.05)',
-        }}
-      >
-        {/* Ambient glows */}
+        style={{ backgroundColor: '#f7f8fa', border: '1px solid rgba(0,0,0,0.08)', borderRadius: '32px', boxShadow: '0 4px 24px rgba(0,0,0,0.05)' }}>
+
         <div style={{ position: 'absolute', top: 0, right: 0, width: 360, height: 360, background: 'radial-gradient(circle at top right, rgba(213,26,122,0.08) 0%, transparent 65%)', pointerEvents: 'none' }} />
         <div style={{ position: 'absolute', bottom: 0, left: 0, width: 320, height: 320, background: 'radial-gradient(circle at bottom left, rgba(0,188,242,0.07) 0%, transparent 65%)', pointerEvents: 'none' }} />
 
-        <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+        <div className="relative grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-start">
 
           {/* Left */}
           <div>
             <div className="flex items-center gap-2 mb-5">
               <span style={{ color: '#D51A7A' }}><SparkleIcon /></span>
-              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: '#D51A7A' }}>
-                iStuffsAutodesign
-              </span>
+              <span className="text-xs font-bold tracking-widest uppercase" style={{ color: '#D51A7A' }}>iStuffsAutodesign</span>
             </div>
 
             <h2 className="text-3xl sm:text-4xl font-black mb-4 leading-tight" style={{ color: '#0A0A0A' }}>
@@ -87,31 +141,33 @@ export default function Personalizer() {
               </span>
             </h2>
 
-            <p className="text-base mb-8 leading-relaxed" style={{ color: 'rgba(0,0,0,0.5)' }}>
-              Sube tu foto favorita y previsualiza cómo quedará en tu funda.
+            <p className="text-base mb-6 leading-relaxed" style={{ color: 'rgba(0,0,0,0.5)' }}>
+              Explora diseños de ejemplo o sube tu foto favorita para previsualizar cómo quedará en tu funda.
               Impresión UV de alta calidad con colores que no se desvanecen.
             </p>
 
+            {/* Galería */}
+            <div className="mb-6">
+              <GaleriaEjemplos seleccionado={galeriaId} onSelect={handleGaleriaSelect} />
+            </div>
+
             {/* Drop zone */}
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+              O sube tu propio diseño
+            </p>
             <div
               onClick={() => inputRef.current?.click()}
               onDragOver={e => { e.preventDefault(); setDragging(true) }}
               onDragLeave={() => setDragging(false)}
               onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]) }}
-              className="flex flex-col items-center justify-center gap-4 py-10 px-6 text-center cursor-pointer transition-all"
-              style={{
-                border: `2px dashed ${dragging ? '#00BCF2' : 'rgba(0,0,0,0.14)'}`,
-                borderRadius: '24px',
-                backgroundColor: dragging ? 'rgba(0,188,242,0.04)' : 'rgba(255,255,255,0.8)',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <div className="p-4 rounded-2xl" style={{ background: 'linear-gradient(135deg, rgba(0,188,242,0.1), rgba(141,198,63,0.1))', color: '#00BCF2' }}>
+              className="flex flex-col items-center justify-center gap-4 py-8 px-6 text-center cursor-pointer"
+              style={{ border: `2px dashed ${dragging ? '#00BCF2' : 'rgba(0,0,0,0.14)'}`, borderRadius: '24px', backgroundColor: dragging ? 'rgba(0,188,242,0.04)' : 'rgba(255,255,255,0.8)', transition: 'all 0.2s ease' }}>
+              <div className="p-3 rounded-2xl" style={{ background: 'linear-gradient(135deg, rgba(0,188,242,0.1), rgba(141,198,63,0.1))', color: '#00BCF2' }}>
                 <UploadIcon />
               </div>
               <div>
                 <p className="font-semibold mb-1.5" style={{ color: '#0A0A0A' }}>
-                  {imageUrl ? '¡Foto cargada! Haz clic para cambiar' : 'Arrastra tu foto aquí'}
+                  {preview?.url && !preview?.gradient ? '¡Foto cargada! Haz clic para cambiar' : 'Arrastra tu foto aquí'}
                 </p>
                 <p className="text-sm" style={{ color: 'rgba(0,0,0,0.38)' }}>
                   o haz clic para seleccionar · PNG, JPG, WEBP · Máx 10 MB
@@ -122,32 +178,17 @@ export default function Personalizer() {
 
             <button
               className="mt-5 w-full py-4 font-semibold text-base transition-all"
-              disabled={!imageUrl}
-              style={{
-                background: imageUrl ? 'linear-gradient(135deg, #D51A7A, #FF6B1A)' : 'rgba(0,0,0,0.05)',
-                borderRadius: '999px',
-                border: imageUrl ? 'none' : '1px solid rgba(0,0,0,0.1)',
-                color: imageUrl ? 'white' : 'rgba(0,0,0,0.3)',
-                cursor: imageUrl ? 'pointer' : 'default',
-                boxShadow: imageUrl ? '0 8px 28px rgba(213,26,122,0.25)' : 'none',
-              }}
-              onMouseEnter={e => imageUrl && (e.currentTarget.style.transform = 'scale(1.02)')}
-              onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
-            >
-              {imageUrl ? '✦ Ordenar con mi diseño' : 'Sube una foto para continuar'}
+              disabled={!preview}
+              style={{ background: preview ? 'linear-gradient(135deg, #D51A7A, #FF6B1A)' : 'rgba(0,0,0,0.05)', borderRadius: '999px', border: preview ? 'none' : '1px solid rgba(0,0,0,0.1)', color: preview ? 'white' : 'rgba(0,0,0,0.3)', cursor: preview ? 'pointer' : 'default', boxShadow: preview ? '0 8px 28px rgba(213,26,122,0.25)' : 'none' }}
+              onMouseEnter={e => preview && (e.currentTarget.style.transform = 'scale(1.02)')}
+              onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
+              {preview ? '✦ Ordenar con mi diseño' : 'Elige un ejemplo o sube una foto para continuar'}
             </button>
           </div>
 
           {/* Right: Phone */}
           <div className="flex items-center justify-center">
-            <div style={{ position: 'relative' }}>
-              {imageUrl && (
-                <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(circle, rgba(213,26,122,0.18) 0%, transparent 70%)', filter: 'blur(32px)', transform: 'scale(1.3)', zIndex: 0 }} />
-              )}
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <PhoneMockup imageUrl={imageUrl} />
-              </div>
-            </div>
+            <PhoneMockup preview={preview} />
           </div>
         </div>
       </div>
