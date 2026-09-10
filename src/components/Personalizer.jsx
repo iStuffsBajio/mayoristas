@@ -202,7 +202,8 @@ export default function Personalizer() {
       '',
       `*Sucursal:* ${sucursal.nombre}`,
       `*Modelo:* ${modelo.producto}`,
-      `*Existencia al momento del pedido:* ${modelo.stock}`,
+      // La existencia no se manda: la sucursal consulta su propio sistema y el
+      // dato del respaldo puede estar desfasado para cuando lea el mensaje.
       '',
       `*Cliente:* ${form.nombre}`,
       `*Cantidad:* ${form.cantidad} pieza(s)`,
