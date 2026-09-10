@@ -125,7 +125,7 @@ export default function Personalizer() {
   const [preview, setPreview]     = useState(null)
   const [imageFile, setImageFile] = useState(null)
   const [dragging, setDragging]   = useState(false)
-  const [form, setForm]           = useState({ nombre: '', telefono: '', cantidad: '1', mayorista: false, registro: '', notas: '' })
+  const [form, setForm]           = useState({ nombre: '', cantidad: '1', mayorista: false, registro: '', notas: '' })
   const [subiendo, setSubiendo]   = useState(false)
   const [enviado, setEnviado]     = useState(false)
   const [aviso, setAviso]         = useState('')
@@ -178,7 +178,7 @@ export default function Personalizer() {
   const numeroSucursal = telefonoWhatsApp(config.whatsapp?.[sucursal.slug]) || telefonoWhatsApp(config.whatsapp?.general)
   const usaGeneral     = !telefonoWhatsApp(config.whatsapp?.[sucursal.slug])
 
-  const completo = modelo && preview && form.nombre && form.telefono && form.cantidad && numeroSucursal
+  const completo = modelo && preview && form.nombre && form.cantidad && numeroSucursal
 
   const handleSubmit = async e => {
     e.preventDefault()
@@ -204,7 +204,6 @@ export default function Personalizer() {
       `📦 *Existencia al momento del pedido:* ${modelo.stock}`,
       '',
       `👤 *Cliente:* ${form.nombre}`,
-      `📞 *Teléfono:* ${form.telefono}`,
       `🔢 *Cantidad:* ${form.cantidad} pieza(s)`,
       form.mayorista
         ? `🏷️ *Mayorista:* Sí${form.registro.trim() ? ` · Registro: ${form.registro.trim()}` : ''}`
@@ -367,16 +366,12 @@ export default function Personalizer() {
           {/* Paso 4 — Datos y envío */}
           <Paso n={4} titulo="Tus datos y envío del pedido" hecho={enviado} ultimo>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {/* El teléfono no se pide: el pedido llega por WhatsApp, así que la
+                  sucursal ya ve desde qué número escribe el cliente. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Nombre del cliente">
                   <input value={form.nombre} onChange={set('nombre')} placeholder="Ej. Juan Pérez" style={inp} onFocus={fp} onBlur={bl} />
                 </Field>
-                <Field label="Teléfono de contacto">
-                  <input value={form.telefono} onChange={set('telefono')} placeholder="477 123 4567" type="tel" style={inp} onFocus={fp} onBlur={bl} />
-                </Field>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Field label="Cantidad">
                   <input value={form.cantidad} onChange={set('cantidad')} type="number" min="1" style={inp} onFocus={fp} onBlur={bl} />
                 </Field>
@@ -430,7 +425,7 @@ export default function Personalizer() {
 
               {!completo && !enviado && (
                 <p style={{ fontSize: 11, color: '#bbb', textAlign: 'center', marginTop: -6 }}>
-                  Completa modelo, diseño, nombre y teléfono para enviar.
+                  Completa modelo, diseño y nombre para enviar.
                 </p>
               )}
             </div>
