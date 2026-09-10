@@ -39,3 +39,17 @@ export function armarMensaje(lineas) {
 export function enlaceWhatsApp(numero, mensaje) {
   return `https://wa.me/${numero}?text=${encodeURIComponent(sinEmojis(mensaje))}`
 }
+
+/**
+ * De la ruta completa que devuelve Dropbox deja solo la carpeta de la sucursal.
+ * La ruta larga ocupaba tres renglones en el chat y no aportaba nada: el
+ * personal ya sabe dónde está la carpeta de pedidos.
+ *
+ *   /Espacio familiar/IMPRESORA UV/7 PEDIDOS PAGINA WEB/Leon/2026-09-10_Juan.jpg
+ *   → "Leon"
+ */
+export function carpetaDeRuta(ruta) {
+  if (!ruta) return ''
+  const partes = String(ruta).split('/').filter(Boolean)
+  return partes.length >= 2 ? partes[partes.length - 2] : ''
+}

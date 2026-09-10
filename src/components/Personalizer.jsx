@@ -4,7 +4,7 @@ import { useSiteConfig } from '../context/SiteConfigContext'
 import { loadInventarioJson, s3Configured } from '../lib/s3'
 import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
 import { SUCURSALES, telefonoWhatsApp } from '../lib/sucursales'
-import { armarMensaje, enlaceWhatsApp } from '../lib/whatsapp'
+import { armarMensaje, enlaceWhatsApp, carpetaDeRuta } from '../lib/whatsapp'
 
 // ── Iconos ────────────────────────────────────────────────────────────────────
 
@@ -213,7 +213,7 @@ export default function Personalizer() {
       form.notas.trim() ? `*Notas:* ${form.notas.trim()}` : null,
       '',
       preview?.name && !imageFile ? `*Diseño del catálogo:* ${preview.name.replace(/\.[^.]+$/, '')}` : null,
-      ruta ? `*Imagen en Dropbox:* ${ruta}` : imageFile ? '*Imagen:* Adjuntar en este chat' : null,
+      ruta ? `*Imagen guardada en la carpeta:* ${carpetaDeRuta(ruta)}` : imageFile ? '*Imagen:* Adjuntar en este chat' : null,
     ])
 
     window.open(enlaceWhatsApp(numeroSucursal, msg), '_blank')

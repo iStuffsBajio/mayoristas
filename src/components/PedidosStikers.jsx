@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
 import { useSiteConfig } from '../context/SiteConfigContext'
 import { telefonoWhatsApp } from '../lib/sucursales'
+import { armarMensaje, enlaceWhatsApp, carpetaDeRuta } from '../lib/whatsapp'
 import GaleriaDropbox from './GaleriaDropbox'
 
 const SUCURSALES = ['León', 'San Luis Potosí', 'Aguascalientes', 'Torreón']
@@ -121,7 +122,7 @@ function FormBase({ tipo, emojiTipo, carpetaDropbox }) {
       tipo === 'Stiker Funda' ? null : `*Tamaño:* ${form.tamanio}`,
       `*Descripción:* ${form.descripcion}`,
       preview?.name && !imageFile ? `*Diseño:* ${preview.name.replace(/.[^.]+$/, '')}` : null,
-      ruta ? `*Imagen en Dropbox:* ${ruta}` : imageFile ? '*Imagen:* Adjuntar en este chat' : null,
+      ruta ? `*Imagen guardada en la carpeta:* ${carpetaDeRuta(ruta)}` : imageFile ? '*Imagen:* Adjuntar en este chat' : null,
     ])
 
     const slug    = SLUG_MAP[form.sucursal]
