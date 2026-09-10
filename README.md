@@ -16,3 +16,23 @@ cae al `inventario.xlsx` de la carga manual.
 - Ejecución manual: `node scripts/sincronizar-inventarios.js` (agrega `--dry-run`
   para no subir a S3, o `--sucursal=leon` para una sola).
 - Para activar Torreón, agrégala a `SUCURSALES` dentro del script.
+
+### Protección de los datos
+
+El script no reemplaza un inventario bueno a ciegas. Antes de publicar:
+
+- **Guarda copia fechada** del inventario que va a reemplazar, en
+  `inventarios/<slug>/historico/<fecha>.json`. Para volver atrás, se copia ese
+  archivo sobre `inventario.json`.
+- **Rechaza respaldos incompletos**: menos de 50 productos se considera un
+  respaldo truncado o a medio sincronizar.
+- **Rechaza caídas bruscas**: si el inventario baja más de 40% contra lo ya
+  publicado, se detiene y avisa en el registro.
+- Si la caída es real (por ejemplo, se dio de baja media tienda), se publica con
+  `node scripts/sincronizar-inventarios.js --forzar`.
+
+Un fallo en una sucursal no detiene a las demás: cada una se procesa aparte y el
+registro indica cuál falló y por qué.
+
+Pendiente recomendado: activar **versionado del bucket** de S3 desde la consola de
+AWS. La llave que usa la página es de solo objetos y no puede hacerlo.

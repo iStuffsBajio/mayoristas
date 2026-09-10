@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 
 const run = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -55,7 +55,15 @@ ORDER BY p.DESCRIPCION;
 
 const args    = process.argv.slice(2)
 const DRY_RUN = args.includes('--dry-run')
+const FORZAR  = args.includes('--forzar')   // ignora las validaciones de seguridad
 const SOLO    = args.find(a => a.startsWith('--sucursal='))?.split('=')[1]
+
+// ── Protección de datos ────────────────────────────────────────────────────
+// Un respaldo truncado o a medio sincronizar produciría un inventario casi
+// vacío que reemplazaría al bueno. Estas reglas lo impiden.
+
+const MIN_PRODUCTOS = 50   // menos de esto se considera respaldo incompleto
+const MAX_CAIDA_PCT = 40   // caída máxima aceptable contra lo ya publicado
 
 const BUCKET = process.env.VITE_S3_BUCKET
 const REGION = process.env.VITE_S3_REGION || 'us-east-1'
@@ -126,12 +134,52 @@ async function consultar(fdb, workDir) {
   return filas
 }
 
-async function subirJson(slug, json) {
+// Lee el inventario.json publicado actualmente. Devuelve null si aún no existe.
+async function jsonPublicado(slug) {
+  try {
+    const res = await s3.send(new GetObjectCommand({
+      Bucket: BUCKET,
+      Key:    `inventarios/${slug}/inventario.json`,
+    }))
+    return JSON.parse(await res.Body.transformToString())
+  } catch {
+    return null
+  }
+}
+
+// Rechaza inventarios sospechosos para no reemplazar datos buenos por basura.
+function validar(slug, productos, anterior) {
+  if (productos.length < MIN_PRODUCTOS) {
+    throw new Error(`solo ${productos.length} productos (mínimo ${MIN_PRODUCTOS}). Respaldo probablemente incompleto. Usa --forzar si es correcto.`)
+  }
+  const previos = anterior?.totalProductos ?? 0
+  if (previos > 0) {
+    const caida = Math.round((1 - productos.length / previos) * 100)
+    if (caida > MAX_CAIDA_PCT) {
+      throw new Error(`el inventario cae ${caida}% (${previos} → ${productos.length}). Revisa el respaldo o usa --forzar.`)
+    }
+  }
+}
+
+async function subirJson(slug, json, anterior) {
+  const cuerpo = Buffer.from(JSON.stringify(json))
+  const comun  = { Bucket: BUCKET, ContentType: 'application/json; charset=utf-8' }
+
+  // 1) Copia fechada del inventario que está por reemplazarse, para poder volver atrás
+  if (anterior) {
+    const sello = (anterior.generado || new Date().toISOString()).slice(0, 10)
+    await s3.send(new PutObjectCommand({
+      ...comun,
+      Key:  `inventarios/${slug}/historico/${sello}.json`,
+      Body: Buffer.from(JSON.stringify(anterior)),
+    }))
+  }
+
+  // 2) Publicación del inventario nuevo
   await s3.send(new PutObjectCommand({
-    Bucket:       BUCKET,
+    ...comun,
     Key:          `inventarios/${slug}/inventario.json`,
-    Body:         Buffer.from(JSON.stringify(json)),
-    ContentType:  'application/json; charset=utf-8',
+    Body:         cuerpo,
     CacheControl: 'no-cache',
   }))
 }
@@ -167,15 +215,25 @@ async function procesar(suc, workDir) {
     productos,
   }
 
+  // Validación contra lo ya publicado antes de reemplazar nada
+  const anterior = DRY_RUN && !BUCKET ? null : await jsonPublicado(suc.slug)
+  if (FORZAR) {
+    log(`[${suc.slug}] --forzar activo: se omiten las validaciones`)
+  } else {
+    validar(suc.slug, productos, anterior)
+  }
+
   if (DRY_RUN) {
     const outDir = path.join(__dirname, 'out')
     fs.mkdirSync(outDir, { recursive: true })
     const f = path.join(outDir, `${suc.slug}.json`)
     fs.writeFileSync(f, JSON.stringify(json, null, 2))
-    log(`[${suc.slug}] ${filas.length} productos leídos, ${productos.length} publicables → ${f} (dry-run)`)
+    log(`[${suc.slug}] ${filas.length} leídos, ${productos.length} publicables → ${f} (dry-run)`)
   } else {
-    await subirJson(suc.slug, json)
-    log(`[${suc.slug}] ${filas.length} productos leídos, ${productos.length} publicables → s3://${BUCKET}/inventarios/${suc.slug}/inventario.json`)
+    await subirJson(suc.slug, json, anterior)
+    const previos = anterior?.totalProductos
+    const cambio  = previos ? ` (antes ${previos})` : ''
+    log(`[${suc.slug}] ${filas.length} leídos, ${productos.length} publicables${cambio} → publicado`)
   }
 }
 
