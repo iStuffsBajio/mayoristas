@@ -25,6 +25,7 @@ export function SiteConfigProvider({ children }) {
       colores:          parcial.colores          ? { ...config.colores, ...parcial.colores, gradientes: { ...config.colores.gradientes, ...parcial.colores.gradientes } } : config.colores,
       footer:           parcial.footer           ? { ...config.footer,           ...parcial.footer }           : config.footer,
       dropboxCatalogos: parcial.dropboxCatalogos ? { ...config.dropboxCatalogos, ...parcial.dropboxCatalogos } : config.dropboxCatalogos,
+      whatsapp:         parcial.whatsapp         ? { ...config.whatsapp,         ...parcial.whatsapp }         : config.whatsapp,
     }
     setConfig(next)
     setGuardando(true)

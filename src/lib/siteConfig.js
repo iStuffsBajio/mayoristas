@@ -47,6 +47,16 @@ export const DEFAULT_CONFIG = {
     fundas:          '/Espacio familiar/IMPRESORA UV/CATALOGOS/Fundas',
     personalizados:  '/Espacio familiar/IMPRESORA UV/CATALOGOS/Personalizados',
   },
+  // Número de WhatsApp de cada sucursal. Si una queda vacía se usa `general`.
+  // Estos valores son el respaldo: el panel admin los sobreescribe desde S3,
+  // pero solo si `config/site.json` es de lectura pública en el bucket.
+  whatsapp: {
+    general:        '5213315381571',
+    leon:           '4776639890',
+    'san-luis':     '4445011007',
+    aguascalientes: '4493946507',
+    torreon:        '',
+  },
 }
 
 export function gradStr(g) {
@@ -55,12 +65,17 @@ export function gradStr(g) {
   return `linear-gradient(${g.angulo ?? 135}deg, ${stops})`
 }
 
+// Queda en true si el ultimo intento de leer config/site.json fallo. El panel
+// admin lo usa para avisar que los cambios guardados no llegan a los visitantes.
+export let configRemotaInaccesible = false
+
 export async function loadSiteConfig() {
   try {
     const res = await fetch(
       `https://${BUCKET}.s3.${REGION}.amazonaws.com/${KEY}?t=${Date.now()}`
     )
-    if (!res.ok) return DEFAULT_CONFIG
+    if (!res.ok) { configRemotaInaccesible = res.status === 403; return DEFAULT_CONFIG }
+    configRemotaInaccesible = false
     const saved = await res.json()
     // Deep merge: default values fill any missing keys from older configs
     return {
@@ -70,6 +85,8 @@ export async function loadSiteConfig() {
       hero:    { ...DEFAULT_CONFIG.hero,    ...saved.hero,    stats: saved.hero?.stats    || DEFAULT_CONFIG.hero.stats },
       colores: { ...DEFAULT_CONFIG.colores, ...saved.colores },
       footer:  { ...DEFAULT_CONFIG.footer,  ...saved.footer },
+      whatsapp: { ...DEFAULT_CONFIG.whatsapp, ...saved.whatsapp },
+      dropboxCatalogos: { ...DEFAULT_CONFIG.dropboxCatalogos, ...saved.dropboxCatalogos },
     }
   } catch {
     return DEFAULT_CONFIG

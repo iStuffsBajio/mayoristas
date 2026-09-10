@@ -57,12 +57,22 @@ function AppContent() {
   }
   const safeTab = tabVisible(activeTab) ? activeTab : 'inventario'
 
+  // Navega a una pestaña y deja la vista arriba. Si se pasa un ancla, baja a él.
+  const irA = (tab, ancla) => {
+    setActiveTab(tab)
+    requestAnimationFrame(() => {
+      const el = ancla && document.getElementById(ancla)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      else window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  }
+
   return (
     <div className="bg-white min-h-screen font-sans" style={{ color: '#0A0A0A' }}>
       <Navbar onLoginClick={() => setShowLogin(true)} />
       <TabBar active={safeTab} onChange={setActiveTab} />
       <main>
-        {safeTab === 'inventario'  && <><Hero /><InventarioSemanal onLoginClick={() => setShowLogin(true)} /></>}
+        {safeTab === 'inventario'  && <><Hero onExplorar={() => irA('inventario', 'tabla-inventario')} onPersonalizar={() => irA('personaliza')} /><InventarioSemanal onLoginClick={() => setShowLogin(true)} /></>}
         {safeTab === 'personaliza' && <Personalizer />}
         {safeTab === 'stikers'     && <PedidosStikers />}
         {safeTab === 'admin'       && isAdmin && <AdminPanel />}

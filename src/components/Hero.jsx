@@ -1,7 +1,7 @@
 import { useSiteConfig } from '../context/SiteConfigContext'
 import { gradStr } from '../lib/siteConfig'
 
-export default function Hero() {
+export default function Hero({ onExplorar, onPersonalizar }) {
   const { config } = useSiteConfig()
   const { hero, colores } = config
   const gradPrincipal = gradStr(colores.gradientes?.principal)
@@ -39,13 +39,13 @@ export default function Hero() {
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
-          <button className="px-9 py-4 text-white font-semibold text-base transition-all"
+          <button onClick={onExplorar} className="px-9 py-4 text-white font-semibold text-base transition-all"
             style={{ background: gradPrincipal, borderRadius: '999px', border: 'none', cursor: 'pointer', boxShadow: `0 8px 28px ${colores.primario}4d` }}
             onMouseEnter={e => (e.currentTarget.style.transform = 'scale(1.04)')}
             onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}>
             {hero.boton1}
           </button>
-          <button className="px-9 py-4 font-semibold text-base transition-all"
+          <button onClick={onPersonalizar} className="px-9 py-4 font-semibold text-base transition-all"
             style={{ color: 'rgba(0,0,0,0.65)', border: '1.5px solid rgba(0,0,0,0.14)', borderRadius: '999px', background: 'transparent', cursor: 'pointer' }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)'; e.currentTarget.style.transform = 'scale(1.04)' }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.transform = 'scale(1)' }}>

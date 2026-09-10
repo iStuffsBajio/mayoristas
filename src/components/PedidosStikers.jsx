@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react'
 import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
 import { useSiteConfig } from '../context/SiteConfigContext'
+import { telefonoWhatsApp } from '../lib/sucursales'
 import GaleriaDropbox from './GaleriaDropbox'
 
-const WHATSAPP   = '5213315381571'
 const SUCURSALES = ['León', 'San Luis Potosí', 'Aguascalientes', 'Torreón']
 const TAMANIOS   = ['Pequeño (5×5 cm)', 'Mediano (10×10 cm)', 'Grande (15×15 cm)', 'Personalizado']
 const SLUG_MAP   = { 'León': 'leon', 'San Luis Potosí': 'san-luis', 'Aguascalientes': 'aguascalientes', 'Torreón': 'torreon' }
@@ -71,6 +71,7 @@ const fp = e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.
 const bl = e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }
 
 function FormBase({ tipo, emojiTipo, carpetaDropbox }) {
+  const { config } = useSiteConfig()
   const [form, setForm]           = useState({ nombre: '', telefono: '', sucursal: SUCURSALES[0], cantidad: '', tamanio: TAMANIOS[0], descripcion: '' })
   const [preview, setPreview]     = useState(null)
   const [imageFile, setImageFile] = useState(null)
@@ -123,7 +124,9 @@ function FormBase({ tipo, emojiTipo, carpetaDropbox }) {
       ruta ? `📁 *Imagen en Dropbox:* ${ruta}` : imageFile ? '📎 *Imagen:* Adjuntar en este chat' : '',
     ].filter(Boolean).join('\n')
 
-    window.open(`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(msg)}`, '_blank')
+    const slug    = SLUG_MAP[form.sucursal]
+    const destino = telefonoWhatsApp(config.whatsapp?.[slug]) || telefonoWhatsApp(config.whatsapp?.general)
+    window.open(`https://wa.me/${destino}?text=${encodeURIComponent(msg)}`, '_blank')
     setEnviado(true)
     setTimeout(() => setEnviado(false), 5000)
   }

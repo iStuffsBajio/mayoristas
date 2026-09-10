@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSiteConfig } from '../context/SiteConfigContext'
-import { gradStr } from '../lib/siteConfig'
+import { gradStr, configRemotaInaccesible } from '../lib/siteConfig'
+import { SUCURSALES, telefonoWhatsApp } from '../lib/sucursales'
 
 const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
   <div style={{ backgroundColor: '#fff', borderRadius: 24, border: '1px solid rgba(0,0,0,0.08)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -338,6 +339,52 @@ function SeccionDropbox({ config, save }) {
   )
 }
 
+// ── Sección WhatsApp por sucursal ─────────────────────────────────────────────
+function SeccionWhatsApp({ config, save }) {
+  const [wa, setWa]         = useState(config.whatsapp || {})
+  const [gLocal, setGLocal] = useState(false)
+  const [guardado, marcar]  = useGuardado()
+
+  useEffect(() => { setWa(config.whatsapp || {}) }, [config.whatsapp])
+
+  const set = k => e => setWa(w => ({ ...w, [k]: e.target.value }))
+
+  const handleSave = async () => {
+    setGLocal(true)
+    await save({ whatsapp: wa })
+    setGLocal(false)
+    marcar()
+  }
+
+  return (
+    <Section title="WhatsApp por sucursal" emoji="💬" onSave={handleSave} guardando={gLocal} guardado={guardado}>
+      <p style={{ fontSize: 12, color: '#aaa', marginBottom: 16, marginTop: -8 }}>
+        Los pedidos de fundas y stickers se envían al número de la sucursal elegida.
+        Si dejas una vacía, ese pedido va al número general.
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {[{ slug: 'general', nombre: 'Número general (respaldo)' }, ...SUCURSALES].map(s => {
+          const valor      = wa[s.slug] || ''
+          const normalizado = telefonoWhatsApp(valor)
+          const invalido   = valor.trim() !== '' && !normalizado
+          return (
+            <div key={s.slug}>
+              <Label>{s.nombre}</Label>
+              <input value={valor} onChange={set(s.slug)} placeholder="477 123 4567"
+                style={{ ...inp, borderColor: invalido ? '#D51A7A' : 'rgba(0,0,0,0.1)' }} onFocus={fp} onBlur={bl} />
+              {invalido
+                ? <p style={{ fontSize: 11, color: '#D51A7A', marginTop: 4 }}>No parece un número mexicano de 10 dígitos.</p>
+                : normalizado
+                  ? <p style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>✓ Se enviará a wa.me/{normalizado}</p>
+                  : <p style={{ fontSize: 11, color: '#bbb', marginTop: 4 }}>Vacío: usa el número general.</p>}
+            </div>
+          )
+        })}
+      </div>
+    </Section>
+  )
+}
+
 // ── Panel principal ───────────────────────────────────────────────────────────
 export default function AdminPanel() {
   const { config, save, guardando } = useSiteConfig()
@@ -350,12 +397,26 @@ export default function AdminPanel() {
         <p className="text-sm" style={{ color: '#888' }}>Los cambios se guardan en la nube y aplican a todos los dispositivos al instante.</p>
       </div>
 
+      {configRemotaInaccesible && (
+        <div style={{ marginBottom: 20, padding: '16px 18px', borderRadius: 16, background: 'rgba(213,26,122,0.06)', border: '1.5px solid rgba(213,26,122,0.25)' }}>
+          <p style={{ fontSize: 13.5, fontWeight: 800, color: '#D51A7A', margin: 0 }}>
+            ⚠ Los cambios se guardan pero nadie los ve
+          </p>
+          <p style={{ fontSize: 12.5, color: '#666', margin: '6px 0 0', lineHeight: 1.6 }}>
+            El archivo <code>config/site.json</code> del bucket no es de lectura pública, así que
+            la página siempre carga los valores por defecto. Da permiso de lectura pública al
+            prefijo <code>config/*</code> en la política del bucket de S3 para que esto funcione.
+          </p>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         <SeccionTabs    config={config} save={save} guardando={guardando} />
         <SeccionHero    config={config} save={save} />
         <SeccionColores config={config} save={save} />
         <SeccionFooter  config={config} save={save} />
-        <SeccionDropbox config={config} save={save} />
+        <SeccionWhatsApp config={config} save={save} />
+        <SeccionDropbox  config={config} save={save} />
       </div>
     </section>
   )

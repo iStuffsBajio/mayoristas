@@ -252,7 +252,7 @@ export default function InventarioSemanal({ onLoginClick }) {
       </div>
 
       {/* ── Tabs de sucursal ───────────────────────────────────── */}
-      <div className="flex gap-2 flex-wrap mb-5">
+      <div id="tabla-inventario" className="flex gap-2 flex-wrap mb-5" style={{ scrollMarginTop: 120 }}>
         {SUCURSALES.map(suc => {
           const isActive = sucursal.slug === suc.slug
           return (
