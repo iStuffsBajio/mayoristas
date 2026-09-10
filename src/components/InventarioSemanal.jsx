@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { useAuth } from '../context/AuthContext'
-import { inventarioUrl, uploadInventario, s3Configured } from '../lib/s3'
+import { inventarioUrl, uploadInventario, uploadInventarioJson, loadInventarioJson, s3Configured } from '../lib/s3'
 
 const SUCURSALES = [
   { name: 'León',            slug: 'leon' },
@@ -66,6 +66,7 @@ export default function InventarioSemanal({ onLoginClick }) {
   const [error, setError]           = useState(null)
   const [lastUpdate, setLastUpdate] = useState(null)
   const [fileName, setFileName]     = useState(null)
+  const [origen, setOrigen]         = useState(null)   // metadatos del inventario.json (respaldo, origen)
   const [search, setSearch]         = useState('')
   const [uploading, setUploading]   = useState(false)
   const fileInputRef = useRef(null)
@@ -92,10 +93,11 @@ export default function InventarioSemanal({ onLoginClick }) {
       }))
   }
 
-  const applyRows = (rows, name) => {
+  const applyRows = (rows, name, meta = null) => {
     setAllRows(rows)
-    setLastUpdate(new Date())
+    setLastUpdate(meta?.generado ? new Date(meta.generado) : new Date())
     setFileName(name)
+    setOrigen(meta)
     setSearch('')
     setError(null)
     setLoading(false)
@@ -106,7 +108,19 @@ export default function InventarioSemanal({ onLoginClick }) {
     setError(null)
     setAllRows(null)
     setFileName(null)
-    // Intenta cargar desde S3 si está configurado, si no desde la carpeta pública
+    setOrigen(null)
+    // 1) inventario.json generado automáticamente desde los respaldos de Eleventa
+    if (s3Configured) {
+      try {
+        const data = await loadInventarioJson(suc.slug)
+        if (data) {
+          const rows = data.productos.map(p => ({ [COL_PRODUCTO]: String(p.Producto).trim(), [COL_EXISTENCIA]: p.Existencia }))
+          applyRows(rows, data.respaldo?.archivo || 'inventario.json', data)
+          return
+        }
+      } catch { /* sigue con el Excel */ }
+    }
+    // 2) inventario.xlsx (carga manual anterior) desde S3 o carpeta pública
     const urls = s3Configured
       ? [inventarioUrl(suc.slug)]
       : [`/inventarios/${suc.slug}/inventario.xlsx`]
@@ -137,12 +151,14 @@ export default function InventarioSemanal({ onLoginClick }) {
       const rows = parseWorkbook(wb)
       if (rows.length === 0) throw new Error('Sin datos')
       // Si S3 está configurado y el usuario tiene permiso, sube el archivo
+      let meta = null
       if (s3Configured && canUpload(sucursal.slug)) {
         setUploading(true)
         await uploadInventario(sucursal.slug, file)
+        meta = await uploadInventarioJson(sucursal.slug, rows, { archivo: file.name })
         setUploading(false)
       }
-      applyRows(rows, file.name)
+      applyRows(rows, file.name, meta)
     } catch (err) {
       setUploading(false)
       setError('No se pudo leer o subir el archivo.')
@@ -169,6 +185,12 @@ export default function InventarioSemanal({ onLoginClick }) {
       urgente:  allRows.filter(r => (parseFloat(r[COL_EXISTENCIA]) || 0) < 10 && (parseFloat(r[COL_EXISTENCIA]) || 0) > 0).length,
     }
   }, [allRows])
+
+  // "2026-09-10" → "10 sep 2026" sin desfase de zona horaria
+  const fmtFechaCorta = (iso) => {
+    const [y, m, d] = iso.split('-').map(Number)
+    return new Date(y, m - 1, d).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
 
   const fmtDate = (d) =>
     d ? d.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : ''
@@ -325,6 +347,11 @@ export default function InventarioSemanal({ onLoginClick }) {
             </span>
             <span className="text-sm" style={{ color: '#666' }}>
               {stats.units.toLocaleString()} unidades · {sucursal.name}
+              {origen?.origen === 'respaldo-eleventa' && origen.respaldo?.fecha && (
+                <span style={{ marginLeft: 8, color: '#8DC63F', fontWeight: 600 }}>
+                  · Respaldo del {fmtFechaCorta(origen.respaldo.fecha)}
+                </span>
+              )}
             </span>
           </div>
         )}

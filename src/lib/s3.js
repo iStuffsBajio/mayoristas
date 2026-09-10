@@ -101,3 +101,38 @@ export async function removeGaleriaImage(tipo, filename) {
   const current = await loadGaleriaIndex(tipo)
   await saveGaleriaIndex(tipo, current.map(i => i.filename).filter(f => f !== filename))
 }
+
+// ── Inventario en JSON ─────────────────────────────────────────────────────
+// Lo genera scripts/sincronizar-inventarios.js a diario desde los respaldos de
+// Eleventa; la carga manual de Excel también lo escribe para que ambos caminos
+// dejen el mismo formato: { productos: [{ Producto, Existencia }], respaldo, ... }
+
+export function inventarioJsonUrl(slug) {
+  return `https://${BUCKET}.s3.${REGION}.amazonaws.com/inventarios/${slug}/inventario.json`
+}
+
+export async function loadInventarioJson(slug) {
+  const res = await fetch(`${inventarioJsonUrl(slug)}?t=${Date.now()}`, { cache: 'no-store' })
+  if (!res.ok) return null
+  const data = await res.json()
+  return Array.isArray(data?.productos) && data.productos.length > 0 ? data : null
+}
+
+export async function uploadInventarioJson(slug, productos, extra = {}) {
+  const json = {
+    sucursal:       slug,
+    origen:         'excel-manual',
+    generado:       new Date().toISOString(),
+    totalProductos: productos.length,
+    productos,
+    ...extra,
+  }
+  await s3.send(new PutObjectCommand({
+    Bucket:       BUCKET,
+    Key:          `inventarios/${slug}/inventario.json`,
+    Body:         new TextEncoder().encode(JSON.stringify(json)),
+    ContentType:  'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+  return json
+}
