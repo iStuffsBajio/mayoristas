@@ -4,6 +4,7 @@ import { useSiteConfig } from '../context/SiteConfigContext'
 import { loadInventarioJson, s3Configured } from '../lib/s3'
 import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
 import { SUCURSALES, telefonoWhatsApp } from '../lib/sucursales'
+import { armarMensaje, enlaceWhatsApp } from '../lib/whatsapp'
 
 // ── Iconos ────────────────────────────────────────────────────────────────────
 
@@ -196,25 +197,25 @@ export default function Personalizer() {
     }
     setSubiendo(false)
 
-    const msg = [
-      '📱 *PEDIDO FUNDA PERSONALIZADA - iStuffs*',
+    const msg = armarMensaje([
+      '*PEDIDO FUNDA PERSONALIZADA - iStuffs*',
       '',
-      `🏪 *Sucursal:* ${sucursal.nombre}`,
-      `📱 *Modelo:* ${modelo.producto}`,
-      `📦 *Existencia al momento del pedido:* ${modelo.stock}`,
+      `*Sucursal:* ${sucursal.nombre}`,
+      `*Modelo:* ${modelo.producto}`,
+      `*Existencia al momento del pedido:* ${modelo.stock}`,
       '',
-      `👤 *Cliente:* ${form.nombre}`,
-      `🔢 *Cantidad:* ${form.cantidad} pieza(s)`,
+      `*Cliente:* ${form.nombre}`,
+      `*Cantidad:* ${form.cantidad} pieza(s)`,
       form.mayorista
-        ? `🏷️ *Mayorista:* Sí${form.registro.trim() ? ` · Registro: ${form.registro.trim()}` : ''}`
-        : '🏷️ *Mayorista:* No',
-      form.notas.trim() ? `📝 *Notas:* ${form.notas.trim()}` : '',
+        ? `*Mayorista:* Si${form.registro.trim() ? ` - Registro: ${form.registro.trim()}` : ''}`
+        : '*Mayorista:* No',
+      form.notas.trim() ? `*Notas:* ${form.notas.trim()}` : null,
       '',
-      preview?.name && !imageFile ? `🖼️ *Diseño del catálogo:* ${preview.name.replace(/\.[^.]+$/, '')}` : '',
-      ruta ? `📁 *Imagen en Dropbox:* ${ruta}` : imageFile ? '📎 *Imagen:* Adjuntar en este chat' : '',
-    ].filter(Boolean).join('\n')
+      preview?.name && !imageFile ? `*Diseño del catálogo:* ${preview.name.replace(/\.[^.]+$/, '')}` : null,
+      ruta ? `*Imagen en Dropbox:* ${ruta}` : imageFile ? '*Imagen:* Adjuntar en este chat' : null,
+    ])
 
-    window.open(`https://wa.me/${numeroSucursal}?text=${encodeURIComponent(msg)}`, '_blank')
+    window.open(enlaceWhatsApp(numeroSucursal, msg), '_blank')
     setEnviado(true)
     setTimeout(() => setEnviado(false), 6000)
   }

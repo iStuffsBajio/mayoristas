@@ -111,22 +111,22 @@ function FormBase({ tipo, emojiTipo, carpetaDropbox }) {
     }
     setSubiendo(false)
 
-    const msg = [
-      `${emojiTipo} *PEDIDO ${tipo.toUpperCase()} - iStuffs*`,
+    const msg = armarMensaje([
+      `*PEDIDO ${tipo.toUpperCase()} - iStuffs*`,
       '',
-      `👤 *Cliente:* ${form.nombre}`,
-      `📞 *Teléfono:* ${form.telefono}`,
-      `🏪 *Sucursal:* ${form.sucursal}`,
-      `📦 *Cantidad:* ${form.cantidad} piezas`,
-      tipo === 'Stiker Funda' ? '' : `📐 *Tamaño:* ${form.tamanio}`,
-      `✏️ *Descripción:* ${form.descripcion}`,
-      preview?.name && !imageFile ? `🖼️ *Diseño:* ${preview.name.replace(/\.[^.]+$/, '')}` : '',
-      ruta ? `📁 *Imagen en Dropbox:* ${ruta}` : imageFile ? '📎 *Imagen:* Adjuntar en este chat' : '',
-    ].filter(Boolean).join('\n')
+      `*Cliente:* ${form.nombre}`,
+      `*Teléfono:* ${form.telefono}`,
+      `*Sucursal:* ${form.sucursal}`,
+      `*Cantidad:* ${form.cantidad} piezas`,
+      tipo === 'Stiker Funda' ? null : `*Tamaño:* ${form.tamanio}`,
+      `*Descripción:* ${form.descripcion}`,
+      preview?.name && !imageFile ? `*Diseño:* ${preview.name.replace(/.[^.]+$/, '')}` : null,
+      ruta ? `*Imagen en Dropbox:* ${ruta}` : imageFile ? '*Imagen:* Adjuntar en este chat' : null,
+    ])
 
     const slug    = SLUG_MAP[form.sucursal]
     const destino = telefonoWhatsApp(config.whatsapp?.[slug]) || telefonoWhatsApp(config.whatsapp?.general)
-    window.open(`https://wa.me/${destino}?text=${encodeURIComponent(msg)}`, '_blank')
+    window.open(enlaceWhatsApp(destino, msg), '_blank')
     setEnviado(true)
     setTimeout(() => setEnviado(false), 5000)
   }
