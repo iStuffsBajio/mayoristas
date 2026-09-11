@@ -290,6 +290,12 @@ async function main() {
   }
 
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'istuffs-inv-'))
+  // En Linux el motor de Firebird corre como el usuario `firebird`, distinto
+  // del que lanza gbak. mkdtemp crea la carpeta en modo 700, así que el motor
+  // no puede escribir ahí la base restaurada y falla con "Permission denied".
+  if (!esWindows) {
+    try { fs.chmodSync(workDir, 0o777) } catch { /* si falla, gbak lo dirá */ }
+  }
   const lista = SOLO ? SUCURSALES.filter(s => s.slug === SOLO) : SUCURSALES
   if (lista.length === 0) { console.error(`Sucursal desconocida: ${SOLO}`); process.exit(2) }
 

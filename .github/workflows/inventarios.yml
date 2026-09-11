@@ -49,6 +49,14 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq firebird3.0-server firebird3.0-utils
 
+          # El motor corre como el usuario `firebird`, distinto del que ejecuta
+          # gbak. Sin esto falla con "Permission denied /tmp/firebird/" antes
+          # siquiera de mirar el respaldo.
+          sudo mkdir -p /tmp/firebird
+          sudo chmod 1777 /tmp/firebird
+          sudo chown firebird:firebird /tmp/firebird || true
+          sudo chmod 1777 /tmp
+
       - name: Verificar herramientas de Firebird
         run: |
           echo "--- que hay instalado ---"
@@ -57,10 +65,14 @@ jobs:
           gbak -z || true
           isql-fb -z || true
 
+          echo "--- permisos de las carpetas que usa el motor ---"
+          ls -ld /tmp /tmp/firebird
+
           echo "--- responde el motor? ---"
-          # Crear y leer una base vacia prueba el motor antes de intentarlo con
-          # los respaldos reales, y separa un fallo de motor de uno de version.
-          printf 'CREATE DATABASE "/tmp/prueba.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' > /tmp/p.sql
+          # Crear y leer una base vacia prueba el motor antes de tocar los
+          # respaldos, y separa un fallo de permisos de uno de version.
+          mkdir -p /tmp/pruebafb && chmod 777 /tmp/pruebafb
+          printf 'CREATE DATABASE "/tmp/pruebafb/prueba.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' > /tmp/p.sql
           if isql-fb -user SYSDBA -password masterkey -i /tmp/p.sql; then
             echo "MOTOR FIREBIRD OK"
           else
