@@ -3,18 +3,54 @@
 @tailwind utilities;
 
 @layer base {
+  /* El sitio se ve igual en todos los teléfonos.
+     Chrome en Android oscurece por su cuenta los sitios que no declaran su
+     esquema de color, y eso invertía los fondos y ensuciaba el diseño. Con
+     esto el navegador entiende que la página maneja sus propios colores. */
+  :root {
+    color-scheme: light;
+  }
+
   * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
   }
 
+  html {
+    background-color: #FAFCFD;
+  }
+
   body {
-    background-color: #ffffff;
-    color: #0a0a0a;
+    /* Ambiente con los colores del logotipo. Son tintes muy bajos, entre 4% y
+       7%: el contenido vive en tarjetas blancas, así que el degradado se
+       percibe como luz de fondo y no compite con el texto.
+       El fondo va fijo para que no se arrastre al hacer scroll. */
+    background-color: #FAFCFD;
+    background-image:
+      radial-gradient(58rem 40rem at 8% -6%,   rgba(0, 188, 242, 0.13), transparent 62%),
+      radial-gradient(48rem 38rem at 98% 6%,   rgba(141, 198, 63, 0.11), transparent 60%),
+      radial-gradient(52rem 42rem at 88% 96%,  rgba(213, 26, 122, 0.10), transparent 62%),
+      radial-gradient(40rem 34rem at 2% 88%,   rgba(255, 107, 26, 0.08), transparent 60%);
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+    min-height: 100vh;
+    color: #101619;
     font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* En pantallas chicas el fondo fijo cuesta batería y en iOS da saltos al
+     hacer scroll. Ahí se deja quieto y se reducen los tintes. */
+  @media (max-width: 640px) {
+    body {
+      background-attachment: scroll;
+      background-image:
+        radial-gradient(30rem 24rem at 0% 0%,    rgba(0, 188, 242, 0.11), transparent 65%),
+        radial-gradient(26rem 22rem at 100% 12%, rgba(141, 198, 63, 0.09), transparent 62%),
+        radial-gradient(28rem 26rem at 100% 92%, rgba(213, 26, 122, 0.09), transparent 64%);
+    }
   }
 
   ::-webkit-scrollbar {
