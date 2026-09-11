@@ -1,0 +1,82 @@
+name: Sincronizar inventarios
+
+# Publica el inventario de cada sucursal en S3 a partir del respaldo mas reciente
+# que Eleventa deja en Dropbox. Corre en los servidores de GitHub, asi que no
+# depende de que ninguna computadora de la empresa este encendida.
+
+on:
+  schedule:
+    # 10:00 en Mexico. El pais no usa horario de verano desde 2022, asi que el
+    # centro del pais es UTC-6 todo el año y esta hora no se desfasa.
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Solo probar, sin publicar en S3'
+        type: boolean
+        default: false
+      sucursal:
+        description: 'Una sola sucursal (leon, san-luis, aguascalientes). Vacio = todas'
+        type: string
+        default: ''
+
+concurrency:
+  group: sincronizar-inventarios
+  cancel-in-progress: false
+
+jobs:
+  sincronizar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependencias
+        run: npm ci --omit=dev
+
+      - name: Instalar Firebird
+        run: |
+          set -e
+          # El paquete del servidor pide la contraseña de SYSDBA de forma
+          # interactiva; se preconfigura para que no bloquee la instalacion.
+          echo "firebird3.0-server firebird3.0-server/sysdba_password/new_password password masterkey" | sudo debconf-set-selections
+          echo "firebird3.0-server firebird3.0-server/enable_legacy_hash boolean true" | sudo debconf-set-selections
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq firebird3.0-server firebird3.0-utils
+
+      - name: Verificar herramientas de Firebird
+        run: |
+          echo "gbak: $(command -v gbak || echo NO ENCONTRADO)"
+          echo "isql: $(command -v isql-fb || command -v isql || echo NO ENCONTRADO)"
+          gbak -z || true
+          # Los respaldos vienen de Firebird 2.0 y aqui hay 3.0. Si la
+          # restauracion falla por incompatibilidad, se vera en el paso siguiente.
+
+      - name: Sincronizar
+        env:
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_APP_KEY:       ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET:    ${{ secrets.DROPBOX_APP_SECRET }}
+          S3_BUCKET:             ${{ secrets.S3_BUCKET }}
+          S3_REGION:             ${{ secrets.S3_REGION }}
+          S3_ACCESS_KEY:         ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY:         ${{ secrets.S3_SECRET_KEY }}
+        run: |
+          ARGS="--origen=dropbox"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
+          if [ -n "${{ inputs.sucursal }}" ]; then ARGS="$ARGS --sucursal=${{ inputs.sucursal }}"; fi
+          echo "Ejecutando: node scripts/sincronizar-inventarios.js $ARGS"
+          node scripts/sincronizar-inventarios.js $ARGS
+
+      - name: Guardar resultado de la prueba
+        if: ${{ inputs.dry_run == true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventarios-json
+          path: scripts/out/
+          if-no-files-found: warn

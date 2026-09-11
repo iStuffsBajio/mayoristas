@@ -1,13 +1,17 @@
 // Sincroniza el inventario de cada sucursal a partir del respaldo (.fbk) más
-// reciente que Eleventa deja en Dropbox, y lo publica como JSON en S3.
+// reciente de Eleventa, y lo publica como JSON en S3.
+//
+// Funciona en dos modos:
+//   local    — lee la carpeta de Dropbox montada en disco (PC con Eleventa)
+//   dropbox  — descarga los respaldos por la API (servidor, GitHub Actions)
+// Se elige solo: si existe la carpeta local la usa, si no va por la API.
 //
 // Uso:
-//   node scripts/sincronizar-inventarios.js               → procesa todas las sucursales y sube a S3
-//   node scripts/sincronizar-inventarios.js --dry-run     → no sube; deja el JSON en scripts/out/
-//   node scripts/sincronizar-inventarios.js --sucursal=leon → solo una sucursal
-//
-// Requiere: Eleventa instalado (usa su gbak.exe / isql.exe embebidos) y las
-// variables VITE_S3_* en el archivo .env del proyecto.
+//   node scripts/sincronizar-inventarios.js
+//   node scripts/sincronizar-inventarios.js --dry-run          no sube a S3
+//   node scripts/sincronizar-inventarios.js --sucursal=leon    solo una
+//   node scripts/sincronizar-inventarios.js --origen=dropbox   fuerza el modo
+//   node scripts/sincronizar-inventarios.js --forzar           omite validaciones
 
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
@@ -16,19 +20,26 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { listarArchivos, descargar, dropboxConfigurado } from './lib/dropbox-api.js'
 
 const run = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
 
+try { process.loadEnvFile(path.join(ROOT, '.env')) } catch { /* en CI las variables vienen del entorno */ }
+
 // ── Configuración ──────────────────────────────────────────────────────────
 
-try { process.loadEnvFile(path.join(ROOT, '.env')) } catch { /* sin .env: se usan variables del sistema */ }
+const BACKUPS_DIR    = process.env.INVENTARIO_BACKUPS_DIR || 'A:\\Dropbox\\Espacio familiar\\RESPALDOS SUCURSALES'
+const BACKUPS_DROPBOX = process.env.INVENTARIO_BACKUPS_DROPBOX || '/Espacio familiar/RESPALDOS SUCURSALES'
+const ELEVENTA_DIR   = process.env.ELEVENTA_DIR || 'C:\\Program Files (x86)\\AbarrotesPDV'
 
-const BACKUPS_DIR  = process.env.INVENTARIO_BACKUPS_DIR || 'A:\\Dropbox\\Espacio familiar\\RESPALDOS SUCURSALES'
-const ELEVENTA_DIR = process.env.ELEVENTA_DIR           || 'C:\\Program Files (x86)\\AbarrotesPDV'
-const GBAK = path.join(ELEVENTA_DIR, 'gbak.exe')
-const ISQL = path.join(ELEVENTA_DIR, 'isql.exe')
+// En Windows se usan los binarios que trae Eleventa. En Linux, los de Firebird
+// del sistema, donde Debian renombra isql a isql-fb para no chocar con unixODBC.
+const esWindows = process.platform === 'win32'
+const GBAK = process.env.GBAK || (esWindows ? path.join(ELEVENTA_DIR, 'gbak.exe') : 'gbak')
+const ISQL = process.env.ISQL || (esWindows ? path.join(ELEVENTA_DIR, 'isql.exe') : 'isql-fb')
+
 const FB_USER = process.env.FIREBIRD_USER || 'SYSDBA'
 const FB_PASS = process.env.FIREBIRD_PASS || 'masterkey'
 
@@ -39,7 +50,6 @@ const SUCURSALES = [
   { slug: 'san-luis',       nombre: 'San Luis Potosí', carpeta: 'SLP'  },
 ]
 
-// Departamentos que no se muestran a mayoristas (mismo criterio que la página)
 const DEPTOS_OCULTOS = new Set(['mayoristas', '- sin departamento -'])
 
 const SEP = '~|~'
@@ -55,23 +65,22 @@ ORDER BY p.DESCRIPCION;
 
 const args    = process.argv.slice(2)
 const DRY_RUN = args.includes('--dry-run')
-const FORZAR  = args.includes('--forzar')   // ignora las validaciones de seguridad
+const FORZAR  = args.includes('--forzar')
 const SOLO    = args.find(a => a.startsWith('--sucursal='))?.split('=')[1]
+const ORIGEN  = args.find(a => a.startsWith('--origen='))?.split('=')[1]
+  || (fs.existsSync(BACKUPS_DIR) ? 'local' : 'dropbox')
 
 // ── Protección de datos ────────────────────────────────────────────────────
-// Un respaldo truncado o a medio sincronizar produciría un inventario casi
-// vacío que reemplazaría al bueno. Estas reglas lo impiden.
-
 const MIN_PRODUCTOS = 50   // menos de esto se considera respaldo incompleto
 const MAX_CAIDA_PCT = 40   // caída máxima aceptable contra lo ya publicado
 
-const BUCKET = process.env.VITE_S3_BUCKET
-const REGION = process.env.VITE_S3_REGION || 'us-east-1'
+const BUCKET = process.env.VITE_S3_BUCKET || process.env.S3_BUCKET
+const REGION = process.env.VITE_S3_REGION || process.env.S3_REGION || 'us-east-1'
 const s3 = new S3Client({
   region: REGION,
   credentials: {
-    accessKeyId:     process.env.VITE_S3_ACCESS_KEY || '',
-    secretAccessKey: process.env.VITE_S3_SECRET_KEY || '',
+    accessKeyId:     process.env.VITE_S3_ACCESS_KEY || process.env.S3_ACCESS_KEY || '',
+    secretAccessKey: process.env.VITE_S3_SECRET_KEY || process.env.S3_SECRET_KEY || '',
   },
 })
 
@@ -79,35 +88,67 @@ const s3 = new S3Client({
 
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-MX', { hour12: false }), ...m)
 
+// "respaldo-10-09-26.fbk" → "2026-09-10"
+function fechaDelNombre(archivo) {
+  const m = /(\d{2})-(\d{2})-(\d{2})/.exec(path.basename(archivo))
+  return m ? `20${m[3]}-${m[2]}-${m[1]}` : null
+}
+
 // Se usa statSync (no dirent) porque los archivos "solo en línea" de Dropbox
 // son reparse points y dirent.isFile() los reporta como false.
-function buscarFbk(dir, acc = []) {
+function buscarFbkLocal(dir, acc = []) {
   for (const nombre of fs.readdirSync(dir)) {
     const p = path.join(dir, nombre)
     let st
     try { st = fs.statSync(p) } catch { continue }
-    if (st.isDirectory()) buscarFbk(p, acc)
+    if (st.isDirectory()) buscarFbkLocal(p, acc)
     else if (st.isFile() && /\.fbk$/i.test(nombre)) {
-      acc.push({ path: p, mtime: st.mtime, fecha: fechaDelNombre(p) || st.mtime.toISOString().slice(0, 10) })
+      acc.push({
+        nombre,
+        origen: p,
+        fecha:  fechaDelNombre(nombre) || st.mtime.toISOString().slice(0, 10),
+        marca:  st.mtime.toISOString(),
+      })
     }
   }
   return acc
 }
 
-function ultimoRespaldo(carpeta) {
-  const dir = path.join(BACKUPS_DIR, carpeta)
-  if (!fs.existsSync(dir)) throw new Error(`No existe la carpeta ${dir}`)
-  const todos = buscarFbk(dir)
-  if (todos.length === 0) throw new Error(`Sin archivos .fbk en ${dir}`)
-  // Más reciente por fecha del nombre (respaldo-DD-MM-YY), desempata por fecha de modificación
-  todos.sort((a, b) => (b.fecha.localeCompare(a.fecha)) || (b.mtime - a.mtime))
+async function buscarFbkDropbox(carpeta) {
+  const entradas = await listarArchivos(`${BACKUPS_DROPBOX}/${carpeta}`)
+  return entradas
+    .filter(e => /\.fbk$/i.test(e.name))
+    .map(e => ({
+      nombre: e.name,
+      origen: e.path_lower,
+      fecha:  fechaDelNombre(e.name) || e.server_modified.slice(0, 10),
+      marca:  e.server_modified,
+      tamano: e.size,
+    }))
+}
+
+/** Devuelve el respaldo más reciente de una sucursal, sea cual sea el origen. */
+async function ultimoRespaldo(carpeta) {
+  let todos
+  if (ORIGEN === 'local') {
+    const dir = path.join(BACKUPS_DIR, carpeta)
+    if (!fs.existsSync(dir)) throw new Error(`No existe la carpeta ${dir}`)
+    todos = buscarFbkLocal(dir)
+  } else {
+    todos = await buscarFbkDropbox(carpeta)
+  }
+  if (todos.length === 0) throw new Error(`Sin archivos .fbk en ${carpeta}`)
+  // Más reciente por fecha del nombre (respaldo-DD-MM-YY); desempata por fecha real
+  todos.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.marca.localeCompare(a.marca))
   return todos[0]
 }
 
-// "respaldo-10-09-26.fbk" → "2026-09-10"
-function fechaDelNombre(archivo) {
-  const m = /(\d{2})-(\d{2})-(\d{2})/.exec(path.basename(archivo))
-  return m ? `20${m[3]}-${m[2]}-${m[1]}` : null
+/** Deja el .fbk en disco listo para gbak, descargándolo si hace falta. */
+async function obtenerArchivo(respaldo, workDir) {
+  if (ORIGEN === 'local') return respaldo.origen
+  const destino = path.join(workDir, respaldo.nombre)
+  await descargar(respaldo.origen, destino)
+  return destino
 }
 
 async function restaurar(fbk, destinoFdb) {
@@ -134,20 +175,17 @@ async function consultar(fdb, workDir) {
   return filas
 }
 
-// Lee el inventario.json publicado actualmente. Devuelve null si aún no existe.
+// ── Publicación en S3 ──────────────────────────────────────────────────────
+
 async function jsonPublicado(slug) {
   try {
-    const res = await s3.send(new GetObjectCommand({
-      Bucket: BUCKET,
-      Key:    `inventarios/${slug}/inventario.json`,
-    }))
+    const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: `inventarios/${slug}/inventario.json` }))
     return JSON.parse(await res.Body.transformToString())
   } catch {
     return null
   }
 }
 
-// Rechaza inventarios sospechosos para no reemplazar datos buenos por basura.
 function validar(slug, productos, anterior) {
   if (productos.length < MIN_PRODUCTOS) {
     throw new Error(`solo ${productos.length} productos (mínimo ${MIN_PRODUCTOS}). Respaldo probablemente incompleto. Usa --forzar si es correcto.`)
@@ -162,10 +200,7 @@ function validar(slug, productos, anterior) {
 }
 
 async function subirJson(slug, json, anterior) {
-  const cuerpo = Buffer.from(JSON.stringify(json))
-  const comun  = { Bucket: BUCKET, ContentType: 'application/json; charset=utf-8' }
-
-  // 1) Copia fechada del inventario que está por reemplazarse, para poder volver atrás
+  const comun = { Bucket: BUCKET, ContentType: 'application/json; charset=utf-8' }
   if (anterior) {
     const sello = (anterior.generado || new Date().toISOString()).slice(0, 10)
     await s3.send(new PutObjectCommand({
@@ -174,12 +209,10 @@ async function subirJson(slug, json, anterior) {
       Body: Buffer.from(JSON.stringify(anterior)),
     }))
   }
-
-  // 2) Publicación del inventario nuevo
   await s3.send(new PutObjectCommand({
     ...comun,
     Key:          `inventarios/${slug}/inventario.json`,
-    Body:         cuerpo,
+    Body:         Buffer.from(JSON.stringify(json)),
     CacheControl: 'no-cache',
   }))
 }
@@ -187,14 +220,17 @@ async function subirJson(slug, json, anterior) {
 // ── Proceso por sucursal ───────────────────────────────────────────────────
 
 async function procesar(suc, workDir) {
-  const respaldo = ultimoRespaldo(suc.carpeta)
-  log(`[${suc.slug}] respaldo: ${path.relative(BACKUPS_DIR, respaldo.path)} (${respaldo.mtime.toISOString().slice(0, 16)})`)
+  const respaldo = await ultimoRespaldo(suc.carpeta)
+  const mb = respaldo.tamano ? ` ${(respaldo.tamano / 1048576).toFixed(0)} MB` : ''
+  log(`[${suc.slug}] respaldo ${respaldo.nombre} del ${respaldo.fecha}${mb}`)
 
+  const fbk = await obtenerArchivo(respaldo, workDir)
   const fdb = path.join(workDir, `${suc.slug}.fdb`)
-  await restaurar(respaldo.path, fdb)
+  await restaurar(fbk, fdb)
 
   const filas = await consultar(fdb, workDir)
   fs.rmSync(fdb, { force: true })
+  if (ORIGEN !== 'local') fs.rmSync(fbk, { force: true })
   if (filas.length === 0) throw new Error('La consulta no devolvió productos')
 
   const productos = filas
@@ -206,46 +242,51 @@ async function procesar(suc, workDir) {
     nombre:    suc.nombre,
     origen:    'respaldo-eleventa',
     generado:  new Date().toISOString(),
-    respaldo: {
-      archivo:      path.basename(respaldo.path),
-      fecha:        fechaDelNombre(respaldo.path) || respaldo.mtime.toISOString().slice(0, 10),
-      modificado:   respaldo.mtime.toISOString(),
-    },
+    respaldo:  { archivo: respaldo.nombre, fecha: respaldo.fecha, modificado: respaldo.marca },
     totalProductos: productos.length,
     productos,
   }
 
-  // Validación contra lo ya publicado antes de reemplazar nada
   const anterior = DRY_RUN && !BUCKET ? null : await jsonPublicado(suc.slug)
-  if (FORZAR) {
-    log(`[${suc.slug}] --forzar activo: se omiten las validaciones`)
-  } else {
-    validar(suc.slug, productos, anterior)
-  }
+  if (FORZAR) log(`[${suc.slug}] --forzar activo: se omiten las validaciones`)
+  else validar(suc.slug, productos, anterior)
 
   if (DRY_RUN) {
     const outDir = path.join(__dirname, 'out')
     fs.mkdirSync(outDir, { recursive: true })
-    const f = path.join(outDir, `${suc.slug}.json`)
-    fs.writeFileSync(f, JSON.stringify(json, null, 2))
-    log(`[${suc.slug}] ${filas.length} leídos, ${productos.length} publicables → ${f} (dry-run)`)
+    fs.writeFileSync(path.join(outDir, `${suc.slug}.json`), JSON.stringify(json, null, 2))
+    log(`[${suc.slug}] ${filas.length} leídos, ${productos.length} publicables → scripts/out/${suc.slug}.json (dry-run)`)
   } else {
     await subirJson(suc.slug, json, anterior)
     const previos = anterior?.totalProductos
-    const cambio  = previos ? ` (antes ${previos})` : ''
-    log(`[${suc.slug}] ${filas.length} leídos, ${productos.length} publicables${cambio} → publicado`)
+    log(`[${suc.slug}] ${filas.length} leídos, ${productos.length} publicables${previos ? ` (antes ${previos})` : ''} → publicado`)
   }
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
 
 async function main() {
-  for (const [nombre, ruta] of [['gbak', GBAK], ['isql', ISQL]]) {
-    if (!fs.existsSync(ruta)) { console.error(`No se encontró ${nombre} en ${ruta}`); process.exit(2) }
-  }
-  if (!DRY_RUN && !(BUCKET && process.env.VITE_S3_ACCESS_KEY && process.env.VITE_S3_SECRET_KEY)) {
-    console.error('Faltan VITE_S3_BUCKET / VITE_S3_ACCESS_KEY / VITE_S3_SECRET_KEY en .env')
+  log(`Origen de los respaldos: ${ORIGEN}`)
+
+  if (ORIGEN === 'dropbox' && !dropboxConfigurado()) {
+    console.error('Faltan las credenciales de Dropbox (DROPBOX_REFRESH_TOKEN, DROPBOX_APP_KEY, DROPBOX_APP_SECRET)')
     process.exit(2)
+  }
+  if (!DRY_RUN && !(BUCKET && (process.env.VITE_S3_ACCESS_KEY || process.env.S3_ACCESS_KEY))) {
+    console.error('Faltan las credenciales de S3 (S3_BUCKET, S3_ACCESS_KEY, S3_SECRET_KEY)')
+    process.exit(2)
+  }
+
+  // Comprobación temprana de las herramientas de Firebird, con mensaje claro
+  try {
+    await run(GBAK, ['-z'], { windowsHide: true })
+  } catch (err) {
+    const salida = `${err.stdout || ''}${err.stderr || ''}`
+    if (!salida.includes('gbak')) {
+      console.error(`No se pudo ejecutar gbak en "${GBAK}". ${esWindows ? 'Revisa ELEVENTA_DIR.' : 'Instala firebird3.0-utils o define GBAK.'}`)
+      process.exit(2)
+    }
+    log(`Firebird: ${salida.split('\n')[0].trim()}`)
   }
 
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'istuffs-inv-'))
@@ -258,7 +299,7 @@ async function main() {
       await procesar(suc, workDir)
     } catch (err) {
       errores++
-      console.error(`[${suc.slug}] ERROR: ${err.stderr?.toString().trim() || err.message}`)
+      console.error(`[${suc.slug}] ERROR: ${(err.stderr || err.message || '').toString().trim().slice(0, 400)}`)
     }
   }
   fs.rmSync(workDir, { recursive: true, force: true })
