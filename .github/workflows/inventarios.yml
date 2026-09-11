@@ -39,48 +39,60 @@ jobs:
       - name: Instalar dependencias
         run: npm ci --omit=dev
 
-      - name: Instalar Firebird
+      - name: Preparar Firebird en contenedor
+        env:
+          IMAGEN: jacobalberty/firebird:2.5-ss
         run: |
           set -e
-          # El paquete del servidor pide la contraseña de SYSDBA de forma
-          # interactiva; se preconfigura para que no bloquee la instalacion.
-          echo "firebird3.0-server firebird3.0-server/sysdba_password/new_password password masterkey" | sudo debconf-set-selections
-          echo "firebird3.0-server firebird3.0-server/enable_legacy_hash boolean true" | sudo debconf-set-selections
-          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq firebird3.0-server firebird3.0-utils
+          # Se usa un contenedor en lugar del paquete del sistema por dos
+          # razones. Primero, el paquete de Debian corre el motor como el
+          # usuario `firebird` y gbak fallaba con "Permission denied" sobre sus
+          # carpetas. Segundo, los respaldos vienen de Firebird 2.0 y esta
+          # imagen trae 2.5, que los lee sin riesgo de incompatibilidad, en vez
+          # del 3.0 que trae Ubuntu.
+          docker pull -q "$IMAGEN"
 
-          # El motor corre como el usuario `firebird`, distinto del que ejecuta
-          # gbak. Sin esto falla con "Permission denied /tmp/firebird/" antes
-          # siquiera de mirar el respaldo.
-          sudo mkdir -p /tmp/firebird
-          sudo chmod 1777 /tmp/firebird
-          sudo chown firebird:firebird /tmp/firebird || true
-          sudo chmod 1777 /tmp
+          echo "--- ubicacion de las herramientas dentro de la imagen ---"
+          RUTA_GBAK=$(docker run --rm --entrypoint sh "$IMAGEN" -c \
+            'command -v gbak || ls /usr/local/firebird/bin/gbak 2>/dev/null || find / -name gbak -type f 2>/dev/null | head -1')
+          RUTA_ISQL=$(docker run --rm --entrypoint sh "$IMAGEN" -c \
+            'command -v isql || ls /usr/local/firebird/bin/isql 2>/dev/null || find / -name isql -type f 2>/dev/null | head -1')
+          echo "gbak: ${RUTA_GBAK:-NO ENCONTRADO}"
+          echo "isql: ${RUTA_ISQL:-NO ENCONTRADO}"
+          test -n "$RUTA_GBAK" && test -n "$RUTA_ISQL"
 
-      - name: Verificar herramientas de Firebird
-        run: |
-          echo "--- que hay instalado ---"
-          echo "gbak: $(command -v gbak || echo NO ENCONTRADO)"
-          echo "isql: $(command -v isql-fb || command -v isql || echo NO ENCONTRADO)"
-          gbak -z || true
-          isql-fb -z || true
+          # Envoltorios que ejecutan las herramientas dentro del contenedor.
+          # Se monta /tmp en la misma ruta para que los argumentos del script
+          # funcionen sin traducir, y se corre como root para que no haya
+          # choques de permisos con los archivos temporales.
+          crear_envoltorio() {
+            sudo tee "/usr/local/bin/$1" >/dev/null <<ENVOLTORIO
+          #!/bin/bash
+          exec docker run --rm -u 0:0 -v /tmp:/tmp --entrypoint $2 $IMAGEN "\$@"
+          ENVOLTORIO
+            sudo chmod +x "/usr/local/bin/$1"
+          }
+          crear_envoltorio fb-gbak "$RUTA_GBAK"
+          crear_envoltorio fb-isql "$RUTA_ISQL"
 
-          echo "--- permisos de las carpetas que usa el motor ---"
-          ls -ld /tmp /tmp/firebird
+          echo "--- version que reportan los envoltorios ---"
+          fb-gbak -z || true
 
-          echo "--- responde el motor? ---"
-          # Crear y leer una base vacia prueba el motor antes de tocar los
-          # respaldos, y separa un fallo de permisos de uno de version.
+          echo "--- prueba del motor antes de tocar los respaldos ---"
           mkdir -p /tmp/pruebafb && chmod 777 /tmp/pruebafb
-          printf 'CREATE DATABASE "/tmp/pruebafb/prueba.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' > /tmp/p.sql
-          if isql-fb -user SYSDBA -password masterkey -i /tmp/p.sql; then
+          printf 'CREATE DATABASE "/tmp/pruebafb/prueba.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' > /tmp/pruebafb/p.sql
+          if fb-isql -user SYSDBA -password masterkey -i /tmp/pruebafb/p.sql; then
             echo "MOTOR FIREBIRD OK"
           else
-            echo "MOTOR FIREBIRD NO RESPONDE (revisar autenticacion o permisos)"
+            echo "MOTOR FIREBIRD NO RESPONDE"
+            exit 1
           fi
 
       - name: Sincronizar
         env:
+          # El script llama a estos en vez de buscar gbak e isql en el sistema
+          GBAK: fb-gbak
+          ISQL: fb-isql
           DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
           DROPBOX_APP_KEY:       ${{ secrets.DROPBOX_APP_KEY }}
           DROPBOX_APP_SECRET:    ${{ secrets.DROPBOX_APP_SECRET }}
