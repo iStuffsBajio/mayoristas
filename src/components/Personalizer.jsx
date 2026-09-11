@@ -498,18 +498,6 @@ export default function Personalizer() {
 
               {/* Se explica ANTES de enviar como van a llegar las imagenes,
                   porque el comportamiento cambia entre celular y computadora. */}
-              {archivosRenombrados.length > 0 && (
-                <div style={{ padding: '11px 14px', borderRadius: 12, background: 'rgba(141,198,63,0.08)', border: '1px solid rgba(141,198,63,0.3)' }}>
-                  <p style={{ fontSize: 12.5, fontWeight: 700, margin: 0, color: '#4d7c0f' }}>
-                    {archivosRenombrados.length} imagen(es) se guardarán con el nombre de su modelo
-                  </p>
-                  <p style={{ fontSize: 12, margin: '3px 0 0', lineHeight: 1.5, color: '#3f6212' }}>
-                    Quedan en la carpeta de {sucursal.nombre} en Dropbox.
-                    {sePuedeAdjuntar ? ' Además se adjuntan al chat.' : ''}
-                  </p>
-                </div>
-              )}
-
               {aviso && <p style={{ fontSize: 12, color: '#d97706' }}>{aviso}</p>}
               {!numeroSucursal && (
                 <p style={{ fontSize: 12, color: '#D51A7A', fontWeight: 600 }}>
