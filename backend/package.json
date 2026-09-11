@@ -1,0 +1,14 @@
+{
+  "name": "istuffs-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend de iStuffs. Guarda las credenciales fuera del navegador.",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1050.0"
+  }
+}

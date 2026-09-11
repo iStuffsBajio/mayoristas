@@ -5,3 +5,5 @@ dist/
 .env
 .env.local
 scripts/out/
+backend/out/
+backend/node_modules/

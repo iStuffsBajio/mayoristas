@@ -1,0 +1,59 @@
+name: Desplegar backend
+
+# Publica el codigo del backend en la funcion Lambda. Las credenciales del
+# backend NO se tocan aqui: viven como variables de entorno de la Lambda y se
+# configuran una sola vez en la consola de AWS.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/desplegar-backend.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: desplegar-backend
+  cancel-in-progress: true
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Pruebas del backend
+        working-directory: backend
+        run: |
+          npm install --omit=dev --silent
+          npm test
+
+      - name: Empaquetar
+        working-directory: backend
+        run: |
+          # El SDK de AWS ya viene incluido en el entorno de Lambda, pero se
+          # empaqueta igual para no depender de la version que traiga AWS.
+          zip -qr ../backend.zip src node_modules package.json
+          ls -lh ../backend.zip
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_DEPLOY_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_DEPLOY_SECRET_KEY }}
+          aws-region:            ${{ secrets.S3_REGION }}
+
+      - name: Publicar en Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name istuffs-backend \
+            --zip-file fileb://backend.zip \
+            --no-cli-pager
+          aws lambda wait function-updated --function-name istuffs-backend
+          echo "Backend actualizado."
