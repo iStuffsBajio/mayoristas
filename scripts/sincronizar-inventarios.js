@@ -43,6 +43,12 @@ const ISQL = process.env.ISQL || (esWindows ? path.join(ELEVENTA_DIR, 'isql.exe'
 const FB_USER = process.env.FIREBIRD_USER || 'SYSDBA'
 const FB_PASS = process.env.FIREBIRD_PASS || 'masterkey'
 
+// En Linux el cliente de Firebird no abre el archivo directamente: habla con
+// un servidor. Segun como este compilado, una ruta suelta puede fallar y hay
+// que nombrarla como "localhost:/ruta". En Windows no aplica y queda vacio.
+const FB_PREFIJO = process.env.FB_PREFIJO || ''
+const comoBase = ruta => `${FB_PREFIJO}${ruta}`
+
 // Solo sucursales activas. Torreón y Morelia tienen carpeta pero sin respaldos recientes.
 const SUCURSALES = [
   { slug: 'aguascalientes', nombre: 'Aguascalientes',  carpeta: 'ags'  },
@@ -153,7 +159,9 @@ async function obtenerArchivo(respaldo, workDir) {
 
 async function restaurar(fbk, destinoFdb) {
   fs.rmSync(destinoFdb, { force: true })
-  await run(GBAK, ['-c', '-user', FB_USER, '-password', FB_PASS, fbk, destinoFdb], { windowsHide: true })
+  // El .fbk lo lee gbak del lado del cliente; la base la crea el servidor,
+  // asi que solo esa lleva el prefijo.
+  await run(GBAK, ['-c', '-user', FB_USER, '-password', FB_PASS, fbk, comoBase(destinoFdb)], { windowsHide: true })
   if (!fs.existsSync(destinoFdb)) throw new Error('gbak no generó la base restaurada')
 }
 
@@ -162,7 +170,7 @@ async function consultar(fdb, workDir) {
   const outFile = path.join(workDir, 'salida.txt')
   fs.writeFileSync(sqlFile, SQL)
   fs.rmSync(outFile, { force: true })
-  await run(ISQL, ['-user', FB_USER, '-password', FB_PASS, '-i', sqlFile, '-o', outFile, fdb], { windowsHide: true })
+  await run(ISQL, ['-user', FB_USER, '-password', FB_PASS, '-i', sqlFile, '-o', outFile, comoBase(fdb)], { windowsHide: true })
   // La base usa charset NONE: los bytes llegan tal cual, se decodifican como latin1
   const texto = fs.readFileSync(outFile, 'latin1')
   const filas = []

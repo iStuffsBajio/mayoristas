@@ -71,15 +71,31 @@ jobs:
               -e ISC_PASSWORD=masterkey -e FIREBIRD_ROOT_PASSWORD=masterkey \
               "$IMAGEN" >/dev/null
 
-            echo "=== esperando a que responda ==="
+            echo "=== esperando a que el servidor escuche ==="
+            # La comprobacion anterior era falsa: isql con entrada vacia
+            # devuelve exito sin conectarse a nada. Ahora se intenta una
+            # conexion real contra la base de ejemplo que trae Firebird.
             listo=0
-            for i in $(seq 1 30); do
-              if docker exec firebird /usr/local/firebird/bin/isql -user SYSDBA -password masterkey \
-                   -q -i /dev/null 2>/dev/null; then listo=1; break; fi
+            for i in $(seq 1 20); do
+              if docker exec firebird /usr/local/firebird/bin/isql \
+                   -user SYSDBA -password masterkey \
+                   -q -e 'localhost:/usr/local/firebird/examples/empbuild/employee.fdb' \
+                   -i /dev/null >/dev/null 2>&1; then listo=1; break; fi
               sleep 2
             done
-            docker logs firebird 2>&1 | tail -15
-            echo "servidor listo: $listo (tras $((i*2))s)"
+            echo "servidor acepta conexiones: $listo (tras $((i*2))s)"
+
+            echo "=== estado del contenedor ==="
+            docker ps --filter name=firebird --format '{{.Status}}'
+            echo "--- registro del contenedor ---"
+            docker logs firebird 2>&1 | tail -25 || echo "(sin registro)"
+            echo "--- procesos dentro ---"
+            docker exec firebird sh -c 'ps ax 2>/dev/null || ps -ef 2>/dev/null' | head -15 || echo "(no se pudo)"
+            echo "--- escucha el puerto 3050? ---"
+            docker exec firebird sh -c \
+              'ss -tln 2>/dev/null || netstat -tln 2>/dev/null || cat /proc/net/tcp' | grep -i -E '3050|0BEA' || echo "puerto 3050 NO aparece"
+            echo "--- que bases hay ---"
+            docker exec firebird sh -c 'ls -la /usr/local/firebird/examples/empbuild/ 2>/dev/null' | head -5 || true
 
             # Envoltorios que ejecutan las herramientas DENTRO del contenedor
             # encendido. /tmp esta montado en la misma ruta, asi que los
@@ -96,13 +112,29 @@ jobs:
 
             echo "=== prueba del motor ==="
             mkdir -p /tmp/pruebafb && chmod 777 /tmp/pruebafb
-            printf 'CREATE DATABASE "/tmp/pruebafb/prueba.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' > /tmp/pruebafb/p.sql
-            if fb-isql -user SYSDBA -password masterkey -i /tmp/pruebafb/p.sql; then
-              echo "MOTOR FIREBIRD OK"
-            else
-              echo "MOTOR FIREBIRD NO RESPONDE"
+
+            # Se prueban las dos formas de nombrar la base. Con ruta suelta el
+            # cliente de Firebird en Linux intenta una conexion de red a
+            # localhost; con el prefijo localhost: se hace explicita. Se toma la
+            # que funcione y se recuerda para el resto del flujo.
+            PREFIJO=""
+            for pre in "localhost:" ""; do
+              printf 'CREATE DATABASE "%s/tmp/pruebafb/p%s.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' \
+                "$pre" "${pre:+L}" > /tmp/pruebafb/p.sql
+              echo "--- probando prefijo: '${pre:-ninguno}' ---"
+              if fb-isql -user SYSDBA -password masterkey -i /tmp/pruebafb/p.sql; then
+                echo "FUNCIONA con prefijo '${pre:-ninguno}'"
+                PREFIJO="$pre"
+                echo "PREFIJO_FB=$pre" >> "$GITHUB_ENV"
+                break
+              fi
+            done
+
+            if [ -z "$PREFIJO" ] && ! grep -q 'PREFIJO_FB=' "$GITHUB_ENV" 2>/dev/null; then
+              echo "MOTOR FIREBIRD NO RESPONDE CON NINGUNA FORMA"
               exit 1
             fi
+            echo "MOTOR FIREBIRD OK"
           } 2>&1 | tee -a /tmp/diagnostico.txt
           exit ${PIPESTATUS[0]}
 
@@ -111,6 +143,8 @@ jobs:
           # El script llama a estos en vez de buscar gbak e isql en el sistema
           GBAK: fb-gbak
           ISQL: fb-isql
+          # Lo detecta el paso anterior y lo deja en GITHUB_ENV
+          FB_PREFIJO: ${{ env.PREFIJO_FB }}
           DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
           DROPBOX_APP_KEY:       ${{ secrets.DROPBOX_APP_KEY }}
           DROPBOX_APP_SECRET:    ${{ secrets.DROPBOX_APP_SECRET }}
