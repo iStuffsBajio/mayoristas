@@ -72,7 +72,9 @@ function ResumenPedido({ lineas, totalPiezas }) {
   const conImagen = lineas.filter(l => l.imagen)
 
   return (
-    <div style={{ position: 'sticky', top: 120 }}>
+    // Pegajoso solo en pantalla grande. En celular el resumen va debajo del
+    // formulario, y ahí quedarse fijo al hacer scroll estorba en vez de ayudar.
+    <div className="lg:sticky" style={{ top: 120 }}>
       <div style={{ background: '#fff', borderRadius: 34, border: '1px solid rgba(16,22,25,0.05)', padding: 18, boxShadow: '0 4px 20px rgba(16,22,25,0.05)' }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: '#9DAEB6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
           Tu pedido
