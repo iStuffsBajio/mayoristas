@@ -39,6 +39,17 @@ export default function Hero({ onExplorar, onPersonalizar }) {
           {hero.subtitulo}
         </p>
 
+        {/* Acceso a la guía. En el pie casi nadie lo encuentra, y es lo que
+            resuelve las dudas de quien entra por primera vez. */}
+        <p className="mb-8" style={{ fontSize: 14 }}>
+          <a href="/guia.html" target="_blank" rel="noopener noreferrer"
+            style={{ color: colores.acento, textDecoration: 'none', fontWeight: 700, borderBottom: `1.5px solid ${colores.acento}55`, paddingBottom: 2 }}
+            onMouseEnter={e => (e.currentTarget.style.color = colores.primario)}
+            onMouseLeave={e => (e.currentTarget.style.color = colores.acento)}>
+            ¿Primera vez aquí? Lee la guía en 1 minuto
+          </a>
+        </p>
+
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
           <button onClick={onExplorar} className="px-9 py-4 text-white font-semibold text-base transition-all"
             style={{ background: gradPrincipal, borderRadius: '999px', border: 'none', cursor: 'pointer', boxShadow: `0 8px 28px ${colores.primario}4d` }}

@@ -20,10 +20,19 @@ const XIcon = () => (
   </svg>
 )
 
+// Los enlaces llevan destino real. Antes todos apuntaban a "#", así que la
+// guía y el PDF existían en el servidor pero no había forma de llegar a ellos.
 const LINKS = {
-  Empresa:    ['Nosotros', 'Franquicias', 'Trabaja con nosotros', 'Blog'],
-  Soporte:    ['Centro de ayuda', 'Rastrear pedido', 'Devoluciones', 'Garantía'],
-  Sucursales: ['León, Gto.', 'San Luis Potosí', 'Aguascalientes', 'Torreón, Coah.'],
+  Mayoristas: [
+    { label: 'Guía para mayoristas', href: '/guia.html' },
+    { label: 'Descargar guía en PDF', href: '/Guia-Mayoristas-iStuffs.pdf', descarga: true },
+  ],
+  Empresa:    [
+    { label: 'Nosotros' }, { label: 'Franquicias' }, { label: 'Trabaja con nosotros' },
+  ],
+  Sucursales: [
+    { label: 'León, Gto.' }, { label: 'San Luis Potosí' }, { label: 'Aguascalientes' },
+  ],
 }
 
 export default function Footer() {
@@ -57,16 +66,23 @@ export default function Footer() {
             <div key={title}>
               <h4 className="text-sm font-semibold mb-4" style={{ color: '#101619' }}>{title}</h4>
               <ul className="space-y-3">
-                {links.map(link => (
-                  <li key={link}>
-                    <a href="#" className="text-sm transition-colors"
-                      style={{ color: 'rgba(0,0,0,0.45)', textDecoration: 'none' }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#0A0A0A')}
-                      onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.45)')}>
-                      {link}
-                    </a>
-                  </li>
-                ))}
+                {links.map(link => {
+                  const activo = !!link.href
+                  return (
+                    <li key={link.label}>
+                      <a
+                        href={link.href || '#'}
+                        target={activo ? '_blank' : undefined}
+                        rel={activo ? 'noopener noreferrer' : undefined}
+                        className="text-sm transition-colors"
+                        style={{ color: activo ? '#0288AD' : '#8598A1', textDecoration: 'none', fontWeight: activo ? 600 : 400 }}
+                        onMouseEnter={e => (e.currentTarget.style.color = activo ? '#C4156F' : '#101619')}
+                        onMouseLeave={e => (e.currentTarget.style.color = activo ? '#0288AD' : '#8598A1')}>
+                        {link.label}{link.descarga ? ' ↓' : ''}
+                      </a>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           ))}
