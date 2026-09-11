@@ -26,9 +26,25 @@ export function renombrar(file, modelo, cliente = '') {
   return new File([file], `${partes.join('_')}.${ext}`, { type: file.type })
 }
 
+/**
+ * ¿Es un celular o tableta?
+ *
+ * Importa porque Windows también dice que puede compartir archivos, pero su
+ * menú solo alcanza apps instaladas. Quien usa WhatsApp Web en una pestaña no
+ * aparece ahí, y el pedido se quedaba a medias con el menú abierto sin destino
+ * posible. En escritorio conviene siempre el enlace wa.me, que sí abre la
+ * sesión de WhatsApp Web que la sucursal ya tiene lista.
+ */
+export function esDispositivoMovil() {
+  if (typeof navigator === 'undefined') return false
+  if (navigator.userAgentData?.mobile !== undefined) return navigator.userAgentData.mobile
+  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(navigator.userAgent || '')
+}
+
 /** ¿El navegador puede entregar estos archivos a otra app? */
 export function puedeCompartirArchivos(archivos) {
   if (!archivos.length) return false
+  if (!esDispositivoMovil()) return false
   try {
     return !!(navigator.canShare && navigator.canShare({ files: archivos }))
   } catch {
