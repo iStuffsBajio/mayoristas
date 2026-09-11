@@ -71,8 +71,14 @@ const inp = {
 const fp = e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }
 const bl = e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }
 
-function FormBase({ tipo, emojiTipo, carpetaDropbox }) {
+function FormBase() {
   const { config } = useSiteConfig()
+  // Un solo formulario. El interruptor decide si el stiker es para funda de
+  // celular o personalizado, en vez de tener dos pestañas separadas que pedian
+  // casi los mismos datos.
+  const [paraCelular, setParaCelular] = useState(true)
+  const tipo      = paraCelular ? 'Stiker Funda' : 'Stiker Personalizado'
+  const carpetaDropbox = config.dropboxCatalogos?.[paraCelular ? 'fundas' : 'personalizados'] || ''
   const [form, setForm]           = useState({ nombre: '', telefono: '', sucursal: SUCURSALES[0], cantidad: '', tamanio: TAMANIOS[0], descripcion: '' })
   const [preview, setPreview]     = useState(null)
   const [imageFile, setImageFile] = useState(null)
@@ -174,6 +180,27 @@ function FormBase({ tipo, emojiTipo, carpetaDropbox }) {
       <form onSubmit={handleSubmit} className="lg:col-span-3"
         style={{ backgroundColor: '#fff', borderRadius: 28, border: '1px solid rgba(0,0,0,0.08)', padding: '28px 24px', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
+        {/* Tipo de stiker: al activarlo se entiende que es para funda de celular
+            y se omiten los campos que solo aplican a los personalizados. */}
+        <div style={{ padding: '14px 16px', borderRadius: 16, border: `1.5px solid ${paraCelular ? 'rgba(0,188,242,0.35)' : 'rgba(0,0,0,0.1)'}`, background: paraCelular ? 'rgba(0,188,242,0.05)' : '#f7f8fa', transition: 'all 0.2s' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
+            <div onClick={() => setParaCelular(v => !v)}
+              style={{ width: 44, height: 25, borderRadius: 999, background: paraCelular ? 'linear-gradient(135deg,#00BCF2,#8DC63F)' : 'rgba(0,0,0,0.15)', position: 'relative', transition: 'all 0.2s', flexShrink: 0 }}>
+              <div style={{ position: 'absolute', top: 2.5, left: paraCelular ? 21 : 2.5, width: 20, height: 20, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+            </div>
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 800, color: '#0A0A0A', margin: 0 }}>
+                Mi stiker es para una funda de celular
+              </p>
+              <p style={{ fontSize: 12, color: '#999', margin: 0 }}>
+                {paraCelular
+                  ? 'Se usa el tamaño de funda, no hace falta especificarlo.'
+                  : 'Stiker personalizado: indica el tamaño que necesitas.'}
+              </p>
+            </div>
+          </label>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Nombre del cliente"><input value={form.nombre} onChange={set('nombre')} required placeholder="Ej. Juan Pérez" style={inp} onFocus={fp} onBlur={bl} /></Field>
           <Field label="Teléfono"><input value={form.telefono} onChange={set('telefono')} required placeholder="477 123 4567" type="tel" style={inp} onFocus={fp} onBlur={bl} /></Field>
@@ -236,39 +263,18 @@ function FormBase({ tipo, emojiTipo, carpetaDropbox }) {
   )
 }
 
-const SUB_TABS = [
-  { id: 'funda',         label: 'Stiker Funda para Celular', emoji: '📱', tipo: 'Stiker Funda',         configKey: 'fundas' },
-  { id: 'personalizado', label: 'Stiker Personalizado',      emoji: '✂️',  tipo: 'Stiker Personalizado', configKey: 'personalizados' },
-]
-
 export default function PedidosStikers() {
-  const [subTab, setSubTab] = useState('funda')
-  const { config } = useSiteConfig()
-  const tab = SUB_TABS.find(t => t.id === subTab)
-  const carpeta = config.dropboxCatalogos?.[tab.configKey] || ''
-
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
       <div className="mb-8">
         <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#D51A7A' }}>Stickers Personalizados</p>
         <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#0A0A0A' }}>Pedidos para tus clientes</h2>
-        <p className="text-sm" style={{ color: '#888' }}>Selecciona un diseño del catálogo o sube la imagen de referencia y envía el pedido por WhatsApp.</p>
+        <p className="text-sm" style={{ color: '#888' }}>
+          Indica si el stiker es para funda de celular, elige un diseño del catálogo o sube tu imagen, y envía el pedido por WhatsApp.
+        </p>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 28, flexWrap: 'wrap' }}>
-        {SUB_TABS.map(t => {
-          const active = subTab === t.id
-          return (
-            <button key={t.id} onClick={() => setSubTab(t.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 999, fontSize: 14, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', border: 'none', background: active ? 'linear-gradient(135deg,#D51A7A,#FF6B1A)' : 'rgba(0,0,0,0.06)', color: active ? 'white' : '#555', boxShadow: active ? '0 4px 16px rgba(213,26,122,0.25)' : 'none' }}>
-              <span>{t.emoji}</span>
-              <span>{t.label}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      <FormBase key={tab.id} tipo={tab.tipo} emojiTipo={tab.emoji} carpetaDropbox={carpeta} />
+      <FormBase />
     </section>
   )
 }

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx'
 import { useAuth } from '../context/AuthContext'
 import { inventarioUrl, uploadInventario, uploadInventarioJson, loadInventarioJson, s3Configured } from '../lib/s3'
+import StockBadge, { nivelStock, COLOR_NIVEL, ETIQUETAS_LEYENDA } from './StockBadge'
 
 const SUCURSALES = [
   { name: 'León',            slug: 'leon' },
@@ -29,17 +30,6 @@ const UploadIcon = () => (
     <line x1="12" y1="3" x2="12" y2="15" />
   </svg>
 )
-
-function StockBadge({ value }) {
-  const n = parseFloat(value) || 0
-  const dot = (color) => (
-    <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: color, display: 'inline-block', marginLeft: 5 }} />
-  )
-  if (n >= 20) return <span style={{ color: '#16a34a', fontWeight: 700, display: 'inline-flex', alignItems: 'center' }}>{n}{dot('#16a34a')}</span>
-  if (n >= 10) return <span style={{ color: '#d97706', fontWeight: 700, display: 'inline-flex', alignItems: 'center' }}>{n}{dot('#d97706')}</span>
-  if (n > 0)   return <span style={{ color: '#D51A7A', fontWeight: 700 }}>{n} ⚡</span>
-  return <span style={{ color: '#bbb', fontWeight: 500 }}>—</span>
-}
 
 function HighlightText({ text, query }) {
   if (!query) return <>{text}</>
@@ -180,9 +170,9 @@ export default function InventarioSemanal({ onLoginClick }) {
     return {
       total:    allRows.length,
       units:    allRows.reduce((s, r) => s + (parseFloat(r[COL_EXISTENCIA]) || 0), 0),
-      enStock:  allRows.filter(r => (parseFloat(r[COL_EXISTENCIA]) || 0) >= 20).length,
-      limitado: allRows.filter(r => { const n = parseFloat(r[COL_EXISTENCIA]) || 0; return n >= 10 && n < 20 }).length,
-      urgente:  allRows.filter(r => (parseFloat(r[COL_EXISTENCIA]) || 0) < 10 && (parseFloat(r[COL_EXISTENCIA]) || 0) > 0).length,
+      enStock:  allRows.filter(r => nivelStock(r[COL_EXISTENCIA]) === 'verde').length,
+      limitado: allRows.filter(r => nivelStock(r[COL_EXISTENCIA]) === 'naranja').length,
+      urgente:  allRows.filter(r => (parseFloat(r[COL_EXISTENCIA]) || 0) > 0 && nivelStock(r[COL_EXISTENCIA]) === 'urgente').length,
     }
   }, [allRows])
 
@@ -339,20 +329,18 @@ export default function InventarioSemanal({ onLoginClick }) {
             className="flex items-center justify-between px-5 sm:px-6 py-3 flex-wrap gap-2"
             style={{ borderBottom: '1px solid rgba(0,0,0,0.07)', backgroundColor: 'rgba(0,188,242,0.04)' }}
           >
-            <span className="text-sm font-semibold" style={{ color: '#00BCF2' }}>
-              📊 {fileName}
-              {search
-                ? ` · Mostrando ${filteredRows.length} de ${stats.total}`
-                : ` · ${stats.total} modelos`}
+            {/* Solo la fecha del dato. El nombre del archivo, el conteo de
+                modelos y las unidades ya se ven en la tabla y en la leyenda. */}
+            <span className="text-sm font-semibold" style={{ color: '#8DC63F' }}>
+              Última actualización: {origen?.respaldo?.fecha
+                ? fmtFechaCorta(origen.respaldo.fecha)
+                : lastUpdate ? fmtFechaCorta(lastUpdate.toISOString().slice(0, 10)) : '—'}
             </span>
-            <span className="text-sm" style={{ color: '#666' }}>
-              {stats.units.toLocaleString()} unidades · {sucursal.name}
-              {origen?.origen === 'respaldo-eleventa' && origen.respaldo?.fecha && (
-                <span style={{ marginLeft: 8, color: '#8DC63F', fontWeight: 600 }}>
-                  · Respaldo del {fmtFechaCorta(origen.respaldo.fecha)}
-                </span>
-              )}
-            </span>
+            {search && (
+              <span className="text-sm" style={{ color: '#888' }}>
+                {filteredRows.length} de {stats.total}
+              </span>
+            )}
           </div>
         )}
 
@@ -468,11 +456,11 @@ export default function InventarioSemanal({ onLoginClick }) {
           <span className="text-xs font-bold tracking-wider uppercase" style={{ color: '#ccc' }}>
             Leyenda:
           </span>
-          {[
-            { label: 'En stock (≥ 20)',   count: stats.enStock,  color: '#16a34a' },
-            { label: 'Limitado (10–19)',  count: stats.limitado, color: '#d97706' },
-            { label: 'Urgente (< 10)',    count: stats.urgente,  color: '#D51A7A' },
-          ].map(item => (
+          {ETIQUETAS_LEYENDA.map(({ nivel, label }) => ({
+            label,
+            color: COLOR_NIVEL[nivel],
+            count: nivel === 'verde' ? stats.enStock : nivel === 'naranja' ? stats.limitado : stats.urgente,
+          })).map(item => (
             <div key={item.label} className="flex items-center gap-2">
               <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: item.color, display: 'inline-block', flexShrink: 0 }} />
               <span className="text-sm" style={{ color: '#888' }}>{item.label}:</span>

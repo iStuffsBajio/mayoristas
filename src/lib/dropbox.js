@@ -29,12 +29,27 @@ export async function getAccessToken() {
   return data.access_token
 }
 
-export async function uploadStikerDropbox(slug, file, clienteName) {
+/** Limpia un texto para usarlo como parte de un nombre de archivo. */
+function paraNombre(texto, largo = 40) {
+  return String(texto || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, largo)
+}
+
+/**
+ * Sube la imagen de un pedido a la carpeta de su sucursal.
+ * El modelo va en el nombre del archivo para que en Dropbox se sepa a qué
+ * funda corresponde cada imagen sin tener que abrirlas una por una.
+ */
+export async function uploadStikerDropbox(slug, file, clienteName, modelo = '') {
   const ext    = file.name.split('.').pop() || 'jpg'
   const fecha  = new Date().toISOString().slice(0, 10)
-  const nombre = clienteName.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_\-áéíóúÁÉÍÓÚñÑ]/g, '')
+  const cliente = paraNombre(clienteName) || 'cliente'
+  const mod     = paraNombre(modelo, 50)
   const folder = SLUG_FOLDER[slug] || slug
-  const path   = `${FOLDER}/${folder}/${fecha}_${nombre}.${ext}`
+  const path   = `${FOLDER}/${folder}/${fecha}_${cliente}${mod ? `_${mod}` : ''}.${ext}`
 
   const token = await getAccessToken()
   const buf   = await file.arrayBuffer()
