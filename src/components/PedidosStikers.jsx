@@ -172,7 +172,12 @@ function FormBase() {
               <p style={{ fontSize: 10, color: '#9DAEB6', margin: 0 }}>PNG, JPG · Máx 10 MB</p>
             </div>
           </div>
-          <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
+          {/* Mismo criterio que en el pedido de fundas: los formatos van
+              listados porque varios selectores de Android filtran de más con
+              el comodín solo, y las fotos de iPhone no aparecían. */}
+          <input ref={inputRef} type="file" style={{ display: 'none' }}
+            accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif"
+            onChange={e => handleFile(e.target.files[0])} />
         </div>
       </div>
 

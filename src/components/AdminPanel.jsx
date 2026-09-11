@@ -198,7 +198,7 @@ function EditorDegradado({ gradKey, label, gradientes, onChange }) {
             <span style={{ fontSize: 10, fontWeight: 700, color: '#8598A1', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>{fl}</span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <input type="color" value={g[field] || '#ffffff'} onChange={set(field)}
-                style={{ width: 36, height: 36, borderRadius: 34, border: '1.5px solid rgba(16,22,25,0.09)', cursor: 'pointer', padding: 2, background: 'white', flexShrink: 0 }} />
+                style={{ width: 36, height: 36, borderRadius: 12, border: '1.5px solid rgba(16,22,25,0.09)', cursor: 'pointer', padding: 2, background: 'white', flexShrink: 0 }} />
               <input value={g[field] || ''} onChange={set(field)} maxLength={7}
                 placeholder="#000000"
                 style={{ ...inp, padding: '7px 8px', fontFamily: 'monospace', fontSize: 11, width: 80, minWidth: 0 }}
@@ -264,7 +264,7 @@ function SeccionColores({ config, save }) {
                 <span style={{ fontSize: 10, fontWeight: 700, color: '#8598A1', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>{label}</span>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <input type="color" value={colores[key] || '#000000'} onChange={setColor(key)}
-                    style={{ width: 36, height: 36, borderRadius: 34, border: '1.5px solid rgba(16,22,25,0.09)', cursor: 'pointer', padding: 2, background: 'white' }} />
+                    style={{ width: 36, height: 36, borderRadius: 12, border: '1.5px solid rgba(16,22,25,0.09)', cursor: 'pointer', padding: 2, background: 'white' }} />
                   <input value={colores[key] || ''} onChange={setColor(key)} maxLength={7}
                     style={{ ...inp, padding: '7px 10px', fontFamily: 'monospace', fontSize: 12, width: 90 }} onFocus={fp} onBlur={bl} />
                 </div>

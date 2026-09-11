@@ -6,7 +6,7 @@ import { loadInventarioJson, s3Configured } from '../lib/s3'
 import { SUCURSALES, telefonoWhatsApp } from '../lib/sucursales'
 import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
 import { armarMensaje, enlaceWhatsApp, carpetaDeRuta } from '../lib/whatsapp'
-import { renombrar, puedeCompartirArchivos, compartirArchivos, descargarArchivos } from '../lib/compartir'
+import { renombrar, descargarArchivos } from '../lib/compartir'
 
 // ── Iconos ────────────────────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ function ResumenPedido({ lineas, totalPiezas }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9, maxHeight: 340, overflowY: 'auto' }}>
               {lineas.map(l => (
                 <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 34, flexShrink: 0, overflow: 'hidden', background: 'linear-gradient(135deg,#f2f3f5,#e8e9eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 14, flexShrink: 0, overflow: 'hidden', background: 'linear-gradient(135deg,#f2f3f5,#e8e9eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {l.imagen
                       ? <img src={l.imagen.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <span style={{ fontSize: 15, opacity: 0.35 }}>📷</span>}
@@ -219,7 +219,6 @@ export default function Personalizer() {
     () => lineas.filter(l => l.archivo).map(l => renombrar(l.archivo, l.producto, form.nombre)),
     [lineas, form.nombre]
   )
-  const sePuedeAdjuntar = puedeCompartirArchivos(archivosRenombrados)
 
   const textoPedido = ({ carpetas = [], guardadas = 0, fallidas = 0 } = {}) => {
     const detalle = lineas.flatMap((l, i) => [
@@ -280,18 +279,14 @@ export default function Personalizer() {
 
     const msg = textoPedido({ carpetas: [...carpetas], guardadas, fallidas })
 
-    // 2) Si ademas el dispositivo puede adjuntar, se hace: la sucursal ve las
-    //    imagenes en el chat al instante, sin abrir Dropbox.
-    if (sePuedeAdjuntar) {
-      const listo = await compartirArchivos(archivosRenombrados, msg)
-      if (listo) {
-        setEnviado(true)
-        setTimeout(() => setEnviado(false), 6000)
-        return
-      }
-      // Si cancelo la hoja de compartir, sigue el camino normal por enlace.
-    }
-
+    // 2) Siempre por enlace directo al número de la sucursal.
+    //
+    //    Antes, en celular se abría el menú del sistema para adjuntar las
+    //    imágenes. WhatsApp no permite adjuntar Y dirigir a un número a la
+    //    vez: al usar el menú hay que elegir contacto a mano, que son dos
+    //    pasos más y es justo donde se equivocan de sucursal. Como las
+    //    imágenes ya quedaron en Dropbox con el nombre del modelo, se prefiere
+    //    la vía que no puede fallar de destinatario.
     window.open(enlaceWhatsApp(numeroSucursal, msg), '_blank')
 
     if (fallidas || (propias.length && !dropboxConfigured)) {
@@ -425,7 +420,13 @@ export default function Personalizer() {
                         ? <img src={l.imagen.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <><IconoFoto /><span style={{ fontSize: 9, fontWeight: 700, color: '#8598A1' }}>Galería</span></>}
                     </button>
-                    <input type="file" accept="image/*" style={{ display: 'none' }}
+                    {/* Los formatos van listados además de image/*: varios
+                        selectores de Android filtran de más con el comodín
+                        solo, y las fotos de iPhone (HEIC) no aparecían.
+                        Sin atributo capture, para que ofrezca galería y no
+                        abra la cámara directo. */}
+                    <input type="file" style={{ display: 'none' }}
+                      accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif"
                       ref={el => { archivoRefs.current[l.id] = el }}
                       onChange={e => ponerArchivo(l.id, e.target.files[0])} />
 
@@ -437,12 +438,12 @@ export default function Personalizer() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#6C818B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Piezas</span>
                         <button type="button" onClick={() => cambiar(l.id, 'cantidad', Math.max(1, Number(l.cantidad) - 1))}
-                          style={{ width: 26, height: 26, borderRadius: 15, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: '#4A5A61' }}>−</button>
+                          style={{ width: 26, height: 26, borderRadius: 9, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: '#4A5A61' }}>−</button>
                         <input type="number" min="1" value={l.cantidad}
                           onChange={e => cambiar(l.id, 'cantidad', Math.max(1, Number(e.target.value) || 1))}
                           style={{ ...inp, width: 62, textAlign: 'center', padding: '5px 6px', fontSize: 13, fontWeight: 700 }} onFocus={fp} onBlur={bl} />
                         <button type="button" onClick={() => cambiar(l.id, 'cantidad', Number(l.cantidad) + 1)}
-                          style={{ width: 26, height: 26, borderRadius: 15, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: '#4A5A61' }}>+</button>
+                          style={{ width: 26, height: 26, borderRadius: 9, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: '#4A5A61' }}>+</button>
                         {Number(l.cantidad) > l.stock && (
                           <span style={{ fontSize: 11, color: '#d97706', fontWeight: 600 }}>Supera las {l.stock} en existencia</span>
                         )}

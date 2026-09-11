@@ -71,7 +71,7 @@ export default function LoginModal({ onClose }) {
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', background: 'linear-gradient(135deg, rgba(0,188,242,0.1), rgba(141,198,63,0.1))', color: '#0288AD' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', background: 'linear-gradient(135deg, rgba(0,188,242,0.1), rgba(141,198,63,0.1))', color: '#0288AD' }}>
             <LockIcon />
           </div>
           <span
