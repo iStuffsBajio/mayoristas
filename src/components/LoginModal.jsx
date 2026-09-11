@@ -71,7 +71,7 @@ export default function LoginModal({ onClose }) {
 
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', background: 'linear-gradient(135deg, rgba(0,188,242,0.1), rgba(141,198,63,0.1))', color: '#00BCF2' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 34, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px', background: 'linear-gradient(135deg, rgba(0,188,242,0.1), rgba(141,198,63,0.1))', color: '#0288AD' }}>
             <LockIcon />
           </div>
           <span
@@ -79,7 +79,7 @@ export default function LoginModal({ onClose }) {
           >
             iStuffs
           </span>
-          <p style={{ fontSize: 13, color: '#888', marginTop: 4 }}>
+          <p style={{ fontSize: 13, color: '#6C818B', marginTop: 4 }}>
             Acceso para administrar inventario
           </p>
         </div>
@@ -88,16 +88,16 @@ export default function LoginModal({ onClose }) {
 
           {/* Sucursal */}
           <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#888', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6C818B', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Sucursal
             </label>
             <div style={{ position: 'relative' }}>
               <select
                 value={branch.slug}
                 onChange={e => { setBranch(SUCURSALES.find(s => s.slug === e.target.value)); setError('') }}
-                style={{ width: '100%', padding: '11px 40px 11px 16px', borderRadius: 999, border: '1.5px solid rgba(0,0,0,0.1)', backgroundColor: '#f7f8fa', fontSize: 14, color: '#0A0A0A', appearance: 'none', cursor: 'pointer', outline: 'none', fontFamily: 'inherit' }}
+                style={{ width: '100%', padding: '11px 40px 11px 16px', borderRadius: 999, border: '1.5px solid rgba(16,22,25,0.09)', backgroundColor: '#F4F7F8', fontSize: 14, color: '#101619', appearance: 'none', cursor: 'pointer', outline: 'none', fontFamily: 'inherit' }}
                 onFocus={e => (e.target.style.borderColor = 'rgba(0,188,242,0.5)')}
-                onBlur={e => (e.target.style.borderColor = 'rgba(0,0,0,0.1)')}
+                onBlur={e => (e.target.style.borderColor = 'rgba(16,22,25,0.09)')}
               >
                 {SUCURSALES.map(s => <option key={s.slug} value={s.slug}>{s.name}</option>)}
               </select>
@@ -107,7 +107,7 @@ export default function LoginModal({ onClose }) {
 
           {/* Contraseña */}
           <div>
-            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#888', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6C818B', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               Contraseña
             </label>
             <div style={{ position: 'relative' }}>
@@ -118,9 +118,9 @@ export default function LoginModal({ onClose }) {
                 placeholder="Ingresa tu contraseña"
                 required
                 autoFocus
-                style={{ width: '100%', padding: '11px 44px 11px 16px', borderRadius: 999, border: `1.5px solid ${error ? 'rgba(213,26,122,0.5)' : 'rgba(0,0,0,0.1)'}`, backgroundColor: error ? 'rgba(213,26,122,0.03)' : '#f7f8fa', fontSize: 14, color: '#0A0A0A', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
+                style={{ width: '100%', padding: '11px 44px 11px 16px', borderRadius: 999, border: `1.5px solid ${error ? 'rgba(213,26,122,0.5)' : 'rgba(16,22,25,0.09)'}`, backgroundColor: error ? 'rgba(213,26,122,0.03)' : '#f7f8fa', fontSize: 14, color: '#101619', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
                 onFocus={e => !error && (e.target.style.borderColor = 'rgba(0,188,242,0.5)')}
-                onBlur={e => !error && (e.target.style.borderColor = 'rgba(0,0,0,0.1)')}
+                onBlur={e => !error && (e.target.style.borderColor = 'rgba(16,22,25,0.09)')}
               />
               <button
                 type="button"
@@ -131,7 +131,7 @@ export default function LoginModal({ onClose }) {
               </button>
             </div>
             {error && (
-              <p style={{ fontSize: 12, color: '#D51A7A', marginTop: 7, paddingLeft: 4 }}>
+              <p style={{ fontSize: 12, color: '#C4156F', marginTop: 7, paddingLeft: 4 }}>
                 ⚠ {error}
               </p>
             )}
@@ -141,7 +141,7 @@ export default function LoginModal({ onClose }) {
           <button
             type="submit"
             disabled={loading || !password.trim()}
-            style={{ width: '100%', padding: '13px 0', marginTop: 4, background: (loading || !password.trim()) ? 'rgba(0,0,0,0.07)' : 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: 999, border: 'none', color: (loading || !password.trim()) ? 'rgba(0,0,0,0.28)' : 'white', fontSize: 15, fontWeight: 700, cursor: (loading || !password.trim()) ? 'default' : 'pointer', transition: 'all 0.2s', boxShadow: (loading || !password.trim()) ? 'none' : '0 6px 20px rgba(213,26,122,0.3)', fontFamily: 'inherit' }}
+            style={{ width: '100%', padding: '13px 0', marginTop: 4, background: (loading || !password.trim()) ? 'rgba(16,22,25,0.05)' : 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: 999, border: 'none', color: (loading || !password.trim()) ? 'rgba(0,0,0,0.28)' : 'white', fontSize: 15, fontWeight: 700, cursor: (loading || !password.trim()) ? 'default' : 'pointer', transition: 'all 0.2s', boxShadow: (loading || !password.trim()) ? 'none' : '0 6px 20px rgba(213,26,122,0.3)', fontFamily: 'inherit' }}
             onMouseEnter={e => { if (!loading && password.trim()) e.currentTarget.style.transform = 'scale(1.02)' }}
             onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
           >
@@ -149,7 +149,7 @@ export default function LoginModal({ onClose }) {
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: 11, color: '#ccc', marginTop: 20 }}>
+        <p style={{ textAlign: 'center', fontSize: 11, color: '#B4C3C9', marginTop: 20 }}>
           Solo personal autorizado de iStuffs
         </p>
       </div>

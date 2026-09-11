@@ -32,16 +32,16 @@ const IconoWhatsApp = () => (
 // ── Estilos compartidos ───────────────────────────────────────────────────────
 
 const inp = {
-  width: '100%', padding: '10px 14px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.1)',
-  backgroundColor: '#f7f8fa', fontSize: 13.5, color: '#0A0A0A', outline: 'none',
+  width: '100%', padding: '10px 14px', borderRadius: 15, border: '1.5px solid rgba(16,22,25,0.09)',
+  backgroundColor: '#F4F7F8', fontSize: 13.5, color: '#101619', outline: 'none',
   fontFamily: 'inherit', transition: 'border-color 0.15s', boxSizing: 'border-box',
 }
 const fp = e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }
-const bl = e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }
+const bl = e => { e.target.style.borderColor = 'rgba(16,22,25,0.09)'; e.target.style.backgroundColor = '#f7f8fa' }
 
 const Campo = ({ label, children }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-    <label style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
+    <label style={{ fontSize: 11, fontWeight: 700, color: '#6C818B', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
     {children}
   </div>
 )
@@ -53,12 +53,12 @@ function Paso({ n, titulo, hecho, resumen, ultimo, children }) {
         <div style={{ width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, color: 'white', background: hecho ? 'linear-gradient(135deg,#00BCF2,#8DC63F)' : 'rgba(0,0,0,0.16)', transition: 'background 0.25s' }}>
           {hecho ? '✓' : n}
         </div>
-        {!ultimo && <div style={{ flex: 1, width: 2, backgroundColor: 'rgba(0,0,0,0.06)', marginTop: 6, minHeight: 8 }} />}
+        {!ultimo && <div style={{ flex: 1, width: 2, backgroundColor: 'rgba(16,22,25,0.05)', marginTop: 6, minHeight: 8 }} />}
       </div>
       <div style={{ flex: 1, paddingBottom: 24, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '3px 0 12px', flexWrap: 'wrap' }}>
-          <h3 style={{ fontSize: 14, fontWeight: 800, color: '#0A0A0A', margin: 0 }}>{titulo}</h3>
-          {resumen && <span style={{ fontSize: 12, color: '#8DC63F', fontWeight: 700 }}>{resumen}</span>}
+          <h3 style={{ fontSize: 14, fontWeight: 800, color: '#101619', margin: 0 }}>{titulo}</h3>
+          {resumen && <span style={{ fontSize: 12, color: '#5E9422', fontWeight: 700 }}>{resumen}</span>}
         </div>
         {children}
       </div>
@@ -73,15 +73,15 @@ function ResumenPedido({ lineas, totalPiezas }) {
 
   return (
     <div style={{ position: 'sticky', top: 120 }}>
-      <div style={{ background: '#fff', borderRadius: 22, border: '1px solid rgba(0,0,0,0.08)', padding: 18, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
+      <div style={{ background: '#fff', borderRadius: 34, border: '1px solid rgba(16,22,25,0.05)', padding: 18, boxShadow: '0 4px 20px rgba(16,22,25,0.05)' }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: '#9DAEB6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
           Tu pedido
         </p>
 
         {lineas.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '28px 10px' }}>
             <div style={{ fontSize: 38, marginBottom: 8 }}>📱</div>
-            <p style={{ fontSize: 12.5, color: '#bbb', margin: 0, lineHeight: 1.5 }}>
+            <p style={{ fontSize: 12.5, color: '#9DAEB6', margin: 0, lineHeight: 1.5 }}>
               Elige uno o varios modelos y aparecerán aquí
             </p>
           </div>
@@ -90,13 +90,13 @@ function ResumenPedido({ lineas, totalPiezas }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9, maxHeight: 340, overflowY: 'auto' }}>
               {lineas.map(l => (
                 <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 10, flexShrink: 0, overflow: 'hidden', background: 'linear-gradient(135deg,#f2f3f5,#e8e9eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 42, height: 42, borderRadius: 34, flexShrink: 0, overflow: 'hidden', background: 'linear-gradient(135deg,#f2f3f5,#e8e9eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {l.imagen
                       ? <img src={l.imagen.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <span style={{ fontSize: 15, opacity: 0.35 }}>📷</span>}
                   </div>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#0A0A0A', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: '#101619', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {l.producto}
                     </p>
                     <p style={{ fontSize: 11, color: l.imagen ? '#8DC63F' : '#d97706', margin: 0, fontWeight: 600 }}>
@@ -107,11 +107,11 @@ function ResumenPedido({ lineas, totalPiezas }) {
               ))}
             </div>
 
-            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(0,0,0,0.07)', display: 'flex', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12.5, color: '#666' }}>
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid rgba(16,22,25,0.05)', display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12.5, color: '#4A5A61' }}>
                 {lineas.length} modelo{lineas.length !== 1 ? 's' : ''} · {conImagen.length} con diseño
               </span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#0A0A0A' }}>{totalPiezas} pz</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#101619' }}>{totalPiezas} pz</span>
             </div>
           </>
         )}
@@ -310,9 +310,9 @@ export default function Personalizer() {
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
       <div className="mb-8">
-        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#D51A7A' }}>Diseña tu funda</p>
-        <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#0A0A0A' }}>Arma tu pedido</h2>
-        <p className="text-sm" style={{ color: '#888' }}>
+        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#C4156F' }}>Diseña tu funda</p>
+        <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#101619' }}>Arma tu pedido</h2>
+        <p className="text-sm" style={{ color: '#6C818B' }}>
           Elige los modelos que necesites con su cantidad, asigna un diseño a cada uno y el pedido llega al WhatsApp de la sucursal.
         </p>
       </div>
@@ -335,7 +335,7 @@ export default function Personalizer() {
                     className="px-5 py-2.5 text-sm font-semibold transition-all"
                     style={activa
                       ? { background: 'linear-gradient(135deg, #00BCF2, #8DC63F)', borderRadius: 999, color: 'white', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,188,242,0.25)' }
-                      : { backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.09)', borderRadius: 999, color: '#555', cursor: 'pointer', background: 'none' }}>
+                      : { backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: 999, color: '#4A5A61', cursor: 'pointer', background: 'none' }}>
                     {s.nombre}
                   </button>
                 )
@@ -352,12 +352,12 @@ export default function Personalizer() {
           <Paso n={2} titulo="Elige los modelos" hecho={lineas.length > 0}
                 resumen={lineas.length ? `${lineas.length} modelo${lineas.length !== 1 ? 's' : ''} · ${totalPiezas} pz` : ''}>
 
-            {cargando && <p style={{ fontSize: 13, color: '#aaa' }}>Cargando existencias de {sucursal.nombre}...</p>}
+            {cargando && <p style={{ fontSize: 13, color: '#8598A1' }}>Cargando existencias de {sucursal.nombre}...</p>}
 
             {!cargando && errorInv && (
-              <div style={{ padding: '13px 15px', borderRadius: 12, background: 'rgba(213,26,122,0.05)', border: '1px solid rgba(213,26,122,0.15)' }}>
-                <p style={{ fontSize: 13, color: '#D51A7A', fontWeight: 600, margin: 0 }}>Sin inventario para {sucursal.nombre}</p>
-                <p style={{ fontSize: 12, color: '#888', margin: '4px 0 0' }}>Elige otra sucursal o comunícate directamente.</p>
+              <div style={{ padding: '13px 15px', borderRadius: 15, background: 'rgba(213,26,122,0.05)', border: '1px solid rgba(213,26,122,0.15)' }}>
+                <p style={{ fontSize: 13, color: '#C4156F', fontWeight: 600, margin: 0 }}>Sin inventario para {sucursal.nombre}</p>
+                <p style={{ fontSize: 12, color: '#6C818B', margin: '4px 0 0' }}>Elige otra sucursal o comunícate directamente.</p>
               </div>
             )}
 
@@ -370,15 +370,15 @@ export default function Personalizer() {
                     style={{ ...inp, padding: '10px 14px 10px 38px' }} onFocus={fp} onBlur={bl} />
                 </div>
 
-                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12 }}>
+                <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid rgba(16,22,25,0.05)', borderRadius: 15 }}>
                   {disponibles.length === 0 && (
-                    <p style={{ fontSize: 13, color: '#bbb', padding: '16px', textAlign: 'center' }}>Sin resultados</p>
+                    <p style={{ fontSize: 13, color: '#9DAEB6', padding: '16px', textAlign: 'center' }}>Sin resultados</p>
                   )}
                   {disponibles.map((m, i) => {
                     const elegido = yaElegido(m.producto)
                     return (
                       <button key={m.producto + i} type="button" onClick={() => agregar(m)} disabled={elegido}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 14px', background: elegido ? 'rgba(141,198,63,0.08)' : 'none', border: 'none', borderBottom: i < disponibles.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none', cursor: elegido ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 14px', background: elegido ? 'rgba(141,198,63,0.08)' : 'none', border: 'none', borderBottom: i < disponibles.length - 1 ? '1px solid rgba(16,22,25,0.05)' : 'none', cursor: elegido ? 'default' : 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
                         <span style={{ fontSize: 13, color: elegido ? '#8DC63F' : '#0A0A0A', fontWeight: elegido ? 700 : 500, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {elegido ? '✓ ' : '+ '}{m.producto}
                         </span>
@@ -388,7 +388,7 @@ export default function Personalizer() {
                   })}
                 </div>
 
-                <p style={{ fontSize: 11, color: '#bbb', marginTop: 7, lineHeight: 1.6 }}>
+                <p style={{ fontSize: 11, color: '#9DAEB6', marginTop: 7, lineHeight: 1.6 }}>
                   {disponibles.length === 50 && modelos.items.length > 50 ? `Mostrando 50 de ${modelos.items.length}, escribe para filtrar. ` : ''}
                   {modelos.fecha ? `Existencias del ${modelos.fecha}. ` : ''}
                   {ocultos > 0 ? `${ocultos} modelos sin existencia no se muestran.` : ''}
@@ -402,28 +402,28 @@ export default function Personalizer() {
                 hecho={lineas.length > 0 && sinDiseno.length === 0}
                 resumen={lineas.length ? `${lineas.length - sinDiseno.length} de ${lineas.length} listos` : ''}>
 
-            {lineas.length === 0 && <p style={{ fontSize: 13, color: '#bbb' }}>Primero elige al menos un modelo.</p>}
+            {lineas.length === 0 && <p style={{ fontSize: 13, color: '#9DAEB6' }}>Primero elige al menos un modelo.</p>}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {lineas.map(l => (
-                <div key={l.id} style={{ border: `1.5px solid ${l.imagen ? 'rgba(141,198,63,0.35)' : 'rgba(0,0,0,0.1)'}`, borderRadius: 14, padding: 13, background: l.imagen ? 'rgba(141,198,63,0.03)' : '#fff', transition: 'all 0.2s' }}>
+                <div key={l.id} style={{ border: `1.5px solid ${l.imagen ? 'rgba(141,198,63,0.35)' : 'rgba(16,22,25,0.09)'}`, borderRadius: 30, padding: 13, background: l.imagen ? 'rgba(141,198,63,0.03)' : '#fff', transition: 'all 0.2s' }}>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 11 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#0A0A0A', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#101619', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {l.producto}
                     </span>
                     <StockBadge value={l.stock} size={12} />
                     <button type="button" onClick={() => quitar(l.id)} title="Quitar"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ccc', fontSize: 19, lineHeight: 1, padding: '0 2px' }}>×</button>
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#B4C3C9', fontSize: 19, lineHeight: 1, padding: '0 2px' }}>×</button>
                   </div>
 
                   <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                     {/* Vista previa y selector de imagen */}
                     <button type="button" onClick={() => archivoRefs.current[l.id]?.click()}
-                      style={{ width: 68, height: 68, borderRadius: 12, flexShrink: 0, overflow: 'hidden', cursor: 'pointer', padding: 0, border: l.imagen ? 'none' : '2px dashed rgba(0,0,0,0.15)', background: l.imagen ? 'none' : 'rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#D51A7A' }}>
+                      style={{ width: 68, height: 68, borderRadius: 15, flexShrink: 0, overflow: 'hidden', cursor: 'pointer', padding: 0, border: l.imagen ? 'none' : '2px dashed rgba(0,0,0,0.15)', background: l.imagen ? 'none' : 'rgba(0,0,0,0.02)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, color: '#C4156F' }}>
                       {l.imagen
                         ? <img src={l.imagen.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <><IconoFoto /><span style={{ fontSize: 9, fontWeight: 700, color: '#999' }}>Galería</span></>}
+                        : <><IconoFoto /><span style={{ fontSize: 9, fontWeight: 700, color: '#8598A1' }}>Galería</span></>}
                     </button>
                     <input type="file" accept="image/*" style={{ display: 'none' }}
                       ref={el => { archivoRefs.current[l.id] = el }}
@@ -435,14 +435,14 @@ export default function Personalizer() {
                         style={{ ...inp, padding: '8px 12px', fontSize: 12.5 }} onFocus={fp} onBlur={bl} />
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Piezas</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#6C818B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Piezas</span>
                         <button type="button" onClick={() => cambiar(l.id, 'cantidad', Math.max(1, Number(l.cantidad) - 1))}
-                          style={{ width: 26, height: 26, borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: '#555' }}>−</button>
+                          style={{ width: 26, height: 26, borderRadius: 15, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: '#4A5A61' }}>−</button>
                         <input type="number" min="1" value={l.cantidad}
                           onChange={e => cambiar(l.id, 'cantidad', Math.max(1, Number(e.target.value) || 1))}
                           style={{ ...inp, width: 62, textAlign: 'center', padding: '5px 6px', fontSize: 13, fontWeight: 700 }} onFocus={fp} onBlur={bl} />
                         <button type="button" onClick={() => cambiar(l.id, 'cantidad', Number(l.cantidad) + 1)}
-                          style={{ width: 26, height: 26, borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: '#555' }}>+</button>
+                          style={{ width: 26, height: 26, borderRadius: 15, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: '#4A5A61' }}>+</button>
                         {Number(l.cantidad) > l.stock && (
                           <span style={{ fontSize: 11, color: '#d97706', fontWeight: 600 }}>Supera las {l.stock} en existencia</span>
                         )}
@@ -473,15 +473,15 @@ export default function Personalizer() {
                 <input value={form.nombre} onChange={set('nombre')} placeholder="Ej. Juan Pérez" style={inp} onFocus={fp} onBlur={bl} />
               </Campo>
 
-              <div style={{ padding: '13px 15px', borderRadius: 13, border: `1.5px solid ${form.mayorista ? 'rgba(0,188,242,0.35)' : 'rgba(0,0,0,0.1)'}`, background: form.mayorista ? 'rgba(0,188,242,0.04)' : '#f7f8fa', transition: 'all 0.2s' }}>
+              <div style={{ padding: '13px 15px', borderRadius: 34, border: `1.5px solid ${form.mayorista ? 'rgba(0,188,242,0.35)' : 'rgba(16,22,25,0.09)'}`, background: form.mayorista ? 'rgba(0,188,242,0.04)' : '#f7f8fa', transition: 'all 0.2s' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer' }}>
                   <div onClick={() => setForm(f => ({ ...f, mayorista: !f.mayorista }))}
                     style={{ width: 40, height: 23, borderRadius: 999, background: form.mayorista ? 'linear-gradient(135deg,#00BCF2,#8DC63F)' : 'rgba(0,0,0,0.15)', position: 'relative', transition: 'all 0.2s', flexShrink: 0 }}>
                     <div style={{ position: 'absolute', top: 2, left: form.mayorista ? 19 : 2, width: 19, height: 19, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
                   </div>
                   <div>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: '#0A0A0A', margin: 0 }}>¿Cuentas con registro de mayorista?</p>
-                    <p style={{ fontSize: 11.5, color: '#999', margin: 0 }}>Para aplicar precio y condiciones de mayoreo.</p>
+                    <p style={{ fontSize: 13, fontWeight: 700, color: '#101619', margin: 0 }}>¿Cuentas con registro de mayorista?</p>
+                    <p style={{ fontSize: 11.5, color: '#8598A1', margin: 0 }}>Para aplicar precio y condiciones de mayoreo.</p>
                   </div>
                 </label>
                 {form.mayorista && (
@@ -500,19 +500,19 @@ export default function Personalizer() {
                   porque el comportamiento cambia entre celular y computadora. */}
               {aviso && <p style={{ fontSize: 12, color: '#d97706' }}>{aviso}</p>}
               {!numeroSucursal && (
-                <p style={{ fontSize: 12, color: '#D51A7A', fontWeight: 600 }}>
+                <p style={{ fontSize: 12, color: '#C4156F', fontWeight: 600 }}>
                   No hay WhatsApp configurado para {sucursal.nombre}. Pide al administrador que lo capture.
                 </p>
               )}
 
               <button type="submit" disabled={!completo || subiendo}
-                style={{ width: '100%', padding: '14px 0', borderRadius: 999, border: 'none', fontSize: 15, fontWeight: 700, cursor: completo && !subiendo ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', background: completo && !subiendo ? 'linear-gradient(135deg,#25D366,#128C7E)' : 'rgba(0,0,0,0.07)', color: completo && !subiendo ? 'white' : 'rgba(0,0,0,0.28)', boxShadow: completo && !subiendo ? '0 6px 20px rgba(37,211,102,0.3)' : 'none' }}>
+                style={{ width: '100%', padding: '14px 0', borderRadius: 999, border: 'none', fontSize: 15, fontWeight: 700, cursor: completo && !subiendo ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', background: completo && !subiendo ? 'linear-gradient(135deg,#25D366,#128C7E)' : 'rgba(16,22,25,0.05)', color: completo && !subiendo ? 'white' : 'rgba(0,0,0,0.28)', boxShadow: completo && !subiendo ? '0 6px 20px rgba(37,211,102,0.3)' : 'none' }}>
                 <IconoWhatsApp />
                 {subiendo ? (progreso || 'Guardando...') : enviado ? '¡Pedido enviado!' : `Enviar a ${sucursal.nombre} por WhatsApp`}
               </button>
 
               {!completo && !enviado && (
-                <p style={{ fontSize: 11, color: '#bbb', textAlign: 'center', marginTop: -6 }}>
+                <p style={{ fontSize: 11, color: '#9DAEB6', textAlign: 'center', marginTop: -6 }}>
                   {lineas.length === 0 ? 'Elige al menos un modelo.'
                     : sinDiseno.length ? `Falta el diseño de ${sinDiseno.length} modelo(s).`
                     : !form.nombre.trim() ? 'Escribe tu nombre.'

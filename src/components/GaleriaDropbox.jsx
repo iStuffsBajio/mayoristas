@@ -20,7 +20,7 @@ export default function GaleriaDropbox({ folderPath, seleccionado, onSelect, lab
 
   if (cargando) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#bbb', padding: '8px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#9DAEB6', padding: '8px 0' }}>
         <div className="animate-spin" style={{ width: 14, height: 14, border: '2px solid #eee', borderTop: '2px solid #D51A7A', borderRadius: '50%' }} />
         <span style={{ fontSize: 12 }}>Cargando catálogo de Dropbox...</span>
       </div>
@@ -33,7 +33,7 @@ export default function GaleriaDropbox({ folderPath, seleccionado, onSelect, lab
 
   if (imagenes.length === 0) {
     return (
-      <p style={{ fontSize: 12, color: '#ccc', fontStyle: 'italic' }}>
+      <p style={{ fontSize: 12, color: '#B4C3C9', fontStyle: 'italic' }}>
         Sin imágenes en la carpeta de Dropbox aún.
       </p>
     )
@@ -41,7 +41,7 @@ export default function GaleriaDropbox({ folderPath, seleccionado, onSelect, lab
 
   return (
     <div>
-      <p style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+      <p style={{ fontSize: 10, fontWeight: 700, color: '#9DAEB6', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
         {label} · Dropbox ({imagenes.length})
       </p>
 
@@ -51,7 +51,7 @@ export default function GaleriaDropbox({ folderPath, seleccionado, onSelect, lab
           const activo = seleccionado?.path === item.path
           return (
             <button key={item.path} type="button" onClick={() => onSelect(activo ? null : item)}
-              style={{ flexShrink: 0, width: 90, height: 90, borderRadius: 14, overflow: 'hidden', border: activo ? '2.5px solid #D51A7A' : '2.5px solid transparent', cursor: 'pointer', padding: 0, background: 'none', outline: 'none', transition: 'all 0.15s', boxShadow: activo ? '0 0 0 3px rgba(213,26,122,0.2)' : '0 2px 8px rgba(0,0,0,0.1)', scrollSnapAlign: 'start', position: 'relative' }}>
+              style={{ flexShrink: 0, width: 90, height: 90, borderRadius: 30, overflow: 'hidden', border: activo ? '2.5px solid #D51A7A' : '2.5px solid transparent', cursor: 'pointer', padding: 0, background: 'none', outline: 'none', transition: 'all 0.15s', boxShadow: activo ? '0 0 0 3px rgba(213,26,122,0.2)' : '0 2px 8px rgba(16,22,25,0.09)', scrollSnapAlign: 'start', position: 'relative' }}>
               <img src={item.url} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
               {activo && (
                 <div style={{ position: 'absolute', inset: 0, background: 'rgba(213,26,122,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

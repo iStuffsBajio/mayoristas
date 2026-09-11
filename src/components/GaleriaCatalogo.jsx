@@ -53,7 +53,7 @@ export default function GaleriaCatalogo({ tipo, seleccionado, onSelect, columnas
 
   if (cargando) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', color: '#bbb' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', color: '#9DAEB6' }}>
         <div className="animate-spin" style={{ width: 16, height: 16, border: '2px solid #eee', borderTop: '2px solid #D51A7A', borderRadius: '50%' }} />
         <span style={{ fontSize: 12 }}>Cargando catálogo...</span>
       </div>
@@ -67,14 +67,14 @@ export default function GaleriaCatalogo({ tipo, seleccionado, onSelect, columnas
       {/* Modal de confirmación */}
       {confirmDelete && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div style={{ background: 'white', borderRadius: 20, padding: 28, maxWidth: 320, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-            <div style={{ width: 56, height: 56, margin: '0 auto 16px', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ background: 'white', borderRadius: 26, padding: 28, maxWidth: 320, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+            <div style={{ width: 56, height: 56, margin: '0 auto 16px', borderRadius: 15, overflow: 'hidden' }}>
               <img src={confirmDelete.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
-            <p style={{ fontWeight: 700, fontSize: 15, color: '#0A0A0A', marginBottom: 6 }}>¿Quitar del catálogo?</p>
-            <p style={{ fontSize: 13, color: '#888', marginBottom: 20 }}>La imagen ya no aparecerá en la galería.</p>
+            <p style={{ fontWeight: 700, fontSize: 15, color: '#101619', marginBottom: 6 }}>¿Quitar del catálogo?</p>
+            <p style={{ fontSize: 13, color: '#6C818B', marginBottom: 20 }}>La imagen ya no aparecerá en la galería.</p>
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '10px 0', borderRadius: 999, border: '1.5px solid rgba(0,0,0,0.12)', background: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#555' }}>Cancelar</button>
+              <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: '10px 0', borderRadius: 999, border: '1.5px solid rgba(0,0,0,0.12)', background: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14, color: '#4A5A61' }}>Cancelar</button>
               <button onClick={confirmarEliminar} style={{ flex: 1, padding: '10px 0', borderRadius: 999, border: 'none', background: '#ef4444', color: 'white', cursor: 'pointer', fontWeight: 600, fontSize: 14 }}>Eliminar</button>
             </div>
           </div>
@@ -83,18 +83,18 @@ export default function GaleriaCatalogo({ tipo, seleccionado, onSelect, columnas
 
       <div>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <p style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#9DAEB6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: 0 }}>
             Catálogo de diseños
           </p>
           {isAdmin && (
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#D51A7A', background: 'rgba(213,26,122,0.08)', padding: '2px 8px', borderRadius: 999 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#C4156F', background: 'rgba(213,26,122,0.08)', padding: '2px 8px', borderRadius: 999 }}>
               Admin
             </span>
           )}
         </div>
 
         {imagenes.length === 0 && isAdmin && (
-          <div style={{ textAlign: 'center', padding: '20px 0', color: '#ccc' }}>
+          <div style={{ textAlign: 'center', padding: '20px 0', color: '#B4C3C9' }}>
             <p style={{ fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Sin fotos aún</p>
             <p style={{ fontSize: 11 }}>Toca "+" para subir la primera</p>
           </div>
@@ -105,8 +105,8 @@ export default function GaleriaCatalogo({ tipo, seleccionado, onSelect, columnas
             const activo = seleccionado?.filename === item.filename
             return (
               <button key={item.filename} type="button" onClick={() => onSelect(activo ? null : item)}
-                style={{ position: 'relative', aspectRatio: '1', borderRadius: 12, overflow: 'visible', border: activo ? '2.5px solid #D51A7A' : '2.5px solid transparent', cursor: 'pointer', padding: 0, background: 'none', outline: 'none', transition: 'all 0.15s', boxShadow: activo ? '0 0 0 3px rgba(213,26,122,0.2)' : 'none' }}>
-                <div style={{ width: '100%', height: '100%', borderRadius: 10, overflow: 'hidden' }}>
+                style={{ position: 'relative', aspectRatio: '1', borderRadius: 15, overflow: 'visible', border: activo ? '2.5px solid #D51A7A' : '2.5px solid transparent', cursor: 'pointer', padding: 0, background: 'none', outline: 'none', transition: 'all 0.15s', boxShadow: activo ? '0 0 0 3px rgba(213,26,122,0.2)' : 'none' }}>
+                <div style={{ width: '100%', height: '100%', borderRadius: 34, overflow: 'hidden' }}>
                   <img src={item.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} loading="lazy" />
                 </div>
                 {activo && (
@@ -127,7 +127,7 @@ export default function GaleriaCatalogo({ tipo, seleccionado, onSelect, columnas
 
           {isAdmin && (
             <button type="button" onClick={() => inputRef.current?.click()} disabled={subiendo}
-              style={{ aspectRatio: '1', borderRadius: 12, border: '2px dashed rgba(213,26,122,0.35)', background: 'rgba(213,26,122,0.04)', cursor: subiendo ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#D51A7A', transition: 'all 0.15s' }}>
+              style={{ aspectRatio: '1', borderRadius: 15, border: '2px dashed rgba(213,26,122,0.35)', background: 'rgba(213,26,122,0.04)', cursor: subiendo ? 'default' : 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, color: '#C4156F', transition: 'all 0.15s' }}>
               {subiendo
                 ? <div className="animate-spin" style={{ width: 22, height: 22, border: '2.5px solid rgba(213,26,122,0.2)', borderTop: '2.5px solid #D51A7A', borderRadius: '50%' }} />
                 : <>

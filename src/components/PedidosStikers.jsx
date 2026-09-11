@@ -30,9 +30,9 @@ function PreviewDestacado({ preview, tipo }) {
 
   if (!preview) {
     return (
-      <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', borderRadius: 24, background: 'linear-gradient(135deg,#f7f8fa,#ececec)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, border: '2px dashed rgba(0,0,0,0.1)' }}>
+      <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', borderRadius: 30, background: 'linear-gradient(135deg,#f7f8fa,#ececec)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, border: '2px dashed rgba(16,22,25,0.09)' }}>
         <span style={{ fontSize: 48 }}>{esStiker ? '📱' : '🏷️'}</span>
-        <p style={{ fontSize: 13, color: '#bbb', fontWeight: 600, textAlign: 'center', padding: '0 20px' }}>
+        <p style={{ fontSize: 13, color: '#9DAEB6', fontWeight: 600, textAlign: 'center', padding: '0 20px' }}>
           Selecciona un diseño del catálogo o sube tu imagen
         </p>
       </div>
@@ -40,7 +40,7 @@ function PreviewDestacado({ preview, tipo }) {
   }
 
   return (
-    <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', borderRadius: 24, overflow: 'hidden', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+    <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', borderRadius: 30, overflow: 'hidden', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
       <img src={preview.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       {/* Overlay con nombre */}
       {preview.name && (
@@ -50,7 +50,7 @@ function PreviewDestacado({ preview, tipo }) {
       )}
       {/* Marco decorativo para tipo funda */}
       {esStiker && (
-        <div style={{ position: 'absolute', inset: 0, borderRadius: 24, border: '3px solid rgba(255,255,255,0.15)', pointerEvents: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, borderRadius: 30, border: '3px solid rgba(255,255,255,0.15)', pointerEvents: 'none' }} />
       )}
     </div>
   )
@@ -58,18 +58,18 @@ function PreviewDestacado({ preview, tipo }) {
 
 const Field = ({ label, children }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-    <label style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
+    <label style={{ fontSize: 11, fontWeight: 700, color: '#6C818B', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
     {children}
   </div>
 )
 
 const inp = {
-  width: '100%', padding: '11px 16px', borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.1)',
-  backgroundColor: '#f7f8fa', fontSize: 14, color: '#0A0A0A', outline: 'none',
+  width: '100%', padding: '11px 16px', borderRadius: 30, border: '1.5px solid rgba(16,22,25,0.09)',
+  backgroundColor: '#F4F7F8', fontSize: 14, color: '#101619', outline: 'none',
   fontFamily: 'inherit', transition: 'border-color 0.15s', boxSizing: 'border-box',
 }
 const fp = e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }
-const bl = e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }
+const bl = e => { e.target.style.borderColor = 'rgba(16,22,25,0.09)'; e.target.style.backgroundColor = '#f7f8fa' }
 
 function FormBase() {
   const { config } = useSiteConfig()
@@ -157,19 +157,19 @@ function FormBase() {
 
         {/* Upload propio */}
         <div>
-          <p style={{ fontSize: 10, fontWeight: 700, color: '#bbb', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>O sube tu propio diseño</p>
+          <p style={{ fontSize: 10, fontWeight: 700, color: '#9DAEB6', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>O sube tu propio diseño</p>
           <div
             onClick={() => inputRef.current?.click()}
             onDragOver={e => { e.preventDefault(); setDragging(true) }}
             onDragLeave={() => setDragging(false)}
             onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]) }}
-            style={{ padding: '12px 14px', borderRadius: 14, cursor: 'pointer', textAlign: 'center', border: `2px dashed ${dragging ? '#D51A7A' : 'rgba(0,0,0,0.12)'}`, backgroundColor: dragging ? 'rgba(213,26,122,0.04)' : 'rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s' }}>
-            <span style={{ color: '#D51A7A', flexShrink: 0 }}><UploadIcon /></span>
+            style={{ padding: '12px 14px', borderRadius: 30, cursor: 'pointer', textAlign: 'center', border: `2px dashed ${dragging ? '#D51A7A' : 'rgba(0,0,0,0.12)'}`, backgroundColor: dragging ? 'rgba(213,26,122,0.04)' : 'rgba(0,0,0,0.02)', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s' }}>
+            <span style={{ color: '#C4156F', flexShrink: 0 }}><UploadIcon /></span>
             <div style={{ textAlign: 'left' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, color: '#333', margin: 0 }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: '#2C3A40', margin: 0 }}>
                 {imageFile ? '✓ ' + imageFile.name.slice(0, 22) + (imageFile.name.length > 22 ? '…' : '') : 'Arrastra o haz clic'}
               </p>
-              <p style={{ fontSize: 10, color: '#bbb', margin: 0 }}>PNG, JPG · Máx 10 MB</p>
+              <p style={{ fontSize: 10, color: '#9DAEB6', margin: 0 }}>PNG, JPG · Máx 10 MB</p>
             </div>
           </div>
           <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
@@ -178,21 +178,21 @@ function FormBase() {
 
       {/* Formulario — columna derecha */}
       <form onSubmit={handleSubmit} className="lg:col-span-3"
-        style={{ backgroundColor: '#fff', borderRadius: 28, border: '1px solid rgba(0,0,0,0.08)', padding: '28px 24px', boxShadow: '0 4px 24px rgba(0,0,0,0.06)', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        style={{ backgroundColor: '#fff', borderRadius: 34, border: '1px solid rgba(16,22,25,0.05)', padding: '28px 24px', boxShadow: '0 4px 24px rgba(16,22,25,0.05)', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
         {/* Tipo de stiker: al activarlo se entiende que es para funda de celular
             y se omiten los campos que solo aplican a los personalizados. */}
-        <div style={{ padding: '14px 16px', borderRadius: 16, border: `1.5px solid ${paraCelular ? 'rgba(0,188,242,0.35)' : 'rgba(0,0,0,0.1)'}`, background: paraCelular ? 'rgba(0,188,242,0.05)' : '#f7f8fa', transition: 'all 0.2s' }}>
+        <div style={{ padding: '14px 16px', borderRadius: 34, border: `1.5px solid ${paraCelular ? 'rgba(0,188,242,0.35)' : 'rgba(16,22,25,0.09)'}`, background: paraCelular ? 'rgba(0,188,242,0.05)' : '#f7f8fa', transition: 'all 0.2s' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
             <div onClick={() => setParaCelular(v => !v)}
               style={{ width: 44, height: 25, borderRadius: 999, background: paraCelular ? 'linear-gradient(135deg,#00BCF2,#8DC63F)' : 'rgba(0,0,0,0.15)', position: 'relative', transition: 'all 0.2s', flexShrink: 0 }}>
               <div style={{ position: 'absolute', top: 2.5, left: paraCelular ? 21 : 2.5, width: 20, height: 20, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
             </div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 800, color: '#0A0A0A', margin: 0 }}>
+              <p style={{ fontSize: 14, fontWeight: 800, color: '#101619', margin: 0 }}>
                 Mi stiker es para una funda de celular
               </p>
-              <p style={{ fontSize: 12, color: '#999', margin: 0 }}>
+              <p style={{ fontSize: 12, color: '#8598A1', margin: 0 }}>
                 {paraCelular
                   ? 'Se usa el tamaño de funda, no hace falta especificarlo.'
                   : 'Stiker personalizado: indica el tamaño que necesitas.'}
@@ -239,20 +239,20 @@ function FormBase() {
 
         {/* Diseño seleccionado del catálogo */}
         {preview && !imageFile && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: 'rgba(213,26,122,0.06)', border: '1px solid rgba(213,26,122,0.15)' }}>
-            <img src={preview.url} alt="" style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 15, background: 'rgba(213,26,122,0.06)', border: '1px solid rgba(213,26,122,0.15)' }}>
+            <img src={preview.url} alt="" style={{ width: 40, height: 40, borderRadius: 15, objectFit: 'cover', flexShrink: 0 }} />
             <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#D51A7A', margin: 0 }}>Diseño seleccionado</p>
-              <p style={{ fontSize: 12, color: '#555', margin: 0 }}>{preview.name?.replace(/\.[^.]+$/, '') || 'Diseño del catálogo'}</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#C4156F', margin: 0 }}>Diseño seleccionado</p>
+              <p style={{ fontSize: 12, color: '#4A5A61', margin: 0 }}>{preview.name?.replace(/\.[^.]+$/, '') || 'Diseño del catálogo'}</p>
             </div>
-            <button type="button" onClick={() => setPreview(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#D51A7A', fontSize: 18, lineHeight: 1 }}>×</button>
+            <button type="button" onClick={() => setPreview(null)} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: '#C4156F', fontSize: 18, lineHeight: 1 }}>×</button>
           </div>
         )}
 
-        {errorMsg && <p style={{ fontSize: 12, color: '#D51A7A', marginTop: -8 }}>⚠ {errorMsg}</p>}
+        {errorMsg && <p style={{ fontSize: 12, color: '#C4156F', marginTop: -8 }}>⚠ {errorMsg}</p>}
 
         <button type="submit" disabled={!completo || subiendo}
-          style={{ width: '100%', padding: '14px 0', borderRadius: 999, border: 'none', fontSize: 15, fontWeight: 700, cursor: completo && !subiendo ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', background: completo && !subiendo ? 'linear-gradient(135deg,#25D366,#128C7E)' : 'rgba(0,0,0,0.07)', color: completo && !subiendo ? 'white' : 'rgba(0,0,0,0.28)', boxShadow: completo && !subiendo ? '0 6px 20px rgba(37,211,102,0.3)' : 'none' }}
+          style={{ width: '100%', padding: '14px 0', borderRadius: 999, border: 'none', fontSize: 15, fontWeight: 700, cursor: completo && !subiendo ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', background: completo && !subiendo ? 'linear-gradient(135deg,#25D366,#128C7E)' : 'rgba(16,22,25,0.05)', color: completo && !subiendo ? 'white' : 'rgba(0,0,0,0.28)', boxShadow: completo && !subiendo ? '0 6px 20px rgba(37,211,102,0.3)' : 'none' }}
           onMouseEnter={e => { if (completo && !subiendo) e.currentTarget.style.transform = 'scale(1.02)' }}
           onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
           <WhatsAppIcon />
@@ -267,9 +267,9 @@ export default function PedidosStikers() {
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
       <div className="mb-8">
-        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#D51A7A' }}>Stickers Personalizados</p>
-        <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#0A0A0A' }}>Pedidos para tus clientes</h2>
-        <p className="text-sm" style={{ color: '#888' }}>
+        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#C4156F' }}>Stickers Personalizados</p>
+        <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#101619' }}>Pedidos para tus clientes</h2>
+        <p className="text-sm" style={{ color: '#6C818B' }}>
           Indica si el stiker es para funda de celular, elige un diseño del catálogo o sube tu imagen, y envía el pedido por WhatsApp.
         </p>
       </div>

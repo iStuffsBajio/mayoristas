@@ -41,7 +41,7 @@ export const DEFAULT_CONFIG = {
   },
   footer: {
     descripcion: 'Tu destino de accesorios tecnológicos premium. Diseño, calidad y personalización en un solo lugar.',
-    copyright:   '© 2025 iStuffs. Todos los derechos reservados.',
+    copyright:   '© 2026 iStuffs Custom Cases. Todos los derechos reservados.',
   },
   dropboxCatalogos: {
     fundas:          '/Espacio familiar/IMPRESORA UV/CATALOGOS/Fundas',

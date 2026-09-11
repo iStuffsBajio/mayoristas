@@ -38,7 +38,7 @@ function HighlightText({ text, query }) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark style={{ backgroundColor: 'rgba(0,188,242,0.18)', color: '#007aad', borderRadius: 3, padding: '0 2px', fontWeight: 700, fontStyle: 'normal' }}>
+      <mark style={{ backgroundColor: 'rgba(0,188,242,0.18)', color: '#007aad', borderRadius: 7, padding: '0 2px', fontWeight: 700, fontStyle: 'normal' }}>
         {text.slice(idx, idx + query.length)}
       </mark>
       {text.slice(idx + query.length)}
@@ -192,13 +192,13 @@ export default function InventarioSemanal({ onLoginClick }) {
       {/* ── Encabezado ─────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-7">
         <div>
-          <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#00BCF2' }}>
+          <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#0288AD' }}>
             Inventario Semanal
           </p>
-          <h2 className="text-3xl sm:text-4xl font-black" style={{ color: '#0A0A0A' }}>
+          <h2 className="text-3xl sm:text-4xl font-black" style={{ color: '#101619' }}>
             Modelos y Existencias
           </h2>
-          <p className="text-sm mt-1" style={{ color: '#888' }}>
+          <p className="text-sm mt-1" style={{ color: '#6C818B' }}>
             Selecciona la sucursal y carga el archivo Excel exportado
           </p>
         </div>
@@ -206,7 +206,7 @@ export default function InventarioSemanal({ onLoginClick }) {
         {/* Botón cargar — solo visible para usuarios autenticados de esta sucursal */}
         <div className="flex items-center gap-3 flex-shrink-0">
           {lastUpdate && (
-            <span className="text-xs hidden md:block" style={{ color: '#aaa' }}>
+            <span className="text-xs hidden md:block" style={{ color: '#8598A1' }}>
               {fmtDate(lastUpdate)}
             </span>
           )}
@@ -217,7 +217,7 @@ export default function InventarioSemanal({ onLoginClick }) {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
                 className="flex items-center gap-2 px-5 py-3 text-sm font-semibold text-white transition-all"
-                style={{ background: uploading ? 'rgba(0,0,0,0.1)' : 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: '999px', border: 'none', cursor: uploading ? 'default' : 'pointer', boxShadow: uploading ? 'none' : '0 4px 20px rgba(213,26,122,0.3)', color: uploading ? '#999' : 'white' }}
+                style={{ background: uploading ? 'rgba(16,22,25,0.09)' : 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: '999px', border: 'none', cursor: uploading ? 'default' : 'pointer', boxShadow: uploading ? 'none' : '0 4px 20px rgba(213,26,122,0.3)', color: uploading ? '#999' : 'white' }}
                 onMouseEnter={e => { if (!uploading) e.currentTarget.style.transform = 'scale(1.04)' }}
                 onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
               >
@@ -231,9 +231,9 @@ export default function InventarioSemanal({ onLoginClick }) {
             <button
               onClick={onLoginClick}
               className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-all"
-              style={{ backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.09)', borderRadius: '999px', color: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.09)'; e.currentTarget.style.color = '#0A0A0A' }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.5)' }}
+              style={{ backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', color: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = '#0A0A0A' }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.5)' }}
             >
               🔒 Acceso sucursales
             </button>
@@ -253,10 +253,10 @@ export default function InventarioSemanal({ onLoginClick }) {
               style={
                 isActive
                   ? { background: 'linear-gradient(135deg, #00BCF2, #8DC63F)', borderRadius: '999px', color: 'white', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,188,242,0.25)' }
-                  : { backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.09)', borderRadius: '999px', color: '#555', cursor: 'pointer', background: 'none' }
+                  : { backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', color: '#4A5A61', cursor: 'pointer', background: 'none' }
               }
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.09)' }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)' }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)' }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)' }}
             >
               {suc.name}
               {isActive && allRows && (
@@ -281,11 +281,11 @@ export default function InventarioSemanal({ onLoginClick }) {
             onChange={e => setSearch(e.target.value)}
             className="w-full text-sm outline-none"
             style={{
-              backgroundColor: '#f7f8fa',
-              border: '1.5px solid rgba(0,0,0,0.09)',
+              backgroundColor: '#F4F7F8',
+              border: '1.5px solid rgba(16,22,25,0.05)',
               borderRadius: '999px',
               padding: '11px 44px 11px 42px',
-              color: '#0A0A0A',
+              color: '#101619',
               transition: 'border-color 0.15s, background 0.15s',
             }}
             onFocus={e => {
@@ -293,7 +293,7 @@ export default function InventarioSemanal({ onLoginClick }) {
               e.target.style.backgroundColor = 'rgba(0,188,242,0.03)'
             }}
             onBlur={e => {
-              e.target.style.borderColor = 'rgba(0,0,0,0.09)'
+              e.target.style.borderColor = 'rgba(16,22,25,0.05)'
               e.target.style.backgroundColor = '#f7f8fa'
             }}
           />
@@ -306,7 +306,7 @@ export default function InventarioSemanal({ onLoginClick }) {
             </button>
           )}
           {search && (
-            <span style={{ position: 'absolute', right: 44, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#00BCF2', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            <span style={{ position: 'absolute', right: 44, top: '50%', transform: 'translateY(-50%)', fontSize: 11, color: '#0288AD', fontWeight: 600, whiteSpace: 'nowrap' }}>
               {filteredRows.length} resultado{filteredRows.length !== 1 ? 's' : ''}
             </span>
           )}
@@ -317,27 +317,27 @@ export default function InventarioSemanal({ onLoginClick }) {
       <div
         style={{
           backgroundColor: '#ffffff',
-          borderRadius: '24px',
-          border: '1px solid rgba(0,0,0,0.08)',
+          borderRadius: '30px',
+          border: '1px solid rgba(16,22,25,0.05)',
           overflow: 'hidden',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+          boxShadow: '0 4px 24px rgba(16,22,25,0.05)',
         }}
       >
         {/* Barra info superior */}
         {fileName && allRows && (
           <div
             className="flex items-center justify-between px-5 sm:px-6 py-3 flex-wrap gap-2"
-            style={{ borderBottom: '1px solid rgba(0,0,0,0.07)', backgroundColor: 'rgba(0,188,242,0.04)' }}
+            style={{ borderBottom: '1px solid rgba(16,22,25,0.05)', backgroundColor: 'rgba(0,188,242,0.04)' }}
           >
             {/* Solo la fecha del dato. El nombre del archivo, el conteo de
                 modelos y las unidades ya se ven en la tabla y en la leyenda. */}
-            <span className="text-sm font-semibold" style={{ color: '#8DC63F' }}>
+            <span className="text-sm font-semibold" style={{ color: '#5E9422' }}>
               Última actualización: {origen?.respaldo?.fecha
                 ? fmtFechaCorta(origen.respaldo.fecha)
                 : lastUpdate ? fmtFechaCorta(lastUpdate.toISOString().slice(0, 10)) : '—'}
             </span>
             {search && (
-              <span className="text-sm" style={{ color: '#888' }}>
+              <span className="text-sm" style={{ color: '#6C818B' }}>
                 {filteredRows.length} de {stats.total}
               </span>
             )}
@@ -348,7 +348,7 @@ export default function InventarioSemanal({ onLoginClick }) {
         {loading && (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
             <div style={{ fontSize: 36 }}>⏳</div>
-            <p style={{ fontSize: 14, color: '#aaa' }}>Leyendo archivo...</p>
+            <p style={{ fontSize: 14, color: '#8598A1' }}>Leyendo archivo...</p>
           </div>
         )}
 
@@ -357,12 +357,12 @@ export default function InventarioSemanal({ onLoginClick }) {
           <div className="flex flex-col items-center justify-center py-20 gap-5">
             <div style={{ fontSize: 44 }}>📂</div>
             <div style={{ textAlign: 'center' }}>
-              <p className="font-semibold mb-1" style={{ color: '#333', fontSize: 15 }}>
+              <p className="font-semibold mb-1" style={{ color: '#2C3A40', fontSize: 15 }}>
                 Sin inventario cargado — {sucursal.name}
               </p>
-              <p style={{ fontSize: 13, color: '#aaa', maxWidth: 340, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 13, color: '#8598A1', maxWidth: 340, lineHeight: 1.6 }}>
                 {canUpload(sucursal.slug)
-                  ? <>Haz clic en <strong style={{ color: '#D51A7A' }}>Seleccionar archivo Excel</strong> y elige el archivo exportado de tu sistema para esta sucursal.</>
+                  ? <>Haz clic en <strong style={{ color: '#C4156F' }}>Seleccionar archivo Excel</strong> y elige el archivo exportado de tu sistema para esta sucursal.</>
                   : <>El inventario de esta sucursal aún no ha sido cargado. Inicia sesión como sucursal para subir el archivo.</>
                 }
               </p>
@@ -379,9 +379,9 @@ export default function InventarioSemanal({ onLoginClick }) {
               <button
                 onClick={onLoginClick}
                 className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-all"
-                style={{ backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.09)', borderRadius: '999px', color: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.09)'; e.currentTarget.style.color = '#0A0A0A' }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.5)' }}
+                style={{ backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', color: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = '#0A0A0A' }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.5)' }}
               >
                 🔒 Iniciar sesión
               </button>
@@ -393,12 +393,12 @@ export default function InventarioSemanal({ onLoginClick }) {
         {allRows && !loading && filteredRows.length === 0 && search && (
           <div className="flex flex-col items-center justify-center py-16 gap-3">
             <div style={{ fontSize: 36 }}>🔍</div>
-            <p style={{ color: '#888', fontSize: 14 }}>
-              Sin resultados para <strong style={{ color: '#0A0A0A' }}>"{search}"</strong>
+            <p style={{ color: '#6C818B', fontSize: 14 }}>
+              Sin resultados para <strong style={{ color: '#101619' }}>"{search}"</strong>
             </p>
             <button
               onClick={() => setSearch('')}
-              style={{ fontSize: 13, color: '#00BCF2', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+              style={{ fontSize: 13, color: '#0288AD', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
             >
               Limpiar búsqueda
             </button>
@@ -410,14 +410,14 @@ export default function InventarioSemanal({ onLoginClick }) {
           <div style={{ overflowX: 'auto', maxHeight: 520, overflowY: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
-                <tr style={{ backgroundColor: '#f8f9fa' }}>
-                  <th style={{ width: 44, padding: '11px 14px', borderBottom: '1px solid rgba(0,0,0,0.08)', textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#ccc', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                <tr style={{ backgroundColor: '#EAF0F2' }}>
+                  <th style={{ width: 44, padding: '11px 14px', borderBottom: '1px solid rgba(16,22,25,0.05)', textAlign: 'center', fontSize: 11, fontWeight: 700, color: '#B4C3C9', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     #
                   </th>
-                  <th style={{ padding: '11px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#999', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+                  <th style={{ padding: '11px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#8598A1', borderBottom: '1px solid rgba(16,22,25,0.05)' }}>
                     Producto
                   </th>
-                  <th style={{ padding: '11px 20px 11px 16px', textAlign: 'center', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#999', borderBottom: '1px solid rgba(0,0,0,0.08)', whiteSpace: 'nowrap' }}>
+                  <th style={{ padding: '11px 20px 11px 16px', textAlign: 'center', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: '#8598A1', borderBottom: '1px solid rgba(16,22,25,0.05)', whiteSpace: 'nowrap' }}>
                     Existencias
                   </th>
                 </tr>
@@ -427,16 +427,16 @@ export default function InventarioSemanal({ onLoginClick }) {
                   <tr
                     key={i}
                     style={{
-                      borderBottom: i < filteredRows.length - 1 ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                      borderBottom: i < filteredRows.length - 1 ? '1px solid rgba(16,22,25,0.05)' : 'none',
                       transition: 'background 0.1s',
                     }}
                     onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fafbfc')}
                     onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
                   >
-                    <td style={{ padding: '11px 14px', textAlign: 'center', fontSize: 12, color: '#ddd', fontVariantNumeric: 'tabular-nums' }}>
+                    <td style={{ padding: '11px 14px', textAlign: 'center', fontSize: 12, color: '#C6D3D8', fontVariantNumeric: 'tabular-nums' }}>
                       {i + 1}
                     </td>
-                    <td style={{ padding: '11px 16px', fontSize: 13.5, color: '#0A0A0A', fontWeight: 500, lineHeight: 1.4 }}>
+                    <td style={{ padding: '11px 16px', fontSize: 13.5, color: '#101619', fontWeight: 500, lineHeight: 1.4 }}>
                       <HighlightText text={row[COL_PRODUCTO]} query={search} />
                     </td>
                     <td style={{ padding: '11px 20px 11px 16px', textAlign: 'center' }}>
@@ -453,7 +453,7 @@ export default function InventarioSemanal({ onLoginClick }) {
       {/* ── Leyenda ────────────────────────────────────────────── */}
       {allRows && allRows.length > 0 && (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4">
-          <span className="text-xs font-bold tracking-wider uppercase" style={{ color: '#ccc' }}>
+          <span className="text-xs font-bold tracking-wider uppercase" style={{ color: '#B4C3C9' }}>
             Leyenda:
           </span>
           {ETIQUETAS_LEYENDA.map(({ nivel, label }) => ({
@@ -463,14 +463,14 @@ export default function InventarioSemanal({ onLoginClick }) {
           })).map(item => (
             <div key={item.label} className="flex items-center gap-2">
               <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: item.color, display: 'inline-block', flexShrink: 0 }} />
-              <span className="text-sm" style={{ color: '#888' }}>{item.label}:</span>
-              <span className="text-sm font-bold" style={{ color: '#333' }}>{item.count}</span>
+              <span className="text-sm" style={{ color: '#6C818B' }}>{item.label}:</span>
+              <span className="text-sm font-bold" style={{ color: '#2C3A40' }}>{item.count}</span>
             </div>
           ))}
-          <div className="ml-auto text-sm" style={{ color: '#888' }}>
+          <div className="ml-auto text-sm" style={{ color: '#6C818B' }}>
             {search
-              ? <><strong style={{ color: '#333' }}>{filteredRows.length}</strong> de {stats.total} productos</>
-              : <><strong style={{ color: '#333' }}>{stats.total}</strong> modelos · <strong style={{ color: '#333' }}>{stats.units.toLocaleString()}</strong> unidades</>
+              ? <><strong style={{ color: '#2C3A40' }}>{filteredRows.length}</strong> de {stats.total} productos</>
+              : <><strong style={{ color: '#2C3A40' }}>{stats.total}</strong> modelos · <strong style={{ color: '#2C3A40' }}>{stats.units.toLocaleString()}</strong> unidades</>
             }
           </div>
         </div>

@@ -47,13 +47,16 @@ export default function Navbar({ onLoginClick }) {
 
   return (
     <nav className="sticky top-0 z-50"
-      style={{ backgroundColor: '#ffffff', borderBottom: '1px solid rgba(0,0,0,0.08)' }}>
+      style={{ backgroundColor: '#ffffff', borderBottom: '1px solid rgba(16,22,25,0.05)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-5">
 
-        {/* Logo */}
-        <a href="#" style={{ textDecoration: 'none', flexShrink: 0 }}>
-          <span className="text-2xl font-black tracking-tight select-none"
-            style={{ background: 'linear-gradient(135deg, #00BCF2 0%, #8DC63F 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
+        {/* Logo. El isotipo real de la marca en lugar del texto con degradado:
+            es lo que el cliente reconoce de la tienda física. */}
+        <a href="#" style={{ textDecoration: 'none', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9 }}>
+          <img src="/logo-istuffs.png" alt="iStuffs Custom Cases"
+            style={{ height: 38, width: 'auto', display: 'block' }} />
+          <span className="text-xl font-black tracking-tight select-none hidden sm:block"
+            style={{ color: '#101619', letterSpacing: '-0.03em' }}>
             iStuffs
           </span>
         </a>
@@ -65,7 +68,7 @@ export default function Navbar({ onLoginClick }) {
             style={{ color: 'rgba(0,0,0,0.5)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
             onMouseEnter={e => (e.currentTarget.style.color = '#0A0A0A')}
             onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.5)')}>
-            <span style={{ color: '#00BCF2' }}><MapPinIcon /></span>
+            <span style={{ color: '#0288AD' }}><MapPinIcon /></span>
             <span className="hidden sm:block">{branch}</span>
             <ChevronDown open={open} />
           </button>
@@ -73,7 +76,7 @@ export default function Navbar({ onLoginClick }) {
             <>
               <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
               <div className="absolute top-full left-0 mt-2 z-50 overflow-hidden shadow-xl"
-                style={{ backgroundColor: '#ffffff', border: '1px solid rgba(0,0,0,0.1)', borderRadius: '18px', minWidth: '190px' }}>
+                style={{ backgroundColor: '#ffffff', border: '1px solid rgba(16,22,25,0.09)', borderRadius: '30px', minWidth: '190px' }}>
                 {BRANCHES.map(b => (
                   <button key={b} onClick={() => { setBranch(b); setOpen(false) }}
                     className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-left transition-colors"
@@ -97,9 +100,9 @@ export default function Navbar({ onLoginClick }) {
           <input type="text" placeholder="Buscar fundas, accesorios, modelos..."
             value={query} onChange={e => setQuery(e.target.value)}
             className="w-full text-sm outline-none transition-all"
-            style={{ backgroundColor: 'rgba(0,0,0,0.04)', border: '1px solid rgba(0,0,0,0.09)', borderRadius: '999px', padding: '10px 18px 10px 38px', color: '#0A0A0A' }}
+            style={{ backgroundColor: 'rgba(0,0,0,0.04)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', padding: '10px 18px 10px 38px', color: '#101619' }}
             onFocus={e => { e.target.style.borderColor = 'rgba(0,188,242,0.5)'; e.target.style.backgroundColor = 'rgba(0,188,242,0.03)' }}
-            onBlur={e => { e.target.style.borderColor = 'rgba(0,0,0,0.09)'; e.target.style.backgroundColor = 'rgba(0,0,0,0.04)' }}
+            onBlur={e => { e.target.style.borderColor = 'rgba(16,22,25,0.05)'; e.target.style.backgroundColor = 'rgba(0,0,0,0.04)' }}
           />
         </div>
 
@@ -107,7 +110,7 @@ export default function Navbar({ onLoginClick }) {
         <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
           <button className="relative p-2.5 rounded-full transition-colors"
             style={{ color: 'rgba(0,0,0,0.55)', background: 'none', border: 'none', cursor: 'pointer' }}
-            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = '#0A0A0A' }}
+            onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = '#0A0A0A' }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(0,0,0,0.55)' }}>
             <CartIcon />
             <span className="absolute top-0.5 right-0.5 w-4 h-4 rounded-full text-white flex items-center justify-center font-bold"
@@ -140,9 +143,9 @@ export default function Navbar({ onLoginClick }) {
             <button
               onClick={onLoginClick}
               className="flex items-center gap-2 ml-1 px-4 py-2 text-sm font-semibold transition-all"
-              style={{ backgroundColor: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.09)', borderRadius: '999px', color: 'rgba(0,0,0,0.6)', cursor: 'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.09)'; e.currentTarget.style.color = '#0A0A0A' }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.6)' }}>
+              style={{ backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', color: 'rgba(0,0,0,0.6)', cursor: 'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = '#0A0A0A' }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.6)' }}>
               <UserIcon />
               <span className="hidden sm:block">Sucursales</span>
             </button>

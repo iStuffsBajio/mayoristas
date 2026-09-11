@@ -4,9 +4,9 @@ import { gradStr, configRemotaInaccesible } from '../lib/siteConfig'
 import { SUCURSALES, telefonoWhatsApp } from '../lib/sucursales'
 
 const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
-  <div style={{ backgroundColor: '#fff', borderRadius: 24, border: '1px solid rgba(0,0,0,0.08)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+  <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid rgba(16,22,25,0.05)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-      <h3 style={{ fontSize: 15, fontWeight: 800, color: '#0A0A0A', margin: 0 }}>{emoji} {title}</h3>
+      <h3 style={{ fontSize: 15, fontWeight: 800, color: '#101619', margin: 0 }}>{emoji} {title}</h3>
       <button
         onClick={onSave}
         disabled={guardando}
@@ -19,18 +19,18 @@ const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
 )
 
 const Label = ({ children }) => (
-  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6C818B', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
     {children}
   </label>
 )
 
 const inp = {
-  width: '100%', padding: '10px 14px', borderRadius: 12, border: '1.5px solid rgba(0,0,0,0.1)',
-  backgroundColor: '#f7f8fa', fontSize: 14, color: '#0A0A0A', outline: 'none',
+  width: '100%', padding: '10px 14px', borderRadius: 15, border: '1.5px solid rgba(16,22,25,0.09)',
+  backgroundColor: '#F4F7F8', fontSize: 14, color: '#101619', outline: 'none',
   fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.15s',
 }
 const fp = e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }
-const bl = e => { e.target.style.borderColor = 'rgba(0,0,0,0.1)'; e.target.style.backgroundColor = '#f7f8fa' }
+const bl = e => { e.target.style.borderColor = 'rgba(16,22,25,0.09)'; e.target.style.backgroundColor = '#f7f8fa' }
 
 function useGuardado() {
   const [guardado, setGuardado] = useState(false)
@@ -61,7 +61,7 @@ function SeccionTabs({ config, save, guardando: gGlobal }) {
         {TAB_KEYS.map(key => {
           const tab = tabs[key] || {}
           return (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: '#f7f8fa', border: '1.5px solid rgba(0,0,0,0.07)' }}>
+            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 30, background: '#f7f8fa', border: '1.5px solid rgba(16,22,25,0.05)' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', flexShrink: 0 }}>
                 <div
                   onClick={() => setTabs(t => ({ ...t, [key]: { ...t[key], visible: !t[key]?.visible } }))}
@@ -161,18 +161,18 @@ function EditorDegradado({ gradKey, label, gradientes, onChange }) {
   }
 
   return (
-    <div style={{ padding: '16px', borderRadius: 16, background: '#f7f8fa', border: '1.5px solid rgba(0,0,0,0.07)' }}>
+    <div style={{ padding: '16px', borderRadius: 34, background: '#f7f8fa', border: '1.5px solid rgba(16,22,25,0.05)' }}>
       <Label>{label}</Label>
 
       {/* Preview barra */}
-      <div style={{ height: 48, borderRadius: 12, background: preview, marginBottom: 14, boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }} />
+      <div style={{ height: 48, borderRadius: 15, background: preview, marginBottom: 14, boxShadow: '0 4px 16px rgba(0,0,0,0.12)' }} />
 
       {/* Ángulo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Ángulo</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#6C818B', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0 }}>Ángulo</span>
         <input type="range" min="0" max="360" value={g.angulo ?? 135} onChange={set('angulo')}
           style={{ flex: 1, accentColor: '#D51A7A' }} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#555', minWidth: 38, textAlign: 'right' }}>{g.angulo ?? 135}°</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#4A5A61', minWidth: 38, textAlign: 'right' }}>{g.angulo ?? 135}°</span>
       </div>
 
       {/* Colores */}
@@ -183,10 +183,10 @@ function EditorDegradado({ gradKey, label, gradientes, onChange }) {
           { field: 'color3', label: 'Color 3 (opcional)' },
         ].map(({ field, label: fl }) => (
           <div key={field} style={{ flex: '1 1 80px', minWidth: 80 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>{fl}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#8598A1', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>{fl}</span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <input type="color" value={g[field] || '#ffffff'} onChange={set(field)}
-                style={{ width: 36, height: 36, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)', cursor: 'pointer', padding: 2, background: 'white', flexShrink: 0 }} />
+                style={{ width: 36, height: 36, borderRadius: 34, border: '1.5px solid rgba(16,22,25,0.09)', cursor: 'pointer', padding: 2, background: 'white', flexShrink: 0 }} />
               <input value={g[field] || ''} onChange={set(field)} maxLength={7}
                 placeholder="#000000"
                 style={{ ...inp, padding: '7px 8px', fontFamily: 'monospace', fontSize: 11, width: 80, minWidth: 0 }}
@@ -232,7 +232,7 @@ function SeccionColores({ config, save }) {
 
   return (
     <Section title="Colores y degradados" emoji="🎨" onSave={handleSave} guardando={gLocal} guardado={guardado}>
-      <p style={{ fontSize: 12, color: '#aaa', marginBottom: 16, marginTop: -8 }}>
+      <p style={{ fontSize: 12, color: '#8598A1', marginBottom: 16, marginTop: -8 }}>
         Al editar un degradado, los colores sólidos se sincronizan automáticamente. Los cambios aplican al guardar y recargar.
       </p>
 
@@ -244,15 +244,15 @@ function SeccionColores({ config, save }) {
           gradientes={colores.gradientes} onChange={setGrad} />
 
         {/* Colores sólidos */}
-        <div style={{ padding: '14px 16px', borderRadius: 16, background: '#f7f8fa', border: '1.5px solid rgba(0,0,0,0.07)' }}>
+        <div style={{ padding: '14px 16px', borderRadius: 34, background: '#f7f8fa', border: '1.5px solid rgba(16,22,25,0.05)' }}>
           <Label>Colores sólidos (para texto y bordes)</Label>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12, marginTop: 8 }}>
             {SOLIDOS.map(({ key, label }) => (
               <div key={key}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>{label}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#8598A1', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>{label}</span>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <input type="color" value={colores[key] || '#000000'} onChange={setColor(key)}
-                    style={{ width: 36, height: 36, borderRadius: 10, border: '1.5px solid rgba(0,0,0,0.1)', cursor: 'pointer', padding: 2, background: 'white' }} />
+                    style={{ width: 36, height: 36, borderRadius: 34, border: '1.5px solid rgba(16,22,25,0.09)', cursor: 'pointer', padding: 2, background: 'white' }} />
                   <input value={colores[key] || ''} onChange={setColor(key)} maxLength={7}
                     style={{ ...inp, padding: '7px 10px', fontFamily: 'monospace', fontSize: 12, width: 90 }} onFocus={fp} onBlur={bl} />
                 </div>
@@ -323,7 +323,7 @@ function SeccionDropbox({ config, save }) {
 
   return (
     <Section title="Catálogos de Dropbox" emoji="📂" onSave={handleSave} guardando={gLocal} guardado={guardado}>
-      <p style={{ fontSize: 12, color: '#aaa', marginBottom: 16, marginTop: -8 }}>
+      <p style={{ fontSize: 12, color: '#8598A1', marginBottom: 16, marginTop: -8 }}>
         Pon imágenes en estas carpetas de Dropbox desde tu PC y aparecerán automáticamente en la galería de pedidos.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -358,7 +358,7 @@ function SeccionWhatsApp({ config, save }) {
 
   return (
     <Section title="WhatsApp por sucursal" emoji="💬" onSave={handleSave} guardando={gLocal} guardado={guardado}>
-      <p style={{ fontSize: 12, color: '#aaa', marginBottom: 16, marginTop: -8 }}>
+      <p style={{ fontSize: 12, color: '#8598A1', marginBottom: 16, marginTop: -8 }}>
         Los pedidos de fundas y stickers se envían al número de la sucursal elegida.
         Si dejas una vacía, ese pedido va al número general.
       </p>
@@ -371,12 +371,12 @@ function SeccionWhatsApp({ config, save }) {
             <div key={s.slug}>
               <Label>{s.nombre}</Label>
               <input value={valor} onChange={set(s.slug)} placeholder="477 123 4567"
-                style={{ ...inp, borderColor: invalido ? '#D51A7A' : 'rgba(0,0,0,0.1)' }} onFocus={fp} onBlur={bl} />
+                style={{ ...inp, borderColor: invalido ? '#D51A7A' : 'rgba(16,22,25,0.09)' }} onFocus={fp} onBlur={bl} />
               {invalido
-                ? <p style={{ fontSize: 11, color: '#D51A7A', marginTop: 4 }}>No parece un número mexicano de 10 dígitos.</p>
+                ? <p style={{ fontSize: 11, color: '#C4156F', marginTop: 4 }}>No parece un número mexicano de 10 dígitos.</p>
                 : normalizado
                   ? <p style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>✓ Se enviará a wa.me/{normalizado}</p>
-                  : <p style={{ fontSize: 11, color: '#bbb', marginTop: 4 }}>Vacío: usa el número general.</p>}
+                  : <p style={{ fontSize: 11, color: '#9DAEB6', marginTop: 4 }}>Vacío: usa el número general.</p>}
             </div>
           )
         })}
@@ -392,17 +392,17 @@ export default function AdminPanel() {
   return (
     <section className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
       <div className="mb-8">
-        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#D51A7A' }}>Solo administrador</p>
-        <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#0A0A0A' }}>Panel de administración</h2>
-        <p className="text-sm" style={{ color: '#888' }}>Los cambios se guardan en la nube y aplican a todos los dispositivos al instante.</p>
+        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#C4156F' }}>Solo administrador</p>
+        <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#101619' }}>Panel de administración</h2>
+        <p className="text-sm" style={{ color: '#6C818B' }}>Los cambios se guardan en la nube y aplican a todos los dispositivos al instante.</p>
       </div>
 
       {configRemotaInaccesible && (
-        <div style={{ marginBottom: 20, padding: '16px 18px', borderRadius: 16, background: 'rgba(213,26,122,0.06)', border: '1.5px solid rgba(213,26,122,0.25)' }}>
-          <p style={{ fontSize: 13.5, fontWeight: 800, color: '#D51A7A', margin: 0 }}>
+        <div style={{ marginBottom: 20, padding: '16px 18px', borderRadius: 34, background: 'rgba(213,26,122,0.06)', border: '1.5px solid rgba(213,26,122,0.25)' }}>
+          <p style={{ fontSize: 13.5, fontWeight: 800, color: '#C4156F', margin: 0 }}>
             ⚠ Los cambios se guardan pero nadie los ve
           </p>
-          <p style={{ fontSize: 12.5, color: '#666', margin: '6px 0 0', lineHeight: 1.6 }}>
+          <p style={{ fontSize: 12.5, color: '#4A5A61', margin: '6px 0 0', lineHeight: 1.6 }}>
             El archivo <code>config/site.json</code> del bucket no es de lectura pública, así que
             la página siempre carga los valores por defecto. Da permiso de lectura pública al
             prefijo <code>config/*</code> en la política del bucket de S3 para que esto funcione.

@@ -31,24 +31,22 @@ export default function Footer() {
   const { footer, colores } = config
 
   return (
-    <footer style={{ backgroundColor: '#f5f5f7', borderTop: '1px solid rgba(0,0,0,0.08)', marginTop: 16 }}>
+    <footer style={{ backgroundColor: '#EAF0F2', borderTop: '1px solid #D6E0E4', marginTop: 16 }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-14">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10 mb-12">
 
           <div>
-            <span className="text-3xl font-black"
-              style={{ background: `linear-gradient(135deg, ${colores.acento}, ${colores.acento2})`, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-              iStuffs
-            </span>
-            <p className="mt-3 text-sm leading-relaxed" style={{ color: 'rgba(0,0,0,0.45)' }}>
+            <img src="/logo-istuffs.png" alt="iStuffs Custom Cases"
+              style={{ height: 76, width: 'auto', display: 'block' }} />
+            <p className="mt-4 text-sm leading-relaxed" style={{ color: '#4A5A61' }}>
               {footer.descripcion}
             </p>
             <div className="flex gap-2.5 mt-5">
               {[<InstagramIcon />, <TikTokIcon />, <XIcon />].map((icon, i) => (
                 <button key={i} className="p-2.5 transition-all"
-                  style={{ backgroundColor: 'rgba(0,0,0,0.06)', color: 'rgba(0,0,0,0.45)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: '999px', cursor: 'pointer' }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.1)'; e.currentTarget.style.color = '#0A0A0A' }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.06)'; e.currentTarget.style.color = 'rgba(0,0,0,0.45)' }}>
+                  style={{ backgroundColor: 'rgba(16,22,25,0.05)', color: 'rgba(0,0,0,0.45)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', cursor: 'pointer' }}
+                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.09)'; e.currentTarget.style.color = '#0A0A0A' }}
+                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.45)' }}>
                   {icon}
                 </button>
               ))}
@@ -57,7 +55,7 @@ export default function Footer() {
 
           {Object.entries(LINKS).map(([title, links]) => (
             <div key={title}>
-              <h4 className="text-sm font-semibold mb-4" style={{ color: '#0A0A0A' }}>{title}</h4>
+              <h4 className="text-sm font-semibold mb-4" style={{ color: '#101619' }}>{title}</h4>
               <ul className="space-y-3">
                 {links.map(link => (
                   <li key={link}>
@@ -75,7 +73,7 @@ export default function Footer() {
         </div>
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8"
-          style={{ borderTop: '1px solid rgba(0,0,0,0.08)' }}>
+          style={{ borderTop: '1px solid rgba(16,22,25,0.05)' }}>
           <p className="text-xs" style={{ color: 'rgba(0,0,0,0.3)' }}>{footer.copyright}</p>
           <div className="flex gap-6">
             {['Privacidad', 'Términos', 'Cookies'].map(item => (

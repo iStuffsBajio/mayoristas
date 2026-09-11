@@ -30,7 +30,7 @@ export default function StockBadge({ value, size = 13.5 }) {
   const nivel = nivelStock(n)
   const color = COLOR_NIVEL[nivel]
 
-  if (n <= 0) return <span style={{ color: '#bbb', fontWeight: 500, fontSize: size }}>—</span>
+  if (n <= 0) return <span style={{ color: '#9DAEB6', fontWeight: 500, fontSize: size }}>—</span>
 
   return (
     <span style={{ color, fontWeight: 700, fontSize: size, display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>

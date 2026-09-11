@@ -38,20 +38,20 @@ export default function ProductCard({ product }) {
       className="relative flex flex-col overflow-hidden"
       style={{
         backgroundColor: '#ffffff',
-        border: '1px solid rgba(0,0,0,0.08)',
+        border: '1px solid rgba(16,22,25,0.05)',
         borderRadius: '32px',
         transition: 'border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease',
-        boxShadow: '0 2px 12px rgba(0,0,0,0.05)',
+        boxShadow: '0 2px 12px rgba(16,22,25,0.05)',
       }}
       onMouseEnter={e => {
         e.currentTarget.style.borderColor = 'rgba(0,0,0,0.14)'
         e.currentTarget.style.transform = 'translateY(-3px)'
-        e.currentTarget.style.boxShadow = '0 16px 44px rgba(0,0,0,0.1)'
+        e.currentTarget.style.boxShadow = '0 16px 44px rgba(16,22,25,0.09)'
       }}
       onMouseLeave={e => {
-        e.currentTarget.style.borderColor = 'rgba(0,0,0,0.08)'
+        e.currentTarget.style.borderColor = 'rgba(16,22,25,0.05)'
         e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = '0 2px 12px rgba(0,0,0,0.05)'
+        e.currentTarget.style.boxShadow = '0 2px 12px rgba(16,22,25,0.05)'
       }}
     >
       {/* Gradient image area */}
@@ -65,7 +65,7 @@ export default function ProductCard({ product }) {
             width: 88,
             height: 160,
             backgroundColor: 'rgba(0,0,0,0.22)',
-            borderRadius: '22px',
+            borderRadius: '34px',
             border: '2px solid rgba(255,255,255,0.25)',
             backdropFilter: 'blur(12px)',
             position: 'relative',
@@ -116,12 +116,12 @@ export default function ProductCard({ product }) {
             style={{
               left: '50%', transform: 'translateX(-50%)',
               backgroundColor: 'rgba(255,255,255,0.9)',
-              color: '#D51A7A',
+              color: '#C4156F',
               borderRadius: '999px',
               border: '1px solid rgba(213,26,122,0.2)',
               backdropFilter: 'blur(8px)',
               whiteSpace: 'nowrap',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+              boxShadow: '0 2px 8px rgba(16,22,25,0.09)',
             }}
           >
             ⚡ Solo {product.stock} disponibles
@@ -136,13 +136,13 @@ export default function ProductCard({ product }) {
           <span className="text-xs font-medium" style={{ color: 'rgba(0,0,0,0.4)' }}>
             {product.category}
           </span>
-          <span className="text-xs font-semibold" style={{ color: '#00BCF2' }}>
+          <span className="text-xs font-semibold" style={{ color: '#0288AD' }}>
             {product.model}
           </span>
         </div>
 
         {/* Name */}
-        <h3 className="text-lg font-bold leading-tight" style={{ color: '#0A0A0A' }}>
+        <h3 className="text-lg font-bold leading-tight" style={{ color: '#101619' }}>
           {product.name}
         </h3>
 
@@ -168,7 +168,7 @@ export default function ProductCard({ product }) {
         <div className="flex items-end justify-between mt-auto pt-1">
           <div>
             <div className="flex items-baseline gap-2">
-              <span className="text-xl font-black" style={{ color: '#0A0A0A' }}>
+              <span className="text-xl font-black" style={{ color: '#101619' }}>
                 ${product.price.toLocaleString()}
               </span>
               {discount && (
