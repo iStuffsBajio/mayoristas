@@ -3,9 +3,9 @@ import GaleriaDropbox from './GaleriaDropbox'
 import StockBadge from './StockBadge'
 import { useSiteConfig } from '../context/SiteConfigContext'
 import { loadInventarioJson, s3Configured } from '../lib/s3'
-import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
 import { SUCURSALES, telefonoWhatsApp } from '../lib/sucursales'
-import { armarMensaje, enlaceWhatsApp, carpetaDeRuta } from '../lib/whatsapp'
+import { armarMensaje, enlaceWhatsApp } from '../lib/whatsapp'
+import { renombrar, puedeCompartirArchivos, compartirArchivos, descargarArchivos } from '../lib/compartir'
 
 // ── Iconos ────────────────────────────────────────────────────────────────────
 
@@ -211,37 +211,24 @@ export default function Personalizer() {
   const sinDiseno      = lineas.filter(l => !l.imagen)
   const completo       = lineas.length > 0 && sinDiseno.length === 0 && form.nombre.trim() && numeroSucursal
 
-  const enviar = async e => {
-    e.preventDefault()
-    if (!completo) return
-    setSubiendo(true); setAviso('')
+  // Las imágenes del cliente, renombradas con su modelo. El contenido no se
+  // toca, solo la etiqueta con la que viajan, para que en el chat se vea a qué
+  // funda corresponde cada una sin tener que preguntarlo.
+  const archivosRenombrados = useMemo(
+    () => lineas.filter(l => l.archivo).map(l => renombrar(l.archivo, l.producto, form.nombre)),
+    [lineas, form.nombre]
+  )
+  const sePuedeAdjuntar = puedeCompartirArchivos(archivosRenombrados)
 
-    // Cada imagen se guarda con el nombre del modelo, para que en Dropbox se
-    // sepa a qué funda corresponde sin abrirlas una por una.
-    const carpetas = new Set()
-    let fallidas = 0
-    for (const [i, l] of lineas.entries()) {
-      if (!l.archivo || !dropboxConfigured) continue
-      setProgreso(`Guardando imagen ${i + 1} de ${lineas.length}...`)
-      try {
-        const ruta = await uploadStikerDropbox(sucursal.slug, l.archivo, form.nombre, l.producto)
-        carpetas.add(carpetaDeRuta(ruta))
-      } catch (err) {
-        fallidas++
-        console.error('No se pudo subir', l.producto, err)
-      }
-    }
-    setProgreso('')
-    setSubiendo(false)
-    if (fallidas) setAviso(`${fallidas} imagen(es) no se pudieron guardar. Adjúntalas en el chat.`)
-
+  const textoPedido = () => {
     const detalle = lineas.flatMap((l, i) => [
       `${i + 1}. *${l.producto}* — ${l.cantidad} pz`,
       l.descripcion.trim() ? `   ${l.descripcion.trim()}` : null,
       l.imagen && !l.archivo ? `   Diseño del catálogo: ${l.imagen.name?.replace(/\.[^.]+$/, '') || ''}` : null,
+      l.archivo ? `   Imagen: ${renombrar(l.archivo, l.producto, form.nombre).name}` : null,
     ].filter(Boolean))
 
-    const msg = armarMensaje([
+    return armarMensaje([
       '*PEDIDO FUNDAS PERSONALIZADAS - iStuffs*',
       '',
       `*Sucursal:* ${sucursal.nombre}`,
@@ -254,12 +241,44 @@ export default function Personalizer() {
       ...detalle,
       '',
       form.notas.trim() ? `*Notas:* ${form.notas.trim()}` : null,
-      carpetas.size ? `*Imágenes guardadas en la carpeta:* ${[...carpetas].join(', ')}` : null,
+      archivosRenombrados.length
+        ? `*Imágenes adjuntas:* ${archivosRenombrados.length}, nombradas por modelo.`
+        : null,
     ])
+  }
 
+  const enviar = async e => {
+    e.preventDefault()
+    if (!completo) return
+    setAviso('')
+    const msg = textoPedido()
+
+    // 1) En celular, la hoja de compartir del sistema entrega las imágenes
+    //    directo a WhatsApp, sin intermediarios.
+    if (sePuedeAdjuntar) {
+      setSubiendo(true)
+      setProgreso('Abriendo WhatsApp...')
+      const listo = await compartirArchivos(archivosRenombrados, msg)
+      setProgreso('')
+      setSubiendo(false)
+      if (listo) {
+        setEnviado(true)
+        setTimeout(() => setEnviado(false), 6000)
+        return
+      }
+      // Si lo cancelo, no se hace nada mas: fue decision suya.
+      return
+    }
+
+    // 2) En escritorio casi nunca se puede adjuntar por enlace, así que se
+    //    descargan las imágenes ya renombradas y se abre el chat con el texto.
+    if (archivosRenombrados.length) {
+      descargarArchivos(archivosRenombrados)
+      setAviso(`Se descargaron ${archivosRenombrados.length} imagen(es) con el nombre del modelo. Arrástralas al chat de WhatsApp que se acaba de abrir.`)
+    }
     window.open(enlaceWhatsApp(numeroSucursal, msg), '_blank')
     setEnviado(true)
-    setTimeout(() => setEnviado(false), 6000)
+    setTimeout(() => setEnviado(false), 8000)
   }
 
   const carpetaFundas = config.dropboxCatalogos?.fundas || ''
@@ -453,6 +472,23 @@ export default function Personalizer() {
                   placeholder="Día específico en que lo necesitas, forma de entrega, condiciones de mayoreo..."
                   style={{ ...inp, resize: 'vertical', minHeight: 74, lineHeight: 1.6 }} onFocus={fp} onBlur={bl} />
               </Campo>
+
+              {/* Se explica ANTES de enviar como van a llegar las imagenes,
+                  porque el comportamiento cambia entre celular y computadora. */}
+              {archivosRenombrados.length > 0 && (
+                <div style={{ padding: '11px 14px', borderRadius: 12, background: sePuedeAdjuntar ? 'rgba(141,198,63,0.08)' : 'rgba(0,188,242,0.06)', border: `1px solid ${sePuedeAdjuntar ? 'rgba(141,198,63,0.3)' : 'rgba(0,188,242,0.25)'}` }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, margin: 0, color: sePuedeAdjuntar ? '#4d7c0f' : '#0369a1' }}>
+                    {sePuedeAdjuntar
+                      ? `${archivosRenombrados.length} imagen(es) se adjuntarán al chat`
+                      : `${archivosRenombrados.length} imagen(es) se descargarán para que las adjuntes`}
+                  </p>
+                  <p style={{ fontSize: 12, margin: '3px 0 0', lineHeight: 1.5, color: sePuedeAdjuntar ? '#3f6212' : '#075985' }}>
+                    {sePuedeAdjuntar
+                      ? 'Cada archivo lleva el nombre de su modelo.'
+                      : 'Tu navegador no puede adjuntarlas solo. Se descargan con el nombre del modelo y las arrastras al chat. Desde el celular se adjuntan automáticamente.'}
+                  </p>
+                </div>
+              )}
 
               {aviso && <p style={{ fontSize: 12, color: '#d97706' }}>{aviso}</p>}
               {!numeroSucursal && (
