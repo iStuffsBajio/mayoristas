@@ -4,7 +4,8 @@ import StockBadge from './StockBadge'
 import { useSiteConfig } from '../context/SiteConfigContext'
 import { loadInventarioJson, s3Configured } from '../lib/s3'
 import { SUCURSALES, telefonoWhatsApp } from '../lib/sucursales'
-import { armarMensaje, enlaceWhatsApp } from '../lib/whatsapp'
+import { uploadStikerDropbox, dropboxConfigured } from '../lib/dropbox'
+import { armarMensaje, enlaceWhatsApp, carpetaDeRuta } from '../lib/whatsapp'
 import { renombrar, puedeCompartirArchivos, compartirArchivos, descargarArchivos } from '../lib/compartir'
 
 // ── Iconos ────────────────────────────────────────────────────────────────────
@@ -220,7 +221,7 @@ export default function Personalizer() {
   )
   const sePuedeAdjuntar = puedeCompartirArchivos(archivosRenombrados)
 
-  const textoPedido = () => {
+  const textoPedido = ({ carpetas = [], guardadas = 0, fallidas = 0 } = {}) => {
     const detalle = lineas.flatMap((l, i) => [
       `${i + 1}. *${l.producto}* — ${l.cantidad} pz`,
       l.descripcion.trim() ? `   ${l.descripcion.trim()}` : null,
@@ -241,9 +242,10 @@ export default function Personalizer() {
       ...detalle,
       '',
       form.notas.trim() ? `*Notas:* ${form.notas.trim()}` : null,
-      archivosRenombrados.length
-        ? `*Imágenes adjuntas:* ${archivosRenombrados.length}, nombradas por modelo.`
+      guardadas
+        ? `*${guardadas} imagen(es) en Dropbox,* carpeta ${carpetas.join(', ')}, con el nombre del modelo.`
         : null,
+      fallidas ? `*OJO:* ${fallidas} imagen(es) no se guardaron, se adjuntan en este chat.` : null,
     ])
   }
 
@@ -251,34 +253,55 @@ export default function Personalizer() {
     e.preventDefault()
     if (!completo) return
     setAviso('')
-    const msg = textoPedido()
 
-    // 1) En celular, la hoja de compartir del sistema entrega las imágenes
-    //    directo a WhatsApp, sin intermediarios.
-    if (sePuedeAdjuntar) {
+    // 1) Dropbox es la via garantizada. WhatsApp Web no acepta adjuntos por
+    //    enlace y las descargas multiples las bloquea el navegador, asi que
+    //    sin esto las imagenes simplemente no llegaban desde computadora.
+    const carpetas = new Set()
+    let guardadas = 0, fallidas = 0
+    const propias = lineas.filter(l => l.archivo)
+
+    if (propias.length && dropboxConfigured) {
       setSubiendo(true)
-      setProgreso('Abriendo WhatsApp...')
-      const listo = await compartirArchivos(archivosRenombrados, msg)
+      for (const [i, l] of propias.entries()) {
+        setProgreso(`Guardando imagen ${i + 1} de ${propias.length}...`)
+        try {
+          const ruta = await uploadStikerDropbox(sucursal.slug, l.archivo, form.nombre, l.producto)
+          carpetas.add(carpetaDeRuta(ruta))
+          guardadas++
+        } catch (err) {
+          fallidas++
+          console.error('No se pudo subir', l.producto, err)
+        }
+      }
       setProgreso('')
       setSubiendo(false)
+    }
+
+    const msg = textoPedido({ carpetas: [...carpetas], guardadas, fallidas })
+
+    // 2) Si ademas el dispositivo puede adjuntar, se hace: la sucursal ve las
+    //    imagenes en el chat al instante, sin abrir Dropbox.
+    if (sePuedeAdjuntar) {
+      const listo = await compartirArchivos(archivosRenombrados, msg)
       if (listo) {
         setEnviado(true)
         setTimeout(() => setEnviado(false), 6000)
         return
       }
-      // Si lo cancelo, no se hace nada mas: fue decision suya.
-      return
+      // Si cancelo la hoja de compartir, sigue el camino normal por enlace.
     }
 
-    // 2) En escritorio casi nunca se puede adjuntar por enlace, así que se
-    //    descargan las imágenes ya renombradas y se abre el chat con el texto.
-    if (archivosRenombrados.length) {
-      descargarArchivos(archivosRenombrados)
-      setAviso(`Se descargaron ${archivosRenombrados.length} imagen(es) con el nombre del modelo. Arrástralas al chat de WhatsApp que se acaba de abrir.`)
-    }
     window.open(enlaceWhatsApp(numeroSucursal, msg), '_blank')
+
+    if (fallidas || (propias.length && !dropboxConfigured)) {
+      const sinGuardar = fallidas || propias.length
+      descargarArchivos(archivosRenombrados)
+      setAviso(`${sinGuardar} imagen(es) no se pudieron guardar en Dropbox. Se descargaron a tu equipo para que las adjuntes al chat.`)
+    }
+
     setEnviado(true)
-    setTimeout(() => setEnviado(false), 8000)
+    setTimeout(() => setEnviado(false), 7000)
   }
 
   const carpetaFundas = config.dropboxCatalogos?.fundas || ''
@@ -476,16 +499,13 @@ export default function Personalizer() {
               {/* Se explica ANTES de enviar como van a llegar las imagenes,
                   porque el comportamiento cambia entre celular y computadora. */}
               {archivosRenombrados.length > 0 && (
-                <div style={{ padding: '11px 14px', borderRadius: 12, background: sePuedeAdjuntar ? 'rgba(141,198,63,0.08)' : 'rgba(0,188,242,0.06)', border: `1px solid ${sePuedeAdjuntar ? 'rgba(141,198,63,0.3)' : 'rgba(0,188,242,0.25)'}` }}>
-                  <p style={{ fontSize: 12.5, fontWeight: 700, margin: 0, color: sePuedeAdjuntar ? '#4d7c0f' : '#0369a1' }}>
-                    {sePuedeAdjuntar
-                      ? `${archivosRenombrados.length} imagen(es) se adjuntarán al chat`
-                      : `${archivosRenombrados.length} imagen(es) se descargarán para que las adjuntes`}
+                <div style={{ padding: '11px 14px', borderRadius: 12, background: 'rgba(141,198,63,0.08)', border: '1px solid rgba(141,198,63,0.3)' }}>
+                  <p style={{ fontSize: 12.5, fontWeight: 700, margin: 0, color: '#4d7c0f' }}>
+                    {archivosRenombrados.length} imagen(es) se guardarán con el nombre de su modelo
                   </p>
-                  <p style={{ fontSize: 12, margin: '3px 0 0', lineHeight: 1.5, color: sePuedeAdjuntar ? '#3f6212' : '#075985' }}>
-                    {sePuedeAdjuntar
-                      ? 'Cada archivo lleva el nombre de su modelo.'
-                      : 'Tu navegador no puede adjuntarlas solo. Se descargan con el nombre del modelo y las arrastras al chat. Desde el celular se adjuntan automáticamente.'}
+                  <p style={{ fontSize: 12, margin: '3px 0 0', lineHeight: 1.5, color: '#3f6212' }}>
+                    Quedan en la carpeta de {sucursal.nombre} en Dropbox.
+                    {sePuedeAdjuntar ? ' Además se adjuntan al chat.' : ''}
                   </p>
                 </div>
               )}
