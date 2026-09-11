@@ -22,15 +22,12 @@ export default function Hero({ onExplorar, onPersonalizar }) {
           </span>
         </div>
 
-        <h1 className="text-5xl sm:text-7xl font-black leading-none tracking-tight mb-6">
-          <span style={{ color: '#101619' }}>Expresa </span>
-          <span style={{ background: gradAcento, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-            tu estilo
-          </span>
-          <br />
-          <span style={{ color: '#101619' }}>con </span>
+        {/* El titular se edita desde el panel admin. La segunda mitad va en
+            degradado, que es donde cae la promesa. */}
+        <h1 className="text-4xl sm:text-6xl font-black leading-none tracking-tight mb-6">
+          <span style={{ color: '#101619' }}>{hero.titulo1} </span>
           <span style={{ background: gradPrincipal, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
-            iStuffs
+            {hero.titulo2}
           </span>
         </h1>
 

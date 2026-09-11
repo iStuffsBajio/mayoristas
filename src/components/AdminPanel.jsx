@@ -117,6 +117,18 @@ function SeccionHero({ config, save }) {
           <Label>Badge (texto del chip superior)</Label>
           <input value={hero.badge} onChange={set('badge')} style={inp} onFocus={fp} onBlur={bl} />
         </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <Label>Titular, primera parte</Label>
+            <input value={hero.titulo1 || ''} onChange={set('titulo1')} placeholder="Consulta y pide"
+              style={inp} onFocus={fp} onBlur={bl} />
+          </div>
+          <div>
+            <Label>Titular, parte con degradado</Label>
+            <input value={hero.titulo2 || ''} onChange={set('titulo2')} placeholder="a cualquier hora"
+              style={inp} onFocus={fp} onBlur={bl} />
+          </div>
+        </div>
         <div>
           <Label>Subtítulo</Label>
           <textarea value={hero.subtitulo} onChange={set('subtitulo')} rows={3}

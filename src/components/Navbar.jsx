@@ -50,15 +50,11 @@ export default function Navbar({ onLoginClick }) {
       style={{ backgroundColor: '#ffffff', borderBottom: '1px solid rgba(16,22,25,0.05)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-5">
 
-        {/* Logo. El isotipo real de la marca en lugar del texto con degradado:
-            es lo que el cliente reconoce de la tienda física. */}
-        <a href="#" style={{ textDecoration: 'none', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 9 }}>
+        {/* Solo el logotipo. Ya trae el nombre dentro, así que repetirlo al
+            lado duplicaba la marca y le quitaba peso. */}
+        <a href="#" style={{ textDecoration: 'none', flexShrink: 0, display: 'block' }}>
           <img src="/logo-istuffs.png" alt="iStuffs Custom Cases"
-            style={{ height: 38, width: 'auto', display: 'block' }} />
-          <span className="text-xl font-black tracking-tight select-none hidden sm:block"
-            style={{ color: '#101619', letterSpacing: '-0.03em' }}>
-            iStuffs
-          </span>
+            style={{ height: 54, width: 'auto', display: 'block' }} />
         </a>
 
         {/* Branch selector */}

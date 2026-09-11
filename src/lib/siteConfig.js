@@ -19,10 +19,13 @@ export const DEFAULT_CONFIG = {
     stikers:     { visible: true, label: 'Pedidos de Stickers',    emoji: '🏷️' },
   },
   hero: {
-    badge:     '✦ Nueva Colección 2025',
-    subtitulo: 'Fundas premium y accesorios tecnológicos con diseños únicos. Disponible en León, San Luis Potosí, Aguascalientes y Torreón.',
-    boton1:    'Explorar Catálogo',
-    boton2:    'Personalizar mi Funda →',
+    badge:     'Portal de mayoristas',
+    // El titular va partido: la segunda mitad se pinta con el degradado.
+    titulo1:   'Consulta y pide',
+    titulo2:   'a cualquier hora',
+    subtitulo: 'Que un horario no detenga tu venta. Revisa existencias de León, San Luis Potosí y Aguascalientes y manda tu pedido cuando lo necesites, aunque la tienda ya haya cerrado.',
+    boton1:    'Ver existencias',
+    boton2:    'Armar mi pedido →',
     stats: [
       { value: '500+', label: 'Diseños' },
       { value: '4',    label: 'Sucursales' },
