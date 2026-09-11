@@ -24,7 +24,11 @@ export default function Hero({ onExplorar, onPersonalizar }) {
 
         {/* El titular se edita desde el panel admin. La segunda mitad va en
             degradado, que es donde cae la promesa. */}
-        <h1 className="text-4xl sm:text-6xl font-black leading-none tracking-tight mb-6">
+        {/* En mayúsculas. El titular se edita en minúsculas desde el panel y
+            aquí se transforma, para que el texto guardado siga siendo legible
+            de editar. */}
+        <h1 className="text-4xl sm:text-6xl font-black leading-none mb-6"
+          style={{ textTransform: 'uppercase', letterSpacing: '-0.015em' }}>
           <span style={{ color: '#101619' }}>{hero.titulo1} </span>
           <span style={{ background: gradPrincipal, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
             {hero.titulo2}
