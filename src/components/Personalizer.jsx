@@ -297,7 +297,7 @@ export default function Personalizer() {
     if (fallidas || (propias.length && !dropboxConfigured)) {
       const sinGuardar = fallidas || propias.length
       descargarArchivos(archivosRenombrados)
-      setAviso(`${sinGuardar} imagen(es) no se pudieron guardar en Dropbox. Se descargaron a tu equipo para que las adjuntes al chat.`)
+      setAviso(`${sinGuardar} imagen(es) se descargaron a tu equipo. Adjúntalas al chat de WhatsApp que se acaba de abrir.`)
     }
 
     setEnviado(true)
