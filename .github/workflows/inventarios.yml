@@ -60,27 +60,36 @@ jobs:
               'echo "PATH=$PATH"; echo "--- binarios de firebird ---"; find / -name "gbak*" -o -name "isql*" 2>/dev/null | head -20' \
               || echo "no se pudo inspeccionar la imagen"
 
-            echo "=== rutas elegidas ==="
-            RUTA_GBAK=$(docker run --rm --entrypoint sh "$IMAGEN" -c \
-              'for p in /usr/local/firebird/bin/gbak /opt/firebird/bin/gbak "$(command -v gbak)"; do [ -x "$p" ] && echo "$p" && exit 0; done; find / -name gbak -type f 2>/dev/null | head -1' 2>/dev/null || true)
-            RUTA_ISQL=$(docker run --rm --entrypoint sh "$IMAGEN" -c \
-              'for p in /usr/local/firebird/bin/isql /opt/firebird/bin/isql "$(command -v isql)"; do [ -x "$p" ] && echo "$p" && exit 0; done; find / -name isql -type f 2>/dev/null | head -1' 2>/dev/null || true)
-            echo "gbak: ${RUTA_GBAK:-NO ENCONTRADO}"
-            echo "isql: ${RUTA_ISQL:-NO ENCONTRADO}"
+            # El contenedor se deja ENCENDIDO con el servidor corriendo. En el
+            # intento anterior se creaba uno nuevo por comando y fallaba con
+            # "Unable to complete network request to host localhost": isql y
+            # gbak hablan con un servidor Firebird, y en un contenedor efimero
+            # no hay ninguno escuchando.
+            echo "=== levantando el servidor ==="
+            docker rm -f firebird >/dev/null 2>&1 || true
+            docker run -d --name firebird -v /tmp:/tmp \
+              -e ISC_PASSWORD=masterkey -e FIREBIRD_ROOT_PASSWORD=masterkey \
+              "$IMAGEN" >/dev/null
 
-            if [ -z "$RUTA_GBAK" ] || [ -z "$RUTA_ISQL" ]; then
-              echo "FALTAN LAS HERRAMIENTAS EN LA IMAGEN"
-              exit 1
-            fi
+            echo "=== esperando a que responda ==="
+            listo=0
+            for i in $(seq 1 30); do
+              if docker exec firebird /usr/local/firebird/bin/isql -user SYSDBA -password masterkey \
+                   -q -i /dev/null 2>/dev/null; then listo=1; break; fi
+              sleep 2
+            done
+            docker logs firebird 2>&1 | tail -15
+            echo "servidor listo: $listo (tras $((i*2))s)"
 
-            # Envoltorios que ejecutan las herramientas dentro del contenedor.
-            # Se monta /tmp en la misma ruta para que los argumentos funcionen
-            # sin traducir, y como root para evitar choques de permisos.
-            printf '#!/bin/bash\nexec docker run --rm -u 0:0 -v /tmp:/tmp --entrypoint %s %s "$@"\n' \
-              "$RUTA_GBAK" "$IMAGEN" | sudo tee /usr/local/bin/fb-gbak >/dev/null
-            printf '#!/bin/bash\nexec docker run --rm -u 0:0 -v /tmp:/tmp --entrypoint %s %s "$@"\n' \
-              "$RUTA_ISQL" "$IMAGEN" | sudo tee /usr/local/bin/fb-isql >/dev/null
-            sudo chmod +x /usr/local/bin/fb-gbak /usr/local/bin/fb-isql
+            # Envoltorios que ejecutan las herramientas DENTRO del contenedor
+            # encendido. /tmp esta montado en la misma ruta, asi que los
+            # argumentos del script funcionan sin traducir.
+            for par in "fb-gbak:gbak" "fb-isql:isql"; do
+              nombre="${par%%:*}"; bin="${par##*:}"
+              printf '#!/bin/bash\nexec docker exec -u 0:0 firebird /usr/local/firebird/bin/%s "$@"\n' \
+                "$bin" | sudo tee "/usr/local/bin/$nombre" >/dev/null
+              sudo chmod +x "/usr/local/bin/$nombre"
+            done
 
             echo "=== version ==="
             fb-gbak -z || true
