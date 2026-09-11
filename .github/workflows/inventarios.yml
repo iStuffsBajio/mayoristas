@@ -43,50 +43,59 @@ jobs:
         env:
           IMAGEN: jacobalberty/firebird:2.5-ss
         run: |
-          set -e
-          # Se usa un contenedor en lugar del paquete del sistema por dos
-          # razones. Primero, el paquete de Debian corre el motor como el
-          # usuario `firebird` y gbak fallaba con "Permission denied" sobre sus
-          # carpetas. Segundo, los respaldos vienen de Firebird 2.0 y esta
-          # imagen trae 2.5, que los lee sin riesgo de incompatibilidad, en vez
-          # del 3.0 que trae Ubuntu.
-          docker pull -q "$IMAGEN"
+          # Todo el bloque se canaliza a tee al final, en vez de redirigir con
+          # exec. Con exec la salida se perdia cuando el paso fallaba, que es
+          # justo cuando hace falta leerla.
+          {
+            # Se usa un contenedor en lugar del paquete del sistema por dos
+            # razones. El paquete de Debian corre el motor como el usuario
+            # `firebird` y gbak fallaba con "Permission denied". Y los respaldos
+            # son de Firebird 2.0: esta imagen trae 2.5, que los lee sin riesgo,
+            # en vez del 3.0 de Ubuntu.
+            echo "=== imagen: $IMAGEN ==="
+            docker pull -q "$IMAGEN" && echo "descarga correcta" || echo "FALLO LA DESCARGA"
 
-          echo "--- ubicacion de las herramientas dentro de la imagen ---"
-          RUTA_GBAK=$(docker run --rm --entrypoint sh "$IMAGEN" -c \
-            'command -v gbak || ls /usr/local/firebird/bin/gbak 2>/dev/null || find / -name gbak -type f 2>/dev/null | head -1')
-          RUTA_ISQL=$(docker run --rm --entrypoint sh "$IMAGEN" -c \
-            'command -v isql || ls /usr/local/firebird/bin/isql 2>/dev/null || find / -name isql -type f 2>/dev/null | head -1')
-          echo "gbak: ${RUTA_GBAK:-NO ENCONTRADO}"
-          echo "isql: ${RUTA_ISQL:-NO ENCONTRADO}"
-          test -n "$RUTA_GBAK" && test -n "$RUTA_ISQL"
+            echo "=== que trae la imagen ==="
+            docker run --rm --entrypoint sh "$IMAGEN" -c \
+              'echo "PATH=$PATH"; echo "--- binarios de firebird ---"; find / -name "gbak*" -o -name "isql*" 2>/dev/null | head -20' \
+              || echo "no se pudo inspeccionar la imagen"
 
-          # Envoltorios que ejecutan las herramientas dentro del contenedor.
-          # Se monta /tmp en la misma ruta para que los argumentos del script
-          # funcionen sin traducir, y se corre como root para que no haya
-          # choques de permisos con los archivos temporales.
-          crear_envoltorio() {
-            sudo tee "/usr/local/bin/$1" >/dev/null <<ENVOLTORIO
-          #!/bin/bash
-          exec docker run --rm -u 0:0 -v /tmp:/tmp --entrypoint $2 $IMAGEN "\$@"
-          ENVOLTORIO
-            sudo chmod +x "/usr/local/bin/$1"
-          }
-          crear_envoltorio fb-gbak "$RUTA_GBAK"
-          crear_envoltorio fb-isql "$RUTA_ISQL"
+            echo "=== rutas elegidas ==="
+            RUTA_GBAK=$(docker run --rm --entrypoint sh "$IMAGEN" -c \
+              'for p in /usr/local/firebird/bin/gbak /opt/firebird/bin/gbak "$(command -v gbak)"; do [ -x "$p" ] && echo "$p" && exit 0; done; find / -name gbak -type f 2>/dev/null | head -1' 2>/dev/null || true)
+            RUTA_ISQL=$(docker run --rm --entrypoint sh "$IMAGEN" -c \
+              'for p in /usr/local/firebird/bin/isql /opt/firebird/bin/isql "$(command -v isql)"; do [ -x "$p" ] && echo "$p" && exit 0; done; find / -name isql -type f 2>/dev/null | head -1' 2>/dev/null || true)
+            echo "gbak: ${RUTA_GBAK:-NO ENCONTRADO}"
+            echo "isql: ${RUTA_ISQL:-NO ENCONTRADO}"
 
-          echo "--- version que reportan los envoltorios ---"
-          fb-gbak -z || true
+            if [ -z "$RUTA_GBAK" ] || [ -z "$RUTA_ISQL" ]; then
+              echo "FALTAN LAS HERRAMIENTAS EN LA IMAGEN"
+              exit 1
+            fi
 
-          echo "--- prueba del motor antes de tocar los respaldos ---"
-          mkdir -p /tmp/pruebafb && chmod 777 /tmp/pruebafb
-          printf 'CREATE DATABASE "/tmp/pruebafb/prueba.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' > /tmp/pruebafb/p.sql
-          if fb-isql -user SYSDBA -password masterkey -i /tmp/pruebafb/p.sql; then
-            echo "MOTOR FIREBIRD OK"
-          else
-            echo "MOTOR FIREBIRD NO RESPONDE"
-            exit 1
-          fi
+            # Envoltorios que ejecutan las herramientas dentro del contenedor.
+            # Se monta /tmp en la misma ruta para que los argumentos funcionen
+            # sin traducir, y como root para evitar choques de permisos.
+            printf '#!/bin/bash\nexec docker run --rm -u 0:0 -v /tmp:/tmp --entrypoint %s %s "$@"\n' \
+              "$RUTA_GBAK" "$IMAGEN" | sudo tee /usr/local/bin/fb-gbak >/dev/null
+            printf '#!/bin/bash\nexec docker run --rm -u 0:0 -v /tmp:/tmp --entrypoint %s %s "$@"\n' \
+              "$RUTA_ISQL" "$IMAGEN" | sudo tee /usr/local/bin/fb-isql >/dev/null
+            sudo chmod +x /usr/local/bin/fb-gbak /usr/local/bin/fb-isql
+
+            echo "=== version ==="
+            fb-gbak -z || true
+
+            echo "=== prueba del motor ==="
+            mkdir -p /tmp/pruebafb && chmod 777 /tmp/pruebafb
+            printf 'CREATE DATABASE "/tmp/pruebafb/prueba.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' > /tmp/pruebafb/p.sql
+            if fb-isql -user SYSDBA -password masterkey -i /tmp/pruebafb/p.sql; then
+              echo "MOTOR FIREBIRD OK"
+            else
+              echo "MOTOR FIREBIRD NO RESPONDE"
+              exit 1
+            fi
+          } 2>&1 | tee -a /tmp/diagnostico.txt
+          exit ${PIPESTATUS[0]}
 
       - name: Sincronizar
         env:
@@ -105,7 +114,8 @@ jobs:
           if [ "${{ inputs.dry_run }}" = "true" ]; then ARGS="$ARGS --dry-run"; fi
           if [ -n "${{ inputs.sucursal }}" ]; then ARGS="$ARGS --sucursal=${{ inputs.sucursal }}"; fi
           echo "Ejecutando: node scripts/sincronizar-inventarios.js $ARGS"
-          node scripts/sincronizar-inventarios.js $ARGS
+          node scripts/sincronizar-inventarios.js $ARGS 2>&1 | tee -a /tmp/diagnostico.txt
+          exit ${PIPESTATUS[0]}
 
       - name: Guardar resultado de la prueba
         if: ${{ inputs.dry_run == true }}
@@ -114,3 +124,16 @@ jobs:
           name: inventarios-json
           path: scripts/out/
           if-no-files-found: warn
+
+      - name: Guardar diagnostico en S3
+        if: always()
+        env:
+          S3_BUCKET:     ${{ secrets.S3_BUCKET }}
+          S3_REGION:     ${{ secrets.S3_REGION }}
+          S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
+        run: |
+          # Los registros de Actions necesitan autenticacion para leerse. Este
+          # paso deja una copia en S3 para poder revisarla sin credenciales de
+          # GitHub. No contiene credenciales: el script nunca las imprime.
+          node scripts/subir-diagnostico.js /tmp/diagnostico.txt || true
