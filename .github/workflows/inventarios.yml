@@ -51,11 +51,21 @@ jobs:
 
       - name: Verificar herramientas de Firebird
         run: |
+          echo "--- que hay instalado ---"
           echo "gbak: $(command -v gbak || echo NO ENCONTRADO)"
           echo "isql: $(command -v isql-fb || command -v isql || echo NO ENCONTRADO)"
           gbak -z || true
-          # Los respaldos vienen de Firebird 2.0 y aqui hay 3.0. Si la
-          # restauracion falla por incompatibilidad, se vera en el paso siguiente.
+          isql-fb -z || true
+
+          echo "--- responde el motor? ---"
+          # Crear y leer una base vacia prueba el motor antes de intentarlo con
+          # los respaldos reales, y separa un fallo de motor de uno de version.
+          printf 'CREATE DATABASE "/tmp/prueba.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' > /tmp/p.sql
+          if isql-fb -user SYSDBA -password masterkey -i /tmp/p.sql; then
+            echo "MOTOR FIREBIRD OK"
+          else
+            echo "MOTOR FIREBIRD NO RESPONDE (revisar autenticacion o permisos)"
+          fi
 
       - name: Sincronizar
         env:

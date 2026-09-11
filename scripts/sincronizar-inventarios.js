@@ -299,7 +299,14 @@ async function main() {
       await procesar(suc, workDir)
     } catch (err) {
       errores++
-      console.error(`[${suc.slug}] ERROR: ${(err.stderr || err.message || '').toString().trim().slice(0, 400)}`)
+      // Se imprime todo. Recortar el mensaje escondia la causa real cuando
+      // gbak o isql fallaban por version del respaldo o por permisos.
+      console.error(`[${suc.slug}] ERROR: ${err.message || 'sin mensaje'}`)
+      const detalle = [err.stdout, err.stderr]
+        .filter(Boolean).map(x => x.toString().trim()).filter(Boolean).join('\n')
+      if (detalle) {
+        console.error(detalle.split('\n').map(l => `[${suc.slug}]   ${l}`).join('\n'))
+      }
     }
   }
   fs.rmSync(workDir, { recursive: true, force: true })
