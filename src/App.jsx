@@ -68,7 +68,9 @@ function AppContent() {
   }
 
   return (
-    <div className="bg-white min-h-screen font-sans" style={{ color: '#0A0A0A' }}>
+    // Sin fondo propio: este contenedor cubre toda la pantalla y su blanco
+    // tapaba el degradado de marca que vive en el body.
+    <div className="min-h-screen font-sans" style={{ color: '#101619' }}>
       <Navbar onLoginClick={() => setShowLogin(true)} />
       <TabBar active={safeTab} onChange={setActiveTab} />
       <main>
