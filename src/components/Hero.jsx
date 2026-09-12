@@ -9,9 +9,9 @@ export default function Hero({ onExplorar, onPersonalizar }) {
 
   return (
     <section className="relative overflow-hidden py-20 sm:py-32">
-      <div style={{ position: 'absolute', top: '-5%', left: '10%', width: 500, height: 500, background: `radial-gradient(circle, ${colores.acento}24 0%, transparent 70%)`, filter: 'blur(50px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: '-5%', right: '8%', width: 420, height: 420, background: `radial-gradient(circle, ${colores.acento2}1f 0%, transparent 70%)`, filter: 'blur(50px)', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', top: '35%', right: '22%', width: 320, height: 320, background: `radial-gradient(circle, ${colores.primario}17 0%, transparent 70%)`, filter: 'blur(40px)', pointerEvents: 'none' }} />
+      {/* Los difuminados propios del encabezado se retiraron: lavaban el
+          degradado de marca que ahora vive en el fondo de toda la página y
+          dejaban esta zona más pálida que el resto. */}
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 text-center">
 
@@ -65,15 +65,9 @@ export default function Hero({ onExplorar, onPersonalizar }) {
           </button>
         </div>
 
-        {/* Onda inferior. Recoge la forma de la salpicadura del logo y
-            suaviza el corte recto entre el encabezado y el contenido. */}
-        <svg aria-hidden="true" viewBox="0 0 1440 90" preserveAspectRatio="none"
-          style={{ position: 'absolute', left: 0, right: 0, bottom: -1, width: '100%', height: 70, pointerEvents: 'none' }}>
-          <path d="M0,52 C180,18 320,78 520,58 C700,40 820,6 1000,22 C1180,38 1300,74 1440,50 L1440,90 L0,90 Z"
-            fill={colores.acento} opacity="0.07" />
-          <path d="M0,66 C200,38 340,86 560,70 C760,56 880,26 1080,40 C1240,52 1340,82 1440,66 L1440,90 L0,90 Z"
-            fill={colores.primario} opacity="0.05" />
-        </svg>
+        {/* La onda se retiró: su relleno terminaba justo donde acaba el
+            encabezado y dejaba una costura horizontal visible contra el fondo
+            degradado. El fondo de la página ya aporta la forma orgánica. */}
 
         <div className="flex flex-col sm:flex-row mx-auto max-w-lg"
           style={{ borderRadius: '30px', border: '1px solid rgba(16,22,25,0.05)', overflow: 'hidden', boxShadow: '0 4px 24px rgba(16,22,25,0.05)' }}>

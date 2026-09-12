@@ -26,12 +26,12 @@
        7%: el contenido vive en tarjetas blancas, así que el degradado se
        percibe como luz de fondo y no compite con el texto.
        El fondo va fijo para que no se arrastre al hacer scroll. */
-    background-color: #FAFCFD;
+    background-color: #F2F7FA;
     background-image:
-      radial-gradient(58rem 40rem at 8% -6%,   rgba(0, 188, 242, 0.13), transparent 62%),
-      radial-gradient(48rem 38rem at 98% 6%,   rgba(141, 198, 63, 0.11), transparent 60%),
-      radial-gradient(52rem 42rem at 88% 96%,  rgba(213, 26, 122, 0.10), transparent 62%),
-      radial-gradient(40rem 34rem at 2% 88%,   rgba(255, 107, 26, 0.08), transparent 60%);
+      radial-gradient(55rem 38rem at 6% -8%,   rgba(0, 188, 242, 0.38), transparent 60%),
+      radial-gradient(45rem 34rem at 96% 4%,   rgba(141, 198, 63, 0.32), transparent 58%),
+      radial-gradient(50rem 40rem at 90% 94%,  rgba(213, 26, 122, 0.28), transparent 60%),
+      radial-gradient(38rem 32rem at 0% 86%,   rgba(255, 107, 26, 0.24), transparent 58%);
     background-attachment: fixed;
     background-repeat: no-repeat;
     min-height: 100vh;
@@ -47,9 +47,9 @@
     body {
       background-attachment: scroll;
       background-image:
-        radial-gradient(30rem 24rem at 0% 0%,    rgba(0, 188, 242, 0.11), transparent 65%),
-        radial-gradient(26rem 22rem at 100% 12%, rgba(141, 198, 63, 0.09), transparent 62%),
-        radial-gradient(28rem 26rem at 100% 92%, rgba(213, 26, 122, 0.09), transparent 64%);
+        radial-gradient(26rem 20rem at 0% 0%,    rgba(0, 188, 242, 0.34), transparent 62%),
+        radial-gradient(22rem 18rem at 100% 10%, rgba(141, 198, 63, 0.28), transparent 60%),
+        radial-gradient(24rem 22rem at 100% 90%, rgba(213, 26, 122, 0.26), transparent 62%);
     }
   }
 
