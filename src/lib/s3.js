@@ -136,3 +136,9 @@ export async function uploadInventarioJson(slug, productos, extra = {}) {
   }))
   return json
 }
+
+/** Estadísticas de movimiento. Viven bajo inventarios/ porque ese prefijo ya
+ *  es de lectura pública en el bucket. */
+export function estadisticasUrl(slug) {
+  return `https://${BUCKET}.s3.${REGION}.amazonaws.com/inventarios/${slug}/estadisticas.json`
+}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSiteConfig } from '../context/SiteConfigContext'
 import { gradStr, configRemotaInaccesible } from '../lib/siteConfig'
 import { SUCURSALES, telefonoWhatsApp } from '../lib/sucursales'
+import EstadisticasPanel from './EstadisticasPanel'
 
 const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
   <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid rgba(16,22,25,0.05)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -423,6 +424,7 @@ export default function AdminPanel() {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <EstadisticasPanel />
         <SeccionTabs    config={config} save={save} guardando={guardando} />
         <SeccionHero    config={config} save={save} />
         <SeccionColores config={config} save={save} />
