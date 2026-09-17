@@ -191,3 +191,158 @@ export function resumir(estad, dias = 30, hoy = new Date()) {
     diasConDato: enRango.length,
   }
 }
+
+// ── Consolidado y comparación entre periodos ─────────────────────────────────
+//
+// Todo lo de abajo trabaja sobre el historial permanente por mes, no sobre el
+// detalle diario. Ahí está el acumulado completo, así que se puede mirar tan
+// atrás como haya datos sin volver a leer los inventarios.
+
+const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+               'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+/** "2026-09" → "septiembre 2026" */
+export function nombreDePeriodo(p) {
+  const [a, m] = String(p).split('-')
+  return `${MESES[Number(m) - 1] ?? m} ${a}`
+}
+
+/** Los n meses que terminan en `periodo`, del más viejo al más nuevo. */
+export function mesesHaciaAtras(periodo, n) {
+  const [a, m] = String(periodo).split('-').map(Number)
+  const salida = []
+  for (let i = n - 1; i >= 0; i--) {
+    // Date normaliza los meses negativos, así que enero menos dos cae en
+    // noviembre del año anterior sin tener que hacer la cuenta a mano.
+    const d = new Date(Date.UTC(a, m - 1 - i, 1))
+    salida.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+  }
+  return salida
+}
+
+/** Etiqueta de un rango: un mes solo, o "abril 2026 a septiembre 2026". */
+export function etiquetaDeRango(periodos) {
+  if (!periodos?.length) return ''
+  if (periodos.length === 1) return nombreDePeriodo(periodos[0])
+  return `${nombreDePeriodo(periodos[0])} a ${nombreDePeriodo(periodos[periodos.length - 1])}`
+}
+
+/** Suma las piezas de los meses indicados. */
+export function totalesDe(historial, periodos) {
+  const dentro = new Set(periodos)
+  const total = {}
+  let dias = 0
+  for (const p of historial?.periodos ?? []) {
+    if (!dentro.has(p.p)) continue
+    dias += p.dias?.length ?? 0
+    for (const [k, n] of Object.entries(p.m ?? {})) total[k] = (total[k] || 0) + n
+  }
+  return { total, dias }
+}
+
+/**
+ * Compara los últimos `meses` contra los `meses` inmediatamente anteriores.
+ *
+ * El ancla es el mes más reciente CON DATO, no el del calendario: si la
+ * sincronización lleva semanas caída, se compara lo que de verdad existe en
+ * lugar de enseñar un periodo vacío.
+ */
+export function comparativo(historial, meses) {
+  const conDato = (historial?.periodos ?? []).map(p => p.p).sort()
+  if (conDato.length === 0) return null
+
+  const actuales = mesesHaciaAtras(conDato[conDato.length - 1], meses)
+  const previos  = mesesHaciaAtras(actuales[0], meses + 1).slice(0, meses)
+
+  const a = totalesDe(historial, actuales)
+  const b = totalesDe(historial, previos)
+
+  const filas = Object.entries(a.total)
+    .map(([codigo, salidas]) => {
+      const antes = b.total[codigo] ?? 0
+      return {
+        codigo:   codigo.startsWith('nombre:') ? '' : codigo,
+        producto: historial?.catalogo?.[codigo] || codigo.replace(/^nombre:/, ''),
+        salidas,
+        antes,
+        delta: salidas - antes,
+        // Sin base previa no hay porcentaje que calcular: pasar de 0 a 4 no es
+        // "subió infinito", es un modelo que antes no se movía.
+        pct: antes > 0 ? Math.round(((salidas - antes) / antes) * 100) : null,
+      }
+    })
+    .sort((x, y) => y.salidas - x.salidas || x.producto.localeCompare(y.producto))
+
+  const total       = Object.values(a.total).reduce((s, n) => s + n, 0)
+  const totalPrevio = Object.values(b.total).reduce((s, n) => s + n, 0)
+
+  return {
+    periodos: actuales,
+    periodosPrevios: previos,
+    etiqueta:       etiquetaDeRango(actuales),
+    etiquetaPrevia: etiquetaDeRango(previos),
+    filas,
+    total,
+    totalPrevio,
+    delta: total - totalPrevio,
+    pct: totalPrevio > 0 ? Math.round(((total - totalPrevio) / totalPrevio) * 100) : null,
+    dias: a.dias,
+    diasPrevios: b.dias,
+    hayPrevio: previos.some(p => conDato.includes(p)),
+  }
+}
+
+/** Une varias sucursales en un solo historial, para la vista consolidada. */
+export function consolidarHistorial(historiales, nombre = 'Todas las sucursales') {
+  const vivos = (historiales ?? []).filter(Boolean)
+  if (vivos.length === 0) return null
+
+  const catalogo = {}
+  const porMes = new Map()
+
+  for (const h of vivos) {
+    Object.assign(catalogo, h.catalogo ?? {})
+    for (const p of h.periodos ?? []) {
+      const acc = porMes.get(p.p) ?? { p: p.p, m: {}, dias: new Set() }
+      for (const [k, n] of Object.entries(p.m ?? {})) acc.m[k] = (acc.m[k] || 0) + n
+      // Los días se unen, no se suman: si las tres sucursales reportaron el
+      // mismo día, sigue siendo un día con dato, no tres.
+      for (const d of p.dias ?? []) acc.dias.add(d)
+      porMes.set(p.p, acc)
+    }
+  }
+
+  const periodos = [...porMes.values()]
+    .map(p => ({ p: p.p, m: p.m, dias: [...p.dias].sort() }))
+    .sort((a, b) => a.p.localeCompare(b.p))
+
+  const sellos = vivos.map(h => h.actualizado).filter(Boolean).sort()
+
+  return { sucursal: 'todas', nombre, actualizado: sellos[sellos.length - 1] ?? null, catalogo, periodos }
+}
+
+/** Lo mismo con el detalle diario, para que la gráfica sirva en consolidado. */
+export function consolidarEstadisticas(estads, nombre = 'Todas las sucursales') {
+  const vivos = (estads ?? []).filter(Boolean)
+  if (vivos.length === 0) return null
+
+  const catalogo = {}
+  const porFecha = new Map()
+
+  for (const e of vivos) {
+    Object.assign(catalogo, e.catalogo ?? {})
+    for (const d of e.dias ?? []) {
+      const acc = porFecha.get(d.f) ?? {}
+      for (const [k, n] of Object.entries(d.m ?? {})) acc[k] = (acc[k] || 0) + n
+      porFecha.set(d.f, acc)
+    }
+  }
+
+  const dias = [...porFecha.entries()]
+    .map(([f, m]) => ({ f, m }))
+    .sort((a, b) => a.f.localeCompare(b.f))
+
+  const sellos = vivos.map(e => e.actualizado).filter(Boolean).sort()
+
+  return { sucursal: 'todas', nombre, actualizado: sellos[sellos.length - 1] ?? null, catalogo, dias }
+}
