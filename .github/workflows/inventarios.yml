@@ -6,9 +6,25 @@ name: Sincronizar inventarios
 
 on:
   schedule:
-    # 10:00 en Mexico. El pais no usa horario de verano desde 2022, asi que el
-    # centro del pais es UTC-6 todo el año y esta hora no se desfasa.
-    - cron: '0 16 * * *'
+    # Cuatro corridas al dia en vez de una. Dos razones, ambas medidas en
+    # produccion durante la primera semana:
+    #
+    # 1. GitHub no respeta la hora exacta en repos publicos. Con una sola
+    #    corrida a las 16:00 UTC, las reales cayeron entre 18:16 y 20:25, de
+    #    2 a 4 horas tarde, y algun dia no disparo.
+    # 2. Las sucursales suben su respaldo a una hora parecida. El 16 de
+    #    septiembre la corrida entro a las 19:29 y los respaldos llegaron
+    #    entre 19:30 y 20:05: los perdio por un minuto y la pagina se quedo
+    #    mostrando el dia anterior.
+    #
+    # Con varias corridas, un retraso o un respaldo que llega tarde se
+    # recupera en la siguiente en vez de esperar al dia siguiente.
+    # El minuto 17 evita la congestion del inicio de hora, que es justo lo
+    # que provoca los retrasos.
+    - cron: '17 3 * * *'    # 21:17 del dia anterior en Mexico, tras el cierre
+    - cron: '17 9 * * *'    # 03:17, recoge lo que subio de madrugada
+    - cron: '17 15 * * *'   # 09:17, antes de abrir
+    - cron: '17 21 * * *'   # 15:17, media tarde
   workflow_dispatch:
     inputs:
       dry_run:
