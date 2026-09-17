@@ -21,6 +21,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { listarArchivos, descargar, dropboxConfigurado } from './lib/dropbox-api.js'
+import { salidasEntre, agregarDia, estadisticaVacia } from './lib/estadisticas.js'
 
 const run = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -59,9 +60,12 @@ const SUCURSALES = [
 const DEPTOS_OCULTOS = new Set(['mayoristas', '- sin departamento -'])
 
 const SEP = '~|~'
+// El CODIGO se extrae además del nombre: es la clave estable para comparar un
+// producto entre dos fechas. Los nombres se editan en el punto de venta y al
+// hacerlo el producto parecería nuevo, falseando las estadísticas.
 const SQL = `
 SET HEADING OFF;
-SELECT p.DESCRIPCION || '${SEP}' || COALESCE(b.CANTIDAD_ACTUAL, 0) || '${SEP}' || COALESCE(d.NOMBRE, '')
+SELECT p.CODIGO || '${SEP}' || p.DESCRIPCION || '${SEP}' || COALESCE(b.CANTIDAD_ACTUAL, 0) || '${SEP}' || COALESCE(d.NOMBRE, '')
 FROM PRODUCTOS p
 LEFT JOIN INVENTARIO_BALANCES b ON b.PRODUCTO_ID = p.ID
 LEFT JOIN DEPARTAMENTOS d ON d.ID = p.DEPT
@@ -176,9 +180,9 @@ async function consultar(fdb, workDir) {
   const filas = []
   for (const linea of texto.split(/\r?\n/)) {
     if (!linea.includes(SEP)) continue
-    const [producto, existencia, depto] = linea.split(SEP).map(s => s.trim())
+    const [codigo, producto, existencia, depto] = linea.split(SEP).map(s => s.trim())
     if (!producto) continue
-    filas.push({ producto, existencia: parseFloat(existencia) || 0, depto })
+    filas.push({ codigo, producto, existencia: parseFloat(existencia) || 0, depto })
   }
   return filas
 }
@@ -192,6 +196,48 @@ async function jsonPublicado(slug) {
   } catch {
     return null
   }
+}
+
+// Las estadísticas viven bajo inventarios/ a propósito: ese prefijo ya es de
+// lectura pública en el bucket, así que el panel puede leerlas sin credenciales
+// y sin tocar la política de S3.
+const claveEstadisticas = slug => `inventarios/${slug}/estadisticas.json`
+
+async function estadisticasPublicadas(slug, nombre) {
+  try {
+    const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: claveEstadisticas(slug) }))
+    return JSON.parse(await res.Body.transformToString())
+  } catch {
+    return estadisticaVacia(slug, nombre)
+  }
+}
+
+/**
+ * Registra lo que salió entre la foto anterior y la nueva.
+ *
+ * Solo cuando las dos fotos son de días distintos: si el respaldo es el mismo,
+ * no hubo movimiento que medir y registrar un cero ensuciaría el promedio.
+ */
+async function registrarMovimiento(suc, anterior, json) {
+  const fechaAntes = anterior?.respaldo?.fecha
+  const fechaAhora = json?.respaldo?.fecha
+  if (!anterior || !fechaAntes || !fechaAhora || fechaAntes === fechaAhora) return null
+
+  const { salidas, catalogo } = salidasEntre(anterior, json)
+  const total = Object.values(salidas).reduce((s, n) => s + n, 0)
+
+  const previas = await estadisticasPublicadas(suc.slug, suc.nombre)
+  const actualizadas = agregarDia(previas, fechaAhora, salidas, catalogo)
+
+  await s3.send(new PutObjectCommand({
+    Bucket:       BUCKET,
+    Key:          claveEstadisticas(suc.slug),
+    Body:         Buffer.from(JSON.stringify(actualizadas)),
+    ContentType:  'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+
+  return { modelos: Object.keys(salidas).length, total, desde: fechaAntes, hasta: fechaAhora }
 }
 
 /**
@@ -262,7 +308,7 @@ async function procesar(suc, workDir) {
 
   const productos = filas
     .filter(f => !DEPTOS_OCULTOS.has(f.depto.toLowerCase()))
-    .map(f => ({ Producto: f.producto, Existencia: f.existencia }))
+    .map(f => ({ Codigo: f.codigo, Producto: f.producto, Existencia: f.existencia }))
 
   const json = {
     sucursal:  suc.slug,
@@ -295,6 +341,15 @@ async function procesar(suc, workDir) {
     await subirJson(suc.slug, json, anterior)
     const previos = anterior?.totalProductos
     log(`[${suc.slug}] ${filas.length} leídos, ${productos.length} publicables${previos ? ` (antes ${previos})` : ''} → publicado`)
+
+    // Se registra después de publicar: si el movimiento falla, el inventario
+    // ya quedó bien y solo se pierde un día de estadística.
+    try {
+      const mov = await registrarMovimiento(suc, anterior, json)
+      if (mov) log(`[${suc.slug}] movimiento ${mov.desde} → ${mov.hasta}: ${mov.total} piezas salieron en ${mov.modelos} modelos`)
+    } catch (err) {
+      console.error(`[${suc.slug}] no se pudo registrar la estadística: ${err.message}`)
+    }
   }
 }
 
