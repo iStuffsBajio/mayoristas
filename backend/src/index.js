@@ -183,15 +183,20 @@ async function rutaSubirDiseno(evento, origen, cuerpo) {
   if (binario.length === 0)                 return responder(origen, 400, { error: 'Imagen vacía.' })
   if (binario.length > MAX_IMAGEN_BYTES)    return responder(origen, 413, { error: 'La imagen supera 10 MB.' })
 
-  // El nombre viene del cliente: se limpia para que no pueda salirse de la
-  // carpeta ni inyectar rutas.
-  const nombre = String(cuerpo.nombre || 'cliente')
+  // Nombre y modelo vienen del cliente: se limpian para que no puedan salirse
+  // de la carpeta ni inyectar rutas.
+  const limpiar = (valor, largo) => String(valor || '')
     .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'cliente'
+    .replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, largo)
+
+  const nombre = limpiar(cuerpo.nombre, 40) || 'cliente'
+  // El modelo va en el nombre del archivo para que en la sucursal se sepa a qué
+  // corresponde cada imagen sin tener que abrirlas una por una.
+  const modelo = limpiar(cuerpo.modelo, 50)
 
   const ext   = tipo === 'image/png' ? 'png' : tipo === 'image/webp' ? 'webp' : tipo === 'image/gif' ? 'gif' : 'jpg'
   const fecha = new Date().toISOString().slice(0, 10)
-  const ruta  = `${CARPETA_PEDIDOS}/${suc.carpeta}/${fecha}_${nombre}.${ext}`
+  const ruta  = `${CARPETA_PEDIDOS}/${suc.carpeta}/${fecha}_${nombre}${modelo ? `_${modelo}` : ''}.${ext}`
 
   const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
     method:  'POST',
@@ -244,7 +249,11 @@ async function rutaSubirInventario(evento, origen, cuerpo) {
     return responder(origen, 413, { error: 'Inventario demasiado grande.' })
   }
 
+  // El código se conserva: es la clave con la que las estadísticas cruzan un
+  // modelo entre días y entre sucursales. Sin él, un producto renombrado se
+  // contaría como dos.
   const productos = cuerpo.productos.slice(0, 20000).map(p => ({
+    Codigo:     String(p.Codigo ?? '').slice(0, 60),
     Producto:   String(p.Producto ?? '').slice(0, 200),
     Existencia: Number(p.Existencia) || 0,
   })).filter(p => p.Producto)

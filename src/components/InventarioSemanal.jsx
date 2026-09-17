@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import * as XLSX from 'xlsx-js-style'
 import { useAuth } from '../context/AuthContext'
-import { inventarioUrl, uploadInventario, uploadInventarioJson, loadInventarioJson, s3Configured } from '../lib/s3'
+import { inventarioUrl, loadInventarioJson, s3Configured } from '../lib/s3'
+import { subirInventario, apiConfigurada } from '../lib/api'
 import StockBadge, { nivelStock, COLOR_NIVEL, ETIQUETAS_LEYENDA } from './StockBadge'
 
 const SUCURSALES = [
@@ -14,6 +15,13 @@ const SUCURSALES = [
 // Columnas exactas del sistema de inventario exportado
 const COL_PRODUCTO   = 'Producto'
 const COL_EXISTENCIA = 'Existencia'
+const COL_CODIGO     = 'Codigo'
+
+// El export de Eleventa a veces trae la columna con acento y a veces sin él.
+// El código es la clave con la que las estadísticas cruzan un modelo entre
+// días, así que perderlo aquí rompería el conteo de la carga manual.
+const codigoDe = fila =>
+  String(fila['Codigo'] ?? fila['Código'] ?? fila['CODIGO'] ?? '').trim()
 
 // ─── Subcomponentes ──────────────────────────────────────────────
 
@@ -49,7 +57,7 @@ function HighlightText({ text, query }) {
 // ─── Componente principal ────────────────────────────────────────
 
 export default function InventarioSemanal({ onLoginClick }) {
-  const { canUpload, session }      = useAuth()
+  const { canUpload, session, token } = useAuth()
   const [sucursal, setSucursal]     = useState(SUCURSALES[0])
   const [allRows, setAllRows]       = useState(null)
   const [loading, setLoading]       = useState(false)
@@ -78,6 +86,7 @@ export default function InventarioSemanal({ onLoginClick }) {
         return dep !== 'mayoristas' && dep !== '- sin departamento -'
       })
       .map(r => ({
+        [COL_CODIGO]:     codigoDe(r),
         [COL_PRODUCTO]:   String(r[COL_PRODUCTO]).trim(),
         [COL_EXISTENCIA]: r[COL_EXISTENCIA],
       }))
@@ -104,7 +113,7 @@ export default function InventarioSemanal({ onLoginClick }) {
       try {
         const data = await loadInventarioJson(suc.slug)
         if (data) {
-          const rows = data.productos.map(p => ({ [COL_PRODUCTO]: String(p.Producto).trim(), [COL_EXISTENCIA]: p.Existencia }))
+          const rows = data.productos.map(p => ({ [COL_CODIGO]: String(p.Codigo ?? '').trim(), [COL_PRODUCTO]: String(p.Producto).trim(), [COL_EXISTENCIA]: p.Existencia }))
           applyRows(rows, data.respaldo?.archivo || 'inventario.json', data)
           return
         }
@@ -140,18 +149,26 @@ export default function InventarioSemanal({ onLoginClick }) {
       const wb   = XLSX.read(buf, { type: 'array' })
       const rows = parseWorkbook(wb)
       if (rows.length === 0) throw new Error('Sin datos')
-      // Si S3 está configurado y el usuario tiene permiso, sube el archivo
+      // La subida pasa por el backend, que revalida el permiso sobre esta
+      // sucursal. Si no hay backend, el archivo igual se muestra en pantalla:
+      // no se publica, pero quien lo cargó puede consultarlo.
       let meta = null
-      if (s3Configured && canUpload(sucursal.slug)) {
+      if (apiConfigurada && canUpload(sucursal.slug)) {
         setUploading(true)
-        await uploadInventario(sucursal.slug, file)
-        meta = await uploadInventarioJson(sucursal.slug, rows, { archivo: file.name })
-        setUploading(false)
+        try {
+          await subirInventario(sucursal.slug, rows.map(r => ({
+            Codigo:     r[COL_CODIGO] ?? '',
+            Producto:   r[COL_PRODUCTO],
+            Existencia: r[COL_EXISTENCIA],
+          })), token)
+        } finally {
+          setUploading(false)
+        }
       }
       applyRows(rows, file.name, meta)
     } catch (err) {
       setUploading(false)
-      setError('No se pudo leer o subir el archivo.')
+      setError(err?.message || 'No se pudo leer o subir el archivo.')
       setLoading(false)
     }
   }

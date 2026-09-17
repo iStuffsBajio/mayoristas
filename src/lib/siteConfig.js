@@ -1,16 +1,12 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+// La lectura es un archivo público en S3 y no necesita credencial. La
+// escritura pasa por el backend, que valida que la sesión sea de
+// administrador: antes bastaba con tener la llave de S3 del bundle, y esa
+// llave la tenía cualquier visitante.
+import { guardarConfig } from './api'
 
 const BUCKET = import.meta.env.VITE_S3_BUCKET || ''
 const REGION = import.meta.env.VITE_S3_REGION || 'us-east-1'
 const KEY    = 'config/site.json'
-
-const s3 = new S3Client({
-  region: REGION,
-  credentials: {
-    accessKeyId:     import.meta.env.VITE_S3_ACCESS_KEY || '',
-    secretAccessKey: import.meta.env.VITE_S3_SECRET_KEY || '',
-  },
-})
 
 export const DEFAULT_CONFIG = {
   tabs: {
@@ -51,8 +47,8 @@ export const DEFAULT_CONFIG = {
     personalizados:  '/Espacio familiar/IMPRESORA UV/CATALOGOS/Personalizados',
   },
   // Número de WhatsApp de cada sucursal. Si una queda vacía se usa `general`.
-  // Estos valores son el respaldo: el panel admin los sobreescribe desde S3,
-  // pero solo si `config/site.json` es de lectura pública en el bucket.
+  // Estos valores son el respaldo por si no se puede leer la configuración
+  // remota. El panel admin los sobreescribe desde S3.
   whatsapp: {
     general:        '5213315381571',
     leon:           '4776639890',
@@ -96,11 +92,6 @@ export async function loadSiteConfig() {
   }
 }
 
-export async function saveSiteConfig(config) {
-  await s3.send(new PutObjectCommand({
-    Bucket:      BUCKET,
-    Key:         KEY,
-    Body:        new TextEncoder().encode(JSON.stringify(config, null, 2)),
-    ContentType: 'application/json',
-  }))
+export async function saveSiteConfig(config, token) {
+  await guardarConfig(config, token)
 }

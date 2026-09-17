@@ -37,20 +37,24 @@ export default function LoginModal({ onClose }) {
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
 
-  const handleSubmit = (e) => {
+  // Antes la comparación era instantánea y se le ponía una espera falsa para
+  // que pareciera que hacía algo. Ahora la espera es real: la contraseña va al
+  // backend, que la compara contra un hash.
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-    setTimeout(() => {
-      const result = login(branch.slug, password)
+    try {
+      const result = await login(branch.slug, password)
       if (result.ok) {
         onClose()
       } else {
         setError(result.msg || 'Contraseña incorrecta.')
         setPassword('')
       }
+    } finally {
       setLoading(false)
-    }, 350)
+    }
   }
 
   return (

@@ -1,9 +1,13 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { loadSiteConfig, saveSiteConfig, DEFAULT_CONFIG } from '../lib/siteConfig'
+import { useAuth } from './AuthContext'
 
 const Ctx = createContext(null)
 
 export function SiteConfigProvider({ children }) {
+  // El token de la sesión viaja con el guardado: el backend lo exige y
+  // comprueba que sea de administrador antes de escribir nada.
+  const { token } = useAuth()
   const [config, setConfig]     = useState(DEFAULT_CONFIG)
   const [guardando, setGuardando] = useState(false)
   const [cargando, setCargando]   = useState(true)
@@ -30,11 +34,11 @@ export function SiteConfigProvider({ children }) {
     setConfig(next)
     setGuardando(true)
     try {
-      await saveSiteConfig(next)
+      await saveSiteConfig(next, token)
     } finally {
       setGuardando(false)
     }
-  }, [config])
+  }, [config, token])
 
   return (
     <Ctx.Provider value={{ config, save, guardando, cargando }}>

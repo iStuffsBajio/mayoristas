@@ -41,15 +41,20 @@ export function enlaceWhatsApp(numero, mensaje) {
 }
 
 /**
- * De la ruta completa que devuelve Dropbox deja solo la carpeta de la sucursal.
- * La ruta larga ocupaba tres renglones en el chat y no aportaba nada: el
- * personal ya sabe dónde está la carpeta de pedidos.
+ * Deja solo la carpeta de la sucursal. La ruta larga ocupaba tres renglones en
+ * el chat y no aportaba nada: el personal ya sabe dónde está la carpeta de
+ * pedidos.
  *
  *   /Espacio familiar/IMPRESORA UV/7 PEDIDOS PAGINA WEB/Leon/2026-09-10_Juan.jpg
  *   → "Leon"
+ *
+ * Desde que la subida pasa por el backend, lo que llega ya es solo la carpeta,
+ * porque la ruta interna del Dropbox no sale del servidor. Se aceptan las dos
+ * formas para que el mensaje salga igual venga de donde venga.
  */
 export function carpetaDeRuta(ruta) {
   if (!ruta) return ''
   const partes = String(ruta).split('/').filter(Boolean)
-  return partes.length >= 2 ? partes[partes.length - 2] : ''
+  if (partes.length === 0) return ''
+  return partes.length >= 2 ? partes[partes.length - 2] : partes[0]
 }

@@ -144,3 +144,98 @@ test('una sesion firmada con otro secreto no sirve', async () => {
   })
   assert.equal(r.statusCode, 403)
 })
+
+// ── Lo que se guarda de verdad ───────────────────────────────────────────────
+//
+// Las pruebas de arriba comprueban permisos y validación. Estas dos miran el
+// contenido que sale hacia S3 y hacia Dropbox, interceptando la llamada para
+// no tocar ningún servicio real.
+
+import { S3Client } from '@aws-sdk/client-s3'
+
+test('el inventario guardado conserva el codigo del producto', async () => {
+  const enviados = []
+  const original = S3Client.prototype.send
+  S3Client.prototype.send = async function (cmd) { enviados.push(cmd); return {} }
+
+  try {
+    const r = await pedir('POST', '/inventario', {
+      token: crearSesion({ sucursal: 'leon', admin: false }, SECRETO),
+      cuerpo: {
+        sucursal: 'leon',
+        productos: [
+          { Codigo: 'HDA', Producto: 'MICA HIDROGEL HD ALTA', Existencia: 7 },
+          { Codigo: '',    Producto: 'SIN CODIGO',            Existencia: 2 },
+        ],
+      },
+    })
+    assert.equal(r.statusCode, 200)
+
+    const guardado = JSON.parse(Buffer.from(enviados[0].input.Body).toString('utf8'))
+    assert.equal(guardado.productos[0].Codigo, 'HDA',
+      'el codigo es la clave con la que las estadisticas cruzan un modelo')
+    assert.equal(guardado.productos[0].Existencia, 7)
+    assert.equal(guardado.productos[1].Codigo, '', 'un producto sin codigo no revienta')
+    assert.equal(guardado.totalProductos, 2)
+  } finally {
+    S3Client.prototype.send = original
+  }
+})
+
+test('la imagen del pedido lleva el modelo en el nombre del archivo', async () => {
+  const llamadas = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, opciones) => {
+    llamadas.push({ url: String(url), arg: opciones?.headers?.['Dropbox-API-Arg'] })
+    if (String(url).includes('oauth2/token')) {
+      return { ok: true, json: async () => ({ access_token: 'x', expires_in: 3600 }) }
+    }
+    return { ok: true, json: async () => ({ name: 'archivo.jpg' }) }
+  }
+
+  try {
+    const r = await pedir('POST', '/diseno', {
+      cuerpo: {
+        sucursal: 'leon',
+        tipo: 'image/jpeg',
+        datos: Buffer.from('imagen falsa').toString('base64'),
+        nombre: 'Juan Pérez',
+        modelo: 'IPHONE 17 PRO MAX',
+      },
+    })
+    assert.equal(r.statusCode, 200)
+
+    const subida = llamadas.find(l => l.url.includes('files/upload'))
+    const ruta = JSON.parse(subida.arg).path
+    assert.match(ruta, /Juan_Perez/,  'el acento se limpia, no rompe la ruta')
+    assert.match(ruta, /IPHONE_17_PRO_MAX/, 'el modelo va en el nombre para identificar la imagen')
+    assert.equal(cuerpoDe(r).carpeta, 'Leon', 'solo se devuelve la carpeta, no la ruta completa')
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test('un modelo con caracteres raros no puede salirse de la carpeta', async () => {
+  const llamadas = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, opciones) => {
+    llamadas.push({ url: String(url), arg: opciones?.headers?.['Dropbox-API-Arg'] })
+    if (String(url).includes('oauth2/token')) return { ok: true, json: async () => ({ access_token: 'x', expires_in: 3600 }) }
+    return { ok: true, json: async () => ({ name: 'a.jpg' }) }
+  }
+  try {
+    await pedir('POST', '/diseno', {
+      cuerpo: {
+        sucursal: 'leon', tipo: 'image/jpeg',
+        datos: Buffer.from('x').toString('base64'),
+        nombre: '../../../etc/passwd',
+        modelo: '../../otra-carpeta',
+      },
+    })
+    const ruta = JSON.parse(llamadas.find(l => l.url.includes('files/upload')).arg).path
+    assert.ok(!ruta.includes('..'), 'no quedan saltos de directorio')
+    assert.ok(ruta.startsWith('/'), 'la ruta sigue anclada a la carpeta de pedidos')
+  } finally {
+    globalThis.fetch = original
+  }
+})

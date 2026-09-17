@@ -1,77 +1,28 @@
-const REFRESH_TOKEN = import.meta.env.VITE_DROPBOX_REFRESH_TOKEN || ''
-const APP_KEY       = import.meta.env.VITE_DROPBOX_APP_KEY       || ''
-const APP_SECRET    = import.meta.env.VITE_DROPBOX_APP_SECRET    || ''
-const FOLDER        = '/Espacio familiar/IMPRESORA UV/7 PEDIDOS PAGINA WEB'
+// Subida de imágenes de pedidos.
+//
+// Este módulo YA NO HABLA CON DROPBOX, y no debe volver a hacerlo desde el
+// navegador. Antes guardaba el app key, el app secret y un refresh token en
+// variables VITE_, que Vite compila dentro del JavaScript público. Se comprobó
+// que ese token no estaba limitado a una carpeta de aplicación: daba acceso a
+// la raíz de la cuenta personal de Dropbox, donde viven los respaldos del
+// punto de venta.
+//
+// Ahora la imagen se manda al backend, que es quien tiene las credenciales y
+// quien decide en qué carpeta cae. Se conserva el nombre de este archivo para
+// no tocar los imports de las pantallas de pedidos.
 
-const SLUG_FOLDER = {
-  'leon':           'Leon',
-  'san-luis':       'San Luis',
-  'aguascalientes': 'Aguascalientes',
-  'torreon':        'Torreon',
-}
+import { subirDiseno, apiConfigurada } from './api'
 
-export async function getAccessToken() {
-  const res = await fetch('https://api.dropboxapi.com/oauth2/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type:    'refresh_token',
-      refresh_token: REFRESH_TOKEN,
-      client_id:     APP_KEY,
-      client_secret: APP_SECRET,
-    }),
-  })
-  if (!res.ok) {
-    const err = await res.text().catch(() => res.status)
-    throw new Error(`Dropbox token refresh failed ${res.status}: ${err}`)
-  }
-  const data = await res.json()
-  return data.access_token
-}
-
-/** Limpia un texto para usarlo como parte de un nombre de archivo. */
-function paraNombre(texto, largo = 40) {
-  return String(texto || '')
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, largo)
-}
+export const dropboxConfigured = apiConfigurada
 
 /**
- * Sube la imagen de un pedido a la carpeta de su sucursal.
- * El modelo va en el nombre del archivo para que en Dropbox se sepa a qué
- * funda corresponde cada imagen sin tener que abrirlas una por una.
+ * Sube la imagen de un pedido y devuelve la carpeta donde quedó.
+ *
+ * Antes devolvía la ruta completa del Dropbox y las pantallas la recortaban.
+ * Ahora el backend devuelve solo la carpeta, así que el dato interno no sale
+ * del servidor.
  */
 export async function uploadStikerDropbox(slug, file, clienteName, modelo = '') {
-  const ext    = file.name.split('.').pop() || 'jpg'
-  const fecha  = new Date().toISOString().slice(0, 10)
-  const cliente = paraNombre(clienteName) || 'cliente'
-  const mod     = paraNombre(modelo, 50)
-  const folder = SLUG_FOLDER[slug] || slug
-  const path   = `${FOLDER}/${folder}/${fecha}_${cliente}${mod ? `_${mod}` : ''}.${ext}`
-
-  const token = await getAccessToken()
-  const buf   = await file.arrayBuffer()
-
-  const res = await fetch('https://content.dropboxapi.com/2/files/upload', {
-    method: 'POST',
-    headers: {
-      'Authorization':   `Bearer ${token}`,
-      'Dropbox-API-Arg': JSON.stringify({ path, mode: 'add', autorename: true }),
-      'Content-Type':    'application/octet-stream',
-    },
-    body: buf,
-  })
-
-  if (!res.ok) {
-    const err = await res.text().catch(() => res.status)
-    console.error('[Dropbox] Error al subir:', res.status, err)
-    throw new Error(`Dropbox ${res.status}: ${err}`)
-  }
-  const data = await res.json()
-  console.log('[Dropbox] Subido en:', data.path_display)
-  return data.path_display
+  const { carpeta } = await subirDiseno(slug, file, clienteName, modelo)
+  return carpeta
 }
-
-export const dropboxConfigured = !!(REFRESH_TOKEN && APP_KEY && APP_SECRET)
