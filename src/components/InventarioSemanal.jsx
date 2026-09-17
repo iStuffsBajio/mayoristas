@@ -176,6 +176,23 @@ export default function InventarioSemanal({ onLoginClick }) {
     }
   }, [allRows])
 
+  // Días transcurridos desde la fecha del respaldo que se está mostrando.
+  // Devuelve null si no hay fecha, para no inventar una antigüedad.
+  const diasDeAntiguedad = useMemo(() => {
+    const iso = origen?.respaldo?.fecha
+    if (!iso) return null
+    const [y, m, d] = iso.split('-').map(Number)
+    if (!y || !m || !d) return null
+    const hoy = new Date()
+    const dato = new Date(y, m - 1, d)
+    const soloDia = f => Date.UTC(f.getFullYear(), f.getMonth(), f.getDate())
+    return Math.max(0, Math.round((soloDia(hoy) - soloDia(dato)) / 86400000))
+  }, [origen])
+
+  // Verde hasta un día, ámbar de dos a tres, rojo de cuatro en adelante.
+  const colorAntiguedad = (dias) =>
+    dias === null || dias <= 1 ? '#5E9422' : dias <= 3 ? '#B45309' : '#DC2626'
+
   // "2026-09-10" → "10 sep 2026" sin desfase de zona horaria
   const fmtFechaCorta = (iso) => {
     const [y, m, d] = iso.split('-').map(Number)
@@ -329,12 +346,21 @@ export default function InventarioSemanal({ onLoginClick }) {
             className="flex items-center justify-between px-5 sm:px-6 py-3 flex-wrap gap-2"
             style={{ borderBottom: '1px solid rgba(16,22,25,0.05)', backgroundColor: 'rgba(0,188,242,0.04)' }}
           >
-            {/* Solo la fecha del dato. El nombre del archivo, el conteo de
-                modelos y las unidades ya se ven en la tabla y en la leyenda. */}
-            <span className="text-sm font-semibold" style={{ color: '#5E9422' }}>
+            {/* La antigüedad se avisa a la vista. Durante seis días el
+                inventario se quedó congelado y nadie lo notó, porque la fecha
+                se mostraba igual de discreta estuviera fresca o vieja. Un
+                mayorista vendiendo con existencias de la semana pasada es el
+                riesgo real de este sitio. */}
+            <span className="text-sm font-semibold" style={{ color: colorAntiguedad(diasDeAntiguedad) }}>
+              {diasDeAntiguedad !== null && diasDeAntiguedad >= 2 && '⚠ '}
               Última actualización: {origen?.respaldo?.fecha
                 ? fmtFechaCorta(origen.respaldo.fecha)
                 : lastUpdate ? fmtFechaCorta(lastUpdate.toISOString().slice(0, 10)) : '—'}
+              {diasDeAntiguedad !== null && diasDeAntiguedad >= 2 && (
+                <span style={{ fontWeight: 700 }}>
+                  {' · hace '}{diasDeAntiguedad} días, confirma antes de vender
+                </span>
+              )}
             </span>
             {search && (
               <span className="text-sm" style={{ color: '#6C818B' }}>
