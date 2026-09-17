@@ -21,7 +21,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { listarArchivos, descargar, dropboxConfigurado } from './lib/dropbox-api.js'
-import { salidasEntre, agregarDia, estadisticaVacia } from './lib/estadisticas.js'
+import { salidasEntre, agregarDia, estadisticaVacia, acumularEnPeriodo, historialVacio } from './lib/estadisticas.js'
 
 const run = promisify(execFile)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -202,6 +202,7 @@ async function jsonPublicado(slug) {
 // lectura pública en el bucket, así que el panel puede leerlas sin credenciales
 // y sin tocar la política de S3.
 const claveEstadisticas = slug => `inventarios/${slug}/estadisticas.json`
+const claveHistorial    = slug => `inventarios/${slug}/historial.json`
 
 async function estadisticasPublicadas(slug, nombre) {
   try {
@@ -209,6 +210,15 @@ async function estadisticasPublicadas(slug, nombre) {
     return JSON.parse(await res.Body.transformToString())
   } catch {
     return estadisticaVacia(slug, nombre)
+  }
+}
+
+async function historialPublicado(slug, nombre) {
+  try {
+    const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: claveHistorial(slug) }))
+    return JSON.parse(await res.Body.transformToString())
+  } catch {
+    return historialVacio(slug, nombre)
   }
 }
 
@@ -226,16 +236,21 @@ async function registrarMovimiento(suc, anterior, json) {
   const { salidas, catalogo } = salidasEntre(anterior, json)
   const total = Object.values(salidas).reduce((s, n) => s + n, 0)
 
-  const previas = await estadisticasPublicadas(suc.slug, suc.nombre)
-  const actualizadas = agregarDia(previas, fechaAhora, salidas, catalogo)
-
-  await s3.send(new PutObjectCommand({
+  const guardar = (key, obj) => s3.send(new PutObjectCommand({
     Bucket:       BUCKET,
-    Key:          claveEstadisticas(suc.slug),
-    Body:         Buffer.from(JSON.stringify(actualizadas)),
+    Key:          key,
+    Body:         Buffer.from(JSON.stringify(obj)),
     ContentType:  'application/json; charset=utf-8',
     CacheControl: 'no-cache',
   }))
+
+  // Detalle diario: alimenta las gráficas, solo 60 días.
+  const previas = await estadisticasPublicadas(suc.slug, suc.nombre)
+  await guardar(claveEstadisticas(suc.slug), agregarDia(previas, fechaAhora, salidas, catalogo))
+
+  // Acumulado por mes: es lo que se conserva para siempre.
+  const histPrevio = await historialPublicado(suc.slug, suc.nombre)
+  await guardar(claveHistorial(suc.slug), acumularEnPeriodo(histPrevio, fechaAhora, salidas, catalogo))
 
   return { modelos: Object.keys(salidas).length, total, desde: fechaAntes, hasta: fechaAhora }
 }
@@ -275,10 +290,13 @@ function validar(slug, productos, anterior) {
 async function subirJson(slug, json, anterior) {
   const comun = { Bucket: BUCKET, ContentType: 'application/json; charset=utf-8' }
   if (anterior) {
-    const sello = (anterior.generado || new Date().toISOString()).slice(0, 10)
+    // Una sola copia, siempre la misma clave. Antes se guardaba una por fecha
+    // y crecían unos 44 MB al año por pura acumulación de inventarios enteros.
+    // Para volver atrás basta la última, y lo que interesa a la larga ya vive
+    // en el historial por periodo, que ocupa una fracción.
     await s3.send(new PutObjectCommand({
       ...comun,
-      Key:  `inventarios/${slug}/historico/${sello}.json`,
+      Key:  `inventarios/${slug}/anterior.json`,
       Body: Buffer.from(JSON.stringify(anterior)),
     }))
   }

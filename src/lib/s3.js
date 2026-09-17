@@ -142,3 +142,10 @@ export async function uploadInventarioJson(slug, productos, extra = {}) {
 export function estadisticasUrl(slug) {
   return `https://${BUCKET}.s3.${REGION}.amazonaws.com/inventarios/${slug}/estadisticas.json`
 }
+
+/** Historial permanente por mes. A diferencia de las estadísticas diarias, que
+ *  solo guardan 60 días, este archivo nunca se recorta: es el acumulado de
+ *  piezas por modelo y mes, y ocupa unos 5 KB por mes y sucursal. */
+export function historialUrl(slug) {
+  return `https://${BUCKET}.s3.${REGION}.amazonaws.com/inventarios/${slug}/historial.json`
+}

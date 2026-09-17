@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { SUCURSALES } from '../lib/sucursales'
-import { estadisticasUrl } from '../lib/s3'
-import { resumir } from '../lib/estadisticas'
+import { estadisticasUrl, historialUrl } from '../lib/s3'
+import { resumir, periodosDisponibles, filasDePeriodo } from '../lib/estadisticas'
+import { descargarHistorial, nombreDePeriodo } from '../lib/exportarEstadisticas'
 
 // Una serie por gráfica, así que no hacen falta colores categóricos ni leyenda:
 // el título nombra la serie. Los dos tonos pasaron el validador de contraste
@@ -130,29 +131,127 @@ function Ranking({ ranking }) {
   )
 }
 
+/**
+ * Archivo permanente. El detalle diario se recorta a 60 días, pero el acumulado
+ * por mes se guarda para siempre, así que esta sección es la que responde qué se
+ * movió en tal mes cuando ya pasó más de un bimestre.
+ */
+function ArchivoPermanente({ historial, sucursal }) {
+  const periodos = useMemo(() => periodosDisponibles(historial), [historial])
+  const [periodo, setPeriodo] = useState(null)
+  const activo = periodo && periodos.some(p => p.periodo === periodo) ? periodo : periodos[0]?.periodo
+
+  const filas = useMemo(() => activo ? filasDePeriodo(historial, activo) : [], [historial, activo])
+  const meta  = periodos.find(p => p.periodo === activo)
+
+  if (periodos.length === 0) return null
+
+  const top = filas.slice(0, 10)
+  const max = Math.max(1, ...top.map(f => f.salidas))
+
+  return (
+    <div style={{ paddingTop: 20, borderTop: '1px solid ' + LINEA }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
+        <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: 0 }}>Archivo por mes</h4>
+        <span style={{ fontSize: 11, color: TINTA_TENUE }}>se guarda completo, sin límite de días</span>
+      </div>
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px', lineHeight: 1.5 }}>
+        Las gráficas de arriba solo alcanzan 60 días. Este acumulado no se borra nunca, y de aquí
+        sale el Excel para revisar un mes viejo o comparar temporadas.
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+        {periodos.map(p => (
+          <Pildora key={p.periodo} activa={activo === p.periodo} onClick={() => setPeriodo(p.periodo)}>
+            {nombreDePeriodo(p.periodo)}
+          </Pildora>
+        ))}
+      </div>
+
+      {meta && (
+        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '0 0 12px' }}>
+          <strong style={{ color: TINTA }}>{meta.total} piezas</strong> en {meta.modelos} modelos,
+          con {meta.dias} {meta.dias === 1 ? 'día' : 'días'} de dato.
+        </p>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 14 }}>
+        {top.map((r, i) => (
+          <div key={r.codigo + i} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginBottom: 3 }}>
+                <span style={{ fontSize: 12, color: TINTA, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.producto}</span>
+                {r.codigo && <span style={{ fontSize: 10.5, color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', flexShrink: 0 }}>{r.codigo}</span>}
+              </div>
+              <div style={{ height: 6, background: 'rgba(16,22,25,0.05)', borderRadius: 999, overflow: 'hidden' }}>
+                <div style={{ width: `${Math.max(3, (r.salidas / max) * 100)}%`, height: '100%', background: C_SERIE, borderRadius: 999 }} />
+              </div>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 800, color: TINTA, fontVariantNumeric: 'tabular-nums', minWidth: '3ch', textAlign: 'right' }}>{r.salidas}</span>
+          </div>
+        ))}
+        {filas.length > top.length && (
+          <p style={{ fontSize: 11.5, color: TINTA_TENUE, margin: '2px 0 0' }}>
+            Y {filas.length - top.length} modelos más. El Excel los trae todos.
+          </p>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <BotonExcel onClick={() => descargarHistorial(historial, sucursal.nombre, activo)} principal>
+          Bajar {nombreDePeriodo(activo)} en Excel
+        </BotonExcel>
+        {periodos.length > 1 && (
+          <BotonExcel onClick={() => descargarHistorial(historial, sucursal.nombre)}>
+            Bajar los {periodos.length} meses
+          </BotonExcel>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function BotonExcel({ onClick, principal, children }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="px-4 py-2 text-sm font-semibold transition-all"
+      style={principal
+        ? { background: 'linear-gradient(135deg, #5E9422, #8DC63F)', borderRadius: 999, color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(94,148,34,0.22)' }
+        : { backgroundColor: '#fff', border: '1px solid ' + LINEA, borderRadius: 999, color: TINTA_SUAVE, cursor: 'pointer' }}>
+      {children}
+    </button>
+  )
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 export default function EstadisticasPanel() {
   const [sucursal, setSucursal] = useState(SUCURSALES[0])
   const [rango, setRango]       = useState(30)
   const [datos, setDatos]       = useState(null)
+  const [historial, setHistorial] = useState(null)
   const [cargando, setCargando] = useState(false)
   const [error, setError]       = useState(null)
 
   useEffect(() => {
     let cancelado = false
-    setCargando(true); setError(null); setDatos(null)
+    setCargando(true); setError(null); setDatos(null); setHistorial(null)
     ;(async () => {
-      try {
-        const res = await fetch(`${estadisticasUrl(sucursal.slug)}?t=${Date.now()}`, { cache: 'no-store' })
+      // El historial puede faltar sin que eso sea un error: una sucursal recién
+      // conectada tiene días sueltos pero todavía ningún mes acumulado.
+      const bajar = async url => {
+        const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' })
         if (!res.ok) throw new Error('sin-datos')
-        const j = await res.json()
-        if (!cancelado) setDatos(j)
-      } catch {
-        if (!cancelado) setError('sin-datos')
-      } finally {
-        if (!cancelado) setCargando(false)
+        return res.json()
       }
+      const [est, hist] = await Promise.all([
+        bajar(estadisticasUrl(sucursal.slug)).catch(() => null),
+        bajar(historialUrl(sucursal.slug)).catch(() => null),
+      ])
+      if (cancelado) return
+      if (est) setDatos(est); else setError('sin-datos')
+      setHistorial(hist)
+      setCargando(false)
     })()
     return () => { cancelado = true }
   }, [sucursal])
@@ -222,6 +321,8 @@ export default function EstadisticasPanel() {
             </h4>
             <Ranking ranking={resumen.ranking} />
           </div>
+
+          {historial && <ArchivoPermanente historial={historial} sucursal={sucursal} />}
 
           <p style={{ fontSize: 11, color: TINTA_TENUE, margin: 0, lineHeight: 1.55, paddingTop: 14, borderTop: '1px solid ' + LINEA }}>
             Estos números son un piso, no una cifra exacta de venta. Si un modelo baja de 5 a 2

@@ -11,7 +11,7 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
-import { salidasEntre, agregarDia, estadisticaVacia, claveDe } from './lib/estadisticas.js'
+import { salidasEntre, agregarDia, estadisticaVacia, acumularEnPeriodo, historialVacio, periodosDisponibles } from './lib/estadisticas.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 try { process.loadEnvFile(path.join(__dirname, '..', '.env')) } catch { /* en CI viene del entorno */ }
@@ -76,6 +76,7 @@ async function reconstruir(suc) {
   const fechas = [...porFecha.keys()].sort()
 
   let estad = estadisticaVacia(suc.slug, suc.nombre)
+  let hist  = historialVacio(suc.slug, suc.nombre)
   let dias = 0, piezas = 0
 
   for (let i = 1; i < fechas.length; i++) {
@@ -84,6 +85,7 @@ async function reconstruir(suc) {
     const { salidas, catalogo } = salidasEntre(antes, ahora)
     if (Object.keys(salidas).length === 0) continue
     estad = agregarDia(estad, fechas[i], salidas, catalogo)
+    hist  = acumularEnPeriodo(hist, fechas[i], salidas, catalogo)
     dias++
     piezas += Object.values(salidas).reduce((s, n) => s + n, 0)
   }
@@ -110,16 +112,34 @@ async function reconstruir(suc) {
   for (const [k, v] of Object.entries(estad.catalogo)) cat[nombreACodigo.get(k) || k] = v
   estad.catalogo = cat
 
-  console.log(`  ${suc.slug.padEnd(16)} ${fechas.length} fechas → ${dias} días con movimiento, ${piezas} piezas, ${traducidos} claves traducidas a código`)
+  // La misma traducción para el historial permanente.
+  hist.periodos = hist.periodos.map(p => {
+    const m = {}
+    for (const [k, n] of Object.entries(p.m)) {
+      const real = nombreACodigo.get(k)
+      if (real) m[real] = (m[real] || 0) + n
+      else m[k] = (m[k] || 0) + n
+    }
+    return { ...p, m }
+  })
+  const catH = {}
+  for (const [k, v] of Object.entries(hist.catalogo)) catH[nombreACodigo.get(k) || k] = v
+  hist.catalogo = catH
+
+  const meses = periodosDisponibles(hist).map(p => `${p.periodo} (${p.total} pz)`).join(', ')
+  console.log(`  ${suc.slug.padEnd(16)} ${dias} días con movimiento, ${piezas} piezas, ${traducidos} claves a código`)
+  console.log(`  ${''.padEnd(16)} periodos permanentes: ${meses || 'ninguno'}`)
 
   if (!DRY_RUN) {
-    await s3.send(new PutObjectCommand({
+    const guardar = (key, obj) => s3.send(new PutObjectCommand({
       Bucket:       BUCKET,
-      Key:          `inventarios/${suc.slug}/estadisticas.json`,
-      Body:         Buffer.from(JSON.stringify(estad)),
+      Key:          key,
+      Body:         Buffer.from(JSON.stringify(obj)),
       ContentType:  'application/json; charset=utf-8',
       CacheControl: 'no-cache',
     }))
+    await guardar(`inventarios/${suc.slug}/estadisticas.json`, estad)
+    await guardar(`inventarios/${suc.slug}/historial.json`, hist)
   }
 }
 

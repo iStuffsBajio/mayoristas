@@ -81,6 +81,71 @@ export function agregarDia(estad, fecha, salidas, catalogo) {
   return { ...estad, actualizado: new Date().toISOString(), catalogo: cat, dias: corte }
 }
 
+// ── Historial permanente por periodo ──────────────────────────────────────────
+//
+// El detalle diario solo vive 60 días, porque es lo que alimenta las gráficas.
+// Lo que sí se guarda para siempre es el acumulado por mes: una línea por
+// modelo y mes con cuántas piezas salieron. Ocupa una fracción de lo que
+// ocupaban las copias completas del inventario y responde la pregunta que
+// importa a la larga, qué se movió en tal periodo.
+
+export function historialVacio(slug, nombre) {
+  return { sucursal: slug, nombre, actualizado: null, catalogo: {}, periodos: [] }
+}
+
+/** Suma un día al mes que le corresponde. Reemplaza si ese día ya se contó. */
+export function acumularEnPeriodo(historial, fecha, salidas, catalogo) {
+  const mes = fecha.slice(0, 7)
+  const periodos = [...(historial.periodos ?? [])]
+  let p = periodos.find(x => x.p === mes)
+
+  if (!p) {
+    p = { p: mes, m: {}, dias: [] }
+    periodos.push(p)
+  }
+
+  // Si el día ya estaba contado no se suma dos veces: volver a correr la
+  // sincronización no debe inflar el mes.
+  if (p.dias.includes(fecha)) return historial
+
+  for (const [k, n] of Object.entries(salidas)) p.m[k] = (p.m[k] || 0) + n
+  p.dias = [...p.dias, fecha].sort()
+
+  periodos.sort((a, b) => a.p.localeCompare(b.p))
+
+  return {
+    ...historial,
+    actualizado: new Date().toISOString(),
+    catalogo: { ...(historial.catalogo ?? {}), ...catalogo },
+    periodos,
+  }
+}
+
+/** Filas listas para exportar: una por modelo y periodo. */
+export function filasDePeriodo(historial, periodo) {
+  const p = (historial?.periodos ?? []).find(x => x.p === periodo)
+  if (!p) return []
+  return Object.entries(p.m)
+    .map(([codigo, salidas]) => ({
+      codigo: codigo.startsWith('nombre:') ? '' : codigo,
+      producto: historial?.catalogo?.[codigo] || codigo.replace(/^nombre:/, ''),
+      salidas,
+    }))
+    .sort((a, b) => b.salidas - a.salidas || a.producto.localeCompare(b.producto))
+}
+
+/** Los meses que tienen datos, del más reciente al más viejo. */
+export function periodosDisponibles(historial) {
+  return (historial?.periodos ?? [])
+    .map(p => ({
+      periodo: p.p,
+      dias: p.dias?.length ?? 0,
+      total: Object.values(p.m ?? {}).reduce((s, n) => s + n, 0),
+      modelos: Object.keys(p.m ?? {}).length,
+    }))
+    .sort((a, b) => b.periodo.localeCompare(a.periodo))
+}
+
 /**
  * Resume el historial en los últimos N días.
  * Devuelve el ranking de modelos y la serie diaria para la gráfica.
