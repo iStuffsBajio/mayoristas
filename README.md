@@ -68,3 +68,29 @@ acepta una opcion para probar sin publicar y otra para procesar una sola sucursa
 
 La tarea de Windows puede seguir activa como respaldo: las dos publican el mismo
 archivo y la ultima en correr gana.
+
+## Cuando corre la sincronizacion
+
+Dos caminos independientes. Si uno falla, el otro cubre.
+
+**GitHub Actions**, cada 6 horas: 03:17, 09:17, 15:17 y 21:17 UTC.
+No depende de ninguna computadora. GitHub no respeta la hora exacta en
+repositorios publicos y llega a retrasarse de 2 a 4 horas, por eso son
+cuatro corridas y no una.
+
+**Tarea de Windows** en la PC con Eleventa, con tres disparadores:
+todos los dias a las 10, al iniciar sesion con 4 minutos de espera para que
+Dropbox alcance a sincronizar, y cada 4 horas mientras el equipo este
+encendido. Ademas corre con bateria, despierta el equipo si esta suspendido
+y, si pierde la hora, se ejecuta en cuanto puede en vez de saltarse el dia.
+
+### Por que es seguro que corran las dos
+
+El inventario solo avanza, nunca retrocede. Antes de publicar, la
+sincronizacion compara la fecha del respaldo que trae contra la que ya esta
+publicada, y si la publicada es mas reciente no la toca. Eso protege el caso
+real: que Dropbox no haya terminado de bajar el respaldo del dia en la PC y
+esta publique uno viejo encima del bueno.
+
+La pagina tambien avisa cuando el dato envejece: verde hasta un dia, ambar
+de dos a tres, rojo de cuatro en adelante.

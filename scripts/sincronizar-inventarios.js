@@ -194,6 +194,25 @@ async function jsonPublicado(slug) {
   }
 }
 
+/**
+ * ¿Lo que ya está publicado es más reciente que lo que se va a publicar?
+ *
+ * Existe porque ahora la sincronización corre desde dos lados: GitHub cada
+ * seis horas y esta computadora al encender. Si Dropbox aún no terminó de
+ * bajar el respaldo del día, la corrida local leería uno viejo y lo publicaría
+ * encima del bueno. Con esto el inventario solo avanza, nunca retrocede.
+ */
+function yaHayAlgoMasNuevo(anterior, json) {
+  const publicada = anterior?.respaldo?.fecha
+  const nueva     = json?.respaldo?.fecha
+  if (!publicada || !nueva) return false
+  if (publicada !== nueva) return publicada > nueva
+  // Mismo día: gana el archivo modificado más tarde, si se sabe.
+  const a = anterior?.respaldo?.modificado
+  const b = json?.respaldo?.modificado
+  return !!(a && b && a > b)
+}
+
 function validar(slug, productos, anterior) {
   if (productos.length < MIN_PRODUCTOS) {
     throw new Error(`solo ${productos.length} productos (mínimo ${MIN_PRODUCTOS}). Respaldo probablemente incompleto. Usa --forzar si es correcto.`)
@@ -256,6 +275,14 @@ async function procesar(suc, workDir) {
   }
 
   const anterior = DRY_RUN && !BUCKET ? null : await jsonPublicado(suc.slug)
+
+  // El inventario solo avanza. Si lo publicado es más reciente que este
+  // respaldo, no se toca: significa que otra corrida ya subió algo mejor.
+  if (!FORZAR && yaHayAlgoMasNuevo(anterior, json)) {
+    log(`[${suc.slug}] sin cambios: ya está publicado el respaldo del ${anterior.respaldo.fecha}, más reciente que el ${json.respaldo.fecha} de aquí`)
+    return
+  }
+
   if (FORZAR) log(`[${suc.slug}] --forzar activo: se omiten las validaciones`)
   else validar(suc.slug, productos, anterior)
 
