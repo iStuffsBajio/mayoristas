@@ -23,7 +23,22 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 import { listarArchivos, descargar, dropboxConfigurado } from './lib/dropbox-api.js'
 import { salidasEntre, agregarDia, estadisticaVacia, acumularEnPeriodo, historialVacio } from './lib/estadisticas.js'
 
-const run = promisify(execFile)
+const ejecutar = promisify(execFile)
+
+// Restaurar un respaldo de Firebird 2.0 con las herramientas 2.5 hace que gbak
+// escupa un aviso por cada atributo que no reconoce: miles de líneas de
+// "do not recognize table attribute 0 -- continuing" que no significan nada,
+// porque la restauración sale bien igual.
+//
+// El problema es que execFile corta a 1 MB de salida por defecto y mata el
+// proceso al pasarse. León, que es la base más pesada, lo rebasaba cada tantos
+// días y esa sucursal se quedaba sin publicar: dos corridas caídas el 2 y 3 de
+// octubre por esto mismo. No hace falta esa salida —lo que importa es el
+// archivo que queda en disco— pero sí hay que dejarla correr sin cortarla.
+const MAX_SALIDA = 64 * 1024 * 1024
+
+const run = (comando, args, opciones = {}) =>
+  ejecutar(comando, args, { maxBuffer: MAX_SALIDA, ...opciones })
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
 
