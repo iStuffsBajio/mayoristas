@@ -14,7 +14,7 @@
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import XLSX from 'xlsx'
+import XLSX from 'xlsx-js-style'
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { historialVacio, importarPeriodo, periodosDisponibles } from './lib/estadisticas.js'
 import { mesDePestana, diasDelMes } from './lib/pestanas-mes.js'

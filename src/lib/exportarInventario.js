@@ -3,7 +3,7 @@
 // La idea es que el archivo sirva para salir a comprar: lo que se ve filtrado
 // por "urgente" o "agotado" es, tal cual, la lista de resurtido.
 
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 
 function hojaDe(filas, encabezados) {
   const hoja = XLSX.utils.aoa_to_sheet([encabezados, ...filas])

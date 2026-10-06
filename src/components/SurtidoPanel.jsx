@@ -6,7 +6,7 @@ import {
   candidatosADepurar, esTemporadaAlta, COBERTURA, MOTIVOS,
   DIAS_PARA_CONFIAR, DIAS_PARA_DEPURAR,
 } from '../lib/surtido'
-import { descargarSurtido } from '../lib/exportarInventario'
+import { descargarSurtido } from '../lib/exportarSurtido'
 import { separarProduccion } from '../lib/produccion'
 
 const TINTA       = '#101619'
@@ -194,10 +194,16 @@ export default function SurtidoPanel() {
   const piezasVenta = porVenta.reduce((a, f) => a + f.sugerido, 0)
   const nombreSel = opciones.find(o => o.slug === sel)?.nombre ?? ''
 
-  const exportar = () => {
-    const lista = vista === 'muestra' ? muestras : vista === 'depurar' ? depurar.filas : porVenta
-    descargarSurtido(lista, nombreSel, vista, { cobertura, esAlta, diasHistorial })
-  }
+  // Se baja el libro entero, no solo la vista que se está mirando: las cuatro
+  // hojas se leen juntas al decidir un pedido.
+  const exportar = () => descargarSurtido({
+    sucursal: nombreSel,
+    meta: { cobertura, esAlta, diasHistorial },
+    porVenta,
+    muestras,
+    bodega,
+    depurar: depurar.filas,
+  })
 
   if (cargando) {
     return (
@@ -382,13 +388,13 @@ export default function SurtidoPanel() {
             </Tabla>
           </>)}
 
-      {['venta', 'muestra'].includes(vista) || (vista === 'depurar' && depurar.suficiente) ? (
+      {(
         <button type="button" onClick={exportar}
           className="px-4 py-2 text-sm font-semibold transition-all"
           style={{ background: 'linear-gradient(135deg, #5E9422, #8DC63F)', borderRadius: 999, color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(94,148,34,0.22)' }}>
-          Bajar esta lista en Excel
+          Bajar el reporte completo en Excel
         </button>
-      ) : null}
+      )}
 
       <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '14px 0 0', lineHeight: 1.55, paddingTop: 12, borderTop: '1px solid ' + LINEA }}>
         El ritmo sale de dividir lo vendido entre los días con dato, no entre los del calendario: si una

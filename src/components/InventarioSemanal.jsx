@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 import { useAuth } from '../context/AuthContext'
 import { inventarioUrl, uploadInventario, uploadInventarioJson, loadInventarioJson, s3Configured } from '../lib/s3'
 import StockBadge, { nivelStock, COLOR_NIVEL, ETIQUETAS_LEYENDA } from './StockBadge'

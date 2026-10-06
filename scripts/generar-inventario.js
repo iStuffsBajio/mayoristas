@@ -1,7 +1,7 @@
 // Ejecutar con: node scripts/generar-inventario.js
 // Genera archivos de ejemplo en public/inventarios/[sucursal]/inventario.xlsx
 
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs'

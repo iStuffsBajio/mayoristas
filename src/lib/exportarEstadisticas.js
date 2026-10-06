@@ -4,7 +4,7 @@
 // un libro con una hoja de resumen y una hoja por mes, que es el formato en el
 // que se puede abrir, filtrar y comparar sin depender de la página.
 
-import * as XLSX from 'xlsx'
+import * as XLSX from 'xlsx-js-style'
 import { filasDePeriodo, periodosDisponibles, comparativo, nombreDePeriodo } from './estadisticas'
 
 export { nombreDePeriodo }
