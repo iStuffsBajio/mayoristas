@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
-import { SUCURSALES } from '../lib/sucursales'
+// Aqui si entra la bodega: es inventario y el panel es solo de administrador.
+import { SUCURSALES_CON_INVENTARIO as SUCURSALES } from '../lib/sucursales'
 import { inventarioJsonUrl, estadisticasUrl } from '../lib/s3'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
 import { nivelStock, COLOR_NIVEL, UMBRAL_VERDE, UMBRAL_NARANJA } from './StockBadge'

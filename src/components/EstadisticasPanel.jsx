@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
-import { SUCURSALES } from '../lib/sucursales'
+// La bodega queda fuera: lo que sale de ahi son envios a las sucursales,
+// no ventas, y mezclarlo falsearia el ranking.
+import { SUCURSALES_PUBLICAS as SUCURSALES } from '../lib/sucursales'
 import { estadisticasUrl, historialUrl } from '../lib/s3'
 import {
   resumir, periodosDisponibles, comparativo,

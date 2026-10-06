@@ -70,6 +70,9 @@ const SUCURSALES = [
   { slug: 'aguascalientes', nombre: 'Aguascalientes',  carpeta: 'ags'  },
   { slug: 'leon',           nombre: 'León',            carpeta: 'leon' },
   { slug: 'san-luis',       nombre: 'San Luis Potosí', carpeta: 'SLP'  },
+  // La bodega se sincroniza igual que una sucursal. Si la carpeta todavia no
+  // existe, esta corrida la salta con un aviso y las demas siguen.
+  { slug: 'bodega',         nombre: 'Bodega',          carpeta: 'bodega', opcional: true },
 ]
 
 const DEPTOS_OCULTOS = new Set(['mayoristas', '- sin departamento -'])
@@ -427,6 +430,16 @@ async function main() {
     try {
       await procesar(suc, workDir)
     } catch (err) {
+      // Una sucursal marcada como opcional que todavía no tiene carpeta no es
+      // un error: es que aún no la han dado de alta. Si contara como fallo,
+      // la bodega dejaría todas las corridas en rojo hasta que alguien
+      // configure esa máquina, y el aviso real se perdería entre el ruido.
+      const sinCarpeta = /No existe la carpeta|Sin archivos \.fbk/.test(err.message || '')
+      if (suc.opcional && sinCarpeta) {
+        log(`[${suc.slug}] sin respaldos todavía, se omite`)
+        continue
+      }
+
       errores++
       // Se imprime todo. Recortar el mensaje escondia la causa real cuando
       // gbak o isql fallaban por version del respaldo o por permisos.

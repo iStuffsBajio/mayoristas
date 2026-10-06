@@ -104,6 +104,10 @@ export function acumularEnPeriodo(historial, fecha, salidas, catalogo) {
     periodos.push(p)
   }
 
+  // Un mes importado desde Eleventa trae la venta real y es mejor dato que
+  // esta estimación: no se toca.
+  if (p.origen === 'eleventa') return historial
+
   // Si el día ya estaba contado no se suma dos veces: volver a correr la
   // sincronización no debe inflar el mes.
   if (p.dias.includes(fecha)) return historial
@@ -139,7 +143,10 @@ export function periodosDisponibles(historial) {
   return (historial?.periodos ?? [])
     .map(p => ({
       periodo: p.p,
-      dias: p.dias?.length ?? 0,
+      // Un mes importado de Eleventa no tiene lista de fechas: trae cuantos
+      // dias cubria el reporte.
+      dias: p.origen === 'eleventa' ? (p.diasCubiertos ?? 0) : (p.dias?.length ?? 0),
+      origen: p.origen ?? 'inventarios',
       total: Object.values(p.m ?? {}).reduce((s, n) => s + n, 0),
       modelos: Object.keys(p.m ?? {}).length,
     }))
@@ -378,4 +385,42 @@ export function sumarSalidas(mapas) {
     for (const [k, n] of Object.entries(m ?? {})) total[k] = (total[k] || 0) + n
   }
   return total
+}
+
+/**
+ * Mete en el historial un periodo que viene de un reporte de ventas de
+ * Eleventa, no de comparar inventarios.
+ *
+ * Son dos mediciones distintas y conviene no confundirlas: el reporte trae la
+ * venta real, y la comparación de inventarios solo ve lo que bajó, así que se
+ * queda corta cuando hay resurtido el mismo día. Por eso cada periodo guarda
+ * de dónde salió, y el importado REEMPLAZA lo que hubiera en ese mes en vez
+ * de sumarse encima.
+ */
+export function importarPeriodo(historial, periodo, salidas, catalogo, meta = {}) {
+  const periodos = (historial.periodos ?? []).filter(p => p.p !== periodo)
+  periodos.push({
+    p: periodo,
+    m: { ...salidas },
+    dias: [],
+    origen: 'eleventa',
+    // Qué fechas cubría el reporte, para poder revisarlo después.
+    desde: meta.desde ?? null,
+    hasta: meta.hasta ?? null,
+    diasCubiertos: meta.diasCubiertos ?? null,
+  })
+  periodos.sort((a, b) => a.p.localeCompare(b.p))
+
+  return {
+    ...historial,
+    actualizado: new Date().toISOString(),
+    catalogo: { ...(historial.catalogo ?? {}), ...catalogo },
+    periodos,
+  }
+}
+
+/** Días que cubre un periodo, venga de donde venga. */
+export function diasDePeriodo(p) {
+  if (p?.origen === 'eleventa') return p.diasCubiertos ?? 0
+  return p?.dias?.length ?? 0
 }

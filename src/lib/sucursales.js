@@ -1,14 +1,28 @@
 // Lista única de sucursales. Antes estaba duplicada en InventarioSemanal,
 // PedidosStikers y el script de sincronización, con formatos distintos.
 
+// `interna` es la bodega: tiene inventario y se sincroniza igual que una
+// sucursal, pero no es un punto de venta. No debe aparecer nunca en lo que ve
+// un mayorista —ni en la consulta de inventario, ni al armar un pedido, ni en
+// los números de WhatsApp— y por eso se separa en dos listas en vez de
+// filtrarla a mano en cada pantalla.
 export const SUCURSALES = [
   { slug: 'leon',           nombre: 'León',            activa: true  },
   { slug: 'san-luis',       nombre: 'San Luis Potosí', activa: true  },
   { slug: 'aguascalientes', nombre: 'Aguascalientes',  activa: true  },
   { slug: 'torreon',        nombre: 'Torreón',         activa: false },
+  { slug: 'bodega',         nombre: 'Bodega',          activa: true, interna: true },
 ]
 
-export const SUCURSALES_ACTIVAS = SUCURSALES.filter(s => s.activa)
+/** Las que ve un mayorista. Nunca incluye la bodega. */
+export const SUCURSALES_PUBLICAS = SUCURSALES.filter(s => !s.interna)
+
+export const SUCURSALES_ACTIVAS = SUCURSALES_PUBLICAS.filter(s => s.activa)
+
+/** Las que tienen inventario sincronizado, bodega incluida. Solo uso interno. */
+export const SUCURSALES_CON_INVENTARIO = SUCURSALES.filter(s => s.activa)
+
+export const BODEGA = SUCURSALES.find(s => s.slug === 'bodega')
 
 export function nombreSucursal(slug) {
   return SUCURSALES.find(s => s.slug === slug)?.nombre || slug

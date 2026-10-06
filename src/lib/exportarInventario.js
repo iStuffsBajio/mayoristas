@@ -66,3 +66,40 @@ export function descargarInventarioConsolidado(filas, sucursales, etiquetaFiltro
   )
   XLSX.writeFile(libro, `inventario-consolidado-${limpio(etiquetaFiltro)}.xlsx`)
 }
+
+/**
+ * Lista de surtido. Las columnas cambian segun la vista, porque no es lo
+ * mismo una orden de compra que una propuesta de baja.
+ */
+export function descargarSurtido(filas, nombreSucursal, vista, meta = {}) {
+  const libro = XLSX.utils.book_new()
+
+  XLSX.utils.book_append_sheet(libro, hojaDe([
+    ['Sucursal',          nombreSucursal],
+    ['Vista',             vista],
+    ['Temporada',         meta.esAlta ? 'alta' : 'baja'],
+    ['Días de cobertura', meta.cobertura ?? ''],
+    ['Días de historial', meta.diasHistorial ?? ''],
+    ['Generado',          new Date().toLocaleString('es-MX')],
+  ], ['Dato', 'Valor']), 'Resumen')
+
+  let datos, encabezados
+  if (vista === 'depurar') {
+    encabezados = ['Código', 'Modelo', 'Piezas paradas', 'Sucursales']
+    datos = filas.map(f => [f.codigo, f.producto, f.existencia, (f.plazas ?? []).map(p => p.slug).join(', ')])
+  } else if (vista === 'muestra') {
+    encabezados = ['Código', 'Modelo', 'Pedir']
+    datos = filas.map(f => [f.codigo, f.producto, 1])
+  } else {
+    encabezados = ['Código', 'Modelo', 'Existencia', 'Piezas al día', 'Días que aguanta', 'Pedir']
+    datos = filas.map(f => [
+      f.codigo, f.producto, f.existencia,
+      Number(f.ritmo.toFixed(3)),
+      f.cobertura === null ? '' : Math.floor(f.cobertura),
+      f.sugerido,
+    ])
+  }
+
+  XLSX.utils.book_append_sheet(libro, hojaDe(datos, encabezados), 'Surtido')
+  XLSX.writeFile(libro, `surtido-${limpio(nombreSucursal)}-${limpio(vista)}.xlsx`)
+}
