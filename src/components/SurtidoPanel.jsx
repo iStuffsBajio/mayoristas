@@ -7,6 +7,7 @@ import {
   DIAS_PARA_CONFIAR, DIAS_PARA_DEPURAR,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarInventario'
+import { separarProduccion } from '../lib/produccion'
 
 const TINTA       = '#101619'
 const TINTA_SUAVE = '#4A5A61'
@@ -134,11 +135,13 @@ export default function SurtidoPanel() {
     for (const s of sucursales) {
       const inv = datos[s.slug]?.inv
       if (!inv) continue
-      r[s.slug] = calcularSurtido({
+      // Lo que bodega fabrica no entra: pedir stickers a bodega no significa
+      // nada, los imprime cuando hacen falta.
+      r[s.slug] = separarProduccion(calcularSurtido({
         productos: inv.productos,
         velocidad: velocidadDiaria(datos[s.slug]?.hist),
         cobertura,
-      }).filas
+      }).filas).compra
     }
     return r
   }, [datos, sucursales, cobertura])
@@ -165,8 +168,21 @@ export default function SurtidoPanel() {
         juntos.set(c, e)
       }
     }
-    return calcularSurtido({ productos: [...juntos.values()], velocidad: vel, cobertura }).filas
+    return separarProduccion(
+      calcularSurtido({ productos: [...juntos.values()], velocidad: vel, cobertura }).filas
+    ).compra
   }, [datos, sel, porSucursal, sucursales, cobertura])
+
+  // Cuántos se dejaron fuera por fabricarse, para decirlo en vez de que
+  // desaparezcan sin explicación.
+  const produccion = useMemo(() => {
+    if (!datos || sel === TODAS.slug) return []
+    const inv = datos[sel]?.inv
+    if (!inv) return []
+    return separarProduccion(
+      calcularSurtido({ productos: inv.productos, velocidad: velocidadDiaria(datos[sel]?.hist), cobertura }).filas
+    ).produccion
+  }, [datos, sel, cobertura])
 
   const bodegaInv = datos?.[BODEGA.slug]?.inv ?? null
   const bodega    = useMemo(() => bodegaInv ? analizarBodega(porSucursal, bodegaInv) : [], [porSucursal, bodegaInv])
@@ -275,6 +291,14 @@ export default function SurtidoPanel() {
               ))}
             </Tabla>
           </>)}
+
+      {vista === 'venta' && produccion.length > 0 && (
+        <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '0 0 12px', lineHeight: 1.5 }}>
+          {produccion.length === 1 ? 'Queda' : 'Quedan'} fuera {produccion.length}{' '}
+          {produccion.length === 1 ? 'código' : 'códigos'} de producción ({produccion.map(p => p.codigo).join(', ')}):
+          los stickers no se almacenan, bodega los imprime cuando hacen falta.
+        </p>
+      )}
 
       {/* ── Sin venta y agotados ── */}
       {vista === 'muestra' && (

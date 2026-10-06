@@ -18,6 +18,7 @@ import XLSX from 'xlsx'
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { historialVacio, importarPeriodo, periodosDisponibles } from './lib/estadisticas.js'
 import { mesDePestana, diasDelMes } from './lib/pestanas-mes.js'
+import { deptoOculto } from './lib/departamentos.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -46,9 +47,6 @@ const LIBROS = [
   { slug: 'aguascalientes', nombre: 'Aguascalientes',  archivo: 'AGS MESES/ABR 2026 AGS.xlsx' },
 ]
 
-// Los mismos que esconde la sincronización, para que las dos fuentes midan lo
-// mismo y los meses sean comparables entre sí.
-const DEPTOS_OCULTOS = new Set(['mayoristas', '- sin departamento -'])
 
 const limpio = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase()
 
@@ -71,7 +69,7 @@ function leerPestana(hoja) {
   for (const f of filas) {
     const codigo = String(f[cCodigo] ?? '').trim()
     if (!codigo) continue
-    if (cDepto && DEPTOS_OCULTOS.has(limpio(f[cDepto]))) { omitidas++; continue }
+    if (cDepto && deptoOculto(f[cDepto])) { omitidas++; continue }
 
     // Una devolución viene en negativo y debe restar.
     const n = Number(String(f[cCant]).replace(/[^\d.-]/g, '')) || 0

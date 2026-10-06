@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { SUCURSALES_CON_INVENTARIO as SUCURSALES } from '../lib/sucursales'
 import { inventarioJsonUrl, estadisticasUrl } from '../lib/s3'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
+import { seProduce } from '../lib/produccion'
 import { nivelStock, COLOR_NIVEL, UMBRAL_VERDE, UMBRAL_NARANJA } from './StockBadge'
 import { descargarInventario, descargarInventarioConsolidado } from '../lib/exportarInventario'
 
@@ -210,18 +211,22 @@ export default function InventariosPanel() {
 
   const valorDe = f => (esTodas ? f.total : f.existencia)
 
+  // Un sticker en cero no es un agotado: se imprime cuando hace falta. Si se
+  // cuenta como existencia, ensucia el semaforo y la lista de resurtido.
+  const sinProduccion = useMemo(() => filas.filter(f => !seProduce(f.codigo, f.producto)), [filas])
+
   const conteos = useMemo(() => {
     const c = {}
-    for (const f of FILTROS) c[f.id] = filas.filter(x => f.prueba(valorDe(x))).length
+    for (const f of FILTROS) c[f.id] = sinProduccion.filter(x => f.prueba(valorDe(x))).length
     return c
-  }, [filas, esTodas])
+  }, [sinProduccion, esTodas])
 
   // Los que cumplen el filtro de existencia, antes de mirar la venta. Sirve
   // para enseñar cuántos quedan fuera al exigir que se vendan.
   const porExistencia = useMemo(() => {
     const prueba = FILTROS.find(f => f.id === filtro)?.prueba ?? (() => true)
-    return filas.filter(f => prueba(valorDe(f)))
-  }, [filas, filtro, esTodas])
+    return sinProduccion.filter(f => prueba(valorDe(f)))
+  }, [sinProduccion, filtro, esTodas])
 
   const visibles = useMemo(() => {
     const q = busqueda.trim().toUpperCase()

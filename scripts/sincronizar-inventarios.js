@@ -22,6 +22,7 @@ import path from 'node:path'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { listarArchivos, descargar, dropboxConfigurado } from './lib/dropbox-api.js'
 import { salidasEntre, agregarDia, estadisticaVacia, acumularEnPeriodo, historialVacio } from './lib/estadisticas.js'
+import { deptoOculto } from './lib/departamentos.js'
 
 const ejecutar = promisify(execFile)
 
@@ -75,7 +76,6 @@ const SUCURSALES = [
   { slug: 'bodega',         nombre: 'Bodega',          carpeta: 'BODEGA', opcional: true },
 ]
 
-const DEPTOS_OCULTOS = new Set(['mayoristas', '- sin departamento -'])
 
 const SEP = '~|~'
 // El CODIGO se extrae además del nombre: es la clave estable para comparar un
@@ -343,7 +343,7 @@ async function procesar(suc, workDir) {
   if (filas.length === 0) throw new Error('La consulta no devolvió productos')
 
   const productos = filas
-    .filter(f => !DEPTOS_OCULTOS.has(f.depto.toLowerCase()))
+    .filter(f => !deptoOculto(f.depto))
     .map(f => ({ Codigo: f.codigo, Producto: f.producto, Existencia: f.existencia }))
 
   const json = {
