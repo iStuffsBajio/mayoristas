@@ -4,7 +4,7 @@ import { inventarioJsonUrl, historialUrl } from '../lib/s3'
 import {
   velocidadDiaria, velocidadCombinada, calcularSurtido, analizarBodega,
   candidatosADepurar, esTemporadaAlta, COBERTURA, MOTIVOS,
-  DIAS_PARA_CONFIAR, DIAS_PARA_DEPURAR,
+  DIAS_PARA_CONFIAR, DIAS_PARA_DEPURAR, DIAS_EN_CATALOGO, diasEnCatalogo,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
 import { separarProduccion } from '../lib/produccion'
@@ -24,6 +24,7 @@ const VISTAS = [
   { id: 'venta',   etiqueta: 'Pedir por venta' },
   { id: 'muestra', etiqueta: 'Sin venta y agotados' },
   { id: 'bodega',  etiqueta: 'Bodega' },
+  { id: 'nuevos',  etiqueta: 'Recién llegados' },
   { id: 'depurar', etiqueta: 'Depurar' },
 ]
 
@@ -197,7 +198,27 @@ export default function SurtidoPanel() {
     return m
   }, [bodegaInv])
   const bodega    = useMemo(() => bodegaInv ? analizarBodega(porSucursal, bodegaInv) : [], [porSucursal, bodegaInv])
-  const depurar   = useMemo(() => candidatosADepurar(porSucursal, diasHistorial), [porSucursal, diasHistorial])
+
+  // Cuándo entró cada modelo. Se toma de bodega, que es donde se da de alta
+  // todo antes de repartirlo; si una sucursal maneja algo que bodega no, se
+  // usa la fecha de la propia sucursal.
+  const altas = useMemo(() => {
+    if (!datos) return {}
+    const m = {}
+    for (const s of sucursales) {
+      for (const p of datos[s.slug]?.inv?.productos ?? []) {
+        const c = String(p.Codigo ?? '').trim()
+        if (c && p.Alta && !m[c]) m[c] = p.Alta
+      }
+    }
+    for (const p of bodegaInv?.productos ?? []) {
+      const c = String(p.Codigo ?? '').trim()
+      if (c && p.Alta) m[c] = p.Alta
+    }
+    return m
+  }, [datos, sucursales, bodegaInv])
+
+  const depurar = useMemo(() => candidatosADepurar(porSucursal, diasHistorial, altas), [porSucursal, diasHistorial, altas])
 
   const porVenta  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.VENTA && f.sugerido > 0).sort((a, b) => b.sugerido - a.sugerido || a.cobertura - b.cobertura), [filas])
   const muestras  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.SIN_VENTA_CERO).sort((a, b) => a.producto.localeCompare(b.producto)), [filas])
@@ -214,6 +235,7 @@ export default function SurtidoPanel() {
     muestras,
     bodega,
     depurar: depurar.filas,
+    nuevos: depurar.nuevos,
     bodegaStock,
   })
 
@@ -386,6 +408,41 @@ export default function SurtidoPanel() {
             </Tabla>
           </>)}
 
+      {/* ── Recién llegados ── */}
+      {vista === 'nuevos' && (
+        <>
+          <Aviso tono="info">
+            Modelos que entraron hace menos de un año y todavía no se han vendido. No son
+            inventario muerto: todavía no se han visto vender, que no es lo mismo. Por eso no
+            aparecen en Depurar. La fecha sale del primer movimiento registrado en bodega.
+          </Aviso>
+          {depurar.nuevos.length === 0
+            ? <p style={{ fontSize: 13, color: TINTA_TENUE }}>
+                {depurar.suficiente ? 'No hay modelos recién llegados sin venta.' : 'Hace falta más historial para separarlos.'}
+              </p>
+            : <Tabla encabezados={<>
+                <Th>Modelo</Th><Th>Código</Th>
+                <Th num style={{ textAlign: 'right' }}>Piezas</Th>
+                <Th>Entró</Th>
+                <Th num style={{ textAlign: 'right' }}>Lleva</Th>
+              </>}>
+                {depurar.nuevos.slice(0, TOPE).map((d, i) => {
+                  const dias = diasEnCatalogo(d.alta)
+                  return (
+                    <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
+                      <Modelo f={d} />
+                      <Celda num>{d.existencia}</Celda>
+                      <Celda color={TINTA_SUAVE}>{d.alta}</Celda>
+                      <Celda num color={dias !== null && dias < 90 ? VERDE : TINTA_SUAVE}>
+                        {dias === null ? '—' : `${dias} d`}
+                      </Celda>
+                    </tr>
+                  )
+                })}
+              </Tabla>}
+        </>
+      )}
+
       {/* ── Depurar ── */}
       {vista === 'depurar' && (!depurar.suficiente
         ? <Aviso>
@@ -396,15 +453,23 @@ export default function SurtidoPanel() {
           </Aviso>
         : <>
             <Aviso tono="info">
-              Códigos que llevan todo el historial sin venderse y siguen ocupando lugar. Es una propuesta
-              para que la revises, no una orden: un modelo puede estar ahí por garantía o por un cliente
-              puntual. Suman {depurar.filas.reduce((a, d) => a + d.existencia, 0)} piezas paradas.
+              Códigos con más de un año en el catálogo, sin una sola venta en todo el historial y
+              todavía ocupando lugar. Es una propuesta para que la revises, no una orden: un modelo
+              puede estar ahí por garantía o por un cliente puntual.
+              Suman {depurar.filas.reduce((a, d) => a + d.existencia, 0)} piezas paradas.
+              {depurar.nuevos.length > 0 && ` Otros ${depurar.nuevos.length} tampoco se han vendido, pero llegaron hace menos de un año y están en «Recién llegados».`}
+              {depurar.sinFecha > 0 && ` ${depurar.sinFecha} quedan fuera por no saber cuándo entraron.`}
             </Aviso>
-            <Tabla encabezados={<><Th>Modelo</Th><Th>Código</Th><Th num style={{ textAlign: 'right' }}>Piezas paradas</Th><Th>Dónde</Th></>}>
+            <Tabla encabezados={<>
+              <Th>Modelo</Th><Th>Código</Th>
+              <Th num style={{ textAlign: 'right' }}>Piezas paradas</Th>
+              <Th>Entró</Th><Th>Dónde</Th>
+            </>}>
               {depurar.filas.slice(0, TOPE).map((d, i) => (
                 <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={d} />
                   <Celda num fuerte color={AMBAR}>{d.existencia}</Celda>
+                  <Celda color={TINTA_SUAVE}>{d.alta ?? '—'}</Celda>
                   <Celda color={TINTA_SUAVE}>{d.plazas.map(p => p.slug).join(', ')}</Celda>
                 </tr>
               ))}

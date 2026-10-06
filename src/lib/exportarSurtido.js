@@ -5,6 +5,7 @@
 // que quien lo abra entienda qué está viendo sin que nadie se lo explique.
 
 import XLSX from 'xlsx-js-style'
+import { diasEnCatalogo } from './surtido.js'
 import {
   C, estiloTitulo, estiloSubtitulo, estiloCifra, estiloEtiqueta, estiloNota,
   estiloSeccion, estiloEncabezado, estiloCelda, hojaDeTabla, celda,
@@ -69,7 +70,8 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
     ['Pedir por venta',      conteos.modelos,  'Se mueven y no alcanzan para la cobertura'],
     ['Sin venta y agotados', conteos.muestras, 'Nunca se vendieron y están en cero: 1 de muestra'],
     ['Bodega',               conteos.bodega,   'Lo que piden las plazas contra lo que hay'],
-    ['Depurar',              conteos.depurar,  'Sin venta en todo el historial y ocupando lugar'],
+    ['Recién llegados',      conteos.nuevos,   'Menos de un año en el catálogo y aún sin venta'],
+    ['Depurar',              conteos.depurar,  'Más de un año sin una sola venta y ocupando lugar'],
   ]
   const enc = ['Hoja', 'Modelos', 'Qué contiene']
   enc.forEach((t, i) => celda(hoja, XLSX.utils.encode_cell({ r: 8, c: i }), t, estiloEncabezado, 's'))
@@ -79,15 +81,15 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
   })
   merges.push(...filas.map((_, r) => ({ s: { r: 9 + r, c: 2 }, e: { r: 9 + r, c: ANCHO - 1 } })))
 
-  celda(hoja, 'A15', 'Cómo se calcula', estiloSeccion, 's')
+  celda(hoja, 'A16', 'Cómo se calcula', estiloSeccion, 's')
   notas.forEach((n, i) => {
-    celda(hoja, XLSX.utils.encode_cell({ r: 16 + i, c: 0 }), n, estiloNota, 's')
+    celda(hoja, XLSX.utils.encode_cell({ r: 17 + i, c: 0 }), n, estiloNota, 's')
     // Las celdas vecinas del renglon combinado necesitan existir, si no la
     // combinacion se descarta al abrir.
     for (let c = 1; c < ANCHO; c++) {
-      celda(hoja, XLSX.utils.encode_cell({ r: 16 + i, c }), '', estiloNota, 's')
+      celda(hoja, XLSX.utils.encode_cell({ r: 17 + i, c }), '', estiloNota, 's')
     }
-    merges.push({ s: { r: 16 + i, c: 0 }, e: { r: 16 + i, c: ANCHO - 1 } })
+    merges.push({ s: { r: 17 + i, c: 0 }, e: { r: 17 + i, c: ANCHO - 1 } })
   })
 
   hoja['!merges'] = merges
@@ -98,7 +100,7 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
   hoja['!rows'] = [
     { hpt: 34 }, { hpt: 20 }, { hpt: 8 },
     { hpt: 40 }, { hpt: 20 }, { hpt: 10 },
-    { hpt: 20 }, { hpt: 18 }, ...Array(4).fill({ hpt: 17 }),
+    { hpt: 20 }, { hpt: 18 }, ...Array(5).fill({ hpt: 17 }),
     { hpt: 10 }, { hpt: 10 }, { hpt: 20 },
     // Excel no ajusta solo el alto de una celda combinada, asi que se calcula:
     // en el ancho de A a H caben unos 114 caracteres por linea.
@@ -177,12 +179,22 @@ const COLS_DEPURAR = [
   { titulo: 'Código',         valor: d => d.codigo,   ancho: 12 },
   { titulo: 'Modelo',         valor: d => d.producto, ancho: 40 },
   { titulo: 'Piezas paradas', valor: d => d.existencia, num: true, fuerte: true, color: C.ambar },
+  { titulo: 'Entró al catálogo', valor: d => d.alta ?? '', ancho: 16 },
   { titulo: 'Dónde están',    valor: d => (d.plazas ?? []).map(p => p.slug).join(', '), ancho: 28 },
+]
+
+const COLS_NUEVOS = [
+  { titulo: 'Código',         valor: d => d.codigo,   ancho: 12 },
+  { titulo: 'Modelo',         valor: d => d.producto, ancho: 40 },
+  { titulo: 'Piezas',         valor: d => d.existencia, num: true },
+  { titulo: 'Entró al catálogo', valor: d => d.alta ?? '', ancho: 16 },
+  { titulo: 'Días que lleva', valor: d => diasEnCatalogo(d.alta) ?? '', num: true,
+    color: d => { const n = diasEnCatalogo(d.alta); return n !== null && n < 90 ? C.verde : C.tintaSuave } },
 ]
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
 
-export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, bodegaStock = null }) {
+export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], bodegaStock = null }) {
   const libro = XLSX.utils.book_new()
 
   const conteos = {
@@ -191,6 +203,7 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
     muestras: muestras.length,
     bodega:   bodega.length,
     depurar:  depurar.length,
+    nuevos:   nuevos.length,
   }
 
   const notas = [
@@ -199,13 +212,15 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
     'Los meses importados de Eleventa traen la venta real. Los medidos por la sincronización son un piso: un resurtido el mismo día tapa la salida, y la diferencia medida ronda el 19%.',
     'Los stickers no aparecen: bodega los imprime cuando hacen falta, no se almacenan.',
     'La hoja Pedir por venta trae al final de donde sale cada pieza: si bodega la cubre, si la cubre a medias o si hay que comprarla fuera.',
-    'La hoja Depurar solo se llena con 90 días o más de historial. Con menos, "nunca se vendió" solo significa "todavía no lo he visto vender".',
+    'La hoja Depurar solo se llena con 90 días o más de historial, y solo con modelos que lleven más de un año en el catálogo: uno recién llegado que aún no vende está en Recién llegados, no estancado.',
+    'La fecha de entrada sale del primer movimiento registrado en bodega, que es donde se da de alta todo antes de repartirlo a las sucursales.',
   ]
 
   XLSX.utils.book_append_sheet(libro, hojaPortada({ sucursal, meta, conteos, notas }), 'Panel')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(colsVenta(bodegaStock), porVenta), 'Pedir por venta')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_MUESTRA, muestras), 'Sin venta y agotados')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_BODEGA, bodega), 'Bodega')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_NUEVOS, nuevos), 'Recién llegados')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_DEPURAR, depurar), 'Depurar')
 
   const fecha = new Date().toISOString().slice(0, 10)

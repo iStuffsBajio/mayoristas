@@ -26,6 +26,14 @@ export const DIAS_PARA_DEPURAR = 90
 // ritmo diario es una estimación floja y la pantalla lo advierte.
 export const DIAS_PARA_CONFIAR = 45
 
+// Un modelo tiene que llevar al menos un año en el catálogo para que no
+// venderse signifique algo. El Honor 600 entró en agosto y aparecía propuesto
+// para dar de baja en octubre: no estaba estancado, acababa de llegar.
+//
+// La fecha sale del primer movimiento registrado en bodega, que es donde se
+// da de alta todo antes de repartirlo a las sucursales.
+export const DIAS_EN_CATALOGO = 365
+
 export const esTemporadaAlta = (fecha = new Date()) => MESES_ALTA.includes(fecha.getMonth() + 1)
 
 /** Por qué se sugiere lo que se sugiere. La pantalla lo traduce a palabras. */
@@ -189,13 +197,17 @@ function contarSinCubrir(sucursales, disponible) {
  * Códigos que llevan todo el historial sin venderse y siguen ocupando lugar
  * en el catálogo. Candidatos a dar de baja, no una orden de borrarlos.
  */
-export function candidatosADepurar(porSucursal, diasHistorial = 0) {
+export function candidatosADepurar(porSucursal, diasHistorial = 0, altas = {}, hoy = new Date()) {
   // Sin historial suficiente no se propone nada. Devolver una lista larga y
   // equivocada es peor que no devolver ninguna: alguien podría darle de baja
   // a medio catálogo.
   if (diasHistorial < DIAS_PARA_DEPURAR) {
-    return { suficiente: false, dias: diasHistorial, faltan: DIAS_PARA_DEPURAR - diasHistorial, filas: [] }
+    return { suficiente: false, dias: diasHistorial, faltan: DIAS_PARA_DEPURAR - diasHistorial, filas: [], nuevos: [], sinFecha: 0 }
   }
+
+  const corte = new Date(hoy)
+  corte.setDate(corte.getDate() - DIAS_EN_CATALOGO)
+  const limite = corte.toISOString().slice(0, 10)
 
   const porCodigo = new Map()
 
@@ -210,9 +222,32 @@ export function candidatosADepurar(porSucursal, diasHistorial = 0) {
     }
   }
 
-  const filas = [...porCodigo.values()]
-    .filter(e => e.vendidas === 0 && e.existencia > 0)
-    .sort((a, b) => b.existencia - a.existencia || a.producto.localeCompare(b.producto))
+  const parados = [...porCodigo.values()].filter(e => e.vendidas === 0 && e.existencia > 0)
+  const porPiezas = (a, b) => b.existencia - a.existencia || a.producto.localeCompare(b.producto)
 
-  return { suficiente: true, dias: diasHistorial, faltan: 0, filas }
+  const conEdad = parados.map(e => ({ ...e, alta: altas[e.codigo] ?? null }))
+
+  // Sin fecha no se opina. Son pocos y es mejor dejarlos fuera que proponer
+  // dar de baja algo de lo que no se sabe cuándo llegó.
+  const sinFecha = conEdad.filter(e => !e.alta).length
+
+  return {
+    suficiente: true,
+    dias: diasHistorial,
+    faltan: 0,
+    sinFecha,
+    // Llevan más de un año y no se han movido: esos sí son candidatos.
+    filas: conEdad.filter(e => e.alta && e.alta <= limite).sort(porPiezas),
+    // Llegaron hace menos de un año. No se han vendido todavía, que no es lo
+    // mismo que no venderse.
+    nuevos: conEdad.filter(e => e.alta && e.alta > limite)
+      .sort((a, b) => b.alta.localeCompare(a.alta) || porPiezas(a, b)),
+  }
+}
+
+/** Días que lleva un modelo en el catálogo, o null si no se sabe. */
+export function diasEnCatalogo(alta, hoy = new Date()) {
+  if (!alta) return null
+  const [a, m, d] = alta.split('-').map(Number)
+  return Math.floor((hoy - new Date(a, m - 1, d)) / 86400000)
 }

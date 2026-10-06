@@ -78,12 +78,20 @@ const SUCURSALES = [
 
 
 const SEP = '~|~'
+// La fecha del primer movimiento es cuando el producto entro por primera vez.
+// Eleventa no guarda fecha de alta en PRODUCTOS, pero INVENTARIO_HISTORIAL
+// registra cada entrada y salida: el movimiento mas viejo es la llegada. Sin
+// esto, un modelo recien llegado que todavia no vende se confunde con uno
+// estancado, y la lista de depuracion proponia dar de baja el Honor 600 dos
+// meses despues de recibirlo.
+//
 // El CODIGO se extrae además del nombre: es la clave estable para comparar un
 // producto entre dos fechas. Los nombres se editan en el punto de venta y al
 // hacerlo el producto parecería nuevo, falseando las estadísticas.
 const SQL = `
 SET HEADING OFF;
 SELECT p.CODIGO || '${SEP}' || p.DESCRIPCION || '${SEP}' || COALESCE(b.CANTIDAD_ACTUAL, 0) || '${SEP}' || COALESCE(d.NOMBRE, '')
+       || '${SEP}' || COALESCE((SELECT MIN(h.CUANDO_FUE) FROM INVENTARIO_HISTORIAL h WHERE h.PRODUCTO_ID = p.ID), '')
 FROM PRODUCTOS p
 LEFT JOIN INVENTARIO_BALANCES b ON b.PRODUCTO_ID = p.ID
 LEFT JOIN DEPARTAMENTOS d ON d.ID = p.DEPT
@@ -198,9 +206,11 @@ async function consultar(fdb, workDir) {
   const filas = []
   for (const linea of texto.split(/\r?\n/)) {
     if (!linea.includes(SEP)) continue
-    const [codigo, producto, existencia, depto] = linea.split(SEP).map(s => s.trim())
+    const [codigo, producto, existencia, depto, alta] = linea.split(SEP).map(s => s.trim())
     if (!producto) continue
-    filas.push({ codigo, producto, existencia: parseFloat(existencia) || 0, depto })
+    // La fecha llega como "2024-04-18 15:03:02.0000"; basta el día.
+    const dia = /^\d{4}-\d{2}-\d{2}/.exec(alta ?? '')?.[0] ?? null
+    filas.push({ codigo, producto, existencia: parseFloat(existencia) || 0, depto, alta: dia })
   }
   return filas
 }
@@ -344,7 +354,7 @@ async function procesar(suc, workDir) {
 
   const productos = filas
     .filter(f => !deptoOculto(f.depto))
-    .map(f => ({ Codigo: f.codigo, Producto: f.producto, Existencia: f.existencia }))
+    .map(f => ({ Codigo: f.codigo, Producto: f.producto, Existencia: f.existencia, Alta: f.alta }))
 
   const json = {
     sucursal:  suc.slug,
