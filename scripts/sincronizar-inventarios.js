@@ -72,7 +72,7 @@ const SUCURSALES = [
   { slug: 'san-luis',       nombre: 'San Luis Potosí', carpeta: 'SLP'  },
   // La bodega se sincroniza igual que una sucursal. Si la carpeta todavia no
   // existe, esta corrida la salta con un aviso y las demas siguen.
-  { slug: 'bodega',         nombre: 'Bodega',          carpeta: 'bodega', opcional: true },
+  { slug: 'bodega',         nombre: 'Bodega',          carpeta: 'BODEGA', opcional: true },
 ]
 
 const DEPTOS_OCULTOS = new Set(['mayoristas', '- sin departamento -'])
