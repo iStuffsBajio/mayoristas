@@ -80,8 +80,8 @@ function Tabla({ children, encabezados }) {
   )
 }
 
-const Celda = ({ children, num, fuerte, color }) => (
-  <td style={{ padding: '7px 10px', textAlign: num ? 'right' : 'left', color: color || TINTA, fontWeight: fuerte ? 800 : 400, fontVariantNumeric: num ? 'tabular-nums' : 'normal' }}>
+const Celda = ({ children, num, fuerte, color, title }) => (
+  <td title={title} style={{ padding: '7px 10px', textAlign: num ? 'right' : 'left', color: color || TINTA, fontWeight: fuerte ? 800 : 400, fontVariantNumeric: num ? 'tabular-nums' : 'normal' }}>
     {children}
   </td>
 )
@@ -185,6 +185,17 @@ export default function SurtidoPanel() {
   }, [datos, sel, cobertura])
 
   const bodegaInv = datos?.[BODEGA.slug]?.inv ?? null
+
+  // Existencia de bodega por codigo, para cruzarla en la tabla de pedido.
+  const bodegaStock = useMemo(() => {
+    if (!bodegaInv) return null
+    const m = {}
+    for (const p of bodegaInv.productos ?? []) {
+      const c = String(p.Codigo ?? '').trim()
+      if (c) m[c] = Number(p.Existencia) || 0
+    }
+    return m
+  }, [bodegaInv])
   const bodega    = useMemo(() => bodegaInv ? analizarBodega(porSucursal, bodegaInv) : [], [porSucursal, bodegaInv])
   const depurar   = useMemo(() => candidatosADepurar(porSucursal, diasHistorial), [porSucursal, diasHistorial])
 
@@ -203,6 +214,7 @@ export default function SurtidoPanel() {
     muestras,
     bodega,
     depurar: depurar.filas,
+    bodegaStock,
   })
 
   if (cargando) {
@@ -283,6 +295,7 @@ export default function SurtidoPanel() {
               <Th num style={{ textAlign: 'right' }} title="Piezas que salen al día, sobre todo el historial">Ritmo</Th>
               <Th num style={{ textAlign: 'right' }} title="Días que aguanta con lo que tiene">Aguanta</Th>
               <Th num style={{ textAlign: 'right' }}>Pedir</Th>
+              {bodegaStock && <Th num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
             </>}>
               {porVenta.slice(0, TOPE).map((f, i) => (
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
@@ -293,6 +306,16 @@ export default function SurtidoPanel() {
                     {f.cobertura === null ? '—' : `${Math.floor(f.cobertura)} d`}
                   </Celda>
                   <Celda num fuerte color={VERDE}>{f.sugerido}</Celda>
+                  {bodegaStock && (() => {
+                    const hay = bodegaStock[f.codigo]
+                    const color = hay === undefined || hay === 0 ? ROSA : hay >= f.sugerido ? VERDE : AMBAR
+                    return (
+                      <Celda num color={color}
+                             title={hay === undefined ? 'Bodega no lo maneja' : hay >= f.sugerido ? 'Bodega lo cubre' : `Bodega cubre ${hay}`}>
+                        {hay === undefined ? '—' : hay}
+                      </Celda>
+                    )
+                  })()}
                 </tr>
               ))}
             </Tabla>

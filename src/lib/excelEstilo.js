@@ -134,10 +134,17 @@ export function hojaDeTabla(columnas, filas) {
 /** Pone un valor con estilo en una celda concreta de una hoja existente. */
 export function celda(hoja, ref, valor, estilo, tipo) {
   hoja[ref] = { v: valor, t: tipo ?? (typeof valor === 'number' ? 'n' : 's'), s: estilo }
-  const r = XLSX.utils.decode_cell(ref)
-  const rango = hoja['!ref'] ? XLSX.utils.decode_range(hoja['!ref']) : { s: { r, c: r.c }, e: { r: r.r, c: r.c } }
-  rango.s.r = Math.min(rango.s.r, r.r); rango.s.c = Math.min(rango.s.c, r.c)
-  rango.e.r = Math.max(rango.e.r, r.r); rango.e.c = Math.max(rango.e.c, r.c)
+  const { r: fila, c: col } = XLSX.utils.decode_cell(ref)
+
+  // Ojo con la abreviatura de objeto aqui: escribir { r, c } con r siendo la
+  // celda decodificada metia el objeto entero como numero de fila, el rango
+  // salia con NaN y Excel abria el archivo diciendo que estaba dañado.
+  const rango = hoja['!ref']
+    ? XLSX.utils.decode_range(hoja['!ref'])
+    : { s: { r: fila, c: col }, e: { r: fila, c: col } }
+
+  rango.s.r = Math.min(rango.s.r, fila); rango.s.c = Math.min(rango.s.c, col)
+  rango.e.r = Math.max(rango.e.r, fila); rango.e.c = Math.max(rango.e.c, col)
   hoja['!ref'] = XLSX.utils.encode_range(rango)
 }
 

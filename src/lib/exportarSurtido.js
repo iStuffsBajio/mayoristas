@@ -82,6 +82,11 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
   celda(hoja, 'A15', 'Cómo se calcula', estiloSeccion, 's')
   notas.forEach((n, i) => {
     celda(hoja, XLSX.utils.encode_cell({ r: 16 + i, c: 0 }), n, estiloNota, 's')
+    // Las celdas vecinas del renglon combinado necesitan existir, si no la
+    // combinacion se descarta al abrir.
+    for (let c = 1; c < ANCHO; c++) {
+      celda(hoja, XLSX.utils.encode_cell({ r: 16 + i, c }), '', estiloNota, 's')
+    }
     merges.push({ s: { r: 16 + i, c: 0 }, e: { r: 16 + i, c: ANCHO - 1 } })
   })
 
@@ -95,14 +100,21 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
     { hpt: 40 }, { hpt: 20 }, { hpt: 10 },
     { hpt: 20 }, { hpt: 18 }, ...Array(4).fill({ hpt: 17 }),
     { hpt: 10 }, { hpt: 10 }, { hpt: 20 },
-    ...notas.map(() => ({ hpt: 15 })),
+    // Excel no ajusta solo el alto de una celda combinada, asi que se calcula:
+    // en el ancho de A a H caben unos 114 caracteres por linea.
+    ...notas.map(n => ({ hpt: Math.max(16, Math.ceil(n.length / 114) * 13 + 4) })),
   ]
   return hoja
 }
 
 // ── Hojas de detalle ─────────────────────────────────────────────────────────
 
-const COLS_VENTA = [
+/**
+ * Columnas de la hoja de pedido. Si hay inventario de bodega se añaden dos al
+ * final: de poco sirve saber que hacen falta 8 piezas si no se ve en el mismo
+ * renglón si bodega las tiene o hay que comprarlas fuera.
+ */
+const colsVenta = (bodegaStock) => [
   { titulo: 'Código',           valor: f => f.codigo,     ancho: 12 },
   { titulo: 'Modelo',           valor: f => f.producto,   ancho: 40 },
   { titulo: 'Existencia',       valor: f => f.existencia, num: true },
@@ -111,7 +123,27 @@ const COLS_VENTA = [
     // En rojo lo que no llega a la semana: eso es lo que de verdad corre prisa.
     color: f => (f.cobertura !== null && f.cobertura < 7 ? C.rosa : C.tintaSuave) },
   { titulo: 'PEDIR',            valor: f => f.sugerido,   num: true, fuerte: true, color: C.verde },
+  ...(bodegaStock ? [
+    { titulo: 'En bodega', valor: f => (bodegaStock[f.codigo] ?? ''), num: true,
+      color: f => (bodegaStock[f.codigo] ? C.tinta : C.rosa) },
+    { titulo: '¿De dónde sale?', ancho: 20,
+      valor: f => etiquetaOrigen(f, bodegaStock),
+      color: f => {
+        const hay = bodegaStock[f.codigo]
+        if (hay === undefined || hay === 0) return C.rosa
+        return hay >= f.sugerido ? C.verde : C.ambar
+      } },
+  ] : []),
 ]
+
+/** De dónde puede salir lo que se pide: de bodega, en parte, o de compra. */
+function etiquetaOrigen(f, bodegaStock) {
+  const hay = bodegaStock[f.codigo]
+  if (hay === undefined) return 'Comprar: bodega no lo maneja'
+  if (hay === 0)         return 'Comprar: bodega en cero'
+  if (hay >= f.sugerido) return 'Bodega lo cubre'
+  return `Bodega cubre ${hay}, faltan ${f.sugerido - hay}`
+}
 
 const COLS_MUESTRA = [
   { titulo: 'Código', valor: f => f.codigo,   ancho: 12 },
@@ -150,7 +182,7 @@ const COLS_DEPURAR = [
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
 
-export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar }) {
+export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, bodegaStock = null }) {
   const libro = XLSX.utils.book_new()
 
   const conteos = {
@@ -166,11 +198,12 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
     'Pedir = ritmo diario × días de cobertura − lo que ya hay. En temporada alta la cobertura se duplica.',
     'Los meses importados de Eleventa traen la venta real. Los medidos por la sincronización son un piso: un resurtido el mismo día tapa la salida, y la diferencia medida ronda el 19%.',
     'Los stickers no aparecen: bodega los imprime cuando hacen falta, no se almacenan.',
+    'La hoja Pedir por venta trae al final de donde sale cada pieza: si bodega la cubre, si la cubre a medias o si hay que comprarla fuera.',
     'La hoja Depurar solo se llena con 90 días o más de historial. Con menos, "nunca se vendió" solo significa "todavía no lo he visto vender".',
   ]
 
   XLSX.utils.book_append_sheet(libro, hojaPortada({ sucursal, meta, conteos, notas }), 'Panel')
-  XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_VENTA, porVenta), 'Pedir por venta')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(colsVenta(bodegaStock), porVenta), 'Pedir por venta')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_MUESTRA, muestras), 'Sin venta y agotados')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_BODEGA, bodega), 'Bodega')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_DEPURAR, depurar), 'Depurar')
