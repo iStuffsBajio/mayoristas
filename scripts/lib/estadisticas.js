@@ -346,3 +346,36 @@ export function consolidarEstadisticas(estads, nombre = 'Todas las sucursales') 
 
   return { sucursal: 'todas', nombre, actualizado: sellos[sellos.length - 1] ?? null, catalogo, dias }
 }
+
+/**
+ * Piezas que salieron de cada modelo en los últimos N días, indexadas por
+ * código. Es lo que `resumir` calcula por dentro, pero devuelto en crudo para
+ * poder cruzarlo contra el inventario.
+ *
+ * Sirve para separar lo que está bajo PORQUE SE VENDE de lo que está bajo
+ * porque lleva meses sin moverse. Sin este cruce, "urgente" solo significa
+ * "quedan pocas", y la mayoría de esas pocas son modelos muertos.
+ */
+export function salidasPorCodigo(estad, dias = 30, hoy = new Date()) {
+  const desde = new Date(hoy)
+  desde.setDate(desde.getDate() - (dias - 1))
+  const limite = desde.toISOString().slice(0, 10)
+
+  const porCodigo = {}
+  for (const d of estad?.dias ?? []) {
+    if (d.f < limite) continue
+    for (const [k, n] of Object.entries(d.m ?? {})) {
+      porCodigo[k] = (porCodigo[k] || 0) + n
+    }
+  }
+  return porCodigo
+}
+
+/** Suma los mapas de varias sucursales en uno solo. */
+export function sumarSalidas(mapas) {
+  const total = {}
+  for (const m of mapas) {
+    for (const [k, n] of Object.entries(m ?? {})) total[k] = (total[k] || 0) + n
+  }
+  return total
+}

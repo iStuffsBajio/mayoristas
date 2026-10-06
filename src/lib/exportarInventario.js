@@ -22,17 +22,29 @@ function limpio(texto) {
     .replace(/\s+/g, '-').toLowerCase()
 }
 
-/** Una sucursal: código, modelo y existencia. */
+// Las dos columnas de venta solo se agregan si hay estadisticas publicadas.
+// Una sucursal recien conectada no las tiene, y sacar columnas vacias en el
+// Excel confunde mas que ayudar.
+const COLS_VENTA = ['Vendidos 7 d', 'Vendidos 30 d']
+const hayVenta = filas => filas.some(f => f.v30 !== undefined)
+
+/** Una sucursal: código, modelo, existencia y, si las hay, las ventas. */
 export function descargarInventario(filas, nombreSucursal, etiquetaFiltro) {
   const libro = XLSX.utils.book_new()
-  const datos = filas.map(f => [f.codigo, f.producto, f.existencia])
-  XLSX.utils.book_append_sheet(libro, hojaDe(datos, ['Código', 'Modelo', 'Existencia']), 'Inventario')
+  const conVenta = hayVenta(filas)
+  const datos = filas.map(f => [
+    f.codigo, f.producto, f.existencia,
+    ...(conVenta ? [f.v7 ?? 0, f.v30 ?? 0] : []),
+  ])
+  const encabezados = ['Código', 'Modelo', 'Existencia', ...(conVenta ? COLS_VENTA : [])]
+  XLSX.utils.book_append_sheet(libro, hojaDe(datos, encabezados), 'Inventario')
   XLSX.writeFile(libro, `inventario-${limpio(nombreSucursal)}-${limpio(etiquetaFiltro)}.xlsx`)
 }
 
 /** Vista consolidada: una columna por sucursal más el total. */
 export function descargarInventarioConsolidado(filas, sucursales, etiquetaFiltro) {
   const libro = XLSX.utils.book_new()
+  const conVenta = hayVenta(filas)
   const datos = filas.map(f => [
     f.codigo,
     f.producto,
@@ -42,10 +54,14 @@ export function descargarInventarioConsolidado(filas, sucursales, etiquetaFiltro
     // como una cadena vacía que estorbaría al ordenar.
     ...sucursales.map(s => (f.porSucursal[s.slug] === undefined ? null : f.porSucursal[s.slug])),
     f.total,
+    ...(conVenta ? [f.v7 ?? 0, f.v30 ?? 0] : []),
   ])
   XLSX.utils.book_append_sheet(
     libro,
-    hojaDe(datos, ['Código', 'Modelo', ...sucursales.map(s => s.nombre), 'Total']),
+    hojaDe(datos, [
+      'Código', 'Modelo', ...sucursales.map(s => s.nombre), 'Total',
+      ...(conVenta ? COLS_VENTA : []),
+    ]),
     'Consolidado',
   )
   XLSX.writeFile(libro, `inventario-consolidado-${limpio(etiquetaFiltro)}.xlsx`)

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { SUCURSALES } from '../lib/sucursales'
-import { inventarioJsonUrl } from '../lib/s3'
+import { inventarioJsonUrl, estadisticasUrl } from '../lib/s3'
+import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
 import { nivelStock, COLOR_NIVEL, UMBRAL_VERDE, UMBRAL_NARANJA } from './StockBadge'
 import { descargarInventario, descargarInventarioConsolidado } from '../lib/exportarInventario'
 
@@ -23,10 +24,16 @@ const FILTROS = [
 ]
 
 const ORDENES = [
-  { id: 'menor',  etiqueta: 'Menos existencia primero' },
-  { id: 'mayor',  etiqueta: 'Más existencia primero' },
-  { id: 'nombre', etiqueta: 'Por nombre' },
+  { id: 'vendidos', etiqueta: 'Más vendidos primero' },
+  { id: 'menor',    etiqueta: 'Menos existencia primero' },
+  { id: 'mayor',    etiqueta: 'Más existencia primero' },
+  { id: 'nombre',   etiqueta: 'Por nombre' },
 ]
+
+// Entre modelos que tienen todos 1, 2 o 3 piezas, ordenar por existencia no
+// dice nada. Lo que separa lo urgente de verdad de lo urgente de adorno es
+// cuánto se vendió, así que ese es el orden con el que abre.
+const ORDEN_INICIAL = 'vendidos'
 
 const TOPE_EN_PANTALLA = 150
 
@@ -65,6 +72,13 @@ function Existencia({ n, size = 13 }) {
   )
 }
 
+/** Piezas vendidas en un plazo. El cero se apaga para que no compita con los
+ *  números que sí importan. */
+function Venta({ n }) {
+  if (!n) return <span style={{ color: '#C8D4D9', fontSize: 12.5 }}>0</span>
+  return <span style={{ color: TINTA, fontWeight: 700, fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
+}
+
 function Contador({ n, etiqueta, color, activo, onClick }) {
   return (
     <button type="button" onClick={onClick}
@@ -101,23 +115,32 @@ export default function InventariosPanel() {
 
   const [sel, setSel]         = useState(TODAS.slug)
   const [filtro, setFiltro]   = useState('urgente')
-  const [orden, setOrden]     = useState('menor')
+  const [orden, setOrden]     = useState(ORDEN_INICIAL)
+  const [soloConVenta, setSoloConVenta] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [inventarios, setInventarios] = useState(null)
+  const [estadisticas, setEstadisticas] = useState(null)
   const [cargando, setCargando]       = useState(true)
 
   useEffect(() => {
     let cancelado = false
     setCargando(true)
     ;(async () => {
-      const pares = await Promise.all(activas.map(async s => {
+      const bajar = async url => {
         try {
-          const res = await fetch(`${inventarioJsonUrl(s.slug)}?t=${Date.now()}`, { cache: 'no-store' })
-          return [s.slug, res.ok ? await res.json() : null]
-        } catch { return [s.slug, null] }
-      }))
+          const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' })
+          return res.ok ? await res.json() : null
+        } catch { return null }
+      }
+      // Las estadísticas van en la misma tanda: son el archivo que ya alimenta
+      // el panel de movimiento y pesan unos pocos KB.
+      const pares = await Promise.all(activas.map(async s => [s.slug, {
+        inv:  await bajar(inventarioJsonUrl(s.slug)),
+        est:  await bajar(estadisticasUrl(s.slug)),
+      }]))
       if (cancelado) return
-      setInventarios(Object.fromEntries(pares))
+      setInventarios(Object.fromEntries(pares.map(([k, v]) => [k, v.inv])))
+      setEstadisticas(Object.fromEntries(pares.map(([k, v]) => [k, v.est])))
       setCargando(false)
     })()
     return () => { cancelado = true }
@@ -126,17 +149,37 @@ export default function InventariosPanel() {
   const esTodas = sel === TODAS.slug
   const sucursal = opciones.find(o => o.slug === sel) ?? TODAS
 
+  // Piezas que salieron en los dos plazos, por código. En la vista consolidada
+  // se suman las tres plazas, igual que las existencias.
+  const ventas = useMemo(() => {
+    if (!estadisticas) return { v7: {}, v30: {} }
+    const fuentes = esTodas
+      ? activas.map(s => estadisticas[s.slug])
+      : [estadisticas[sel]]
+    return {
+      v7:  sumarSalidas(fuentes.map(e => salidasPorCodigo(e, 7))),
+      v30: sumarSalidas(fuentes.map(e => salidasPorCodigo(e, 30))),
+    }
+  }, [estadisticas, sel, esTodas, activas])
+
+  const hayVentas = useMemo(() => Object.keys(ventas.v30).length > 0, [ventas])
+
   // Una sola lista, con la misma forma en las dos vistas: la de sucursal trae
   // `existencia` y la consolidada trae `porSucursal` y `total`.
   const filas = useMemo(() => {
     if (!inventarios) return []
 
     if (!esTodas) {
-      return (inventarios[sel]?.productos ?? []).map(p => ({
-        codigo:     String(p.Codigo ?? '').trim(),
-        producto:   String(p.Producto ?? '').trim(),
-        existencia: Number(p.Existencia) || 0,
-      }))
+      return (inventarios[sel]?.productos ?? []).map(p => {
+        const codigo = String(p.Codigo ?? '').trim()
+        return {
+          codigo,
+          producto:   String(p.Producto ?? '').trim(),
+          existencia: Number(p.Existencia) || 0,
+          v7:         ventas.v7[codigo] ?? 0,
+          v30:        ventas.v30[codigo] ?? 0,
+        }
+      })
     }
 
     // Consolidado: se cruza por código, que es la clave estable entre plazas.
@@ -146,7 +189,14 @@ export default function InventariosPanel() {
         const codigo = String(p.Codigo ?? '').trim()
         const clave  = codigo || `nombre:${String(p.Producto ?? '').trim().toUpperCase()}`
         if (!clave || clave === 'nombre:') continue
-        const fila = porClave.get(clave) ?? { codigo, producto: String(p.Producto ?? '').trim(), porSucursal: {}, total: 0 }
+        const fila = porClave.get(clave) ?? {
+          codigo,
+          producto: String(p.Producto ?? '').trim(),
+          porSucursal: {},
+          total: 0,
+          v7:  ventas.v7[codigo] ?? 0,
+          v30: ventas.v30[codigo] ?? 0,
+        }
         const n = Number(p.Existencia) || 0
         fila.porSucursal[s.slug] = n
         fila.total += n
@@ -155,7 +205,7 @@ export default function InventariosPanel() {
       }
     }
     return [...porClave.values()]
-  }, [inventarios, sel, esTodas, activas])
+  }, [inventarios, sel, esTodas, activas, ventas])
 
   const valorDe = f => (esTodas ? f.total : f.existencia)
 
@@ -165,20 +215,29 @@ export default function InventariosPanel() {
     return c
   }, [filas, esTodas])
 
+  // Los que cumplen el filtro de existencia, antes de mirar la venta. Sirve
+  // para enseñar cuántos quedan fuera al exigir que se vendan.
+  const porExistencia = useMemo(() => {
+    const prueba = FILTROS.find(f => f.id === filtro)?.prueba ?? (() => true)
+    return filas.filter(f => prueba(valorDe(f)))
+  }, [filas, filtro, esTodas])
+
   const visibles = useMemo(() => {
     const q = busqueda.trim().toUpperCase()
-    const prueba = FILTROS.find(f => f.id === filtro)?.prueba ?? (() => true)
 
-    const lista = filas.filter(f =>
-      prueba(valorDe(f)) &&
+    const lista = porExistencia.filter(f =>
+      (!soloConVenta || !hayVentas || f.v30 > 0) &&
       (!q || f.producto.toUpperCase().includes(q) || f.codigo.toUpperCase().includes(q))
     )
 
     const porNombre = (a, b) => a.producto.localeCompare(b.producto)
-    if (orden === 'nombre') return lista.sort(porNombre)
+    if (orden === 'nombre')   return lista.sort(porNombre)
+    // A igualdad de venta, primero el que tiene menos piezas: es el que se
+    // queda sin nada antes.
+    if (orden === 'vendidos') return lista.sort((a, b) => b.v30 - a.v30 || valorDe(a) - valorDe(b) || porNombre(a, b))
     const dir = orden === 'menor' ? 1 : -1
     return lista.sort((a, b) => (valorDe(a) - valorDe(b)) * dir || porNombre(a, b))
-  }, [filas, filtro, orden, busqueda, esTodas])
+  }, [porExistencia, orden, busqueda, soloConVenta, hayVentas, esTodas])
 
   const etiquetaFiltro = FILTROS.find(f => f.id === filtro)?.etiqueta ?? 'todos'
 
@@ -265,14 +324,28 @@ export default function InventariosPanel() {
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
             {ORDENES.map(o => (
               <Pildora key={o.id} activa={orden === o.id} onClick={() => setOrden(o.id)}>{o.etiqueta}</Pildora>
             ))}
+            {hayVentas && (
+              <>
+                <span style={{ width: 1, height: 20, background: LINEA }} />
+                <Pildora activa={soloConVenta} onClick={() => setSoloConVenta(!soloConVenta)}
+                         titulo="Esconde los modelos que no se movieron en 30 días">
+                  {soloConVenta ? '✓ ' : ''}Solo los que se venden
+                </Pildora>
+              </>
+            )}
           </div>
 
           <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '0 0 10px' }}>
             <strong style={{ color: TINTA }}>{visibles.length}</strong> modelos en «{etiquetaFiltro}»
+            {soloConVenta && hayVentas && !busqueda && porExistencia.length > visibles.length && (
+              <> con venta en 30 días <span style={{ color: TINTA_TENUE }}>
+                — los otros {porExistencia.length - visibles.length} están bajos pero nadie los pide
+              </span></>
+            )}
             {busqueda && ` que coinciden con "${busqueda}"`}
             {visibles.length > TOPE_EN_PANTALLA && ` — se listan los primeros ${TOPE_EN_PANTALLA}`}
           </p>
@@ -291,9 +364,19 @@ export default function InventariosPanel() {
                               {s.nombre.split(' ')[0]}
                             </th>
                           ))}
-                          <th style={{ textAlign: 'right', padding: '9px 12px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA }}>Total</th>
+                          <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA }}>Total</th>
                         </>
-                      : <th style={{ textAlign: 'right', padding: '9px 12px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA }}>Existencia</th>}
+                      : <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA }}>Existencia</th>}
+                    {hayVentas && <>
+                      <th title="Piezas que salieron en los últimos 7 días"
+                          style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA, borderLeft: '1px solid ' + LINEA, whiteSpace: 'nowrap' }}>
+                        7 días
+                      </th>
+                      <th title="Piezas que salieron en los últimos 30 días"
+                          style={{ textAlign: 'right', padding: '9px 12px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA, whiteSpace: 'nowrap' }}>
+                        30 días
+                      </th>
+                    </>}
                   </tr>
                 </thead>
                 <tbody>
@@ -312,13 +395,21 @@ export default function InventariosPanel() {
                                 <Existencia n={f.porSucursal[s.slug]} />
                               </td>
                             ))}
-                            <td style={{ padding: '7px 12px', textAlign: 'right', fontWeight: 800, color: TINTA, fontVariantNumeric: 'tabular-nums' }}>
+                            <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 800, color: TINTA, fontVariantNumeric: 'tabular-nums' }}>
                               {f.total}
                             </td>
                           </>
-                        : <td style={{ padding: '7px 12px', textAlign: 'right' }}>
+                        : <td style={{ padding: '7px 8px', textAlign: 'right' }}>
                             <Existencia n={f.existencia} size={13.5} />
                           </td>}
+                      {hayVentas && <>
+                        <td style={{ padding: '7px 8px', textAlign: 'right', borderLeft: '1px solid ' + LINEA }}>
+                          <Venta n={f.v7} />
+                        </td>
+                        <td style={{ padding: '7px 12px', textAlign: 'right' }}>
+                          <Venta n={f.v30} />
+                        </td>
+                      </>}
                     </tr>
                   ))}
                 </tbody>
@@ -335,12 +426,22 @@ export default function InventariosPanel() {
             </span>
           </div>
 
-          {esTodas && (
-            <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '14px 0 0', lineHeight: 1.55, paddingTop: 12, borderTop: '1px solid ' + LINEA }}>
-              El guion (—) es un modelo que esa sucursal no maneja; el cero es que lo maneja y se
-              acabó. No es lo mismo al resurtir, y por eso el total suma solo donde el modelo existe.
-            </p>
-          )}
+          <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid ' + LINEA }}>
+            {esTodas && (
+              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '0 0 6px', lineHeight: 1.55 }}>
+                El guion (—) es un modelo que esa sucursal no maneja; el cero es que lo maneja y se
+                acabó. No es lo mismo al resurtir, y por eso el total suma solo donde el modelo existe.
+              </p>
+            )}
+            {hayVentas && (
+              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: 0, lineHeight: 1.55 }}>
+                Las dos columnas de venta son un piso, no una cifra exacta: salen de comparar el
+                inventario de cada día contra el anterior, así que si un modelo baja y se resurte el
+                mismo día, esa salida no se alcanza a ver. Para decidir qué pedir sirven igual, porque
+                lo que importa es cuáles se mueven y cuáles no.
+              </p>
+            )}
+          </div>
         </>
       )}
     </div>
