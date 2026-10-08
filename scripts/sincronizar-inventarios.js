@@ -74,6 +74,7 @@ const SUCURSALES = [
   // La bodega se sincroniza igual que una sucursal. Si la carpeta todavia no
   // existe, esta corrida la salta con un aviso y las demas siguen.
   { slug: 'bodega',         nombre: 'Bodega',          carpeta: 'BODEGA', opcional: true },
+  { slug: 'ferias',         nombre: 'Ferias',          carpeta: 'ferias', opcional: true },
 ]
 
 

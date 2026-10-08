@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo } from 'react'
-import { SUCURSALES_ACTIVAS, BODEGA } from '../lib/sucursales'
+import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA } from '../lib/sucursales'
 import { inventarioJsonUrl, historialUrl } from '../lib/s3'
 import {
   velocidadDiaria, velocidadCombinada, calcularSurtido, analizarBodega,
   candidatosADepurar, esTemporadaAlta, COBERTURA, MOTIVOS,
   DIAS_PARA_CONFIAR, DIAS_PARA_DEPURAR, DIAS_EN_CATALOGO, diasEnCatalogo,
+  mesesActivos, proximaFeria, calcularSurtidoFeria,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
 import { separarProduccion } from '../lib/produccion'
@@ -19,6 +20,13 @@ const AMBAR       = '#B45309'
 
 const TODAS = { slug: 'todas', nombre: 'Todas las sucursales' }
 const TOPE = 150
+
+const MES = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+             'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+
+// Ferias no entra en el consolidado ni en el analisis de bodega: su surtido se
+// calcula de otra forma y mezclarla falsearia a las tiendas fijas.
+const FERIAS = SUCURSALES.find(s => s.estacional)
 
 const VISTAS = [
   { id: 'venta',   etiqueta: 'Pedir por venta' },
@@ -98,7 +106,7 @@ const Modelo = ({ f }) => (
 
 export default function SurtidoPanel() {
   const sucursales = SUCURSALES_ACTIVAS
-  const opciones = useMemo(() => [TODAS, ...sucursales], [sucursales])
+  const opciones = useMemo(() => [TODAS, ...sucursales, ...(FERIAS ? [FERIAS] : [])], [sucursales])
 
   const [sel, setSel]       = useState(TODAS.slug)
   const [vista, setVista]   = useState('venta')
@@ -114,7 +122,7 @@ export default function SurtidoPanel() {
         try { const r = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' }); return r.ok ? await r.json() : null }
         catch { return null }
       }
-      const slugs = [...sucursales.map(s => s.slug), BODEGA.slug]
+      const slugs = [...sucursales.map(s => s.slug), BODEGA.slug, ...(FERIAS ? [FERIAS.slug] : [])]
       const pares = await Promise.all(slugs.map(async slug => [slug, {
         inv:  await bajar(inventarioJsonUrl(slug)),
         hist: await bajar(historialUrl(slug)),
@@ -152,10 +160,28 @@ export default function SurtidoPanel() {
     return velocidadCombinada(sucursales.map(s => datos[s.slug]?.hist)).dias
   }, [datos, sucursales])
 
+  const esFeria = !!FERIAS && sel === FERIAS.slug
+
+  // Ferias se calcula contra lo que vendio en esa misma feria los años
+  // anteriores, no contra un ritmo diario: ocho meses del año esta cerrada.
+  const feria = useMemo(() => {
+    if (!esFeria || !datos?.[FERIAS.slug]?.hist) return null
+    const hist = datos[FERIAS.slug].hist
+    const objetivo = proximaFeria(hist)
+    if (!objetivo) return null
+    const inv = datos[FERIAS.slug].inv
+    return {
+      objetivo,
+      meses: mesesActivos(hist),
+      ...calcularSurtidoFeria({ productos: inv?.productos ?? [], historial: hist, objetivo }),
+    }
+  }, [esFeria, datos])
+
   // La vista de una sucursal usa su propia tabla; la de "Todas" se arma
   // sumando existencias y ritmos de las tres.
   const filas = useMemo(() => {
     if (!datos) return []
+    if (esFeria) return feria ? separarProduccion(feria.filas).compra : []
     if (sel !== TODAS.slug) return porSucursal[sel] ?? []
 
     const vel = velocidadCombinada(sucursales.map(s => datos[s.slug]?.hist))
@@ -172,7 +198,7 @@ export default function SurtidoPanel() {
     return separarProduccion(
       calcularSurtido({ productos: [...juntos.values()], velocidad: vel, cobertura }).filas
     ).compra
-  }, [datos, sel, porSucursal, sucursales, cobertura])
+  }, [datos, sel, porSucursal, sucursales, cobertura, esFeria, feria])
 
   // Cuántos se dejaron fuera por fabricarse, para decirlo en vez de que
   // desaparezcan sin explicación.
@@ -220,6 +246,18 @@ export default function SurtidoPanel() {
 
   const depurar = useMemo(() => candidatosADepurar(porSucursal, diasHistorial, altas), [porSucursal, diasHistorial, altas])
 
+  // Bodega, recien llegados y depurar se calculan sobre las tiendas fijas. Con
+  // Ferias elegida no vienen a cuento, asi que se esconden en vez de enseñar
+  // numeros que no son de lo que se esta mirando.
+  const vistasVisibles = useMemo(
+    () => (esFeria ? VISTAS.filter(v => v.id === 'venta' || v.id === 'muestra') : VISTAS),
+    [esFeria],
+  )
+
+  useEffect(() => {
+    if (!vistasVisibles.some(v => v.id === vista)) setVista('venta')
+  }, [vistasVisibles, vista])
+
   const porVenta  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.VENTA && f.sugerido > 0).sort((a, b) => b.sugerido - a.sugerido || a.cobertura - b.cobertura), [filas])
   const muestras  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.SIN_VENTA_CERO).sort((a, b) => a.producto.localeCompare(b.producto)), [filas])
 
@@ -258,7 +296,30 @@ export default function SurtidoPanel() {
         </p>
       </div>
 
+      {/* Ferias: su propio contexto, porque no se rige por temporada alta */}
+      {esFeria && feria && (
+        <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 16, background: 'rgba(2,136,173,0.05)', border: '1px solid rgba(2,136,173,0.25)' }}>
+          <p style={{ fontSize: 13, color: TINTA, margin: '0 0 4px', fontWeight: 700 }}>
+            Feria de {MES[feria.objetivo.mes]} {feria.objetivo.anio}
+            {feria.objetivo.enCurso && <span style={{ color: VERDE }}> · en curso</span>}
+          </p>
+          <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: 0, lineHeight: 1.55 }}>
+            El pedido se calcula contra lo que se vendió en esta misma feria los años anteriores
+            {feria.ediciones > 0
+              ? <> — se promedian {feria.ediciones} {feria.ediciones === 1 ? 'edición' : 'ediciones'} ({feria.periodos.join(', ')}),
+                  que dieron <strong style={{ color: TINTA }}>{Math.round(feria.totalEsperado)} piezas</strong></>
+              : ', pero todavía no hay ediciones anteriores de este mes'}.
+            {' '}Un ritmo diario promediado sobre el año no serviría: {MES[feria.meses[0]?.mes] ?? ''} vende
+            miles de piezas y marzo ninguna.
+          </p>
+          <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0' }}>
+            Meses con feria detectados: {feria.meses.map(m => `${MES[m.mes]} (${m.veces})`).join(' · ')}
+          </p>
+        </div>
+      )}
+
       {/* Temporada */}
+      {!esFeria && (
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14, padding: '10px 14px', borderRadius: 16, background: esAlta ? 'rgba(196,21,111,0.05)' : 'rgba(16,22,25,0.02)', border: '1px solid ' + (esAlta ? 'rgba(196,21,111,0.2)' : LINEA) }}>
         <span style={{ fontSize: 12.5, color: TINTA_SUAVE }}>
           Temporada <strong style={{ color: esAlta ? ROSA : TINTA }}>{esAlta ? 'alta' : 'baja'}</strong>
@@ -272,6 +333,7 @@ export default function SurtidoPanel() {
           <Pildora activa={altaManual === true}  onClick={() => setAltaManual(true)}>Alta</Pildora>
         </div>
       </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         {opciones.map(s => (
@@ -298,7 +360,7 @@ export default function SurtidoPanel() {
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        {VISTAS.map(v => (
+        {vistasVisibles.map(v => (
           <Pildora key={v.id} activa={vista === v.id} onClick={() => setVista(v.id)}>{v.etiqueta}</Pildora>
         ))}
       </div>

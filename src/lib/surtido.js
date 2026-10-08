@@ -251,3 +251,123 @@ export function diasEnCatalogo(alta, hoy = new Date()) {
   const [a, m, d] = alta.split('-').map(Number)
   return Math.floor((hoy - new Date(a, m - 1, d)) / 86400000)
 }
+
+// ── Sucursales estacionales ──────────────────────────────────────────────────
+//
+// Ferias no es una tienda abierta todo el año: monta puesto en enero, agosto y
+// octubre y el resto de los meses está cerrada. Un ritmo diario promediado
+// sobre el año entero no significa nada ahí —diría que vende 4 piezas al día
+// cuando en enero vende 52 y en marzo ninguna— y pediría de más en temporada
+// muerta y de menos justo antes de la feria.
+//
+// La pregunta correcta no es "cuánto vende al día" sino "cuánto vendió en esta
+// misma feria los años pasados".
+
+/** Un mes cuenta como activo si vendió al menos esta parte del mejor mes. */
+const UMBRAL_ACTIVO = 0.15
+
+const numeroDeMes = periodo => Number(periodo.split('-')[1])
+
+/**
+ * Qué meses del calendario tienen feria, mirando todo el historial.
+ * Devuelve [{ mes, veces, piezas, promedio }] ordenado por mes.
+ */
+export function mesesActivos(historial) {
+  const porMes = new Map()
+  let mejor = 0
+
+  for (const p of historial?.periodos ?? []) {
+    const piezas = Object.values(p.m ?? {}).reduce((a, b) => a + b, 0)
+    const n = numeroDeMes(p.p)
+    const e = porMes.get(n) ?? { mes: n, veces: 0, piezas: 0, anios: [] }
+    e.veces++
+    e.piezas += piezas
+    e.anios.push({ periodo: p.p, piezas })
+    porMes.set(n, e)
+    mejor = Math.max(mejor, piezas)
+  }
+
+  return [...porMes.values()]
+    .map(e => ({ ...e, promedio: e.piezas / e.veces }))
+    .filter(e => e.promedio >= mejor * UMBRAL_ACTIVO)
+    .sort((a, b) => a.mes - b.mes)
+}
+
+/**
+ * El mes para el que hay que surtir: el que está en curso si tiene feria, o
+ * el siguiente que la tenga.
+ */
+export function proximaFeria(historial, hoy = new Date()) {
+  const activos = mesesActivos(historial).map(e => e.mes)
+  if (activos.length === 0) return null
+
+  const mesHoy = hoy.getMonth() + 1
+  if (activos.includes(mesHoy)) return { mes: mesHoy, anio: hoy.getFullYear(), enCurso: true }
+
+  const siguiente = activos.find(m => m > mesHoy)
+  return siguiente
+    ? { mes: siguiente, anio: hoy.getFullYear(), enCurso: false }
+    : { mes: activos[0], anio: hoy.getFullYear() + 1, enCurso: false }
+}
+
+/**
+ * Qué pedir para una feria, mirando lo que se vendió en ese mismo mes los
+ * años anteriores.
+ *
+ * El mes en curso no entra en el promedio: todavía no ha terminado y contarlo
+ * tiraría la referencia hacia abajo justo cuando hay que reponer.
+ */
+export function calcularSurtidoFeria({ productos, historial, objetivo, hoy = new Date() }) {
+  const enCurso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
+
+  const anteriores = (historial?.periodos ?? [])
+    .filter(p => numeroDeMes(p.p) === objetivo.mes && p.p !== enCurso)
+
+  const porCodigo = {}
+  for (const p of anteriores) {
+    for (const [k, n] of Object.entries(p.m ?? {})) porCodigo[k] = (porCodigo[k] || 0) + n
+  }
+
+  const ediciones = anteriores.length
+  const referencia = {}
+  if (ediciones > 0) for (const [k, n] of Object.entries(porCodigo)) referencia[k] = n / ediciones
+
+  const filas = (productos ?? []).map(p => {
+    const codigo     = String(p.Codigo ?? '').trim()
+    const existencia = Number(p.Existencia) || 0
+    const esperado   = referencia[codigo] ?? 0
+    const vendidas   = porCodigo[codigo] ?? 0
+
+    let sugerido = Math.max(0, Math.ceil(esperado - existencia))
+    let motivo = MOTIVOS.VENTA
+
+    if (vendidas === 0) {
+      if (existencia <= 0) { sugerido = 1; motivo = MOTIVOS.SIN_VENTA_CERO }
+      else { sugerido = 0; motivo = MOTIVOS.DEPURAR }
+    } else if (sugerido === 0) {
+      motivo = MOTIVOS.SUFICIENTE
+    }
+
+    return {
+      codigo,
+      producto: String(p.Producto ?? '').trim(),
+      existencia,
+      vendidas,
+      // Se mantienen los mismos nombres que en el cálculo normal para que la
+      // pantalla y el Excel no tengan que saber cuál de los dos se usó.
+      ritmo: esperado / 30,
+      cobertura: esperado > 0 ? (existencia / esperado) * 30 : null,
+      objetivo: Math.ceil(esperado),
+      esperado,
+      sugerido,
+      motivo,
+    }
+  })
+
+  return {
+    filas,
+    ediciones,
+    periodos: anteriores.map(p => p.p),
+    totalEsperado: Object.values(referencia).reduce((a, b) => a + b, 0),
+  }
+}

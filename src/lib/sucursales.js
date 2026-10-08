@@ -12,6 +12,12 @@ export const SUCURSALES = [
   { slug: 'aguascalientes', nombre: 'Aguascalientes',  activa: true  },
   { slug: 'torreon',        nombre: 'Torreón',         activa: false },
   { slug: 'bodega',         nombre: 'Bodega',          activa: true, interna: true },
+  // Ferias no es una tienda fija: es el puesto que se monta en las ferias de
+  // enero, agosto y octubre. Vende de verdad, pero un mayorista no le pide a
+  // ella, asi que tambien va por dentro. `estacional` cambia como se calcula
+  // su surtido: un ritmo diario promediado sobre el año no significa nada
+  // cuando ocho meses estan cerrados.
+  { slug: 'ferias',         nombre: 'Ferias',          activa: true, interna: true, estacional: true },
 ]
 
 /** Las que ve un mayorista. Nunca incluye la bodega. */
