@@ -31,6 +31,7 @@ const FERIAS = SUCURSALES.find(s => s.estacional)
 const VISTAS = [
   { id: 'venta',   etiqueta: 'Pedir por venta' },
   { id: 'muestra', etiqueta: 'Sin venta y agotados' },
+  { id: 'candidatos', etiqueta: 'Se venden en tienda' },
   { id: 'bodega',  etiqueta: 'Bodega' },
   { id: 'nuevos',  etiqueta: 'Recién llegados' },
   { id: 'depurar', etiqueta: 'Depurar' },
@@ -170,12 +171,18 @@ export default function SurtidoPanel() {
     const objetivo = proximaFeria(hist)
     if (!objetivo) return null
     const inv = datos[FERIAS.slug].inv
+
+    // Lo que han vendido las tiendas fijas en todo su historial. Es el dato
+    // que la feria puede aprovechar; al revés no, y por eso el consolidado de
+    // tiendas no mira nunca a ferias.
+    const enTiendas = velocidadCombinada(sucursales.map(s => datos[s.slug]?.hist)).piezas
+
     return {
       objetivo,
       meses: mesesActivos(hist),
-      ...calcularSurtidoFeria({ productos: inv?.productos ?? [], historial: hist, objetivo }),
+      ...calcularSurtidoFeria({ productos: inv?.productos ?? [], historial: hist, objetivo, ventaTiendas: enTiendas }),
     }
-  }, [esFeria, datos])
+  }, [esFeria, datos, sucursales])
 
   // La vista de una sucursal usa su propia tabla; la de "Todas" se arma
   // sumando existencias y ritmos de las tres.
@@ -250,7 +257,9 @@ export default function SurtidoPanel() {
   // Ferias elegida no vienen a cuento, asi que se esconden en vez de enseñar
   // numeros que no son de lo que se esta mirando.
   const vistasVisibles = useMemo(
-    () => (esFeria ? VISTAS.filter(v => v.id === 'venta' || v.id === 'muestra') : VISTAS),
+    () => (esFeria
+      ? VISTAS.filter(v => ['venta', 'muestra', 'candidatos'].includes(v.id))
+      : VISTAS.filter(v => v.id !== 'candidatos')),
     [esFeria],
   )
 
@@ -260,6 +269,7 @@ export default function SurtidoPanel() {
 
   const porVenta  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.VENTA && f.sugerido > 0).sort((a, b) => b.sugerido - a.sugerido || a.cobertura - b.cobertura), [filas])
   const muestras  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.SIN_VENTA_CERO).sort((a, b) => a.producto.localeCompare(b.producto)), [filas])
+  const candidatos = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.CANDIDATO).sort((a, b) => b.enTiendas - a.enTiendas), [filas])
 
   const piezasVenta = porVenta.reduce((a, f) => a + f.sugerido, 0)
   const nombreSel = opciones.find(o => o.slug === sel)?.nombre ?? ''
@@ -428,6 +438,32 @@ export default function SurtidoPanel() {
                   <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                     <Modelo f={f} />
                     <Celda num fuerte color={AMBAR}>1</Celda>
+                  </tr>
+                ))}
+              </Tabla>}
+        </>
+      )}
+
+      {/* ── Se venden en tienda pero nunca han ido a la feria ── */}
+      {vista === 'candidatos' && (
+        <>
+          <Aviso tono="info">
+            Modelos que las tiendas sí venden y que nunca se han llevado a esta feria. No se
+            sugiere cantidad: lo que se vende en mostrador no dice cuánto se venderá en un
+            puesto de feria. Es para que decidas cuáles vale la pena probar.
+          </Aviso>
+          {candidatos.length === 0
+            ? <p style={{ fontSize: 13, color: TINTA_TENUE }}>No hay modelos en este caso.</p>
+            : <Tabla encabezados={<>
+                <Th>Modelo</Th><Th>Código</Th>
+                <Th num style={{ textAlign: 'right' }}>En la feria</Th>
+                <Th num style={{ textAlign: 'right' }}>Vendidas en tienda</Th>
+              </>}>
+                {candidatos.slice(0, TOPE).map((f, i) => (
+                  <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
+                    <Modelo f={f} />
+                    <Celda num color={f.existencia > 0 ? TINTA : TINTA_TENUE}>{f.existencia}</Celda>
+                    <Celda num fuerte color={VERDE}>{f.enTiendas}</Celda>
                   </tr>
                 ))}
               </Tabla>}

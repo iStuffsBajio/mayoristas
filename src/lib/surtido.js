@@ -42,6 +42,7 @@ export const MOTIVOS = {
   SIN_VENTA_CERO:'sin-venta-cero', // nunca se vendió y está agotado
   SUFICIENTE:    'suficiente',     // alcanza para la cobertura
   DEPURAR:       'depurar',        // nunca se vendió y sigue ocupando lugar
+  CANDIDATO:     'candidato',      // nunca se llevó a la feria, pero vende en tienda
 }
 
 /**
@@ -317,7 +318,7 @@ export function proximaFeria(historial, hoy = new Date()) {
  * El mes en curso no entra en el promedio: todavía no ha terminado y contarlo
  * tiraría la referencia hacia abajo justo cuando hay que reponer.
  */
-export function calcularSurtidoFeria({ productos, historial, objetivo, hoy = new Date() }) {
+export function calcularSurtidoFeria({ productos, historial, objetivo, ventaTiendas = null, hoy = new Date() }) {
   const enCurso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
 
   const anteriores = (historial?.periodos ?? [])
@@ -341,9 +342,27 @@ export function calcularSurtidoFeria({ productos, historial, objetivo, hoy = new
     let sugerido = Math.max(0, Math.ceil(esperado - existencia))
     let motivo = MOTIVOS.VENTA
 
+    // Lo que vende en las tiendas fijas, si se pasó. Va al revés que el
+    // aislamiento del consolidado: la feria SÍ puede aprovechar lo que se sabe
+    // del mostrador, porque es la misma mercancía y el mismo cliente final.
+    // Lo contrario no vale: lo que se vende en una feria de enero no dice nada
+    // de lo que una tienda necesita en marzo.
+    const enTiendas = ventaTiendas?.[codigo] ?? 0
+
     if (vendidas === 0) {
-      if (existencia <= 0) { sugerido = 1; motivo = MOTIVOS.SIN_VENTA_CERO }
-      else { sugerido = 0; motivo = MOTIVOS.DEPURAR }
+      if (enTiendas > 0) {
+        // Nunca se ha llevado a la feria y en tienda sí se mueve. No se
+        // inventa una cantidad: la demanda de feria no se deduce de la de
+        // mostrador. Se señala para que alguien decida si vale probarlo.
+        sugerido = 0
+        motivo = MOTIVOS.CANDIDATO
+      } else if (existencia <= 0) {
+        sugerido = 1
+        motivo = MOTIVOS.SIN_VENTA_CERO
+      } else {
+        sugerido = 0
+        motivo = MOTIVOS.DEPURAR
+      }
     } else if (sugerido === 0) {
       motivo = MOTIVOS.SUFICIENTE
     }
@@ -359,6 +378,7 @@ export function calcularSurtidoFeria({ productos, historial, objetivo, hoy = new
       cobertura: esperado > 0 ? (existencia / esperado) * 30 : null,
       objetivo: Math.ceil(esperado),
       esperado,
+      enTiendas,
       sugerido,
       motivo,
     }

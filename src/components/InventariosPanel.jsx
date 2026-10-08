@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 // Aqui si entra la bodega: es inventario y el panel es solo de administrador.
-import { SUCURSALES_CON_INVENTARIO as SUCURSALES } from '../lib/sucursales'
+import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA } from '../lib/sucursales'
 import { inventarioJsonUrl, estadisticasUrl } from '../lib/s3'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
 import { seProduce } from '../lib/produccion'
@@ -112,7 +112,11 @@ function colorAntiguedad(dias) {
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 export default function InventariosPanel() {
-  const activas  = useMemo(() => SUCURSALES.filter(s => s.activa), [])
+  // Se eligen todas, pero "Todas" solo suma las tiendas: bodega es almacén y
+  // ferias vende por temporadas. Mezclarlas tapaba los faltantes de mostrador
+  // con el stock del almacén.
+  const activas  = useMemo(() => SUCURSALES_CON_INVENTARIO, [])
+  const tiendas  = useMemo(() => SUCURSALES_TIENDA, [])
   const opciones = useMemo(() => [TODAS, ...activas], [activas])
 
   const [sel, setSel]         = useState(TODAS.slug)
@@ -156,13 +160,13 @@ export default function InventariosPanel() {
   const ventas = useMemo(() => {
     if (!estadisticas) return { v7: {}, v30: {} }
     const fuentes = esTodas
-      ? activas.map(s => estadisticas[s.slug])
+      ? tiendas.map(s => estadisticas[s.slug])
       : [estadisticas[sel]]
     return {
       v7:  sumarSalidas(fuentes.map(e => salidasPorCodigo(e, 7))),
       v30: sumarSalidas(fuentes.map(e => salidasPorCodigo(e, 30))),
     }
-  }, [estadisticas, sel, esTodas, activas])
+  }, [estadisticas, sel, esTodas, tiendas])
 
   const hayVentas = useMemo(() => Object.keys(ventas.v30).length > 0, [ventas])
 
@@ -186,7 +190,7 @@ export default function InventariosPanel() {
 
     // Consolidado: se cruza por código, que es la clave estable entre plazas.
     const porClave = new Map()
-    for (const s of activas) {
+    for (const s of tiendas) {
       for (const p of inventarios[s.slug]?.productos ?? []) {
         const codigo = String(p.Codigo ?? '').trim()
         const clave  = codigo || `nombre:${String(p.Producto ?? '').trim().toUpperCase()}`
@@ -207,7 +211,7 @@ export default function InventariosPanel() {
       }
     }
     return [...porClave.values()]
-  }, [inventarios, sel, esTodas, activas, ventas])
+  }, [inventarios, sel, esTodas, tiendas, ventas])
 
   const valorDe = f => (esTodas ? f.total : f.existencia)
 
@@ -248,11 +252,11 @@ export default function InventariosPanel() {
   const etiquetaFiltro = FILTROS.find(f => f.id === filtro)?.etiqueta ?? 'todos'
 
   const exportar = () => {
-    if (esTodas) descargarInventarioConsolidado(visibles, activas, etiquetaFiltro)
+    if (esTodas) descargarInventarioConsolidado(visibles, tiendas, etiquetaFiltro)
     else descargarInventario(visibles, sucursal.nombre, etiquetaFiltro)
   }
 
-  const faltantes = inventarios ? activas.filter(s => !inventarios[s.slug]).map(s => s.nombre) : []
+  const faltantes = inventarios ? tiendas.filter(s => !inventarios[s.slug]).map(s => s.nombre) : []
 
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
@@ -294,7 +298,7 @@ export default function InventariosPanel() {
 
           {/* Frescura de cada archivo: un número viejo aquí es peor que no tenerlo. */}
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14, fontSize: 11 }}>
-            {(esTodas ? activas : [sucursal]).map(s => {
+            {(esTodas ? tiendas : [sucursal]).map(s => {
               const a = antiguedad(inventarios[s.slug])
               return (
                 <span key={s.slug} style={{ color: TINTA_TENUE }}>
@@ -365,7 +369,7 @@ export default function InventariosPanel() {
                     <th style={{ textAlign: 'left', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA }}>Código</th>
                     {esTodas
                       ? <>
-                          {activas.map(s => (
+                          {tiendas.map(s => (
                             <th key={s.slug} style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA, whiteSpace: 'nowrap' }}>
                               {s.nombre.split(' ')[0]}
                             </th>
@@ -396,7 +400,7 @@ export default function InventariosPanel() {
                       </td>
                       {esTodas
                         ? <>
-                            {activas.map(s => (
+                            {tiendas.map(s => (
                               <td key={s.slug} style={{ padding: '7px 8px', textAlign: 'right' }}>
                                 <Existencia n={f.porSucursal[s.slug]} />
                               </td>

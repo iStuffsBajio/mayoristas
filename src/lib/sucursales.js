@@ -25,8 +25,17 @@ export const SUCURSALES_PUBLICAS = SUCURSALES.filter(s => !s.interna)
 
 export const SUCURSALES_ACTIVAS = SUCURSALES_PUBLICAS.filter(s => s.activa)
 
-/** Las que tienen inventario sincronizado, bodega incluida. Solo uso interno. */
+/**
+ * Las que tienen inventario sincronizado, bodega y ferias incluidas. Sirve
+ * para ELEGIR cuál mirar, no para sumar: bodega es almacén y ferias vende por
+ * temporadas, así que ninguna de las dos debe entrar en un consolidado de
+ * tiendas. Sumándolas, el panel decía 26158 piezas donde las tiendas tienen
+ * 5310, y 94 modelos urgentes donde había 165.
+ */
 export const SUCURSALES_CON_INVENTARIO = SUCURSALES.filter(s => s.activa)
+
+/** Las que SÍ se suman en un consolidado: las tres tiendas que venden a mostrador. */
+export const SUCURSALES_TIENDA = SUCURSALES_ACTIVAS
 
 export const BODEGA = SUCURSALES.find(s => s.slug === 'bodega')
 
