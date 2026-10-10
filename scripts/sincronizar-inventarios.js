@@ -93,6 +93,7 @@ const SQL = `
 SET HEADING OFF;
 SELECT p.CODIGO || '${SEP}' || p.DESCRIPCION || '${SEP}' || COALESCE(b.CANTIDAD_ACTUAL, 0) || '${SEP}' || COALESCE(d.NOMBRE, '')
        || '${SEP}' || COALESCE((SELECT MIN(h.CUANDO_FUE) FROM INVENTARIO_HISTORIAL h WHERE h.PRODUCTO_ID = p.ID), '')
+       || '${SEP}' || COALESCE((SELECT MAX(h.CUANDO_FUE) FROM INVENTARIO_HISTORIAL h WHERE h.PRODUCTO_ID = p.ID), '')
 FROM PRODUCTOS p
 LEFT JOIN INVENTARIO_BALANCES b ON b.PRODUCTO_ID = p.ID
 LEFT JOIN DEPARTAMENTOS d ON d.ID = p.DEPT
@@ -207,11 +208,17 @@ async function consultar(fdb, workDir) {
   const filas = []
   for (const linea of texto.split(/\r?\n/)) {
     if (!linea.includes(SEP)) continue
-    const [codigo, producto, existencia, depto, alta] = linea.split(SEP).map(s => s.trim())
+    const [codigo, producto, existencia, depto, alta, ultimo] = linea.split(SEP).map(s => s.trim())
     if (!producto) continue
-    // La fecha llega como "2024-04-18 15:03:02.0000"; basta el día.
-    const dia = /^\d{4}-\d{2}-\d{2}/.exec(alta ?? '')?.[0] ?? null
-    filas.push({ codigo, producto, existencia: parseFloat(existencia) || 0, depto, alta: dia })
+    // Las fechas llegan como "2024-04-18 15:03:02.0000"; basta el día.
+    const soloDia = v => /^\d{4}-\d{2}-\d{2}/.exec(v ?? '')?.[0] ?? null
+    // El último movimiento de un producto que está en cero es cuándo se
+    // acabó. Sin esto no hay forma de saber si lleva un día agotado o tres
+    // meses, que es la diferencia entre un hueco y un descuido.
+    filas.push({
+      codigo, producto, existencia: parseFloat(existencia) || 0, depto,
+      alta: soloDia(alta), ultimo: soloDia(ultimo),
+    })
   }
   return filas
 }
@@ -355,7 +362,7 @@ async function procesar(suc, workDir) {
 
   const productos = filas
     .filter(f => !deptoOculto(f.depto))
-    .map(f => ({ Codigo: f.codigo, Producto: f.producto, Existencia: f.existencia, Alta: f.alta }))
+    .map(f => ({ Codigo: f.codigo, Producto: f.producto, Existencia: f.existencia, Alta: f.alta, UltimoMov: f.ultimo }))
 
   const json = {
     sucursal:  suc.slug,

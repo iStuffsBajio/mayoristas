@@ -14,6 +14,7 @@
 
 import { diasDePeriodo } from './estadisticas.js'
 import { esTemporadaAlta } from './surtido.js'
+import { seProduce } from './produccion.js'
 
 /** Meses que debe aguantar la bodega. En temporada alta, uno más. */
 export const MESES_COBERTURA = { normal: 2, alta: 3 }
@@ -198,5 +199,157 @@ export function calcularCompras({ historiales, productosBodega, hoy = new Date()
     nMeses,
     alta,
     totalPiezas: filas.reduce((a, f) => a + f.sugerido, 0),
+  }
+}
+
+// ── Agotados que cuestan ventas ──────────────────────────────────────────────
+//
+// Un modelo en cero no siempre es un problema: si es de una generación que ya
+// salió del mercado, está bien que se acabe. Lo que hay que cazar es lo otro:
+// algo que se vende, que sigue vigente, y que está en cero en varias plazas.
+// Eso no es inventario agotándose, es una venta rechazada cada vez que alguien
+// lo pide.
+//
+// La gravedad no sale de una fórmula con pesos inventados, sino de QUÉ hay que
+// hacer para arreglarlo, que es lo que de verdad cambia la decisión:
+//
+//   reparto  — las tiendas en cero pero bodega tiene. Se arregla hoy, enviando.
+//   compra   — tiendas y bodega en cero. Hay que pedirle al proveedor.
+//   normal   — está en cero pero ya hay generación nueva. No es un descuido.
+
+// Ventana para decidir si un modelo "se vende" hoy. Con todo el historial, la
+// lista se llenaba de SAMSUNG NOTE 10 y IPHONE XS MAX: vendieron bien hace
+// años, llevan 600 días agotados y nadie los ha repuesto porque ya no se
+// piden. Eso no es un descuido, es un producto descontinuado.
+export const MESES_RECIENTES = 6
+
+export const ESTADO_AGOTADO = {
+  REPARTO: 'reparto',
+  COMPRA:  'compra',
+  NORMAL:  'normal',
+}
+
+/** Días entre una fecha ISO y hoy, o null si no se sabe. */
+export function diasDesde(fecha, hoy = new Date()) {
+  if (!fecha) return null
+  const [a, m, d] = String(fecha).split('-').map(Number)
+  if (!a || !m || !d) return null
+  return Math.max(0, Math.floor((hoy - new Date(a, m - 1, d)) / 86400000))
+}
+
+/**
+ * Modelos agotados en las tiendas, con cuánto llevan así y si eso está
+ * costando ventas.
+ *
+ * `inventarios` es { slug: json } de las plazas que venden a mostrador.
+ */
+export function analizarAgotados({ inventarios, historiales, productosBodega, hoy = new Date() }) {
+  const { mapa } = mapaGeneraciones(productosBodega)
+
+  // Dos ventanas: todo el historial para tener contexto, y los últimos meses
+  // para decidir si de verdad se sigue pidiendo.
+  const corte = new Date(hoy)
+  corte.setMonth(corte.getMonth() - MESES_RECIENTES)
+  const desde = `${corte.getFullYear()}-${String(corte.getMonth() + 1).padStart(2, '0')}`
+
+  const vendidas = {}
+  const recientes = {}
+  const catalogo = {}
+  for (const h of (historiales ?? []).filter(Boolean)) {
+    Object.assign(catalogo, h.catalogo ?? {})
+    for (const p of h.periodos ?? []) {
+      const esReciente = p.p >= desde
+      for (const [k, n] of Object.entries(p.m ?? {})) {
+        vendidas[k] = (vendidas[k] || 0) + n
+        if (esReciente) recientes[k] = (recientes[k] || 0) + n
+      }
+    }
+  }
+
+  const enBodega = {}
+  const bodegaUltimo = {}
+  const nombres = {}
+  for (const p of productosBodega ?? []) {
+    const c = String(p.Codigo ?? '').trim()
+    if (!c) continue
+    enBodega[c] = Number(p.Existencia) || 0
+    bodegaUltimo[c] = p.UltimoMov ?? null
+    nombres[c] = String(p.Producto ?? '').trim()
+  }
+
+  const porCodigo = new Map()
+  for (const [slug, inv] of Object.entries(inventarios ?? {})) {
+    for (const p of inv?.productos ?? []) {
+      const c = String(p.Codigo ?? '').trim()
+      if (!c) continue
+      const e = porCodigo.get(c) ?? {
+        codigo: c, producto: String(p.Producto ?? '').trim(),
+        enCero: [], conStock: [], total: 0,
+      }
+      const n = Number(p.Existencia) || 0
+      e.total += n
+      if (n <= 0) e.enCero.push({ slug, dias: diasDesde(p.UltimoMov, hoy) })
+      else e.conStock.push(slug)
+      porCodigo.set(c, e)
+    }
+  }
+
+  const filas = []
+  for (const e of porCodigo.values()) {
+    if (e.enCero.length === 0) continue
+
+    // Lo que bodega fabrica no se compra: nunca está "agotado".
+    if (seProduce(e.codigo, e.producto)) continue
+
+    const vendio = vendidas[e.codigo] ?? 0
+    const vendioReciente = recientes[e.codigo] ?? 0
+    // Lo que no se ha pedido en los últimos meses no está costando ventas
+    // aunque esté en cero: ya no lo buscan.
+    if (vendioReciente === 0) continue
+
+    const sucesor = mapa[e.codigo] ?? null
+    const bodega = enBodega[e.codigo] ?? 0
+    const existeEnBodega = e.codigo in enBodega
+
+    // De las plazas que lo tienen en cero, la que lleva más tiempo así.
+    const dias = e.enCero.map(x => x.dias).filter(d => d !== null)
+    const diasAgotado = dias.length ? Math.max(...dias) : null
+
+    const estado = sucesor ? ESTADO_AGOTADO.NORMAL
+      : bodega > 0        ? ESTADO_AGOTADO.REPARTO
+      : ESTADO_AGOTADO.COMPRA
+
+    filas.push({
+      codigo: e.codigo,
+      producto: e.producto || nombres[e.codigo] || catalogo[e.codigo] || e.codigo,
+      enCero: e.enCero.map(x => x.slug),
+      plazasEnCero: e.enCero.length,
+      plazasConStock: e.conStock.length,
+      diasAgotado,
+      vendio,
+      vendioReciente,
+      bodega,
+      existeEnBodega,
+      bodegaDias: bodega <= 0 ? diasDesde(bodegaUltimo[e.codigo], hoy) : null,
+      sucesor,
+      sucesorNombre: sucesor ? (nombres[sucesor] || catalogo[sucesor] || sucesor) : null,
+      estado,
+    })
+  }
+
+  // Primero lo que se arregla comprando y lleva más tiempo doliendo, luego lo
+  // que solo hay que repartir, y al final lo que tiene relevo.
+  const orden = { [ESTADO_AGOTADO.COMPRA]: 0, [ESTADO_AGOTADO.REPARTO]: 1, [ESTADO_AGOTADO.NORMAL]: 2 }
+  filas.sort((a, b) =>
+    orden[a.estado] - orden[b.estado] ||
+    b.vendioReciente - a.vendioReciente ||
+    b.plazasEnCero - a.plazasEnCero)
+
+  return {
+    filas,
+    desde,
+    compra:  filas.filter(f => f.estado === ESTADO_AGOTADO.COMPRA),
+    reparto: filas.filter(f => f.estado === ESTADO_AGOTADO.REPARTO),
+    normal:  filas.filter(f => f.estado === ESTADO_AGOTADO.NORMAL),
   }
 }

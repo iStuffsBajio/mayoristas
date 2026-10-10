@@ -70,6 +70,7 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
     ['Pedir por venta',      conteos.modelos,  'Se mueven y no alcanzan para la cobertura'],
     ['Sin venta y agotados', conteos.muestras, 'Nunca se vendieron y están en cero: 1 de muestra'],
     ['Bodega',               conteos.bodega,   'Lo que piden las plazas contra lo que hay'],
+    ['Agotados que duelen',  conteos.agotados, 'En cero, se siguen vendiendo y siguen vigentes'],
     ['Recién llegados',      conteos.nuevos,   'Menos de un año en el catálogo y aún sin venta'],
     ['Depurar',              conteos.depurar,  'Más de un año sin una sola venta y ocupando lugar'],
   ]
@@ -199,6 +200,28 @@ const COLS_DEPURAR = [
   { titulo: 'Dónde están',    valor: d => (d.plazas ?? []).map(p => p.slug).join(', '), ancho: 28 },
 ]
 
+const ESTADO_TXT = {
+  compra:  'Comprar: nadie tiene',
+  reparto: 'Repartir: bodega sí tiene',
+  normal:  'Ya hay generación nueva',
+}
+
+const COLS_AGOTADOS = [
+  { titulo: 'Código',  valor: a => a.codigo,   ancho: 12 },
+  { titulo: 'Modelo',  valor: a => a.producto, ancho: 40 },
+  { titulo: 'Plazas en cero', valor: a => `${a.plazasEnCero} de ${a.plazasEnCero + a.plazasConStock}`, ancho: 14,
+    color: a => (a.plazasConStock === 0 ? C.rosa : C.ambar) },
+  { titulo: 'Días agotado', valor: a => a.diasAgotado ?? '', num: true,
+    color: a => (a.diasAgotado > 30 ? C.rosa : C.tintaSuave) },
+  { titulo: 'Vendidas (6 meses)', valor: a => a.vendioReciente, num: true, fuerte: true, color: C.azul },
+  { titulo: 'Vendidas (histórico)', valor: a => a.vendio, num: true, color: C.tintaSuave },
+  { titulo: 'En bodega', valor: a => (a.existeEnBodega ? a.bodega : ''), num: true,
+    color: a => (a.bodega > 0 ? C.verde : C.rosa) },
+  { titulo: 'Qué hacer', valor: a => ESTADO_TXT[a.estado] ?? a.estado, ancho: 26,
+    color: a => (a.estado === 'compra' ? C.rosa : a.estado === 'reparto' ? C.ambar : C.tintaSuave) },
+  { titulo: 'Relevo', valor: a => a.sucesorNombre ?? '', ancho: 30 },
+]
+
 const COLS_NUEVOS = [
   { titulo: 'Código',         valor: d => d.codigo,   ancho: 12 },
   { titulo: 'Modelo',         valor: d => d.producto, ancho: 40 },
@@ -210,7 +233,7 @@ const COLS_NUEVOS = [
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
 
-export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], candidatos = null, bodegaStock = null }) {
+export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], agotados = [], candidatos = null, bodegaStock = null, esFeria = false }) {
   const libro = XLSX.utils.book_new()
 
   const conteos = {
@@ -220,6 +243,7 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
     bodega:   bodega.length,
     depurar:  depurar.length,
     nuevos:   nuevos.length,
+    agotados: agotados.length,
   }
 
   const notas = [
@@ -230,6 +254,7 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
     'La hoja Pedir por venta trae al final de donde sale cada pieza: si bodega la cubre, si la cubre a medias o si hay que comprarla fuera.',
     'La hoja Depurar solo se llena con 90 días o más de historial, y solo con modelos que lleven más de un año en el catálogo: uno recién llegado que aún no vende está en Recién llegados, no estancado.',
     'La fecha de entrada sale del primer movimiento registrado en bodega, que es donde se da de alta todo antes de repartirlo a las sucursales.',
+    'Agotados que duelen: solo entra lo que se vendió en los últimos 6 meses. Un modelo que lleva dos años agotado y nadie repuso no es un descuido, es que ya no se pide. Los días agotados salen del último movimiento registrado.',
   ]
 
   XLSX.utils.book_append_sheet(libro, hojaPortada({ sucursal, meta, conteos, notas }), 'Panel')
@@ -237,6 +262,7 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_MUESTRA, muestras), 'Sin venta y agotados')
   if (candidatos) XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_CANDIDATOS, candidatos), 'Se venden en tienda')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_BODEGA, bodega), 'Bodega')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_AGOTADOS, agotados), 'Agotados que duelen')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_NUEVOS, nuevos), 'Recién llegados')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_DEPURAR, depurar), 'Depurar')
 

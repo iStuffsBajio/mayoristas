@@ -8,7 +8,7 @@ import {
   mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
-import { calcularCompras, MESES_COBERTURA } from '../lib/compras'
+import { calcularCompras, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
 
 const TINTA       = '#101619'
@@ -37,6 +37,7 @@ const VISTAS = [
   { id: 'nuevos',  etiqueta: 'Recién llegados' },
   { id: 'depurar', etiqueta: 'Depurar' },
   { id: 'compras', etiqueta: '🛒 Comprar para bodega' },
+  { id: 'agotados', etiqueta: '⚠ Agotados que duelen' },
 ]
 
 function Pildora({ activa, onClick, children, titulo }) {
@@ -264,7 +265,7 @@ export default function SurtidoPanel() {
       ? VISTAS.filter(v => ['venta', 'muestra', 'candidatos'].includes(v.id))
       // Comprar es una decisión del negocio entero, no de una plaza: solo
       // tiene sentido mirándolo todo junto.
-      : VISTAS.filter(v => v.id !== 'candidatos' && (v.id !== 'compras' || sel === TODAS.slug))),
+      : VISTAS.filter(v => v.id !== 'candidatos' && (!['compras', 'agotados'].includes(v.id) || sel === TODAS.slug))),
     [esFeria, sel],
   )
 
@@ -279,6 +280,15 @@ export default function SurtidoPanel() {
     if (!datos || !bodegaInv) return null
     const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
     return calcularCompras({ historiales, productosBodega: bodegaInv.productos })
+  }, [datos, sucursales, bodegaInv])
+
+  // Modelos en cero que siguen vendiéndose y siguen vigentes. No es lo mismo
+  // que algo se acabe porque ya nadie lo pide que porque se surtió mal.
+  const agotados = useMemo(() => {
+    if (!datos || !bodegaInv) return null
+    const inventarios = Object.fromEntries(sucursales.map(s => [s.slug, datos[s.slug]?.inv]))
+    const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
+    return analizarAgotados({ inventarios, historiales, productosBodega: bodegaInv.productos })
   }, [datos, sucursales, bodegaInv])
 
   const comprasVenta = useMemo(
@@ -305,6 +315,7 @@ export default function SurtidoPanel() {
     bodega,
     depurar: depurar.filas,
     nuevos: depurar.nuevos,
+    agotados: agotados?.filas ?? [],
     candidatos: esFeria ? candidatos : null,
     bodegaStock,
     esFeria,
@@ -519,6 +530,51 @@ export default function SurtidoPanel() {
               </Tabla>}
         </>
       )}
+
+      {/* ── Agotados que duelen ── */}
+      {vista === 'agotados' && (!agotados
+        ? <Aviso>Hace falta el inventario de bodega para cruzarlo.</Aviso>
+        : <>
+            <Aviso tono="info">
+              Modelos en cero que <strong>se siguen vendiendo</strong> y <strong>siguen vigentes</strong>.
+              Que algo se acabe porque ya nadie lo pide es normal; que se acabe lo que sí se pide es una
+              venta rechazada cada vez. Solo entra lo vendido en los últimos {MESES_RECIENTES} meses:
+              sin ese filtro la lista se llenaba de modelos con dos años agotados que nadie repuso porque
+              ya no se buscan. Los días salen del último movimiento registrado.
+            </Aviso>
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+              <Dato valor={agotados.compra.length} etiqueta="hay que comprar" nota="nadie tiene" color={ROSA} />
+              <Dato valor={agotados.reparto.length} etiqueta="solo repartir" nota="bodega sí tiene" color={AMBAR} />
+              <Dato valor={agotados.normal.length} etiqueta="con relevo" nota="ya hay generación nueva" color={TINTA_TENUE} />
+            </div>
+
+            <Tabla encabezados={<>
+              <Th>Modelo</Th><Th>Código</Th>
+              <Th num style={{ textAlign: 'right' }}>En cero</Th>
+              <Th num style={{ textAlign: 'right' }} title="Días desde el último movimiento">Días</Th>
+              <Th num style={{ textAlign: 'right' }} title={`Piezas vendidas en los últimos ${MESES_RECIENTES} meses`}>Vendió</Th>
+              <Th num style={{ textAlign: 'right' }}>Bodega</Th>
+              <Th>Qué hacer</Th>
+            </>}>
+              {agotados.filas.slice(0, TOPE).map((a, i) => (
+                <tr key={a.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
+                  <Modelo f={a} />
+                  <Celda num color={a.plazasConStock === 0 ? ROSA : AMBAR}>
+                    {a.plazasEnCero}/{a.plazasEnCero + a.plazasConStock}
+                  </Celda>
+                  <Celda num color={a.diasAgotado > 30 ? ROSA : TINTA_SUAVE}>{a.diasAgotado ?? '—'}</Celda>
+                  <Celda num fuerte color={'#0288AD'}>{a.vendioReciente}</Celda>
+                  <Celda num color={a.bodega > 0 ? VERDE : ROSA}>{a.existeEnBodega ? a.bodega : '—'}</Celda>
+                  <Celda color={a.estado === 'compra' ? ROSA : a.estado === 'reparto' ? AMBAR : TINTA_TENUE}>
+                    {a.estado === 'compra' ? 'Comprar: nadie tiene'
+                     : a.estado === 'reparto' ? `Repartir: bodega tiene ${a.bodega}`
+                     : `Relevo: ${a.sucesorNombre}`}
+                  </Celda>
+                </tr>
+              ))}
+            </Tabla>
+          </>)}
 
       {/* ── Comprar para bodega ── */}
       {vista === 'compras' && (!compras
