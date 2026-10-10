@@ -8,6 +8,7 @@ import {
   mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
+import { calcularCompras, MESES_COBERTURA } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
 
 const TINTA       = '#101619'
@@ -35,6 +36,7 @@ const VISTAS = [
   { id: 'bodega',  etiqueta: 'Bodega' },
   { id: 'nuevos',  etiqueta: 'Recién llegados' },
   { id: 'depurar', etiqueta: 'Depurar' },
+  { id: 'compras', etiqueta: '🛒 Comprar para bodega' },
 ]
 
 function Pildora({ activa, onClick, children, titulo }) {
@@ -260,13 +262,29 @@ export default function SurtidoPanel() {
   const vistasVisibles = useMemo(
     () => (esFeria
       ? VISTAS.filter(v => ['venta', 'muestra', 'candidatos'].includes(v.id))
-      : VISTAS.filter(v => v.id !== 'candidatos')),
-    [esFeria],
+      // Comprar es una decisión del negocio entero, no de una plaza: solo
+      // tiene sentido mirándolo todo junto.
+      : VISTAS.filter(v => v.id !== 'candidatos' && (v.id !== 'compras' || sel === TODAS.slug))),
+    [esFeria, sel],
   )
 
   useEffect(() => {
     if (!vistasVisibles.some(v => v.id === vista)) setVista('venta')
   }, [vistasVisibles, vista])
+
+  // Qué pedirle al proveedor para que bodega aguante los próximos meses. Usa
+  // el historial de TODAS las plazas, ferias incluida, porque la compra es
+  // para el negocio entero.
+  const compras = useMemo(() => {
+    if (!datos || !bodegaInv) return null
+    const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
+    return calcularCompras({ historiales, productosBodega: bodegaInv.productos })
+  }, [datos, sucursales, bodegaInv])
+
+  const comprasVenta = useMemo(
+    () => (compras ? separarProduccion(compras.filas).compra.filter(f => f.sugerido > 0) : []),
+    [compras],
+  )
 
   const porVenta  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.VENTA && f.sugerido > 0).sort((a, b) => b.sugerido - a.sugerido || a.cobertura - b.cobertura), [filas])
   const muestras  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.SIN_VENTA_CERO).sort((a, b) => a.producto.localeCompare(b.producto)), [filas])
@@ -501,6 +519,85 @@ export default function SurtidoPanel() {
               </Tabla>}
         </>
       )}
+
+      {/* ── Comprar para bodega ── */}
+      {vista === 'compras' && (!compras
+        ? <Aviso>Hace falta el inventario de bodega para calcular la compra.</Aviso>
+        : <>
+            <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 16, background: 'rgba(94,148,34,0.05)', border: '1px solid rgba(94,148,34,0.25)' }}>
+              <p style={{ fontSize: 13, color: TINTA, margin: '0 0 4px', fontWeight: 700 }}>
+                Compra para que bodega aguante {compras.nMeses} meses
+                {compras.alta && <span style={{ color: ROSA }}> · temporada alta</span>}
+              </p>
+              <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: 0, lineHeight: 1.55 }}>
+                Cubre <strong style={{ color: TINTA }}>{compras.objetivo.join(' y ')}</strong>, y la referencia
+                es lo que se vendió en <strong style={{ color: TINTA }}>{compras.referencia.join(' y ')}</strong> —
+                los mismos meses del año pasado, en todas las plazas y ferias juntas. Comparar contra el mes
+                pasado no diría nada sobre diciembre.
+              </p>
+              {compras.faltantes.length > 0 && (
+                <p style={{ fontSize: 11, color: AMBAR, margin: '6px 0 0' }}>
+                  Sin dato para {compras.faltantes.join(', ')}: la referencia de esos meses sale incompleta.
+                </p>
+              )}
+              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
+                La demanda de una generación vieja se compra en la nueva: si el año pasado se vendieron
+                fundas de Galaxy A16 y hoy existe la A17, se compra A17.
+                Se detectaron <strong style={{ color: TINTA_SUAVE }}>{compras.cambios.length} relevos</strong> del
+                propio catálogo, confirmados con la fecha de alta — no con una regla inventada por marca.
+              </p>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+              <Dato valor={comprasVenta.length} etiqueta="modelos a comprar" color={VERDE} />
+              <Dato valor={comprasVenta.reduce((a, f) => a + f.sugerido, 0)} etiqueta="piezas en total" />
+              <Dato valor={compras.descartados.length} etiqueta="no se compran" nota="generación vieja" color={AMBAR} />
+            </div>
+
+            <Tabla encabezados={<>
+              <Th>Modelo</Th><Th>Código</Th>
+              <Th num style={{ textAlign: 'right' }}>En bodega</Th>
+              <Th num style={{ textAlign: 'right' }} title="Piezas vendidas en los mismos meses del año pasado">Demanda</Th>
+              <Th num style={{ textAlign: 'right' }}>COMPRAR</Th>
+              <Th>Hereda de</Th>
+            </>}>
+              {comprasVenta.slice(0, TOPE).map((f, i) => (
+                <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
+                  <Modelo f={f} />
+                  <Celda num color={f.enCatalogo ? TINTA : ROSA}
+                         title={f.enCatalogo ? undefined : 'Bodega no maneja este código: hay que darlo de alta'}>
+                    {f.enCatalogo ? f.existencia : 'alta'}
+                  </Celda>
+                  <Celda num color={TINTA_SUAVE}>{Math.round(f.esperado)}</Celda>
+                  <Celda num fuerte color={VERDE}>{f.sugerido}</Celda>
+                  <Celda color={TINTA_TENUE}>
+                    {f.heredado.length ? f.heredado.map(h => h.codigo).join(', ') : '—'}
+                  </Celda>
+                </tr>
+              ))}
+            </Tabla>
+
+            {compras.descartados.length > 0 && (
+              <>
+                <p style={{ fontSize: 12, fontWeight: 700, color: TINTA, margin: '4px 0 8px' }}>
+                  No se compran: la demanda pasó a la generación nueva
+                </p>
+                <Tabla encabezados={<>
+                  <Th>Modelo</Th><Th>Código</Th>
+                  <Th num style={{ textAlign: 'right' }}>Vendió</Th>
+                  <Th>Se compra en su lugar</Th>
+                </>}>
+                  {compras.descartados.slice(0, 60).map((d, i) => (
+                    <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
+                      <Modelo f={d} />
+                      <Celda num color={TINTA_SUAVE}>{d.piezas}</Celda>
+                      <Celda color={VERDE}>{d.sustitutoNombre}</Celda>
+                    </tr>
+                  ))}
+                </Tabla>
+              </>
+            )}
+          </>)}
 
       {/* ── Bodega ── */}
       {vista === 'bodega' && (!bodegaInv
