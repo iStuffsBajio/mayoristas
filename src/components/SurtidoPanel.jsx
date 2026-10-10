@@ -5,7 +5,7 @@ import {
   velocidadDiaria, velocidadCombinada, calcularSurtido, analizarBodega,
   candidatosADepurar, esTemporadaAlta, COBERTURA, MOTIVOS,
   DIAS_PARA_CONFIAR, DIAS_PARA_DEPURAR, DIAS_EN_CATALOGO, diasEnCatalogo,
-  mesesActivos, proximaFeria, calcularSurtidoFeria,
+  mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
 import { separarProduccion } from '../lib/produccion'
@@ -112,6 +112,7 @@ export default function SurtidoPanel() {
   const [sel, setSel]       = useState(TODAS.slug)
   const [vista, setVista]   = useState('venta')
   const [altaManual, setAltaManual] = useState(null)   // null = automático
+  const [margen, setMargen] = useState(MARGEN_FERIA)
   const [datos, setDatos]   = useState(null)
   const [cargando, setCargando] = useState(true)
 
@@ -180,9 +181,9 @@ export default function SurtidoPanel() {
     return {
       objetivo,
       meses: mesesActivos(hist),
-      ...calcularSurtidoFeria({ productos: inv?.productos ?? [], historial: hist, objetivo, ventaTiendas: enTiendas }),
+      ...calcularSurtidoFeria({ productos: inv?.productos ?? [], historial: hist, objetivo, ventaTiendas: enTiendas, margen }),
     }
-  }, [esFeria, datos, sucursales])
+  }, [esFeria, datos, sucursales, margen])
 
   // La vista de una sucursal usa su propia tabla; la de "Todas" se arma
   // sumando existencias y ritmos de las tres.
@@ -278,13 +279,17 @@ export default function SurtidoPanel() {
   // hojas se leen juntas al decidir un pedido.
   const exportar = () => descargarSurtido({
     sucursal: nombreSel,
-    meta: { cobertura, esAlta, diasHistorial },
+    meta: esFeria
+      ? { cobertura: feria?.diasRestantes ?? 0, esAlta: false, diasHistorial, margen }
+      : { cobertura, esAlta, diasHistorial },
     porVenta,
     muestras,
     bodega,
     depurar: depurar.filas,
     nuevos: depurar.nuevos,
+    candidatos: esFeria ? candidatos : null,
     bodegaStock,
+    esFeria,
   })
 
   if (cargando) {
@@ -314,14 +319,39 @@ export default function SurtidoPanel() {
             {feria.objetivo.enCurso && <span style={{ color: VERDE }}> · en curso</span>}
           </p>
           <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: 0, lineHeight: 1.55 }}>
-            El pedido se calcula contra lo que se vendió en esta misma feria los años anteriores
-            {feria.ediciones > 0
-              ? <> — se promedian {feria.ediciones} {feria.ediciones === 1 ? 'edición' : 'ediciones'} ({feria.periodos.join(', ')}),
-                  que dieron <strong style={{ color: TINTA }}>{Math.round(feria.totalEsperado)} piezas</strong></>
-              : ', pero todavía no hay ediciones anteriores de este mes'}.
-            {' '}Un ritmo diario promediado sobre el año no serviría: {MES[feria.meses[0]?.mes] ?? ''} vende
-            miles de piezas y marzo ninguna.
+            Es la misma cuenta que para una tienda —ritmo por días de cobertura, menos lo que ya hay—
+            con dos ajustes. El ritmo se mide por <strong style={{ color: TINTA }}>día abierto</strong>,
+            no del calendario: dividir entre 365 daría 4 piezas al día cuando en enero vende 52.
+            Y la cobertura son los <strong style={{ color: TINTA }}>{feria.diasRestantes} días</strong> que
+            le quedan a esta feria, no 30 fijos.
           </p>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 8, fontSize: 11, color: TINTA_SUAVE }}>
+            <span>Ediciones anteriores: <strong style={{ color: TINTA }}>{feria.ediciones}</strong>
+              {feria.periodos.length > 0 && ` (${feria.periodos.join(', ')})`}, {feria.diasPrevios} días abiertos</span>
+            {feria.diasActuales > 0 && <span>Esta lleva <strong style={{ color: TINTA }}>{feria.diasActuales} días</strong></span>}
+            <span>Referencia: <strong style={{ color: TINTA }}>{Math.round(feria.totalEsperado)} piezas</strong></span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(2,136,173,0.2)' }}>
+            <span style={{ fontSize: 11.5, color: TINTA_SUAVE }}>
+              Margen de seguridad: pide <strong style={{ color: TINTA }}>{Math.round(margen * 100)}%</strong> sobre lo proyectado
+            </span>
+            <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+              {MARGENES.map(m => (
+                <Pildora key={m} activa={margen === m} onClick={() => setMargen(m)}>{Math.round(m * 100)}%</Pildora>
+              ))}
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
+            Sin margen la cuenta sale justa, y justa quiere decir acabar la feria en cero. Lo que sobra
+            vuelve a bodega y se vende en otra plaza; lo que falta es una venta perdida que no vuelve.
+          </p>
+          {feria.diasActuales > 0 && (
+            <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
+              Lo que va vendido en esta edición pesa <strong style={{ color: TINTA_SUAVE }}>{Math.round(feria.peso * 100)}%</strong> del
+              ritmo; el resto lo pone el historial. Al principio manda lo viejo, porque dos días de ventas
+              no son una tendencia, y conforme avanza el mes manda lo de ahora.
+            </p>
+          )}
           <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0' }}>
             Meses con feria detectados: {feria.meses.map(m => `${MES[m.mes]} (${m.veces})`).join(' · ')}
           </p>
@@ -389,7 +419,8 @@ export default function SurtidoPanel() {
               <Th num style={{ textAlign: 'right' }} title="Piezas que salen al día, sobre todo el historial">Ritmo</Th>
               <Th num style={{ textAlign: 'right' }} title="Días que aguanta con lo que tiene">Aguanta</Th>
               <Th num style={{ textAlign: 'right' }}>Pedir</Th>
-              {bodegaStock && <Th num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
+              {esFeria && <Th num style={{ textAlign: 'right' }} title="Piezas vendidas en lo que va de esta feria">Este mes</Th>}
+              {bodegaStock && !esFeria && <Th num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
             </>}>
               {porVenta.slice(0, TOPE).map((f, i) => (
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
@@ -400,7 +431,8 @@ export default function SurtidoPanel() {
                     {f.cobertura === null ? '—' : `${Math.floor(f.cobertura)} d`}
                   </Celda>
                   <Celda num fuerte color={VERDE}>{f.sugerido}</Celda>
-                  {bodegaStock && (() => {
+                  {esFeria && <Celda num color={f.esteMes > 0 ? '#0288AD' : TINTA_TENUE}>{f.esteMes || '—'}</Celda>}
+                  {bodegaStock && !esFeria && (() => {
                     const hay = bodegaStock[f.codigo]
                     const color = hay === undefined || hay === 0 ? ROSA : hay >= f.sugerido ? VERDE : AMBAR
                     return (

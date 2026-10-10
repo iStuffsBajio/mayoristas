@@ -116,7 +116,7 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
  * final: de poco sirve saber que hacen falta 8 piezas si no se ve en el mismo
  * renglón si bodega las tiene o hay que comprarlas fuera.
  */
-const colsVenta = (bodegaStock) => [
+const colsVenta = (bodegaStock, conFeria = false) => [
   { titulo: 'Código',           valor: f => f.codigo,     ancho: 12 },
   { titulo: 'Modelo',           valor: f => f.producto,   ancho: 40 },
   { titulo: 'Existencia',       valor: f => f.existencia, num: true },
@@ -125,6 +125,12 @@ const colsVenta = (bodegaStock) => [
     // En rojo lo que no llega a la semana: eso es lo que de verdad corre prisa.
     color: f => (f.cobertura !== null && f.cobertura < 7 ? C.rosa : C.tintaSuave) },
   { titulo: 'PEDIR',            valor: f => f.sugerido,   num: true, fuerte: true, color: C.verde },
+  // En ferias importa ver que se esta moviendo en esta edicion, no solo el
+  // historico: es el termometro de como va el puesto ahora mismo.
+  ...(conFeria ? [
+    { titulo: 'Vendidas esta feria', valor: f => f.esteMes ?? 0, num: true,
+      color: f => (f.esteMes > 0 ? C.azul : C.tintaTenue) },
+  ] : []),
   ...(bodegaStock ? [
     { titulo: 'En bodega', valor: f => (bodegaStock[f.codigo] ?? ''), num: true,
       color: f => (bodegaStock[f.codigo] ? C.tinta : C.rosa) },
@@ -151,6 +157,16 @@ const COLS_MUESTRA = [
   { titulo: 'Código', valor: f => f.codigo,   ancho: 12 },
   { titulo: 'Modelo', valor: f => f.producto, ancho: 40 },
   { titulo: 'PEDIR',  valor: () => 1, num: true, fuerte: true, color: C.ambar },
+]
+
+// Solo aplica a la feria: modelos que las tiendas sí venden y nunca se han
+// llevado al puesto. No llevan columna de pedido porque la demanda de
+// mostrador no se traduce en una cantidad de feria.
+const COLS_CANDIDATOS = [
+  { titulo: 'Código',             valor: f => f.codigo,    ancho: 12 },
+  { titulo: 'Modelo',             valor: f => f.producto,  ancho: 40 },
+  { titulo: 'En la feria',        valor: f => f.existencia, num: true },
+  { titulo: 'Vendidas en tienda', valor: f => f.enTiendas, num: true, fuerte: true, color: C.verde },
 ]
 
 const ESTADOS = {
@@ -194,7 +210,7 @@ const COLS_NUEVOS = [
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
 
-export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], bodegaStock = null }) {
+export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], candidatos = null, bodegaStock = null }) {
   const libro = XLSX.utils.book_new()
 
   const conteos = {
@@ -217,8 +233,9 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
   ]
 
   XLSX.utils.book_append_sheet(libro, hojaPortada({ sucursal, meta, conteos, notas }), 'Panel')
-  XLSX.utils.book_append_sheet(libro, hojaDeTabla(colsVenta(bodegaStock), porVenta), 'Pedir por venta')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(colsVenta(bodegaStock, esFeria), porVenta), 'Pedir por venta')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_MUESTRA, muestras), 'Sin venta y agotados')
+  if (candidatos) XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_CANDIDATOS, candidatos), 'Se venden en tienda')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_BODEGA, bodega), 'Bodega')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_NUEVOS, nuevos), 'Recién llegados')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_DEPURAR, depurar), 'Depurar')

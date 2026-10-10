@@ -312,57 +312,92 @@ export function proximaFeria(historial, hoy = new Date()) {
 }
 
 /**
- * Qué pedir para una feria, mirando lo que se vendió en ese mismo mes los
- * años anteriores.
+ * Qué pedir para una feria.
  *
- * El mes en curso no entra en el promedio: todavía no ha terminado y contarlo
- * tiraría la referencia hacia abajo justo cuando hay que reponer.
+ * Es la MISMA cuenta que para una tienda —ritmo por días de cobertura, menos
+ * lo que ya hay— con dos ajustes que la hacen válida aquí:
+ *
+ * 1. El ritmo se mide por día ABIERTO, no por día del calendario. Ferias
+ *    cierra ocho meses al año; dividir entre 365 daría 4 piezas al día cuando
+ *    en enero vende 52, y pediría de menos justo antes de la feria.
+ *
+ * 2. La cobertura son los días que le quedan a ESTA feria, no 30 fijos. De
+ *    nada sirve surtir para un mes si el puesto se levanta en cinco días.
+ *
+ * El ritmo mezcla dos fuentes. Las ediciones anteriores de este mismo mes
+ * dicen qué se vende en una feria de octubre; lo que va de este mes dice qué
+ * se está vendiendo en ESTA. Al principio manda el historial, porque dos días
+ * de ventas no son una tendencia; conforme avanza el mes manda lo de ahora.
  */
-export function calcularSurtidoFeria({ productos, historial, objetivo, ventaTiendas = null, hoy = new Date() }) {
+
+/** A partir de medio mes, lo que va vendido pesa más que el historial. */
+const DIAS_PARA_CREER_AL_MES = 15
+
+/**
+ * Cuánto se pide por encima de lo proyectado.
+ *
+ * Sin margen, la cuenta sale justa y "justa" quiere decir acabar la feria en
+ * cero: el IPHONE 17 PRO MAX 3 IN 1 tenía 13 piezas contra 12.6 proyectadas y
+ * el panel lo daba por suficiente, siendo el segundo más vendido de la feria.
+ * Si vende un poco más rápido, se queda sin el modelo estrella a media feria.
+ *
+ * El error no es simétrico: lo que sobra se devuelve a bodega y se vende en
+ * otra plaza, lo que falta es una venta perdida que no vuelve.
+ */
+export const MARGENES = [0, 0.15, 0.3, 0.5]
+export const MARGEN_FERIA = 0.3
+
+export function calcularSurtidoFeria({ productos, historial, objetivo, ventaTiendas = null, margen = MARGEN_FERIA, hoy = new Date() }) {
   const enCurso = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}`
+  const periodos = historial?.periodos ?? []
 
-  const anteriores = (historial?.periodos ?? [])
-    .filter(p => numeroDeMes(p.p) === objetivo.mes && p.p !== enCurso)
-
-  const porCodigo = {}
-  for (const p of anteriores) {
-    for (const [k, n] of Object.entries(p.m ?? {})) porCodigo[k] = (porCodigo[k] || 0) + n
+  // Ediciones anteriores del mismo mes del calendario.
+  const previas = periodos.filter(p => numeroDeMes(p.p) === objetivo.mes && p.p !== enCurso)
+  const piezasPrevias = {}
+  let diasPrevios = 0
+  for (const p of previas) {
+    diasPrevios += diasDePeriodo(p)
+    for (const [k, n] of Object.entries(p.m ?? {})) piezasPrevias[k] = (piezasPrevias[k] || 0) + n
   }
 
-  const ediciones = anteriores.length
-  const referencia = {}
-  if (ediciones > 0) for (const [k, n] of Object.entries(porCodigo)) referencia[k] = n / ediciones
+  // Lo que va de la feria en curso, si es que está abierta.
+  const actual = objetivo.enCurso ? periodos.find(p => p.p === enCurso) : null
+  const piezasActuales = actual?.m ?? {}
+  const diasActuales = actual ? diasDePeriodo(actual) : 0
+
+  // Cuánto se cree a cada fuente.
+  const peso = diasActuales > 0 ? Math.min(1, diasActuales / DIAS_PARA_CREER_AL_MES) : 0
+
+  const diasDelMes = new Date(objetivo.anio, objetivo.mes, 0).getDate()
+  const diasRestantes = objetivo.enCurso
+    ? Math.max(1, diasDelMes - hoy.getDate())
+    : diasDelMes
+
+  const codigos = new Set([...Object.keys(piezasPrevias), ...Object.keys(piezasActuales)])
+  const ritmos = {}
+  for (const k of codigos) {
+    const prev = diasPrevios > 0 ? (piezasPrevias[k] ?? 0) / diasPrevios : 0
+    const act  = diasActuales > 0 ? (piezasActuales[k] ?? 0) / diasActuales : 0
+    // Sin ediciones anteriores, lo de ahora es lo único que hay, y al revés.
+    ritmos[k] = diasPrevios === 0 ? act : diasActuales === 0 ? prev : peso * act + (1 - peso) * prev
+  }
 
   const filas = (productos ?? []).map(p => {
     const codigo     = String(p.Codigo ?? '').trim()
     const existencia = Number(p.Existencia) || 0
-    const esperado   = referencia[codigo] ?? 0
-    const vendidas   = porCodigo[codigo] ?? 0
+    const ritmo      = ritmos[codigo] ?? 0
+    const vendidas   = (piezasPrevias[codigo] ?? 0) + (piezasActuales[codigo] ?? 0)
+    const esteMes    = piezasActuales[codigo] ?? 0
+    const enTiendas  = ventaTiendas?.[codigo] ?? 0
 
-    let sugerido = Math.max(0, Math.ceil(esperado - existencia))
+    const objetivoPz = ritmo * diasRestantes * (1 + margen)
+    let sugerido = Math.max(0, Math.ceil(objetivoPz - existencia))
     let motivo = MOTIVOS.VENTA
 
-    // Lo que vende en las tiendas fijas, si se pasó. Va al revés que el
-    // aislamiento del consolidado: la feria SÍ puede aprovechar lo que se sabe
-    // del mostrador, porque es la misma mercancía y el mismo cliente final.
-    // Lo contrario no vale: lo que se vende en una feria de enero no dice nada
-    // de lo que una tienda necesita en marzo.
-    const enTiendas = ventaTiendas?.[codigo] ?? 0
-
     if (vendidas === 0) {
-      if (enTiendas > 0) {
-        // Nunca se ha llevado a la feria y en tienda sí se mueve. No se
-        // inventa una cantidad: la demanda de feria no se deduce de la de
-        // mostrador. Se señala para que alguien decida si vale probarlo.
-        sugerido = 0
-        motivo = MOTIVOS.CANDIDATO
-      } else if (existencia <= 0) {
-        sugerido = 1
-        motivo = MOTIVOS.SIN_VENTA_CERO
-      } else {
-        sugerido = 0
-        motivo = MOTIVOS.DEPURAR
-      }
+      if (enTiendas > 0) { sugerido = 0; motivo = MOTIVOS.CANDIDATO }
+      else if (existencia <= 0) { sugerido = 1; motivo = MOTIVOS.SIN_VENTA_CERO }
+      else { sugerido = 0; motivo = MOTIVOS.DEPURAR }
     } else if (sugerido === 0) {
       motivo = MOTIVOS.SUFICIENTE
     }
@@ -372,13 +407,13 @@ export function calcularSurtidoFeria({ productos, historial, objetivo, ventaTien
       producto: String(p.Producto ?? '').trim(),
       existencia,
       vendidas,
-      // Se mantienen los mismos nombres que en el cálculo normal para que la
-      // pantalla y el Excel no tengan que saber cuál de los dos se usó.
-      ritmo: esperado / 30,
-      cobertura: esperado > 0 ? (existencia / esperado) * 30 : null,
-      objetivo: Math.ceil(esperado),
-      esperado,
+      esteMes,
       enTiendas,
+      ritmo,
+      // Días que aguanta con lo que tiene, al ritmo de la feria.
+      cobertura: ritmo > 0 ? existencia / ritmo : null,
+      objetivo: Math.ceil(objetivoPz),
+      esperado: objetivoPz,
       sugerido,
       motivo,
     }
@@ -386,8 +421,13 @@ export function calcularSurtidoFeria({ productos, historial, objetivo, ventaTien
 
   return {
     filas,
-    ediciones,
-    periodos: anteriores.map(p => p.p),
-    totalEsperado: Object.values(referencia).reduce((a, b) => a + b, 0),
+    ediciones: previas.length,
+    periodos: previas.map(p => p.p),
+    diasPrevios,
+    diasActuales,
+    diasRestantes,
+    peso,
+    margen,
+    totalEsperado: Object.values(ritmos).reduce((a, r) => a + r * diasRestantes * (1 + margen), 0),
   }
 }
