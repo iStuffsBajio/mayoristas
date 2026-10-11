@@ -1,0 +1,46 @@
+# Cabeceras que Amplify aplica a lo que sirve.
+#
+# El problema que resuelven: Amplify servía index.html con
+# `s-maxage=31536000`, o sea un año guardado en la red de CloudFront, mientras
+# que los archivos de /assets llevan un hash en el nombre y se BORRAN en cada
+# publicación.
+#
+# La combinación deja la página en blanco: un navegador o un nodo de CloudFront
+# con el index.html viejo pide un bundle que ya no existe, recibe un 404, no
+# carga nada de JavaScript y solo queda el fondo. Pasó el 11 de octubre de 2026
+# y no era un fallo del código: el sitio renderizaba bien, el visitante tenía
+# guardado el índice anterior.
+#
+# La regla es la de siempre para una aplicación de una sola página: el índice
+# nunca se guarda, y lo que lleva hash se guarda para siempre sin miedo, porque
+# si cambia también cambia su nombre.
+
+customHeaders:
+  # El índice y cualquier ruta que no sea un archivo: siempre fresco.
+  - pattern: '/'
+    headers:
+      - key: Cache-Control
+        value: 'no-store, must-revalidate'
+  - pattern: '/index.html'
+    headers:
+      - key: Cache-Control
+        value: 'no-store, must-revalidate'
+
+  # Los archivos con hash en el nombre sí se guardan: un cambio genera un
+  # nombre nuevo, así que nunca se sirve una versión vieja por error.
+  - pattern: '/assets/*'
+    headers:
+      - key: Cache-Control
+        value: 'public, max-age=31536000, immutable'
+
+  # Cabeceras de seguridad básicas, que no existían.
+  - pattern: '**'
+    headers:
+      - key: Strict-Transport-Security
+        value: 'max-age=31536000; includeSubDomains'
+      - key: X-Content-Type-Options
+        value: 'nosniff'
+      - key: X-Frame-Options
+        value: 'DENY'
+      - key: Referrer-Policy
+        value: 'strict-origin-when-cross-origin'
