@@ -4,6 +4,7 @@ import { SiteConfigProvider, useSiteConfig } from './context/SiteConfigContext'
 import { useAuth } from './context/AuthContext'
 import Navbar from './components/Navbar'
 import Hero from './components/Hero'
+import Mosaico from './components/Mosaico'
 import InventarioSemanal from './components/InventarioSemanal'
 import Personalizer from './components/Personalizer'
 import PedidosStikers from './components/PedidosStikers'
@@ -23,18 +24,34 @@ function TabBar({ active, onChange }) {
     isAdmin && { id: 'admin', label: 'Panel Admin', emoji: '⚙️' },
   ].filter(Boolean)
 
+  // Barra fina y centrada, al estilo de la de Apple: pesa poco y deja que
+  // mande el contenido. Antes era una fila de pestañas con subrayado grueso
+  // alineada a la izquierda, que competía con el titular.
   return (
-    <div style={{ borderBottom: '1px solid rgba(0,0,0,0.08)', backgroundColor: '#fff', position: 'sticky', top: 57, zIndex: 40 }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto">
+    <div style={{
+      borderBottom: '1px solid rgba(16,22,25,0.06)',
+      backgroundColor: 'rgba(255,255,255,0.82)',
+      backdropFilter: 'saturate(180%) blur(14px)',
+      WebkitBackdropFilter: 'saturate(180%) blur(14px)',
+      position: 'sticky', top: 57, zIndex: 40,
+    }}>
+      <div className="max-w-6xl mx-auto px-4 flex gap-1 justify-center overflow-x-auto">
         {visibles.map(tab => {
           const isActive = active === tab.id
+          const tono = tab.id === 'admin' ? '#D51A7A' : '#0288AD'
           return (
             <button key={tab.id} onClick={() => onChange(tab.id)}
-              className="flex items-center gap-2 px-5 py-3.5 text-sm font-semibold transition-all relative whitespace-nowrap"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: isActive ? (tab.id === 'admin' ? '#D51A7A' : '#00BCF2') : 'rgba(0,0,0,0.45)', borderBottom: isActive ? `2px solid ${tab.id === 'admin' ? '#D51A7A' : '#00BCF2'}` : '2px solid transparent', marginBottom: -1, flexShrink: 0 }}
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#0A0A0A' }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'rgba(0,0,0,0.45)' }}>
-              <span>{tab.emoji}</span>
+              className="flex items-center gap-1.5 whitespace-nowrap"
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                padding: '11px 16px', fontSize: 13.5,
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? tono : 'rgba(16,22,25,0.62)',
+                flexShrink: 0, transition: 'color .15s',
+              }}
+              onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#101619' }}
+              onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = 'rgba(16,22,25,0.62)' }}>
+              <span style={{ fontSize: 14 }}>{tab.emoji}</span>
               <span>{tab.label}</span>
             </button>
           )
@@ -74,7 +91,14 @@ function AppContent() {
       <Navbar onLoginClick={() => setShowLogin(true)} />
       <TabBar active={safeTab} onChange={setActiveTab} />
       <main>
-        {safeTab === 'inventario'  && <><Hero onExplorar={() => irA('inventario', 'tabla-inventario')} onPersonalizar={() => irA('personaliza')} /><InventarioSemanal onLoginClick={() => setShowLogin(true)} /></>}
+        {safeTab === 'inventario' && (
+          <>
+            <Hero onExplorar={() => irA('inventario', 'tabla-inventario')}
+                  onPersonalizar={() => irA('personaliza')} />
+            <Mosaico onIr={irA} />
+            <InventarioSemanal onLoginClick={() => setShowLogin(true)} />
+          </>
+        )}
         {safeTab === 'personaliza' && <Personalizer />}
         {safeTab === 'stikers'     && <PedidosStikers />}
         {safeTab === 'admin'       && isAdmin && <AdminPanel />}
