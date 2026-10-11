@@ -8,7 +8,7 @@ import {
   mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
-import { calcularCompras, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES } from '../lib/compras'
+import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
 
 const TINTA       = '#101619'
@@ -279,7 +279,8 @@ export default function SurtidoPanel() {
   const compras = useMemo(() => {
     if (!datos || !bodegaInv) return null
     const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
-    return calcularCompras({ historiales, productosBodega: bodegaInv.productos })
+    const inventarios = Object.fromEntries(sucursales.map(s => [s.slug, datos[s.slug]?.inv]))
+    return calcularCompraBodega({ historiales, inventarios, productosBodega: bodegaInv.productos })
   }, [datos, sucursales, bodegaInv])
 
   // Modelos en cero que siguen vendiéndose y siguen vigentes. No es lo mismo
@@ -316,6 +317,7 @@ export default function SurtidoPanel() {
     depurar: depurar.filas,
     nuevos: depurar.nuevos,
     agotados: agotados?.filas ?? [],
+    compras: compras?.filas ?? [],
     candidatos: esFeria ? candidatos : null,
     bodegaStock,
     esFeria,
@@ -602,32 +604,55 @@ export default function SurtidoPanel() {
                 Se detectaron <strong style={{ color: TINTA_SUAVE }}>{compras.cambios.length} relevos</strong> del
                 propio catálogo, confirmados con la fecha de alta — no con una regla inventada por marca.
               </p>
+              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
+                Un modelo recién llegado no tiene historial propio y el cálculo lo daría por cero, así que
+                nadie lo compraría hasta que ya se hubiera agotado. Para esos se usa lo que vendió su
+                generación anterior. Y se marca con ⚡ lo que se está agotando más rápido de lo que la
+                referencia predecía: ahí es donde la cuenta se queda corta sola, y suele pasar justo con
+                lo nuevo.
+              </p>
             </div>
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-              <Dato valor={comprasVenta.length} etiqueta="modelos a comprar" color={VERDE} />
-              <Dato valor={comprasVenta.reduce((a, f) => a + f.sugerido, 0)} etiqueta="piezas en total" />
-              <Dato valor={compras.descartados.length} etiqueta="no se compran" nota="generación vieja" color={AMBAR} />
+              <Dato valor={compras.filas.filter(f => f.sugerido > 0).length} etiqueta="modelos a comprar" color={VERDE} />
+              <Dato valor={compras.totalPiezas} etiqueta="piezas en total" />
+              <Dato valor={compras.adelantados.length} etiqueta="se agotan antes" nota="de lo previsto" color={AMBAR} />
+              <Dato valor={compras.nuevosEstimados.length} etiqueta="modelos nuevos" nota="estimados con la anterior" color={'#0288AD'} />
+              <Dato valor={compras.descartados.length} etiqueta="no se compran" nota="generación vieja" color={TINTA_TENUE} />
             </div>
 
             <Tabla encabezados={<>
-              <Th>Modelo</Th><Th>Código</Th>
-              <Th num style={{ textAlign: 'right' }}>En bodega</Th>
-              <Th num style={{ textAlign: 'right' }} title="Piezas vendidas en los mismos meses del año pasado">Demanda</Th>
+              <Th>Código</Th><Th>Modelo</Th>
+              <Th num style={{ textAlign: 'right' }} title="Existencia actual en bodega">Inventario</Th>
+              <Th num style={{ textAlign: 'right' }} title="Piezas vendidas en los últimos 2 meses, todas las plazas">Ventas 2 m</Th>
               <Th num style={{ textAlign: 'right' }}>COMPRAR</Th>
-              <Th>Hereda de</Th>
+              <Th num style={{ textAlign: 'right' }} title="En cuántas sucursales está en cero">Agotado en</Th>
+              <Th num style={{ textAlign: 'right' }} title="Días desde el último movimiento">Días</Th>
+              <Th>Observaciones</Th>
             </>}>
-              {comprasVenta.slice(0, TOPE).map((f, i) => (
+              {compras.filas.slice(0, TOPE).map((f, i) => (
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
-                  <Modelo f={f} />
-                  <Celda num color={f.enCatalogo ? TINTA : ROSA}
-                         title={f.enCatalogo ? undefined : 'Bodega no maneja este código: hay que darlo de alta'}>
-                    {f.enCatalogo ? f.existencia : 'alta'}
+                  <td style={{ padding: '7px 10px', color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{f.codigo}</td>
+                  <Celda>
+                    <span style={{ display: 'block', maxWidth: 230, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {f.producto}
+                    </span>
                   </Celda>
-                  <Celda num color={TINTA_SUAVE}>{Math.round(f.esperado)}</Celda>
-                  <Celda num fuerte color={VERDE}>{f.sugerido}</Celda>
-                  <Celda color={TINTA_TENUE}>
-                    {f.heredado.length ? f.heredado.map(h => h.codigo).join(', ') : '—'}
+                  <Celda num color={f.enCatalogo ? (f.existencia === 0 ? ROSA : TINTA) : ROSA}
+                         title={f.enCatalogo ? undefined : 'Bodega no maneja este código'}>
+                    {f.enCatalogo ? f.existencia : '—'}
+                  </Celda>
+                  <Celda num color={'#0288AD'}>{f.vendidas2m || '—'}</Celda>
+                  <Celda num fuerte color={VERDE}>{f.sugerido || '—'}</Celda>
+                  <Celda num color={f.plazasEnCero === f.plazasTotal && f.plazasTotal > 0 ? ROSA : AMBAR}>
+                    {f.plazasTotal ? `${f.plazasEnCero}/${f.plazasTotal}` : '—'}
+                  </Celda>
+                  <Celda num color={f.diasAgotado > 30 ? ROSA : TINTA_SUAVE}>{f.diasAgotado ?? '—'}</Celda>
+                  <Celda color={f.seAdelanta ? AMBAR : TINTA_TENUE}>
+                    <span style={{ display: 'block', maxWidth: 330, fontSize: 11.5, lineHeight: 1.35 }}>
+                      {f.seAdelanta && <strong>⚡ </strong>}
+                      {f.observaciones || '—'}
+                    </span>
                   </Celda>
                 </tr>
               ))}

@@ -70,6 +70,7 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
     ['Pedir por venta',      conteos.modelos,  'Se mueven y no alcanzan para la cobertura'],
     ['Sin venta y agotados', conteos.muestras, 'Nunca se vendieron y están en cero: 1 de muestra'],
     ['Bodega',               conteos.bodega,   'Lo que piden las plazas contra lo que hay'],
+    ['Comprar para bodega',  conteos.compras,  'Qué pedir al proveedor, con agotados y observaciones'],
     ['Agotados que duelen',  conteos.agotados, 'En cero, se siguen vendiendo y siguen vigentes'],
     ['Recién llegados',      conteos.nuevos,   'Menos de un año en el catálogo y aún sin venta'],
     ['Depurar',              conteos.depurar,  'Más de un año sin una sola venta y ocupando lugar'],
@@ -222,6 +223,21 @@ const COLS_AGOTADOS = [
   { titulo: 'Relevo', valor: a => a.sucesorNombre ?? '', ancho: 30 },
 ]
 
+const COLS_COMPRA = [
+  { titulo: 'Código',  valor: f => f.codigo,   ancho: 12 },
+  { titulo: 'Modelo',  valor: f => f.producto, ancho: 38 },
+  { titulo: 'Inventario en bodega', valor: f => (f.enCatalogo ? f.existencia : ''), num: true,
+    color: f => (!f.enCatalogo || f.existencia === 0 ? C.rosa : C.tinta) },
+  { titulo: 'Ventas 2 meses', valor: f => f.vendidas2m, num: true, color: C.azul },
+  { titulo: 'COMPRAR', valor: f => f.sugerido, num: true, fuerte: true, color: C.verde },
+  { titulo: 'Agotado en', valor: f => (f.plazasTotal ? `${f.plazasEnCero} de ${f.plazasTotal}` : ''), ancho: 12,
+    color: f => (f.plazasEnCero === f.plazasTotal && f.plazasTotal > 0 ? C.rosa : C.ambar) },
+  { titulo: 'Días agotado', valor: f => f.diasAgotado ?? '', num: true,
+    color: f => (f.diasAgotado > 30 ? C.rosa : C.tintaSuave) },
+  { titulo: 'Observaciones', valor: f => f.observaciones ?? '', ancho: 48,
+    color: f => (f.seAdelanta ? C.ambar : C.tintaSuave) },
+]
+
 const COLS_NUEVOS = [
   { titulo: 'Código',         valor: d => d.codigo,   ancho: 12 },
   { titulo: 'Modelo',         valor: d => d.producto, ancho: 40 },
@@ -233,7 +249,7 @@ const COLS_NUEVOS = [
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
 
-export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], agotados = [], candidatos = null, bodegaStock = null, esFeria = false }) {
+export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], agotados = [], compras = [], candidatos = null, bodegaStock = null, esFeria = false }) {
   const libro = XLSX.utils.book_new()
 
   const conteos = {
@@ -244,6 +260,7 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
     depurar:  depurar.length,
     nuevos:   nuevos.length,
     agotados: agotados.length,
+    compras:  compras.length,
   }
 
   const notas = [
@@ -262,6 +279,7 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_MUESTRA, muestras), 'Sin venta y agotados')
   if (candidatos) XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_CANDIDATOS, candidatos), 'Se venden en tienda')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_BODEGA, bodega), 'Bodega')
+  if (compras.length) XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_COMPRA, compras), 'Comprar para bodega')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_AGOTADOS, agotados), 'Agotados que duelen')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_NUEVOS, nuevos), 'Recién llegados')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_DEPURAR, depurar), 'Depurar')

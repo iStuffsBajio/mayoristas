@@ -13,7 +13,7 @@
 // que ya está saliendo del mercado.
 
 import { diasDePeriodo } from './estadisticas.js'
-import { esTemporadaAlta } from './surtido.js'
+import { esTemporadaAlta, MESES_ALTA } from './surtido.js'
 import { seProduce } from './produccion.js'
 
 /** Meses que debe aguantar la bodega. En temporada alta, uno más. */
@@ -85,6 +85,33 @@ export function mapaGeneraciones(productos) {
   return { mapa, cambios }
 }
 
+/**
+ * De cada modelo, la generación inmediatamente anterior que exista.
+ *
+ * Sirve para lo contrario que el mapa de relevo: cuando un modelo es tan nuevo
+ * que no tiene historial propio, lo que vendió su generación anterior es la
+ * única pista razonable de cuánto va a venderse. Es justo donde más se falla,
+ * porque un modelo recién llegado se agota sin que nadie lo haya previsto.
+ */
+export function mapaGeneracionAnterior(productos) {
+  const porFamilia = new Map()
+  for (const p of productos ?? []) {
+    const codigo = String(p.Codigo ?? '').trim()
+    const partes = partirCodigo(codigo)
+    if (!partes || partes.num.length < 2) continue
+    const f = familiaDe(partes)
+    if (!porFamilia.has(f)) porFamilia.set(f, [])
+    porFamilia.get(f).push({ codigo, num: partes.num, producto: String(p.Producto ?? '').trim() })
+  }
+
+  const anterior = {}
+  for (const lista of porFamilia.values()) {
+    const ord = lista.slice().sort((a, b) => a.num.localeCompare(b.num))
+    for (let i = 1; i < ord.length; i++) anterior[ord[i].codigo] = ord[i - 1].codigo
+  }
+  return anterior
+}
+
 /** Los n meses que siguen al de hoy, el actual incluido. */
 export function mesesSiguientes(n, hoy = new Date()) {
   const salida = []
@@ -125,7 +152,12 @@ function demandaDe(historiales, meses) {
  * hace para el negocio entero, no para una plaza.
  */
 export function calcularCompras({ historiales, productosBodega, hoy = new Date(), margen = 0 }) {
-  const alta = esTemporadaAlta(hoy)
+  // La temporada que cuenta es la del periodo QUE SE COMPRA, no la de hoy.
+  // Comprando en octubre para noviembre y diciembre hay que cubrir temporada
+  // alta, aunque octubre sea un mes normal; mirar el mes actual dejaba el
+  // pedido corto justo antes del Buen Fin.
+  const dosMeses = mesesSiguientes(MESES_COBERTURA.normal, hoy)
+  const alta = dosMeses.some(m => MESES_ALTA.includes(Number(m.slice(5))))
   const nMeses = alta ? MESES_COBERTURA.alta : MESES_COBERTURA.normal
 
   const objetivo = mesesSiguientes(nMeses, hoy)
@@ -351,5 +383,158 @@ export function analizarAgotados({ inventarios, historiales, productosBodega, ho
     compra:  filas.filter(f => f.estado === ESTADO_AGOTADO.COMPRA),
     reparto: filas.filter(f => f.estado === ESTADO_AGOTADO.REPARTO),
     normal:  filas.filter(f => f.estado === ESTADO_AGOTADO.NORMAL),
+  }
+}
+
+// ── Compra de bodega, todo en una tabla ──────────────────────────────────────
+
+/** Meses hacia atrás desde hoy, para la ventana de venta reciente. */
+function mesesAtras(n, hoy) {
+  const salida = []
+  for (let i = 1; i <= n; i++) {
+    const d = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() - i + 1, 1))
+    salida.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
+  }
+  return salida
+}
+
+/**
+ * Se considera que un modelo se está agotando antes de lo previsto cuando su
+ * ritmo reciente supera al de referencia por este margen. Por debajo es ruido.
+ */
+const SE_ADELANTA = 1.4
+
+/**
+ * Y por debajo de estas piezas en la ventana no se marca nada.
+ *
+ * Sin este minimo la señal salta con ruido: "va a 0.03 piezas al dia contra
+ * 0.02 esperadas" es una pieza de diferencia en dos meses, no una tendencia.
+ */
+const MINIMO_PARA_MARCAR = 4
+
+/**
+ * La tabla de compra para bodega, con todo lo que hace falta para decidir en
+ * un solo renglón: lo que hay, lo que se vendió, lo que se sugiere comprar, en
+ * cuántas plazas está agotado y desde cuándo.
+ *
+ * Dos cosas que no salen de la cuenta normal:
+ *
+ * Un modelo recién llegado no tiene historial propio, así que el cálculo lo
+ * daría por cero y nadie lo compraría hasta que ya se hubiera agotado. Para
+ * esos se usa lo que vendió su generación anterior, que es la única pista
+ * razonable, y se dice en las observaciones.
+ *
+ * Y se marca lo que se está agotando MÁS RÁPIDO de lo que la referencia
+ * predecía. Ahí es donde el cálculo se queda corto solo, y suele pasar justo
+ * con lo nuevo.
+ */
+export function calcularCompraBodega({ historiales, inventarios, productosBodega, hoy = new Date(), margen = 0 }) {
+  const base = calcularCompras({ historiales, productosBodega, hoy, margen })
+  const anterior = mapaGeneracionAnterior(productosBodega)
+  const agotados = analizarAgotados({ inventarios, historiales, productosBodega, hoy })
+  const porCodigoAgotado = new Map(agotados.filas.map(f => [f.codigo, f]))
+
+  // Venta de los dos meses recién cerrados, en todas las plazas.
+  const ventana = mesesAtras(2, hoy)
+  const { piezas: recientes } = demandaDe(historiales, ventana)
+
+  const nombres = {}
+  const enBodega = {}
+  for (const p of productosBodega ?? []) {
+    const c = String(p.Codigo ?? '').trim()
+    if (!c) continue
+    nombres[c] = String(p.Producto ?? '').trim()
+    enBodega[c] = Number(p.Existencia) || 0
+  }
+
+  // Todo lo que pueda necesitar compra: lo que ya salió en el cálculo, más lo
+  // que está agotado doliendo aunque la referencia no lo viera.
+  const codigos = new Set([
+    ...base.filas.map(f => f.codigo),
+    ...agotados.filas.map(f => f.codigo),
+  ])
+
+  const porBase = new Map(base.filas.map(f => [f.codigo, f]))
+  const diasVentana = 61  // dos meses, para pasar la venta reciente a ritmo
+
+  const filas = []
+  for (const codigo of codigos) {
+    if (seProduce(codigo, nombres[codigo] ?? '')) continue
+
+    const b = porBase.get(codigo)
+    const ag = porCodigoAgotado.get(codigo)
+    const existencia = enBodega[codigo] ?? 0
+    const vendidas2m = recientes[codigo] ?? 0
+
+    let esperado = b?.esperado ?? 0
+    const obs = []
+
+    // Sin historial propio: se estima con la generación anterior.
+    let estimadoDe = null
+    if (esperado === 0) {
+      const previo = anterior[codigo]
+      const esperadoPrevio = porBase.get(previo)?.esperado ?? 0
+      if (previo && esperadoPrevio > 0) {
+        esperado = esperadoPrevio
+        estimadoDe = previo
+        obs.push(`Modelo nuevo: estimado con ${nombres[previo] || previo}`)
+      }
+    }
+
+    // ¿Se está agotando más rápido de lo que la referencia predecía?
+    const ritmoReferencia = esperado / (base.nMeses * 30)
+    const ritmoReciente = vendidas2m / diasVentana
+    const seAdelanta = ritmoReferencia > 0
+      && vendidas2m >= MINIMO_PARA_MARCAR
+      && ritmoReciente > ritmoReferencia * SE_ADELANTA
+    if (seAdelanta) {
+      obs.push(`Se agota antes de lo previsto: va a ${ritmoReciente.toFixed(2)} pz/día contra ${ritmoReferencia.toFixed(2)} esperadas`)
+      // La referencia se queda corta, así que manda el ritmo de ahora.
+      esperado = ritmoReciente * base.nMeses * 30
+    }
+
+    if (ag) {
+      if (ag.plazasConStock === 0) obs.push(`Agotado en las ${ag.plazasEnCero} plazas`)
+      else obs.push(`Agotado en ${ag.plazasEnCero} de ${ag.plazasEnCero + ag.plazasConStock} plazas`)
+    }
+    if (!(codigo in enBodega)) obs.push('Bodega no maneja este código: hay que darlo de alta')
+    if (b?.heredado?.length) obs.push(`Hereda la demanda de ${b.heredado.map(h => h.codigo).join(', ')}`)
+
+    const sugerido = Math.max(0, Math.ceil(esperado * (1 + margen) - existencia))
+    if (sugerido === 0 && vendidas2m === 0 && !ag) continue
+
+    filas.push({
+      codigo,
+      producto: nombres[codigo] || b?.producto || ag?.producto || codigo,
+      existencia,
+      enCatalogo: codigo in enBodega,
+      vendidas2m,
+      esperado,
+      sugerido,
+      plazasEnCero: ag?.plazasEnCero ?? 0,
+      plazasTotal: ag ? ag.plazasEnCero + ag.plazasConStock : 0,
+      diasAgotado: ag?.diasAgotado ?? null,
+      seAdelanta,
+      estimadoDe,
+      observaciones: obs.join(' · '),
+    })
+  }
+
+  // Manda lo que hay que comprar. La marca de "se agota antes" se enseña en su
+  // columna y en su propio contador: ponerla a ordenar subía al principio
+  // modelos con cero que comprar, que es justo lo que no sirve en una lista de
+  // compra.
+  filas.sort((a, b2) =>
+    b2.sugerido - a.sugerido ||
+    (b2.seAdelanta ? 1 : 0) - (a.seAdelanta ? 1 : 0) ||
+    b2.vendidas2m - a.vendidas2m)
+
+  return {
+    ...base,
+    filas,
+    ventana,
+    adelantados: filas.filter(f => f.seAdelanta),
+    nuevosEstimados: filas.filter(f => f.estimadoDe),
+    totalPiezas: filas.reduce((a, f) => a + f.sugerido, 0),
   }
 }
