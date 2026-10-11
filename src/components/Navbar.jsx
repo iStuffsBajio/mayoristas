@@ -25,6 +25,9 @@ const LogoutIcon = () => (
   </svg>
 )
 
+/** Alto de la barra. La de pestañas se pega justo debajo usando este valor. */
+export const ALTO_BARRA = 52
+
 export default function Navbar({ onLoginClick }) {
   const { session, logout, branchName } = useAuth()
   const [query, setQuery]   = useState('')
@@ -33,24 +36,27 @@ export default function Navbar({ onLoginClick }) {
   return (
     <nav className="sticky top-0 z-50"
       style={{ backgroundColor: '#ffffff', borderBottom: '1px solid rgba(16,22,25,0.05)' }}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3 sm:gap-5">
+      {/* Altura fija y exportada: la barra de pestañas se ancla justo debajo
+          con `top: ALTO_BARRA`. Si se cambia aquí y allí no, se encima. */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-3 sm:gap-4"
+        style={{ height: ALTO_BARRA }}>
 
         {/* Solo el logotipo. Ya trae el nombre dentro, así que repetirlo al
             lado duplicaba la marca y le quitaba peso. */}
         <a href="#" style={{ textDecoration: 'none', flexShrink: 0, display: 'block' }}>
           <img src="/logo-istuffs.png" alt="iStuffs Custom Cases"
-            style={{ height: 54, width: 'auto', display: 'block' }} />
+            style={{ height: 34, width: 'auto', display: 'block' }} />
         </a>
 
         {/* Search */}
         <div className="flex-1 relative">
-          <span className="absolute left-4 top-1/2 pointer-events-none" style={{ color: 'rgba(0,0,0,0.3)', transform: 'translateY(-50%)' }}>
+          <span className="absolute left-3 top-1/2 pointer-events-none" style={{ color: 'rgba(0,0,0,0.3)', transform: 'translateY(-50%)' }}>
             <SearchIcon />
           </span>
           <input type="text" placeholder="Buscar fundas, accesorios, modelos..."
             value={query} onChange={e => setQuery(e.target.value)}
             className="w-full text-sm outline-none transition-all"
-            style={{ backgroundColor: 'rgba(0,0,0,0.04)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', padding: '10px 18px 10px 38px', color: '#101619' }}
+            style={{ backgroundColor: 'rgba(0,0,0,0.035)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', padding: '6px 14px 6px 32px', fontSize: 13, color: '#101619' }}
             onFocus={e => { e.target.style.borderColor = 'rgba(0,188,242,0.5)'; e.target.style.backgroundColor = 'rgba(0,188,242,0.03)' }}
             onBlur={e => { e.target.style.borderColor = 'rgba(16,22,25,0.05)'; e.target.style.backgroundColor = 'rgba(0,0,0,0.04)' }}
           />
@@ -58,7 +64,7 @@ export default function Navbar({ onLoginClick }) {
 
         {/* Actions */}
         <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>
-          <button className="relative p-2.5 rounded-full transition-colors"
+          <button className="relative p-1.5 rounded-full transition-colors"
             style={{ color: 'rgba(0,0,0,0.55)', background: 'none', border: 'none', cursor: 'pointer' }}
             onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = '#0A0A0A' }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(0,0,0,0.55)' }}>
@@ -71,7 +77,7 @@ export default function Navbar({ onLoginClick }) {
           {session ? (
             <div className="flex items-center gap-2 ml-1">
               {/* Indicador de sesión */}
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full"
+              <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full"
                 style={{ backgroundColor: 'rgba(0,188,242,0.08)', border: '1px solid rgba(0,188,242,0.2)' }}>
                 <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#00BCF2', display: 'inline-block' }} />
                 <span className="text-xs font-semibold" style={{ color: '#007aad' }}>
@@ -82,7 +88,7 @@ export default function Navbar({ onLoginClick }) {
               <button
                 onClick={logout}
                 title="Cerrar sesión"
-                className="flex items-center gap-1.5 p-2.5 rounded-full transition-colors text-xs font-medium"
+                className="flex items-center gap-1.5 p-1.5 rounded-full transition-colors text-xs font-medium"
                 style={{ color: 'rgba(0,0,0,0.45)', background: 'none', border: 'none', cursor: 'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(213,26,122,0.07)'; e.currentTarget.style.color = '#D51A7A' }}
                 onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = 'rgba(0,0,0,0.45)' }}>
@@ -92,8 +98,8 @@ export default function Navbar({ onLoginClick }) {
           ) : (
             <button
               onClick={onLoginClick}
-              className="flex items-center gap-2 ml-1 px-4 py-2 text-sm font-semibold transition-all"
-              style={{ backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', color: 'rgba(0,0,0,0.6)', cursor: 'pointer' }}
+              className="flex items-center gap-1.5 ml-1 transition-all"
+              style={{ padding: '5px 13px', fontSize: 13, fontWeight: 500, backgroundColor: 'rgba(16,22,25,0.045)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', color: 'rgba(0,0,0,0.6)', cursor: 'pointer' }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = '#0A0A0A' }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.6)' }}>
               <UserIcon />

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AuthProvider } from './context/AuthContext'
 import { SiteConfigProvider, useSiteConfig } from './context/SiteConfigContext'
 import { useAuth } from './context/AuthContext'
-import Navbar from './components/Navbar'
+import Navbar, { ALTO_BARRA } from './components/Navbar'
 import Hero from './components/Hero'
 import Mosaico from './components/Mosaico'
 import InventarioSemanal from './components/InventarioSemanal'
@@ -33,7 +33,7 @@ function TabBar({ active, onChange }) {
       backgroundColor: 'rgba(255,255,255,0.82)',
       backdropFilter: 'saturate(180%) blur(14px)',
       WebkitBackdropFilter: 'saturate(180%) blur(14px)',
-      position: 'sticky', top: 57, zIndex: 40,
+      position: 'sticky', top: ALTO_BARRA, zIndex: 40,
     }}>
       <div className="max-w-6xl mx-auto px-4 flex gap-1 justify-center overflow-x-auto">
         {visibles.map(tab => {
