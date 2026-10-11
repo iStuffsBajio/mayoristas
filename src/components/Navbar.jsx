@@ -17,31 +17,8 @@ const UserIcon = () => (
     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" />
   </svg>
 )
-const MapPinIcon = () => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" /><circle cx="12" cy="10" r="3" />
-  </svg>
-)
-const ChevronDown = ({ open }) => (
-  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-    style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}>
-    <path d="m6 9 6 6 6-6" />
-  </svg>
-)
-const LogoutIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-    <polyline points="16 17 21 12 16 7" />
-    <line x1="21" y1="12" x2="9" y2="12" />
-  </svg>
-)
-
-const BRANCHES = ['León', 'San Luis Potosí', 'Aguascalientes', 'Torreón']
-
 export default function Navbar({ onLoginClick }) {
   const { session, logout, branchName } = useAuth()
-  const [branch, setBranch] = useState('León')
-  const [open, setOpen]     = useState(false)
   const [query, setQuery]   = useState('')
   const cartCount = 3
 
@@ -56,37 +33,6 @@ export default function Navbar({ onLoginClick }) {
           <img src="/logo-istuffs.png" alt="iStuffs Custom Cases"
             style={{ height: 54, width: 'auto', display: 'block' }} />
         </a>
-
-        {/* Branch selector */}
-        <div className="relative" style={{ flexShrink: 0 }}>
-          <button onClick={() => setOpen(v => !v)}
-            className="flex items-center gap-1.5 text-sm font-medium transition-colors"
-            style={{ color: 'rgba(0,0,0,0.5)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0' }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#0A0A0A')}
-            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(0,0,0,0.5)')}>
-            <span style={{ color: '#0288AD' }}><MapPinIcon /></span>
-            <span className="hidden sm:block">{branch}</span>
-            <ChevronDown open={open} />
-          </button>
-          {open && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-              <div className="absolute top-full left-0 mt-2 z-50 overflow-hidden shadow-xl"
-                style={{ backgroundColor: '#ffffff', border: '1px solid rgba(16,22,25,0.09)', borderRadius: '30px', minWidth: '190px' }}>
-                {BRANCHES.map(b => (
-                  <button key={b} onClick={() => { setBranch(b); setOpen(false) }}
-                    className="flex items-center gap-2.5 w-full px-4 py-3 text-sm text-left transition-colors"
-                    style={{ color: b === branch ? '#00BCF2' : 'rgba(0,0,0,0.65)', background: 'none', border: 'none', cursor: 'pointer' }}
-                    onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(0,0,0,0.04)')}
-                    onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, backgroundColor: b === branch ? '#00BCF2' : 'rgba(0,0,0,0.2)' }} />
-                    <span className={b === branch ? 'font-semibold' : ''}>{b}</span>
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-        </div>
 
         {/* Search */}
         <div className="flex-1 relative">
