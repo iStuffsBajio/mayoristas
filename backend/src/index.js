@@ -6,7 +6,7 @@
 // Ahora esas credenciales viven solo aquí, en variables de entorno de Lambda,
 // y el navegador solo recibe respuestas ya procesadas.
 
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import {
   verificarContrasena, crearSesion, leerSesion,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
@@ -278,6 +278,27 @@ async function rutaSubirInventario(evento, origen, cuerpo) {
   return responder(origen, 200, { ok: true, totalProductos: productos.length })
 }
 
+/**
+ * Turnos del personal. Solo administrador.
+ *
+ * Vive en el prefijo `personal/`, que la politica del bucket NO abre al
+ * publico: son nombres de empleados y la hora a la que llegaron cada dia. Por
+ * eso se sirve desde aqui y no se lee del navegador, que tendria que llevar
+ * credenciales para alcanzarlo.
+ */
+async function rutaTurnos(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
+
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: 'personal/turnos.json' }))
+    const texto = await r.Body.transformToString()
+    return responder(origen, 200, JSON.parse(texto))
+  } catch {
+    return responder(origen, 404, { error: 'Todavia no hay turnos publicados.' })
+  }
+}
+
 // ── Entrada ────────────────────────────────────────────────────────────────
 
 export async function handler(evento) {
@@ -310,6 +331,7 @@ export async function handler(evento) {
   try {
     if (metodo === 'POST' && ruta === '/login')      return await rutaLogin(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/galeria')    return await rutaGaleria(evento, origen)
+    if (metodo === 'GET'  && ruta === '/turnos')     return await rutaTurnos(evento, origen)
     if (metodo === 'POST' && ruta === '/diseno')     return await rutaSubirDiseno(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/config')     return await rutaGuardarConfig(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/inventario') return await rutaSubirInventario(evento, origen, cuerpo)

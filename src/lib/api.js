@@ -89,6 +89,15 @@ export async function subirDiseno(sucursal, file, nombre, modelo = '') {
   })
 }
 
+/**
+ * Turnos del personal. Requiere sesión de administrador.
+ *
+ * No se lee de S3 desde aquí a propósito: el prefijo `personal/` es privado y
+ * alcanzarlo desde el navegador obligaría a llevar credenciales, que es justo
+ * lo que se quitó. Lo sirve el backend, que ya las tiene de su lado.
+ */
+export const turnos = token => pedir('/turnos', { token })
+
 // ── Galería del catálogo ─────────────────────────────────────────────────────
 
 /** Imágenes de una carpeta del catálogo, con enlaces temporales. */
