@@ -62,6 +62,18 @@ function BotonExcel({ onClick, principal, children }) {
   )
 }
 
+/** Una cifra y su etiqueta, en línea. Para resúmenes que no necesitan caja. */
+function Cifra({ valor, etiqueta, color }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5 }}>
+      <strong style={{ fontSize: 21, fontWeight: 800, color: color || TINTA, fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' }}>
+        {valor}
+      </strong>
+      <span style={{ fontSize: 12, color: TINTA_SUAVE }}>{etiqueta}</span>
+    </span>
+  )
+}
+
 function Dato({ valor, etiqueta, nota, color }) {
   return (
     <div style={{ flex: 1, minWidth: 120, padding: '14px 16px', background: '#fff', border: '1px solid ' + LINEA, borderRadius: 18 }}>
@@ -77,33 +89,58 @@ function Aviso({ children }) {
 }
 
 /** Serie diaria. Barras finas, extremo redondeado y apoyadas en la base. */
+const DIAS_SEMANA = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb']
+const INICIAL     = ['D', 'L', 'M', 'X', 'J', 'V', 'S']
+
+const fechaDe = iso => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d) }
+const fmtDia  = iso => fechaDe(iso).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
+
+/**
+ * Serie diaria con el día de la semana bajo cada barra.
+ *
+ * La etiqueta se ajusta al rango porque el ancho no da para todo: hasta diez
+ * días caben "lun 6"; hasta un mes solo la inicial; por encima no cabe nada y
+ * se dejan las fechas de los extremos. Poner siempre lo mismo convertía el pie
+ * en una mancha ilegible a 60 días.
+ *
+ * El fin de semana va con el fondo tenue: así se ve de un vistazo si la caída
+ * de un día es porque cerró o porque vendió poco.
+ */
 function SerieDiaria({ serie }) {
   const [activo, setActivo] = useState(null)
   const max = Math.max(1, ...serie.map(d => d.salidas))
-  const fmt = iso => {
-    const [y, m, d] = iso.split('-').map(Number)
-    return new Date(y, m - 1, d).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
-  }
+  const detalle = serie.length <= 10 ? 'completo' : serie.length <= 31 ? 'inicial' : 'ninguno'
+
+  const total = serie.reduce((a, d) => a + d.salidas, 0)
+  const conDato = serie.filter(d => d.salidas > 0).length
+  const promedio = conDato ? total / conDato : 0
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 10, gap: 10, flexWrap: 'wrap' }}>
-        <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: 0 }}>Piezas que salieron por día</h4>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8, gap: 10, flexWrap: 'wrap' }}>
+        <h4 style={{ fontSize: 12.5, fontWeight: 700, color: TINTA, margin: 0 }}>Piezas por día</h4>
         <span style={{ fontSize: 11.5, color: activo ? TINTA : TINTA_TENUE, fontVariantNumeric: 'tabular-nums' }}>
-          {activo ? `${fmt(activo.fecha)}: ${activo.salidas} pz` : `máximo ${max} pz`}
+          {activo
+            ? `${DIAS_SEMANA[fechaDe(activo.fecha).getDay()]} ${fmtDia(activo.fecha)} · ${activo.salidas} pz`
+            : `máximo ${max} · promedio ${promedio.toFixed(1)}`}
         </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 90, borderBottom: '1px solid ' + LINEA, paddingBottom: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: 78 }}>
         {serie.map(d => {
-          const h = d.salidas === 0 ? 2 : Math.max(4, Math.round((d.salidas / max) * 86))
+          const h = d.salidas === 0 ? 2 : Math.max(4, Math.round((d.salidas / max) * 74))
           const esActivo = activo?.fecha === d.fecha
+          const finde = [0, 6].includes(fechaDe(d.fecha).getDay())
           return (
             <div key={d.fecha}
               onMouseEnter={() => setActivo(d)}
               onMouseLeave={() => setActivo(null)}
-              title={`${fmt(d.fecha)}: ${d.salidas} piezas`}
-              style={{ flex: 1, minWidth: 3, height: '100%', display: 'flex', alignItems: 'flex-end', cursor: 'default' }}>
+              title={`${DIAS_SEMANA[fechaDe(d.fecha).getDay()]} ${fmtDia(d.fecha)}: ${d.salidas} piezas`}
+              style={{
+                flex: 1, minWidth: 3, height: '100%', display: 'flex', alignItems: 'flex-end',
+                cursor: 'default', background: finde ? 'rgba(16,22,25,0.035)' : 'transparent',
+                borderRadius: '4px 4px 0 0',
+              }}>
               <div style={{
                 width: '100%', height: h,
                 background: d.salidas === 0 ? LINEA : C_SERIE,
@@ -116,10 +153,32 @@ function SerieDiaria({ serie }) {
         })}
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 10.5, color: TINTA_TENUE }}>
-        <span>{fmt(serie[0].fecha)}</span>
-        <span>{fmt(serie[serie.length - 1].fecha)}</span>
-      </div>
+      {/* El pie: el día de la semana bajo cada barra, con el mismo reparto de
+          ancho que las barras para que queden alineados. */}
+      {detalle !== 'ninguno' ? (
+        <div style={{ display: 'flex', gap: 2, borderTop: '1px solid ' + LINEA, paddingTop: 5 }}>
+          {serie.map(d => {
+            const f = fechaDe(d.fecha)
+            const finde = [0, 6].includes(f.getDay())
+            return (
+              <div key={d.fecha} style={{
+                flex: 1, minWidth: 3, textAlign: 'center', fontSize: detalle === 'completo' ? 10.5 : 9.5,
+                color: finde ? TINTA_TENUE : TINTA_SUAVE, lineHeight: 1.25,
+                fontWeight: finde ? 400 : 600,
+              }}>
+                {detalle === 'completo'
+                  ? <>{DIAS_SEMANA[f.getDay()]}<br /><span style={{ color: TINTA_TENUE, fontWeight: 400 }}>{f.getDate()}</span></>
+                  : INICIAL[f.getDay()]}
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid ' + LINEA, paddingTop: 5, fontSize: 10.5, color: TINTA_TENUE }}>
+          <span>{fmtDia(serie[0].fecha)}</span>
+          <span>{fmtDia(serie[serie.length - 1].fecha)}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -431,12 +490,13 @@ export default function EstadisticasPanel() {
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
-      <div style={{ marginBottom: 18 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>📊 Movimiento de inventario</h3>
-        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
-          Se calcula comparando el inventario de cada día contra el anterior. Cuenta lo que
-          bajó de existencia, así que el resurtido no infla el número.
-        </p>
+      {/* Una sola línea. El detalle de cómo se calcula ya estaba al pie del
+          panel, repetirlo arriba empujaba la gráfica fuera de la pantalla. */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 800, color: TINTA, margin: 0 }}>📊 Movimiento de inventario</h3>
+        <span style={{ fontSize: 11.5, color: TINTA_TENUE }}>
+          lo que bajó de existencia día contra día
+        </span>
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -475,19 +535,19 @@ export default function EstadisticasPanel() {
             </Aviso>
           )}
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Dato valor={resumen.totalSalidas} etiqueta="piezas salieron" nota={`en ${rango} días`} />
-            <Dato valor={resumen.modelosConMovimiento} etiqueta="modelos con movimiento" />
-            <Dato valor={resumen.diasConDato} etiqueta="días con dato"
-                  nota={resumen.diasConDato < rango ? `de ${rango} posibles` : null} />
+          {/* Tres cifras en un renglón. Antes eran tres tarjetas grandes que
+              ocupaban el alto de la gráfica sin decir más. */}
+          <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'baseline', marginTop: -8 }}>
+            <Cifra valor={resumen.totalSalidas} etiqueta="piezas" />
+            <Cifra valor={resumen.modelosConMovimiento} etiqueta="modelos" />
+            <Cifra valor={`${resumen.diasConDato}/${rango}`} etiqueta="días con dato"
+                   color={resumen.diasConDato < rango ? '#B45309' : TINTA} />
+            {resumen.diasConDato < rango && (
+              <span style={{ fontSize: 11, color: '#B45309', lineHeight: 1.4, maxWidth: 330 }}>
+                Los días sin respaldo salen en cero, no como ausencia.
+              </span>
+            )}
           </div>
-
-          {resumen.diasConDato < rango && (
-            <p style={{ fontSize: 11.5, color: '#B45309', margin: '-10px 0 0', lineHeight: 1.5 }}>
-              Solo hay {resumen.diasConDato} {resumen.diasConDato === 1 ? 'día' : 'días'} con dato en este rango.
-              Los días sin respaldo de la sucursal aparecen en cero, no como ausencia.
-            </p>
-          )}
 
           <SerieDiaria serie={resumen.serie} />
 
