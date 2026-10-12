@@ -401,41 +401,98 @@ function SeccionWhatsApp({ config, save }) {
 }
 
 // ── Panel principal ───────────────────────────────────────────────────────────
+// Las secciones del panel. Antes iban una debajo de otra en una columna
+// estrecha: había que bajar media pantalla para llegar a la configuración y
+// el espacio de los lados quedaba vacío. Ahora son un menú.
+const SECCIONES = [
+  { id: 'ventas',      icono: '📊', titulo: 'Ventas',       sub: 'Movimiento por sucursal' },
+  { id: 'inventarios', icono: '📦', titulo: 'Inventarios',  sub: 'Existencias y faltantes' },
+  { id: 'surtido',     icono: '🚚', titulo: 'Surtido',      sub: 'Qué mandar a cada plaza' },
+  { id: 'bodega',      icono: '🏬', titulo: 'Bodega',       sub: 'Compra y cobertura' },
+  { id: 'config',      icono: '🎨', titulo: 'Diseño',       sub: 'Textos, colores y contacto' },
+]
+
+function BotonSeccion({ s, activa, onClick }) {
+  return (
+    <button type="button" onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 11, width: '100%',
+        padding: '11px 13px', borderRadius: 16, cursor: 'pointer', textAlign: 'left',
+        background: activa ? '#fff' : 'transparent',
+        border: '1px solid ' + (activa ? 'rgba(16,22,25,0.08)' : 'transparent'),
+        boxShadow: activa ? '0 2px 10px rgba(16,22,25,0.05)' : 'none',
+        transition: 'background .15s',
+      }}
+      onMouseEnter={e => { if (!activa) e.currentTarget.style.background = 'rgba(255,255,255,0.6)' }}
+      onMouseLeave={e => { if (!activa) e.currentTarget.style.background = 'transparent' }}>
+      <span style={{ fontSize: 17, lineHeight: 1 }}>{s.icono}</span>
+      <span style={{ minWidth: 0 }}>
+        <span style={{ display: 'block', fontSize: 13.5, fontWeight: activa ? 700 : 500, color: activa ? '#101619' : '#4A5A61' }}>
+          {s.titulo}
+        </span>
+        <span style={{ display: 'block', fontSize: 11, color: '#8598A1', marginTop: 1 }}>{s.sub}</span>
+      </span>
+    </button>
+  )
+}
+
 export default function AdminPanel() {
   const { config, save, guardando } = useSiteConfig()
+  const [seccion, setSeccion] = useState('ventas')
 
   return (
-    <section className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
-      <div className="mb-8">
-        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#C4156F' }}>Solo administrador</p>
-        <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#101619' }}>Panel de administración</h2>
-        <p className="text-sm" style={{ color: '#6C818B' }}>Los cambios se guardan en la nube y aplican a todos los dispositivos al instante.</p>
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
+      <div className="mb-6">
+        <p className="text-xs font-bold tracking-widest uppercase mb-1.5" style={{ color: '#C4156F' }}>Solo administrador</p>
+        <h2 className="text-2xl sm:text-3xl font-black" style={{ color: '#101619' }}>Panel de administración</h2>
       </div>
 
       {configRemotaInaccesible && (
-        <div style={{ marginBottom: 20, padding: '16px 18px', borderRadius: 34, background: 'rgba(213,26,122,0.06)', border: '1.5px solid rgba(213,26,122,0.25)' }}>
-          <p style={{ fontSize: 13.5, fontWeight: 800, color: '#C4156F', margin: 0 }}>
+        <div style={{ marginBottom: 18, padding: '14px 16px', borderRadius: 24, background: 'rgba(213,26,122,0.06)', border: '1.5px solid rgba(213,26,122,0.25)' }}>
+          <p style={{ fontSize: 13, fontWeight: 800, color: '#C4156F', margin: 0 }}>
             ⚠ Los cambios se guardan pero nadie los ve
           </p>
-          <p style={{ fontSize: 12.5, color: '#4A5A61', margin: '6px 0 0', lineHeight: 1.6 }}>
+          <p style={{ fontSize: 12, color: '#4A5A61', margin: '5px 0 0', lineHeight: 1.6 }}>
             El archivo <code>config/site.json</code> del bucket no es de lectura pública, así que
             la página siempre carga los valores por defecto. Da permiso de lectura pública al
-            prefijo <code>config/*</code> en la política del bucket de S3 para que esto funcione.
+            prefijo <code>config/*</code> en la política del bucket de S3.
           </p>
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-        <EstadisticasPanel />
-        <InventariosPanel />
-        <SurtidoPanel />
-        <SeccionTabs    config={config} save={save} guardando={guardando} />
-        <SeccionHero    config={config} save={save} />
-        <SeccionColores config={config} save={save} />
-        <SeccionFooter  config={config} save={save} />
-        <SeccionWhatsApp config={config} save={save} />
-        <SeccionDropbox  config={config} save={save} />
+      {/* El menú va a la izquierda, donde antes no había nada, y se queda
+          pegado al desplazarse para no perderlo en las tablas largas. */}
+      <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'minmax(0, 1fr)', alignItems: 'start' }}
+           className="admin-rejilla">
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'sticky', top: 104 }}>
+          {SECCIONES.map(s => (
+            <BotonSeccion key={s.id} s={s} activa={seccion === s.id} onClick={() => setSeccion(s.id)} />
+          ))}
+        </nav>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
+          {seccion === 'ventas'      && <EstadisticasPanel />}
+          {seccion === 'inventarios' && <InventariosPanel />}
+          {seccion === 'surtido'     && <SurtidoPanel ambito="sucursales" />}
+          {seccion === 'bodega'      && <SurtidoPanel ambito="bodega" />}
+          {seccion === 'config'      && (
+            <>
+              <SeccionTabs     config={config} save={save} guardando={guardando} />
+              <SeccionHero     config={config} save={save} />
+              <SeccionColores  config={config} save={save} />
+              <SeccionFooter   config={config} save={save} />
+              <SeccionWhatsApp config={config} save={save} />
+              <SeccionDropbox  config={config} save={save} />
+            </>
+          )}
+        </div>
       </div>
+
+      <style>{`
+        @media (min-width: 900px) {
+          .admin-rejilla { grid-template-columns: 216px minmax(0, 1fr); gap: 26px; }
+        }
+      `}</style>
     </section>
   )
 }

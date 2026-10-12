@@ -29,15 +29,19 @@ const MES = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
 // calcula de otra forma y mezclarla falsearia a las tiendas fijas.
 const FERIAS = SUCURSALES.find(s => s.estacional)
 
+// Cada vista pertenece a un ámbito. Mirar lo de sucursales y lo de bodega en
+// la misma fila de pestañas obligaba a leer el título para saber de qué se
+// estaba hablando; el panel las separa en dos secciones y cada una pide solo
+// las suyas.
 const VISTAS = [
-  { id: 'venta',   etiqueta: 'Pedir por venta' },
-  { id: 'muestra', etiqueta: 'Sin venta y agotados' },
-  { id: 'candidatos', etiqueta: 'Se venden en tienda' },
-  { id: 'bodega',  etiqueta: 'Bodega' },
-  { id: 'nuevos',  etiqueta: 'Recién llegados' },
-  { id: 'depurar', etiqueta: 'Depurar' },
-  { id: 'compras', etiqueta: '🛒 Comprar para bodega' },
-  { id: 'agotados', etiqueta: '⚠ Agotados que duelen' },
+  { id: 'venta',      etiqueta: 'Pedir por venta',         ambito: 'sucursales' },
+  { id: 'muestra',    etiqueta: 'Sin venta y agotados',    ambito: 'sucursales' },
+  { id: 'candidatos', etiqueta: 'Se venden en tienda',     ambito: 'sucursales' },
+  { id: 'nuevos',     etiqueta: 'Recién llegados',         ambito: 'sucursales' },
+  { id: 'depurar',    etiqueta: 'Depurar',                 ambito: 'sucursales' },
+  { id: 'bodega',     etiqueta: 'Lo que puede surtir',     ambito: 'bodega' },
+  { id: 'compras',    etiqueta: '🛒 Comprar al proveedor', ambito: 'bodega' },
+  { id: 'agotados',   etiqueta: '⚠ Agotados que duelen',   ambito: 'bodega' },
 ]
 
 function Pildora({ activa, onClick, children, titulo }) {
@@ -108,12 +112,12 @@ const Modelo = ({ f }) => (
   </>
 )
 
-export default function SurtidoPanel() {
+export default function SurtidoPanel({ ambito = 'todo' }) {
   const sucursales = SUCURSALES_ACTIVAS
   const opciones = useMemo(() => [TODAS, ...sucursales, ...(FERIAS ? [FERIAS] : [])], [sucursales])
 
   const [sel, setSel]       = useState(TODAS.slug)
-  const [vista, setVista]   = useState('venta')
+  const [vista, setVista]   = useState(ambito === 'bodega' ? 'compras' : 'venta')
   const [altaManual, setAltaManual] = useState(null)   // null = automático
   const [margen, setMargen] = useState(MARGEN_FERIA)
   const [datos, setDatos]   = useState(null)
@@ -261,16 +265,20 @@ export default function SurtidoPanel() {
   // Ferias elegida no vienen a cuento, asi que se esconden en vez de enseñar
   // numeros que no son de lo que se esta mirando.
   const vistasVisibles = useMemo(
-    () => (esFeria
-      ? VISTAS.filter(v => ['venta', 'muestra', 'candidatos'].includes(v.id))
-      // Comprar es una decisión del negocio entero, no de una plaza: solo
-      // tiene sentido mirándolo todo junto.
-      : VISTAS.filter(v => v.id !== 'candidatos' && (!['compras', 'agotados'].includes(v.id) || sel === TODAS.slug))),
-    [esFeria, sel],
+    () => {
+      const delAmbito = VISTAS.filter(v => ambito === 'todo' || v.ambito === ambito)
+      if (esFeria) return delAmbito.filter(v => ['venta', 'muestra', 'candidatos'].includes(v.id))
+      return delAmbito.filter(v =>
+        v.id !== 'candidatos' &&
+        // Comprar es una decisión del negocio entero, no de una plaza: solo
+        // tiene sentido mirándolo todo junto.
+        (!['compras', 'agotados'].includes(v.id) || sel === TODAS.slug))
+    },
+    [esFeria, sel, ambito],
   )
 
   useEffect(() => {
-    if (!vistasVisibles.some(v => v.id === vista)) setVista('venta')
+    if (!vistasVisibles.some(v => v.id === vista)) setVista(vistasVisibles[0]?.id ?? 'venta')
   }, [vistasVisibles, vista])
 
   // Qué pedirle al proveedor para que bodega aguante los próximos meses. Usa
