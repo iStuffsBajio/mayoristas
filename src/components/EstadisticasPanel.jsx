@@ -62,6 +62,41 @@ function BotonExcel({ onClick, principal, children }) {
   )
 }
 
+/**
+ * Sección que se abre al pulsarla.
+ *
+ * El comparativo y el archivo por mes son consultas puntuales, no algo que se
+ * mire cada vez: desplegados empujaban la gráfica y el ranking fuera de la
+ * pantalla y había que bajar mucho para llegar a lo de siempre. Cerrados
+ * ocupan un renglón, y el resumen de la derecha deja ver si vale la pena
+ * abrirlos sin tener que hacerlo.
+ */
+function Plegable({ titulo, resumen, children, abiertoPorDefecto = false }) {
+  const [abierto, setAbierto] = useState(abiertoPorDefecto)
+
+  return (
+    <div style={{ borderTop: '1px solid ' + LINEA, paddingTop: 14 }}>
+      <button type="button" onClick={() => setAbierto(v => !v)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+          background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
+        }}>
+        <span style={{
+          fontSize: 13, color: TINTA_TENUE, transition: 'transform .18s',
+          transform: abierto ? 'rotate(90deg)' : 'rotate(0deg)', lineHeight: 1,
+        }}>›</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: TINTA }}>{titulo}</span>
+        {resumen && (
+          <span style={{ fontSize: 11.5, color: TINTA_TENUE, marginLeft: 'auto', textAlign: 'right' }}>
+            {resumen}
+          </span>
+        )}
+      </button>
+      {abierto && <div style={{ marginTop: 14 }}>{children}</div>}
+    </div>
+  )
+}
+
 /** Una cifra y su etiqueta, en línea. Para resúmenes que no necesitan caja. */
 function Cifra({ valor, etiqueta, color }) {
   return (
@@ -283,10 +318,7 @@ function ComparativoPeriodos({ historial, sucursal }) {
   const faltaElActual = comp.dias < comp.diasPrevios
 
   return (
-    <div style={{ paddingTop: 20, borderTop: '1px solid ' + LINEA }}>
-      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
-        Comparativo contra el periodo anterior
-      </h4>
+    <div>
       <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px', lineHeight: 1.5 }}>
         Los {TOP_COMPARATIVO} modelos con más salida del plazo que elijas, cada uno con lo que
         salió en el plazo anterior del mismo tamaño y si va para arriba o para abajo.
@@ -389,11 +421,7 @@ function ArchivoPermanente({ historial, sucursal }) {
   if (periodos.length === 0) return null
 
   return (
-    <div style={{ paddingTop: 20, borderTop: '1px solid ' + LINEA }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
-        <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: 0 }}>Archivo por mes</h4>
-        <span style={{ fontSize: 11, color: TINTA_TENUE }}>se guarda completo, sin límite de días</span>
-      </div>
+    <div>
       <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px', lineHeight: 1.5 }}>
         Las gráficas de arriba solo alcanzan 60 días. Este acumulado no se borra nunca, y de aquí
         sale el Excel de un mes suelto con todos sus modelos.
@@ -480,6 +508,17 @@ export default function EstadisticasPanel() {
 
   const resumen = useMemo(() => datos ? resumir(datos, rango) : null, [datos, rango])
 
+  // Lo que se enseña a la derecha del título cuando el comparativo está
+  // cerrado: lo justo para saber si conviene abrirlo.
+  const resumenComparativo = useMemo(() => {
+    if (!historial) return null
+    const c = comparativo(historial, 1)
+    if (!c) return null
+    if (!c.hayPrevio) return `${c.etiqueta} · sin periodo previo`
+    const signo = c.delta > 0 ? '+' : ''
+    return `${c.etiqueta} · ${signo}${c.delta} pz${c.pct !== null ? ` (${signo}${c.pct}%)` : ''}`
+  }, [historial])
+
   // Cuáles sucursales quedaron fuera del consolidado, para no dar por completo
   // un número al que le falta una plaza.
   const faltantes = useMemo(
@@ -558,8 +597,18 @@ export default function EstadisticasPanel() {
             <Ranking ranking={resumen.ranking} />
           </div>
 
-          {historial && <ComparativoPeriodos historial={historial} sucursal={sucursal} />}
-          {historial && <ArchivoPermanente historial={historial} sucursal={sucursal} />}
+          {historial && (
+            <Plegable titulo="Comparativo contra el periodo anterior"
+                      resumen={resumenComparativo}>
+              <ComparativoPeriodos historial={historial} sucursal={sucursal} />
+            </Plegable>
+          )}
+          {historial && (
+            <Plegable titulo="Archivo por mes"
+                      resumen={`${periodosDisponibles(historial).length} meses guardados`}>
+              <ArchivoPermanente historial={historial} sucursal={sucursal} />
+            </Plegable>
+          )}
 
           <p style={{ fontSize: 11, color: TINTA_TENUE, margin: 0, lineHeight: 1.55, paddingTop: 14, borderTop: '1px solid ' + LINEA }}>
             Estos números son un piso, no una cifra exacta de venta. Si un modelo baja de 5 a 2
