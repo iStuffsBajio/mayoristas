@@ -12,6 +12,11 @@ import { descargarSurtido } from '../lib/exportarSurtido'
 import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
 
+// Para la columna de reparto: «leon 9 · slp 4» cabe, los nombres largos no.
+const NOMBRE_CORTO = {
+  leon: 'León', 'san-luis': 'SLP', aguascalientes: 'Ags', torreon: 'Torreón',
+}
+
 const TINTA       = '#101619'
 const TINTA_SUAVE = '#4A5A61'
 const TINTA_TENUE = '#8598A1'
@@ -171,6 +176,7 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
   }, [datos, sucursales])
 
   const esFeria = !!FERIAS && sel === FERIAS.slug
+  const esTodas = sel === TODAS.slug
 
   // Ferias se calcula contra lo que vendio en esa misma feria los años
   // anteriores, no contra un ritmo diario: ocho meses del año esta cerrada.
@@ -193,28 +199,50 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
     }
   }, [esFeria, datos, sucursales, margen])
 
-  // La vista de una sucursal usa su propia tabla; la de "Todas" se arma
-  // sumando existencias y ritmos de las tres.
+  // La vista de una sucursal usa su propia tabla; la de "Todas" SUMA las tres.
+  //
+  // Antes juntaba existencias y ritmos y volvía a calcular sobre el total, y
+  // eso respondía otra pregunta: «¿alcanza entre todas?». Con el iPhone 15 Pro
+  // Max, León tenía 5 y le faltaban 9, San Luis tenía 12 y Aguascalientes 9;
+  // el total daba 26 y «Todas» decía que no pidieras nada. Pero el cliente que
+  // entra en León no compra de la repisa de San Luis. En junto pedía 720
+  // piezas donde las sucursales pedían 1,447.
+  //
+  // Sumar las filas ya calculadas es coherente por construcción: lo que dice
+  // «Todas» es exactamente lo que dicen las tres juntas, y de paso se ve de
+  // dónde sale cada pieza.
   const filas = useMemo(() => {
     if (!datos) return []
     if (esFeria) return feria ? separarProduccion(feria.filas).compra : []
     if (sel !== TODAS.slug) return porSucursal[sel] ?? []
 
-    const vel = velocidadCombinada(sucursales.map(s => datos[s.slug]?.hist))
     const juntos = new Map()
     for (const s of sucursales) {
-      for (const p of datos[s.slug]?.inv?.productos ?? []) {
-        const c = String(p.Codigo ?? '').trim()
-        if (!c) continue
-        const e = juntos.get(c) ?? { Codigo: c, Producto: String(p.Producto ?? '').trim(), Existencia: 0 }
-        e.Existencia += Number(p.Existencia) || 0
-        juntos.set(c, e)
+      for (const f of porSucursal[s.slug] ?? []) {
+        const e = juntos.get(f.codigo) ?? {
+          codigo: f.codigo, producto: f.producto,
+          existencia: 0, vendidas: 0, ritmo: 0, objetivo: 0, sugerido: 0,
+          motivo: f.motivo, plazas: [],
+        }
+        e.existencia += f.existencia
+        e.vendidas   += f.vendidas
+        e.ritmo      += f.ritmo
+        e.objetivo   += f.objetivo
+        e.sugerido   += f.sugerido
+        if (f.sugerido > 0) e.plazas.push({ slug: s.slug, piezas: f.sugerido, existencia: f.existencia })
+        // El motivo del renglón junto es el de quien de verdad pide algo.
+        if (f.sugerido > 0 && e.motivo !== MOTIVOS.VENTA) e.motivo = f.motivo
+        juntos.set(f.codigo, e)
       }
     }
-    return separarProduccion(
-      calcularSurtido({ productos: [...juntos.values()], velocidad: vel, cobertura }).filas
-    ).compra
-  }, [datos, sel, porSucursal, sucursales, cobertura, esFeria, feria])
+
+    const filasJuntas = [...juntos.values()].map(e => ({
+      ...e,
+      cobertura: e.ritmo > 0 ? e.existencia / e.ritmo : null,
+    }))
+
+    return separarProduccion(filasJuntas).compra
+  }, [datos, sel, porSucursal, sucursales, esFeria, feria])
 
   // Cuántos se dejaron fuera por fabricarse, para decirlo en vez de que
   // desaparezcan sin explicación.
@@ -450,6 +478,7 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               <Th num style={{ textAlign: 'right' }} title="Piezas que salen al día, sobre todo el historial">Ritmo</Th>
               <Th num style={{ textAlign: 'right' }} title="Días que aguanta con lo que tiene">Aguanta</Th>
               <Th num style={{ textAlign: 'right' }}>Pedir</Th>
+              {esTodas && <Th title="De dónde sale cada pieza del total">Para quién</Th>}
               {esFeria && <Th num style={{ textAlign: 'right' }} title="Piezas vendidas en lo que va de esta feria">Este mes</Th>}
               {bodegaStock && !esFeria && <Th num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
             </>}>
@@ -462,6 +491,11 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
                     {f.cobertura === null ? '—' : `${Math.floor(f.cobertura)} d`}
                   </Celda>
                   <Celda num fuerte color={VERDE}>{f.sugerido}</Celda>
+                  {esTodas && (
+                    <Celda color={TINTA_SUAVE}>
+                      {(f.plazas ?? []).map(p => `${NOMBRE_CORTO[p.slug] ?? p.slug} ${p.piezas}`).join(' · ') || '—'}
+                    </Celda>
+                  )}
                   {esFeria && <Celda num color={f.esteMes > 0 ? '#0288AD' : TINTA_TENUE}>{f.esteMes || '—'}</Celda>}
                   {bodegaStock && !esFeria && (() => {
                     const hay = bodegaStock[f.codigo]
