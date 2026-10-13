@@ -94,3 +94,20 @@ esta publique uno viejo encima del bueno.
 
 La pagina tambien avisa cuando el dato envejece: verde hasta un dia, ambar
 de dos a tres, rojo de cuatro en adelante.
+
+## Antes de tocar el código
+
+Lee **[CLAUDE.md](CLAUDE.md)**. Es la lista de lo que ya se rompió al menos
+una vez: qué números son decisiones de negocio y no se cambian sin preguntar,
+qué trampas tienen los datos de Eleventa, y qué hay que verificar antes de
+publicar.
+
+Las reglas no están sólo escritas, están fijadas con pruebas:
+
+```bash
+npm test              # reglas de negocio y búsqueda
+cd backend && npm test
+```
+
+El despliegue de Amplify corre `npm test` antes de compilar, así que una regla
+cambiada por descuido detiene la publicación en vez de llegar a la página.

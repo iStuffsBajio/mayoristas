@@ -6,6 +6,11 @@ frontend:
         - npm install
     build:
       commands:
+        # Las reglas de negocio se comprueban ANTES de compilar. Si alguien
+        # cambia el relevo de generación, la ventana de recién llegados o hace
+        # que buscar vuelva a respetar el filtro de existencia, el despliegue
+        # se detiene aquí en vez de llegar a la página. Ver CLAUDE.md.
+        - npm test
         - rm -rf node_modules/.vite
         - npm run build
   artifacts:
