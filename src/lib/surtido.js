@@ -34,6 +34,12 @@ export const DIAS_PARA_CONFIAR = 45
 // da de alta todo antes de repartirlo a las sucursales.
 export const DIAS_EN_CATALOGO = 365
 
+// Para llamarle «recién llegado» a algo, un año es demasiado. Un modelo que
+// entró hace diez meses ya tuvo toda la temporada para venderse: si no se
+// vendió, el problema no es que sea nuevo. Cuatro meses sí es una ventana en
+// la que no haber vendido todavía no dice nada.
+export const DIAS_RECIEN_LLEGADO = 120
+
 export const esTemporadaAlta = (fecha = new Date()) => MESES_ALTA.includes(fecha.getMonth() + 1)
 
 /** Por qué se sugiere lo que se sugiere. La pantalla lo traduce a palabras. */
@@ -206,9 +212,13 @@ export function candidatosADepurar(porSucursal, diasHistorial = 0, altas = {}, h
     return { suficiente: false, dias: diasHistorial, faltan: DIAS_PARA_DEPURAR - diasHistorial, filas: [], nuevos: [], sinFecha: 0 }
   }
 
-  const corte = new Date(hoy)
-  corte.setDate(corte.getDate() - DIAS_EN_CATALOGO)
-  const limite = corte.toISOString().slice(0, 10)
+  const corteA = new Date(hoy)
+  corteA.setDate(corteA.getDate() - DIAS_EN_CATALOGO)
+  const limite = corteA.toISOString().slice(0, 10)
+
+  const corteB = new Date(hoy)
+  corteB.setDate(corteB.getDate() - DIAS_RECIEN_LLEGADO)
+  const limiteNuevo = corteB.toISOString().slice(0, 10)
 
   const porCodigo = new Map()
 
@@ -226,7 +236,10 @@ export function candidatosADepurar(porSucursal, diasHistorial = 0, altas = {}, h
   const parados = [...porCodigo.values()].filter(e => e.vendidas === 0 && e.existencia > 0)
   const porPiezas = (a, b) => b.existencia - a.existencia || a.producto.localeCompare(b.producto)
 
-  const conEdad = parados.map(e => ({ ...e, alta: altas[e.codigo] ?? null }))
+  const conEdad = parados.map(e => {
+    const dato = altas[e.codigo] ?? null
+    return { ...e, alta: dato?.alta ?? null, piso: dato?.piso ?? false }
+  })
 
   // Sin fecha no se opina. Son pocos y es mejor dejarlos fuera que proponer
   // dar de baja algo de lo que no se sabe cuándo llegó.
@@ -237,13 +250,83 @@ export function candidatosADepurar(porSucursal, diasHistorial = 0, altas = {}, h
     dias: diasHistorial,
     faltan: 0,
     sinFecha,
-    // Llevan más de un año y no se han movido: esos sí son candidatos.
+    // Llevan más de un año y no se han movido: esos sí son candidatos. Un
+    // piso vale aquí, porque es una edad mínima: si ya estaba cuando empieza
+    // el historial, lleva al menos ese tiempo sin venderse.
     filas: conEdad.filter(e => e.alta && e.alta <= limite).sort(porPiezas),
-    // Llegaron hace menos de un año. No se han vendido todavía, que no es lo
-    // mismo que no venderse.
-    nuevos: conEdad.filter(e => e.alta && e.alta > limite)
+    // Recién llegados pide lo contrario: saber que entró hace poco. Un piso
+    // no lo prueba —el modelo puede llevar años— así que no entra. Antes sí
+    // entraba, y por eso la lista salía llena de fundas de iPhone 6.
+    nuevos: conEdad.filter(e => e.alta && !e.piso && e.alta > limiteNuevo)
       .sort((a, b) => b.alta.localeCompare(a.alta) || porPiezas(a, b)),
   }
+}
+
+// ── De dónde sale la fecha de alta, y por qué no siempre es de fiar ─────────
+//
+// `Alta` es el primer movimiento que queda en INVENTARIO_HISTORIAL, no la
+// fecha en que el modelo entró al catálogo. El historial de cada sucursal
+// empieza en un día concreto —cuando se instaló Eleventa o se purgó la base—
+// y todo lo que ya existía ese día aparece con esa misma fecha.
+//
+// No es un detalle menor: en León 579 de 647 productos comparten el
+// 2025-12-20, y entre ellos hay fundas de iPhone 6. Esa fecha no dice cuándo
+// llegaron; dice cuándo empieza lo que podemos ver.
+//
+// Lo que sí dice es una EDAD MÍNIMA: si ya estaba el día que arranca el
+// historial, lleva al menos ese tiempo. Por eso no se descarta, se marca como
+// piso. Sirve para «esto es viejo» y no sirve para «esto acaba de llegar».
+const PROPORCION_HORIZONTE = 0.10
+
+/**
+ * El día en que arranca el historial de una sucursal, si se nota.
+ *
+ * Se reconoce porque una sola fecha concentra una porción absurda del
+ * catálogo. Un lote real de altas en un día son veinte o treinta piezas de
+ * setecientas; un horizonte son quinientas. Si no hay tal concentración
+ * devuelve null y todas las fechas se tratan como reales.
+ */
+export function horizonteDe(productos) {
+  const fechas = (productos ?? [])
+    .map(p => (p.Alta ? String(p.Alta).slice(0, 10) : null))
+    .filter(Boolean)
+  if (!fechas.length) return null
+
+  const minima = fechas.reduce((a, b) => (b < a ? b : a))
+  const cuantos = fechas.filter(f => f === minima).length
+  return cuantos / fechas.length >= PROPORCION_HORIZONTE ? minima : null
+}
+
+/**
+ * Fecha de alta por código, juntando todas las sucursales.
+ *
+ * Gana la más temprana, no la primera que se encuentre. Antes ganaba la
+ * primera y bodega pisaba a todas, así que el Huawei P30 Lite salía como
+ * recién llegado —bodega lo resurtió en junio— cuando lleva en Aguascalientes
+ * desde 2023. Lo que interesa es desde cuándo existe el modelo en la empresa,
+ * y eso es el mínimo.
+ *
+ * Devuelve { alta, piso }: `piso` avisa de que la fecha es una cota inferior
+ * y no la entrada real.
+ */
+export function mapaDeAltas(invPorSucursal) {
+  const mapa = {}
+
+  for (const productos of Object.values(invPorSucursal ?? {})) {
+    if (!productos?.length) continue
+    const horizonte = horizonteDe(productos)
+
+    for (const p of productos) {
+      const codigo = String(p.Codigo ?? '').trim()
+      if (!codigo || !p.Alta) continue
+
+      const alta = String(p.Alta).slice(0, 10)
+      const previo = mapa[codigo]
+      if (!previo || alta < previo.alta) mapa[codigo] = { alta, piso: alta === horizonte }
+    }
+  }
+
+  return mapa
 }
 
 /** Días que lleva un modelo en el catálogo, o null si no se sabe. */

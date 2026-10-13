@@ -5,6 +5,7 @@ import {
   velocidadDiaria, velocidadCombinada, calcularSurtido, analizarBodega,
   candidatosADepurar, esTemporadaAlta, COBERTURA, MOTIVOS,
   DIAS_PARA_CONFIAR, DIAS_PARA_DEPURAR, DIAS_EN_CATALOGO, diasEnCatalogo,
+  DIAS_RECIEN_LLEGADO, mapaDeAltas,
   mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
@@ -240,23 +241,15 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
   }, [bodegaInv])
   const bodega    = useMemo(() => bodegaInv ? analizarBodega(porSucursal, bodegaInv) : [], [porSucursal, bodegaInv])
 
-  // Cuándo entró cada modelo. Se toma de bodega, que es donde se da de alta
-  // todo antes de repartirlo; si una sucursal maneja algo que bodega no, se
-  // usa la fecha de la propia sucursal.
+  // Desde cuándo existe cada modelo en la empresa: la fecha más temprana de
+  // todas las plazas, marcando cuáles son sólo una cota inferior. El detalle
+  // está en mapaDeAltas, que es donde importa.
   const altas = useMemo(() => {
     if (!datos) return {}
-    const m = {}
-    for (const s of sucursales) {
-      for (const p of datos[s.slug]?.inv?.productos ?? []) {
-        const c = String(p.Codigo ?? '').trim()
-        if (c && p.Alta && !m[c]) m[c] = p.Alta
-      }
-    }
-    for (const p of bodegaInv?.productos ?? []) {
-      const c = String(p.Codigo ?? '').trim()
-      if (c && p.Alta) m[c] = p.Alta
-    }
-    return m
+    const porSuc = {}
+    for (const s of sucursales) porSuc[s.slug] = datos[s.slug]?.inv?.productos ?? []
+    porSuc.bodega = bodegaInv?.productos ?? []
+    return mapaDeAltas(porSuc)
   }, [datos, sucursales, bodegaInv])
 
   const depurar = useMemo(() => candidatosADepurar(porSucursal, diasHistorial, altas), [porSucursal, diasHistorial, altas])
@@ -728,9 +721,11 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
       {vista === 'nuevos' && (
         <>
           <Aviso tono="info">
-            Modelos que entraron hace menos de un año y todavía no se han vendido. No son
-            inventario muerto: todavía no se han visto vender, que no es lo mismo. Por eso no
-            aparecen en Depurar. La fecha sale del primer movimiento registrado en bodega.
+            Modelos que entraron hace menos de {DIAS_RECIEN_LLEGADO} días y todavía no se han
+            vendido. No son inventario muerto: todavía no se han visto vender, que no es lo mismo.
+            Por eso no aparecen en Depurar. Sólo entran los que tienen fecha de entrada real: si
+            un modelo ya existía cuando arranca el historial de su sucursal, no hay forma de saber
+            cuándo llegó y no se cuenta como nuevo.
           </Aviso>
           {depurar.nuevos.length === 0
             ? <p style={{ fontSize: 13, color: TINTA_TENUE }}>
@@ -773,7 +768,7 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               todavía ocupando lugar. Es una propuesta para que la revises, no una orden: un modelo
               puede estar ahí por garantía o por un cliente puntual.
               Suman {depurar.filas.reduce((a, d) => a + d.existencia, 0)} piezas paradas.
-              {depurar.nuevos.length > 0 && ` Otros ${depurar.nuevos.length} tampoco se han vendido, pero llegaron hace menos de un año y están en «Recién llegados».`}
+              {depurar.nuevos.length > 0 && ` Otros ${depurar.nuevos.length} tampoco se han vendido, pero llegaron hace menos de ${DIAS_RECIEN_LLEGADO} días y están en «Recién llegados».`}
               {depurar.sinFecha > 0 && ` ${depurar.sinFecha} quedan fuera por no saber cuándo entraron.`}
             </Aviso>
             <Tabla encabezados={<>
@@ -785,7 +780,12 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
                 <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={d} />
                   <Celda num fuerte color={AMBAR}>{d.existencia}</Celda>
-                  <Celda color={TINTA_SUAVE}>{d.alta ?? '—'}</Celda>
+                  {/* El «antes de» avisa de que no es la entrada real: el modelo
+                      ya estaba cuando arranca el historial, así que lleva ESO o
+                      más. Para depurar sirve igual, porque es una edad mínima. */}
+                  <Celda color={TINTA_SUAVE}>
+                    {d.alta ? (d.piso ? `antes de ${d.alta}` : d.alta) : '—'}
+                  </Celda>
                   <Celda color={TINTA_SUAVE}>{d.plazas.map(p => p.slug).join(', ')}</Celda>
                 </tr>
               ))}

@@ -72,7 +72,7 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
     ['Bodega',               conteos.bodega,   'Lo que piden las plazas contra lo que hay'],
     ['Comprar para bodega',  conteos.compras,  'Qué pedir al proveedor, con agotados y observaciones'],
     ['Agotados que duelen',  conteos.agotados, 'En cero, se siguen vendiendo y siguen vigentes'],
-    ['Recién llegados',      conteos.nuevos,   'Menos de un año en el catálogo y aún sin venta'],
+    ['Recién llegados',      conteos.nuevos,   'Entrada real reciente y aún sin venta'],
     ['Depurar',              conteos.depurar,  'Más de un año sin una sola venta y ocupando lugar'],
   ]
   const enc = ['Hoja', 'Modelos', 'Qué contiene']
@@ -197,7 +197,10 @@ const COLS_DEPURAR = [
   { titulo: 'Código',         valor: d => d.codigo,   ancho: 12 },
   { titulo: 'Modelo',         valor: d => d.producto, ancho: 40 },
   { titulo: 'Piezas paradas', valor: d => d.existencia, num: true, fuerte: true, color: C.ambar },
-  { titulo: 'Entró al catálogo', valor: d => d.alta ?? '', ancho: 16 },
+  // «antes de» marca una edad mínima: el modelo ya estaba cuando arranca el
+  // historial de su plaza, así que lleva eso o más. Para depurar vale igual.
+  { titulo: 'Entró al catálogo', ancho: 18,
+    valor: d => (d.alta ? (d.piso ? 'antes de ' + d.alta : d.alta) : '') },
   { titulo: 'Dónde están',    valor: d => (d.plazas ?? []).map(p => p.slug).join(', '), ancho: 28 },
 ]
 
@@ -244,7 +247,7 @@ const COLS_NUEVOS = [
   { titulo: 'Piezas',         valor: d => d.existencia, num: true },
   { titulo: 'Entró al catálogo', valor: d => d.alta ?? '', ancho: 16 },
   { titulo: 'Días que lleva', valor: d => diasEnCatalogo(d.alta) ?? '', num: true,
-    color: d => { const n = diasEnCatalogo(d.alta); return n !== null && n < 90 ? C.verde : C.tintaSuave } },
+    color: d => { const n = diasEnCatalogo(d.alta); return n !== null && n < 60 ? C.verde : C.tintaSuave } },
 ]
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
@@ -269,8 +272,8 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
     'Los meses importados de Eleventa traen la venta real. Los medidos por la sincronización son un piso: un resurtido el mismo día tapa la salida, y la diferencia medida ronda el 19%.',
     'Los stickers no aparecen: bodega los imprime cuando hacen falta, no se almacenan.',
     'La hoja Pedir por venta trae al final de donde sale cada pieza: si bodega la cubre, si la cubre a medias o si hay que comprarla fuera.',
-    'La hoja Depurar solo se llena con 90 días o más de historial, y solo con modelos que lleven más de un año en el catálogo: uno recién llegado que aún no vende está en Recién llegados, no estancado.',
-    'La fecha de entrada sale del primer movimiento registrado en bodega, que es donde se da de alta todo antes de repartirlo a las sucursales.',
+    'La hoja Depurar solo se llena con 90 días o más de historial, y solo con modelos que lleven más de un año en el catálogo. Recién llegados usa una ventana más corta, de 120 días: a los diez meses un modelo ya tuvo su temporada, y no haber vendido deja de ser cosa de ser nuevo.',
+    'La fecha de entrada es el primer movimiento que queda en el historial, y se toma la más temprana de todas las plazas. El historial de cada sucursal arranca en un día concreto, así que todo lo que ya existía ese día sale con esa fecha: eso aparece como «antes de» y significa edad mínima, no fecha de entrada. Recién llegados solo cuenta entradas reales; Depurar sí acepta un «antes de», porque para saber que algo es viejo basta la cota.',
     'Agotados que duelen: solo entra lo que se vendió en los últimos 6 meses. Un modelo que lleva dos años agotado y nadie repuso no es un descuido, es que ya no se pide. Los días agotados salen del último movimiento registrado.',
   ]
 
