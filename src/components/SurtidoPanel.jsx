@@ -599,16 +599,26 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
                   Sin dato para {compras.faltantes.join(', ')}: la referencia de esos meses sale incompleta.
                 </p>
               )}
+              {compras.sinAportar.length > 0 && (
+                <p style={{ fontSize: 11, color: AMBAR, margin: '6px 0 0', lineHeight: 1.5 }}>
+                  <strong>{compras.sinAportar.join(', ')}</strong> no aporta ningún dato a esta referencia:
+                  su historial todavía no llegaba a esos meses. La compra sale calculada
+                  con {compras.cobertura.length - compras.sinAportar.length} de {compras.cobertura.length} plazas,
+                  así que se queda corta.
+                </p>
+              )}
               <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
-                La demanda de una generación vieja se compra en la nueva: si el año pasado se vendieron
-                fundas de Galaxy A16 y hoy existe la A17, se compra A17.
-                Se detectaron <strong style={{ color: TINTA_SUAVE }}>{compras.cambios.length} relevos</strong> del
-                propio catálogo, confirmados con la fecha de alta — no con una regla inventada por marca.
+                Cada modelo se compra por lo que vendió él, no por lo que vendió su familia: una funda de
+                iPhone 13 no se sustituye con una de iPhone 17.
+                Se detectaron <strong style={{ color: TINTA_SUAVE }}>{compras.cambios.length} relevos</strong> de
+                generación en el propio catálogo, confirmados con la fecha de alta, y sirven para dos cosas:
+                estimar un modelo recién llegado y avisar de cuáles conviene vigilar.
               </p>
               <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
                 Un modelo recién llegado no tiene historial propio y el cálculo lo daría por cero, así que
-                nadie lo compraría hasta que ya se hubiera agotado. Para esos se usa lo que vendió su
-                generación anterior. Y se marca con ⚡ lo que se está agotando más rápido de lo que la
+                nadie lo compraría hasta que ya se hubiera agotado. Para esos se usa lo que vendió la
+                generación inmediatamente anterior —una sola, no todas sumadas— y sólo si consta su fecha
+                real de entrada. Y se marca con ⚡ lo que se está agotando más rápido de lo que la
                 referencia predecía: ahí es donde la cuenta se queda corta sola, y suele pasar justo con
                 lo nuevo.
               </p>
@@ -619,7 +629,7 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               <Dato valor={compras.totalPiezas} etiqueta="piezas en total" />
               <Dato valor={compras.adelantados.length} etiqueta="se agotan antes" nota="de lo previsto" color={AMBAR} />
               <Dato valor={compras.nuevosEstimados.length} etiqueta="modelos nuevos" nota="estimados con la anterior" color={'#0288AD'} />
-              <Dato valor={compras.descartados.length} etiqueta="no se compran" nota="generación vieja" color={TINTA_TENUE} />
+              <Dato valor={compras.conRelevo.length} etiqueta="con relevo" nota="ya hay generación nueva" color={TINTA_TENUE} />
             </div>
 
             <Tabla encabezados={<>
@@ -659,21 +669,25 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               ))}
             </Tabla>
 
-            {compras.descartados.length > 0 && (
+            {compras.conRelevo.length > 0 && (
               <>
                 <p style={{ fontSize: 12, fontWeight: 700, color: TINTA, margin: '4px 0 8px' }}>
-                  No se compran: la demanda pasó a la generación nueva
+                  Modelos que ya tienen generación nueva
+                </p>
+                <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '0 0 8px', lineHeight: 1.5 }}>
+                  Se siguen comprando: quien trae un iPhone 13 necesita funda de iPhone 13, no de 17.
+                  Están aquí para que decidas si moderar el pedido cuando notes que la venta cae.
                 </p>
                 <Tabla encabezados={<>
                   <Th>Modelo</Th><Th>Código</Th>
                   <Th num style={{ textAlign: 'right' }}>Vendió</Th>
-                  <Th>Se compra en su lugar</Th>
+                  <Th>Generación nueva</Th>
                 </>}>
-                  {compras.descartados.slice(0, 60).map((d, i) => (
+                  {compras.conRelevo.slice(0, 60).map((d, i) => (
                     <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                       <Modelo f={d} />
                       <Celda num color={TINTA_SUAVE}>{d.piezas}</Celda>
-                      <Celda color={VERDE}>{d.sustitutoNombre}</Celda>
+                      <Celda color={TINTA_SUAVE}>{d.sustitutoNombre}</Celda>
                     </tr>
                   ))}
                 </Tabla>

@@ -75,20 +75,32 @@ export function velocidadDiaria(historial) {
   return { tasa, piezas, dias }
 }
 
-/** Suma las velocidades de varias sucursales ponderando por sus días. */
+/**
+ * El ritmo del conjunto de las sucursales.
+ *
+ * Se SUMAN los ritmos de cada plaza, no las piezas. Parece lo mismo y no lo
+ * es: cada sucursal lleva medidos distintos días —León 209, Aguascalientes
+ * 302— y juntar las piezas de todas para dividirlas entre el calendario más
+ * largo castiga a la que lleva menos tiempo midiendo. Con los datos reales eso
+ * dejaba el ritmo del conjunto un 18% por debajo, y con él la sugerencia de
+ * surtido de la vista «Todas».
+ *
+ * `piezas` sigue siendo el total vendido y `dias` el calendario más largo, que
+ * es lo que vale para decidir si hay historial suficiente. Son datos de
+ * contexto: el ritmo no es su cociente.
+ */
 export function velocidadCombinada(historiales) {
   const piezas = {}
+  const tasa = {}
   let dias = 0
+
   for (const h of historiales.filter(Boolean)) {
     const v = velocidadDiaria(h)
-    // Los días se toman del que más tenga: las sucursales miden el mismo
-    // calendario, no uno detrás de otro, así que sumarlos inflaría el divisor
-    // y dejaría el ritmo por los suelos.
     dias = Math.max(dias, v.dias)
     for (const [k, n] of Object.entries(v.piezas)) piezas[k] = (piezas[k] || 0) + n
+    for (const [k, t] of Object.entries(v.tasa)) tasa[k] = (tasa[k] || 0) + t
   }
-  const tasa = {}
-  if (dias > 0) for (const [k, n] of Object.entries(piezas)) tasa[k] = n / dias
+
   return { tasa, piezas, dias }
 }
 

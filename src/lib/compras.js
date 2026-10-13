@@ -7,13 +7,20 @@
 // La referencia es la misma ventana de meses del año pasado, porque la demanda
 // es estacional y comparar contra el mes pasado no dice nada sobre diciembre.
 //
-// Con una regla encima: la demanda de una generación vieja NO se compra en esa
-// generación. Si el año pasado se vendieron fundas de Galaxy A06 y hoy existe
-// la A07, lo que hay que comprar es A07. Comprar A06 sería surtirse de algo
-// que ya está saliendo del mercado.
+// Con una regla encima, y conviene decir bien cuál es, porque la primera
+// versión la tenía al revés: una funda no sirve para otro teléfono. La demanda
+// del Galaxy A06 NO se cubre comprando A07; quien trae un A06 necesita funda de
+// A06. Transferir la demanda hacía que 136 códigos dejaran de comprarse, y 125
+// de ellos habían vendido en los últimos seis meses: 1,720 piezas, con el
+// iPhone 13 a la cabeza.
+//
+// La generación anterior sirve para una sola cosa, y es predecir: un modelo
+// recién llegado no tiene historial propio, y lo que vendió el que sustituye es
+// la mejor pista de cuánto va a venderse. Una generación hacia atrás, no todas
+// sumadas.
 
 import { diasDePeriodo } from './estadisticas.js'
-import { esTemporadaAlta, MESES_ALTA } from './surtido.js'
+import { esTemporadaAlta, MESES_ALTA, mapaDeAltas, diasEnCatalogo } from './surtido.js'
 import { seProduce } from './produccion.js'
 
 /** Meses que debe aguantar la bodega. En temporada alta, uno más. */
@@ -37,12 +44,19 @@ function partirCodigo(codigo) {
 const familiaDe = p => `${p.pre}|${p.num.slice(0, -1)}|${p.suf}`
 
 /**
- * Mapa de generación vieja → generación nueva, deducido del catálogo.
+ * Qué modelo sustituye a cuál, deducido del catálogo.
  *
- * No se inventa la aritmética de cada marca, que varía y se equivoca: solo se
+ * Sólo la última generación de cada familia y la inmediatamente anterior: el
+ * iPhone 17 sustituye al 16, y nada más. Antes mapeaba TODAS las anteriores al
+ * último, así que el 17 cargaba con la demanda del 11, 12, 13, 14, 15 y 16
+ * juntas —212 piezas sugeridas— mientras esos seis quedaban en cero.
+ *
+ * No se inventa la aritmética de cada marca, que varía y se equivoca: sólo se
  * mapea cuando la generación nueva EXISTE de verdad en el catálogo y entró
- * después, según la fecha de alta. Si no hay sucesora, el modelo se queda
- * como está.
+ * después, según la fecha de alta.
+ *
+ * Esto YA NO mueve demanda de un código a otro. Sirve para saber que un modelo
+ * tiene relevo, que es distinto.
  */
 export function mapaGeneraciones(productos) {
   const porFamilia = new Map()
@@ -71,15 +85,13 @@ export function mapaGeneraciones(productos) {
     if (lista.length < 2) continue
     const ord = lista.slice().sort((a, b) => a.num.localeCompare(b.num))
     const nueva = ord[ord.length - 1]
+    const previa = ord[ord.length - 2]
 
-    for (const viejo of ord.slice(0, -1)) {
-      // La fecha de alta tiene que confirmarlo. Sin ella no se mapea: es
-      // preferible comprar de más un modelo viejo que dejar de comprar el
-      // nuevo por una suposición.
-      if (!viejo.alta || !nueva.alta || nueva.alta <= viejo.alta) continue
-      mapa[viejo.codigo] = nueva.codigo
-      cambios.push({ de: viejo.codigo, deNombre: viejo.producto, a: nueva.codigo, aNombre: nueva.producto })
-    }
+    // La fecha de alta tiene que confirmarlo. Sin ella no se mapea: es
+    // preferible no opinar que deducir un relevo de la numeración sola.
+    if (!previa.alta || !nueva.alta || nueva.alta <= previa.alta) continue
+    mapa[previa.codigo] = nueva.codigo
+    cambios.push({ de: previa.codigo, deNombre: previa.producto, a: nueva.codigo, aNombre: nueva.producto })
   }
 
   return { mapa, cambios }
@@ -132,17 +144,28 @@ function demandaDe(historiales, meses) {
   const piezas = {}
   const catalogo = {}
   const cubiertos = new Set()
+  // Días medidos de cada mes. Se toma el máximo entre plazas y no la suma:
+  // cuatro sucursales midiendo el mismo septiembre son 30 días de calendario,
+  // no 120. Sin esto el ritmo diario sale dividido entre un número inventado.
+  const diasPorMes = {}
 
   for (const h of (historiales ?? []).filter(Boolean)) {
     Object.assign(catalogo, h.catalogo ?? {})
     for (const p of h.periodos ?? []) {
-      if (!dentro.has(p.p) || diasDePeriodo(p) <= 0) continue
+      const dias = diasDePeriodo(p)
+      if (!dentro.has(p.p) || dias <= 0) continue
       cubiertos.add(p.p)
+      diasPorMes[p.p] = Math.max(diasPorMes[p.p] ?? 0, dias)
       for (const [k, n] of Object.entries(p.m ?? {})) piezas[k] = (piezas[k] || 0) + n
     }
   }
 
-  return { piezas, catalogo, cubiertos: [...cubiertos].sort() }
+  return {
+    piezas,
+    catalogo,
+    cubiertos: [...cubiertos].sort(),
+    dias: Object.values(diasPorMes).reduce((a, b) => a + b, 0),
+  }
 }
 
 /**
@@ -164,19 +187,27 @@ export function calcularCompras({ historiales, productosBodega, hoy = new Date()
   const referencia = unAnioAntes(objetivo)
 
   const { mapa, cambios } = mapaGeneraciones(productosBodega)
-  const { piezas, catalogo, cubiertos } = demandaDe(historiales, referencia)
+  const { piezas, catalogo, cubiertos, dias } = demandaDe(historiales, referencia)
 
-  // La demanda de una generación vieja se transfiere a la nueva.
-  const demanda = {}
-  const heredado = {}
-  for (const [codigo, n] of Object.entries(piezas)) {
-    const destino = mapa[codigo] ?? codigo
-    demanda[destino] = (demanda[destino] || 0) + n
-    if (destino !== codigo) {
-      if (!heredado[destino]) heredado[destino] = []
-      heredado[destino].push({ codigo, piezas: n })
+  // Cuánto de la referencia aporta cada plaza. Hace falta decirlo: León
+  // empezó a medirse en enero de 2026, así que para octubre-diciembre de 2025
+  // no aporta un solo dato y la compra sale calculada con tres plazas de
+  // cuatro. El aviso de «meses faltantes» no lo veía, porque basta que UNA
+  // plaza tenga el mes para darlo por cubierto.
+  const cobertura = (historiales ?? []).filter(Boolean).map(h => {
+    const suyos = (h.periodos ?? []).filter(p => referencia.includes(p.p) && diasDePeriodo(p) > 0)
+    return {
+      plaza: h.sucursal ?? h.slug ?? '?',
+      meses: suyos.map(p => p.p).sort(),
+      piezas: suyos.reduce((a, p) => a + Object.values(p.m ?? {}).reduce((x, y) => x + y, 0), 0),
     }
-  }
+  })
+  const sinAportar = cobertura.filter(c => c.meses.length === 0).map(c => c.plaza)
+
+  // Cada código conserva su propia demanda. Transferirla a la generación
+  // siguiente dejaba sin comprar cosas que se venden todos los días: una funda
+  // de iPhone 13 no se sustituye con una de iPhone 17.
+  const demanda = { ...piezas }
 
   const enBodega = {}
   const nombres = {}
@@ -200,18 +231,19 @@ export function calcularCompras({ historiales, productosBodega, hoy = new Date()
         // alta antes de poder comprarlo, y conviene que se note.
         enCatalogo: codigo in enBodega,
         sugerido: Math.max(0, Math.ceil(objetivoPz - existencia)),
-        heredado: heredado[codigo] ?? [],
       }
     })
     .filter(f => f.esperado > 0)
     .sort((a, b) => b.sugerido - a.sugerido || b.esperado - a.esperado)
 
-  // Generaciones viejas cuya demanda se transfirió: no se compran.
-  const descartados = Object.entries(piezas)
+  // Modelos que ya tienen relevo en el catálogo. Se siguen comprando —sus
+  // clientes existen— pero conviene verlos juntos: es donde tiene sentido
+  // moderar el pedido si se nota que la venta va cayendo.
+  const conRelevo = Object.entries(piezas)
     .filter(([c]) => mapa[c])
     .map(([c, n]) => ({
       codigo: c,
-      producto: catalogo[c] || c,
+      producto: nombres[c] || catalogo[c] || c,
       piezas: n,
       sustituto: mapa[c],
       sustitutoNombre: nombres[mapa[c]] || catalogo[mapa[c]] || mapa[c],
@@ -221,11 +253,15 @@ export function calcularCompras({ historiales, productosBodega, hoy = new Date()
 
   return {
     filas,
-    descartados,
+    conRelevo,
     cambios,
     objetivo,
     referencia,
     cubiertos,
+    dias,
+    cobertura,
+    sinAportar,
+    mapa,
     // Meses de la referencia para los que no hay dato en ninguna sucursal.
     faltantes: referencia.filter(m => !cubiertos.includes(m)),
     nMeses,
@@ -388,11 +424,18 @@ export function analizarAgotados({ inventarios, historiales, productosBodega, ho
 
 // ── Compra de bodega, todo en una tabla ──────────────────────────────────────
 
-/** Meses hacia atrás desde hoy, para la ventana de venta reciente. */
+/**
+ * Los últimos n meses, el actual incluido.
+ *
+ * El mes en curso entra a propósito —es la señal más fresca de qué se está
+ * vendiendo— pero va a medias, así que el ritmo tiene que dividirse entre los
+ * días realmente medidos y no entre los del calendario. Eso lo resuelve
+ * `demandaDe`, que devuelve los días.
+ */
 function mesesAtras(n, hoy) {
   const salida = []
-  for (let i = 1; i <= n; i++) {
-    const d = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() - i + 1, 1))
+  for (let i = 0; i < n; i++) {
+    const d = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() - i, 1))
     salida.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`)
   }
   return salida
@@ -411,6 +454,17 @@ const SE_ADELANTA = 1.4
  * 0.02 esperadas" es una pieza de diferencia en dos meses, no una tendencia.
  */
 const MINIMO_PARA_MARCAR = 4
+
+/** Meses dentro de los cuales un modelo cuenta como recién llegado. */
+export const MESES_NUEVO = 12
+
+/** True si el modelo entró hace poco y lo sabemos con una fecha real. */
+function esNuevo(codigo, altas, hoy) {
+  const a = altas[codigo]
+  if (!a || a.piso) return false
+  const d = diasEnCatalogo(a.alta, hoy)
+  return d !== null && d <= MESES_NUEVO * 30
+}
 
 /**
  * La tabla de compra para bodega, con todo lo que hace falta para decidir en
@@ -431,12 +485,17 @@ const MINIMO_PARA_MARCAR = 4
 export function calcularCompraBodega({ historiales, inventarios, productosBodega, hoy = new Date(), margen = 0 }) {
   const base = calcularCompras({ historiales, productosBodega, hoy, margen })
   const anterior = mapaGeneracionAnterior(productosBodega)
+  // Para saber cuáles son de verdad nuevos. Sin esto, «estimado con la
+  // generación anterior» le salía a fundas de iPhone 12 dadas de alta antes
+  // de 2023: no tenían venta de referencia, que no es lo mismo que ser nuevas.
+  const altas = mapaDeAltas({ ...(inventarios ?? {}), bodega: productosBodega ?? [] })
   const agotados = analizarAgotados({ inventarios, historiales, productosBodega, hoy })
   const porCodigoAgotado = new Map(agotados.filas.map(f => [f.codigo, f]))
 
-  // Venta de los dos meses recién cerrados, en todas las plazas.
+  // Venta del mes en curso y el anterior, en todas las plazas, con los días
+  // que de verdad se midieron.
   const ventana = mesesAtras(2, hoy)
-  const { piezas: recientes } = demandaDe(historiales, ventana)
+  const { piezas: recientes, dias: diasVentana } = demandaDe(historiales, ventana)
 
   const nombres = {}
   const enBodega = {}
@@ -455,7 +514,6 @@ export function calcularCompraBodega({ historiales, inventarios, productosBodega
   ])
 
   const porBase = new Map(base.filas.map(f => [f.codigo, f]))
-  const diasVentana = 61  // dos meses, para pasar la venta reciente a ritmo
 
   const filas = []
   for (const codigo of codigos) {
@@ -469,9 +527,12 @@ export function calcularCompraBodega({ historiales, inventarios, productosBodega
     let esperado = b?.esperado ?? 0
     const obs = []
 
-    // Sin historial propio: se estima con la generación anterior.
+    // Sin historial propio Y recién llegado: se estima con la generación
+    // inmediatamente anterior, una sola. Hace falta que la fecha de alta sea
+    // real: si el modelo ya estaba cuando arranca el historial, no hay forma
+    // de saber que es nuevo, y no vender es entonces un dato, no un vacío.
     let estimadoDe = null
-    if (esperado === 0) {
+    if (esperado === 0 && esNuevo(codigo, altas, hoy)) {
       const previo = anterior[codigo]
       const esperadoPrevio = porBase.get(previo)?.esperado ?? 0
       if (previo && esperadoPrevio > 0) {
@@ -482,8 +543,8 @@ export function calcularCompraBodega({ historiales, inventarios, productosBodega
     }
 
     // ¿Se está agotando más rápido de lo que la referencia predecía?
-    const ritmoReferencia = esperado / (base.nMeses * 30)
-    const ritmoReciente = vendidas2m / diasVentana
+    const ritmoReferencia = base.dias > 0 ? esperado / base.dias : 0
+    const ritmoReciente = diasVentana > 0 ? vendidas2m / diasVentana : 0
     const seAdelanta = ritmoReferencia > 0
       && vendidas2m >= MINIMO_PARA_MARCAR
       && ritmoReciente > ritmoReferencia * SE_ADELANTA
@@ -498,7 +559,8 @@ export function calcularCompraBodega({ historiales, inventarios, productosBodega
       else obs.push(`Agotado en ${ag.plazasEnCero} de ${ag.plazasEnCero + ag.plazasConStock} plazas`)
     }
     if (!(codigo in enBodega)) obs.push('Bodega no maneja este código: hay que darlo de alta')
-    if (b?.heredado?.length) obs.push(`Hereda la demanda de ${b.heredado.map(h => h.codigo).join(', ')}`)
+    const relevo = base.mapa?.[codigo]
+    if (relevo) obs.push(`Ya existe ${nombres[relevo] || relevo}: revisar si la venta va bajando`)
 
     const sugerido = Math.max(0, Math.ceil(esperado * (1 + margen) - existencia))
     if (sugerido === 0 && vendidas2m === 0 && !ag) continue
