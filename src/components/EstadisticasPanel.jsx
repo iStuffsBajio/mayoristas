@@ -532,7 +532,6 @@ export default function EstadisticasPanel() {
       {/* Una sola línea. El detalle de cómo se calcula ya estaba al pie del
           panel, repetirlo arriba empujaba la gráfica fuera de la pantalla. */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: TINTA, margin: 0 }}>📊 Movimiento de inventario</h3>
         <span style={{ fontSize: 11.5, color: TINTA_TENUE }}>
           lo que bajó de existencia día contra día
         </span>

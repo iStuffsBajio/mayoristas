@@ -262,7 +262,6 @@ export default function InventariosPanel() {
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
       <div style={{ marginBottom: 16 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>📦 Existencias por sucursal</h3>
         <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
           El inventario que la página está mostrando ahora mismo. Arranca filtrado por lo
           urgente, que es lo que sirve para salir a resurtir.

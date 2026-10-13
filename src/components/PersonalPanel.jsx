@@ -132,7 +132,6 @@ export default function PersonalPanel() {
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: TINTA, margin: 0 }}>🕗 Puntualidad</h3>
         <span style={{ fontSize: 11.5, color: TINTA_TENUE }}>
           hora de apertura de caja · entrada {horarioDe('leon').abre} con {TOLERANCIA_MIN} min de tolerancia
         </span>

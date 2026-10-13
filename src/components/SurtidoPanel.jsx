@@ -336,7 +336,6 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
       <div style={{ marginBottom: 14 }}>
-        <h3 style={{ fontSize: 15, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>🚚 Sugerencia de surtido</h3>
         <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
           A qué ritmo sale cada modelo, cuántos días quieres aguantar, y cuánto falta para llegar ahí.
           Es la cuenta que harías a mano, hecha sobre todo el historial disponible.
