@@ -1,0 +1,8 @@
+# iStuffs Bajío
+User-agent: *
+Allow: /
+
+# El panel de administración no tiene nada que hacer en un buscador.
+Disallow: /inventarios/
+
+Sitemap: https://istuffsbajio.com/sitemap.xml
