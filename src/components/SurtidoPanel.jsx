@@ -583,7 +583,7 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
             </Aviso>
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-              <Dato valor={agotados.compra.length} etiqueta="hay que comprar" nota="nadie tiene" color={ROSA} />
+              <Dato valor={agotados.compra.length} etiqueta="bodega no puede surtir" nota="comprar o mover entre plazas" color={ROSA} />
               <Dato valor={agotados.reparto.length} etiqueta="solo repartir" nota="bodega sí tiene" color={AMBAR} />
               <Dato valor={agotados.normal.length} etiqueta="con relevo" nota="ya hay generación nueva" color={TINTA_TENUE} />
             </div>
@@ -606,7 +606,10 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
                   <Celda num fuerte color={'#0288AD'}>{a.vendioReciente}</Celda>
                   <Celda num color={a.bodega > 0 ? VERDE : ROSA}>{a.existeEnBodega ? a.bodega : '—'}</Celda>
                   <Celda color={a.estado === 'compra' ? ROSA : a.estado === 'reparto' ? AMBAR : TINTA_TENUE}>
-                    {a.estado === 'compra' ? 'Comprar: nadie tiene'
+                    {a.estado === 'compra'
+                      ? (a.plazasConStock > 0
+                          ? `Mover de otra plaza o comprar: bodega en cero, ${a.plazasConStock} ${a.plazasConStock === 1 ? 'plaza tiene' : 'plazas tienen'}`
+                          : 'Comprar: no hay en ninguna parte')
                      : a.estado === 'reparto' ? `Repartir: bodega tiene ${a.bodega}`
                      : `Relevo: ${a.sucesorNombre}`}
                   </Celda>

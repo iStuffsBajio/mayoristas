@@ -418,6 +418,24 @@ export const ESTADO_AGOTADO = {
   NORMAL:  'normal',
 }
 
+/**
+ * Qué hacer con un renglón de agotados, dicho con precisión.
+ *
+ * El estado `compra` sólo significa que BODEGA está en cero, y la etiqueta
+ * decía «nadie tiene». No es lo mismo: el Galaxy S26 Ultra sale con una plaza
+ * en cero de tres, o sea que dos sí tienen, y aun así se leía que no había en
+ * ninguna parte. Son dos situaciones con dos salidas distintas: si queda
+ * existencia en otra plaza se puede mover hoy; si no queda en ninguna hay que
+ * pedirle al proveedor y esperar.
+ */
+export function queHacerCon(a) {
+  if (a.estado === ESTADO_AGOTADO.NORMAL)  return 'Ya hay generación nueva'
+  if (a.estado === ESTADO_AGOTADO.REPARTO) return 'Repartir: bodega sí tiene'
+  return a.plazasConStock > 0
+    ? `Mover de otra plaza o comprar: bodega en cero, ${a.plazasConStock} ${a.plazasConStock === 1 ? 'plaza tiene' : 'plazas tienen'}`
+    : 'Comprar: no hay en ninguna parte'
+}
+
 /** Días entre una fecha ISO y hoy, o null si no se sabe. */
 export function diasDesde(fecha, hoy = new Date()) {
   if (!fecha) return null

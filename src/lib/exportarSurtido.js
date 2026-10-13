@@ -6,6 +6,7 @@
 
 import XLSX from 'xlsx-js-style'
 import { diasEnCatalogo } from './surtido.js'
+import { queHacerCon } from './compras.js'
 import {
   C, estiloTitulo, estiloSubtitulo, estiloCifra, estiloEtiqueta, estiloNota,
   estiloSeccion, estiloEncabezado, estiloCelda, hojaDeTabla, celda,
@@ -204,12 +205,6 @@ const COLS_DEPURAR = [
   { titulo: 'Dónde están',    valor: d => (d.plazas ?? []).map(p => p.slug).join(', '), ancho: 28 },
 ]
 
-const ESTADO_TXT = {
-  compra:  'Comprar: nadie tiene',
-  reparto: 'Repartir: bodega sí tiene',
-  normal:  'Ya hay generación nueva',
-}
-
 const COLS_AGOTADOS = [
   { titulo: 'Código',  valor: a => a.codigo,   ancho: 12 },
   { titulo: 'Modelo',  valor: a => a.producto, ancho: 40 },
@@ -221,7 +216,7 @@ const COLS_AGOTADOS = [
   { titulo: 'Vendidas (histórico)', valor: a => a.vendio, num: true, color: C.tintaSuave },
   { titulo: 'En bodega', valor: a => (a.existeEnBodega ? a.bodega : ''), num: true,
     color: a => (a.bodega > 0 ? C.verde : C.rosa) },
-  { titulo: 'Qué hacer', valor: a => ESTADO_TXT[a.estado] ?? a.estado, ancho: 26,
+  { titulo: 'Qué hacer', valor: a => queHacerCon(a), ancho: 44,
     color: a => (a.estado === 'compra' ? C.rosa : a.estado === 'reparto' ? C.ambar : C.tintaSuave) },
   { titulo: 'Relevo', valor: a => a.sucesorNombre ?? '', ancho: 30 },
 ]
