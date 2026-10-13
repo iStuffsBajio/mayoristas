@@ -20,6 +20,23 @@ export const HORARIOS = {
 /** Minutos de gracia antes de contar retardo. Abrir caja lleva unos minutos. */
 export const TOLERANCIA_MIN = 10
 
+/**
+ * Hasta cuándo una segunda apertura del día sigue siendo una llegada.
+ *
+ * Cuando dos personas se turnan, la segunda abre caja a media tarde y eso no
+ * es un retardo. Pero hay un caso que no es ese: alguien abre la tienda, hace
+ * cero ventas en veinte minutos y le entrega la caja a quien trabaja el día.
+ * El sábado 10 de octubre en San Luis, Andrea abrió 10:35 y cerró 10:57 sin
+ * una venta; Cesareo tomó la caja a las 10:58 y vendió once. Cesareo entraba a
+ * las 10:30: llegó tarde, y marcarlo como relevo lo borraba.
+ *
+ * En el historial hay 11 casos así, todos con el turno anterior de menos de
+ * una hora y casi sin ventas. Pasada esa hora ya son turnos de tarde de
+ * verdad. Se mide dentro de la hora y no después: equivocarse hacia el lado
+ * de no acusar a nadie es el error barato.
+ */
+export const MINUTOS_PARA_RELEVO = 60
+
 export const horarioDe = slug => HORARIOS[slug] ?? HORARIOS.defecto
 
 /** True si a esa sucursal se le puede medir la puntualidad. */
@@ -107,17 +124,28 @@ export function resumirSemana(turnos, { desde, hasta }) {
   }
   for (const t of porDia.values()) primeraDelDia.add(`${t.slug}|${t.fecha}|${t.inicio}`)
 
+  // Cuenta como llegada la primera apertura del día y también la que ocurre
+  // dentro de la primera hora, que es un relevo de mostrador y no de turno.
+  const esLlegada = t => {
+    if (primeraDelDia.has(`${t.slug}|${t.fecha}|${t.inicio}`)) return true
+    const m = minutosTarde(t.inicio, t.slug)
+    return m !== null && m <= MINUTOS_PARA_RELEVO
+  }
+
   const porPersona = new Map()
   for (const t of dentro) {
     const clave = `${t.slug}|${t.persona}`
     const e = porPersona.get(clave) ?? {
       slug: t.slug, sucursal: t.sucursal, persona: t.persona,
-      dias: [], retardos: 0, minutosTotales: 0, ventas: 0, relevos: 0,
+      dias: [], retardos: 0, minutosTotales: 0, ventas: 0, relevos: 0, saldoMin: 0,
     }
-    const abrio = primeraDelDia.has(`${t.slug}|${t.fecha}|${t.inicio}`)
+    const abrio = esLlegada(t)
     const tarde = abrio ? minutosTarde(t.inicio, t.slug) : null
     const esRetardo = tarde !== null && tarde > TOLERANCIA_MIN
     if (esRetardo) { e.retardos++; e.minutosTotales += tarde }
+    // El saldo suma TODOS los días medibles, los adelantos incluidos con su
+    // signo: es el acumulado de la semana, no la cuenta de los castigos.
+    if (tarde !== null) e.saldoMin += tarde
     if (!abrio) e.relevos++
     e.ventas += t.ventas ?? 0
     e.dias.push({ ...t, tarde, esRetardo, abrio })
@@ -147,5 +175,14 @@ export function resumirSemana(turnos, { desde, hasta }) {
     totalTurnos: dentro.length,
     totalRetardos: filas.reduce((a, f) => a + f.retardos, 0),
     personas: filas.length,
+    // Saldo de toda la semana, por plaza y en junto.
+    saldoMin: filas.reduce((a, f) => a + f.saldoMin, 0),
+    porSucursal: [...filas.reduce((m, f) => {
+      const e = m.get(f.slug) ?? { slug: f.slug, sucursal: f.sucursal, saldoMin: 0, retardos: 0, personas: 0, medible: tieneHorario(f.slug) }
+      e.saldoMin += f.saldoMin
+      e.retardos += f.retardos
+      e.personas++
+      return m.set(f.slug, e)
+    }, new Map()).values()].sort((a, b) => b.saldoMin - a.saldoMin),
   }
 }

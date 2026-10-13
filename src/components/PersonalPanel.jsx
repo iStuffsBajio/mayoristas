@@ -3,6 +3,29 @@ import {
   resumirSemana, semanaPasada, semanaEnCurso, formatoRango,
   soloHora, nombreDia, horarioDe, tieneHorario, TOLERANCIA_MIN,
 } from '../lib/personal'
+
+/** El saldo con su signo, que es lo que hay que leer de un vistazo. */
+const conSigno = n => (n > 0 ? `+${Math.round(n)}` : String(Math.round(n)))
+
+/** Píldora con el acumulado de minutos de la semana. */
+function Saldo({ min, etiqueta = 'en la semana', grande = false }) {
+  const malo = min > 0
+  const color = malo ? ROSA : VERDE
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'baseline', gap: 5,
+      padding: grande ? '5px 12px' : '3px 9px',
+      borderRadius: 999,
+      background: malo ? 'rgba(196,21,111,0.07)' : 'rgba(94,148,34,0.08)',
+      border: '1px solid ' + (malo ? 'rgba(196,21,111,0.2)' : 'rgba(94,148,34,0.22)'),
+    }}>
+      <strong style={{ fontSize: grande ? 15 : 12.5, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>
+        {conSigno(min)} min
+      </strong>
+      <span style={{ fontSize: grande ? 11.5 : 10.5, color: TINTA_SUAVE }}>{etiqueta}</span>
+    </span>
+  )
+}
 import { turnos as pedirTurnos, apiConfigurada } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 
@@ -54,6 +77,12 @@ function Dia({ d, conHorario }) {
       </div>
       <div style={{ fontSize: 13.5, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>
         {soloHora(d.inicio)}
+      </div>
+      {/* La hora de corte del turno. Sin ella no se sabe si el día fue
+          completo: llegar diez minutos tarde y cerrar a las ocho no es lo
+          mismo que llegar tarde y cerrar a media tarde. */}
+      <div style={{ fontSize: 9.5, color: TINTA_TENUE, fontVariantNumeric: 'tabular-nums' }}>
+        a {d.fin ? soloHora(d.fin) : '—'}
       </div>
       {medible ? (
         <div style={{ fontSize: 9.5, color, marginTop: 1 }}>
@@ -150,12 +179,31 @@ export default function PersonalPanel() {
 
       {resumen && !cargando && !error && (
         <>
-          <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'baseline', marginBottom: 16 }}>
+          <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
             <Cifra valor={resumen.personas} etiqueta="personas" />
             <Cifra valor={resumen.totalTurnos} etiqueta="turnos" />
             <Cifra valor={resumen.totalRetardos} etiqueta="retardos"
                    color={resumen.totalRetardos > 0 ? ROSA : VERDE} />
+            <Saldo min={resumen.saldoMin} etiqueta="acumulado de todas" grande />
           </div>
+
+          {/* El acumulado de cada plaza. Es la cifra que se puede comentar en
+              una junta: si León va en −20 y Aguascalientes en +95, el problema
+              tiene nombre de sucursal y no de persona. */}
+          {resumen.porSucursal.filter(x => x.medible).length > 0 && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+              {resumen.porSucursal.filter(x => x.medible).map(x => (
+                <span key={x.slug} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  padding: '6px 12px', borderRadius: 14,
+                  border: '1px solid ' + LINEA, background: '#FBFDFD',
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: TINTA }}>{x.sucursal}</span>
+                  <Saldo min={x.saldoMin} etiqueta={x.retardos === 1 ? '1 retardo' : `${x.retardos} retardos`} />
+                </span>
+              ))}
+            </div>
+          )}
 
           {resumen.filas.length === 0 && (
             <p style={{ fontSize: 13, color: TINTA_TENUE }}>Sin turnos en esta semana.</p>
@@ -188,6 +236,7 @@ export default function PersonalPanel() {
                               </strong>
                             </span>
                           )}
+                          <Saldo min={f.saldoMin} />
                         </>
                       ) : (
                         <span style={{ color: TINTA_TENUE }}>sin horario fijo</span>
@@ -215,8 +264,11 @@ export default function PersonalPanel() {
             puntual pero tarda en abrir sale como retardo, así que sirve para ver tendencias y no para
             cobrar un minuto. Ferias no se califica: un puesto no abre a hora fija.
             {' '}Un día sin turno es un día sin caja abierta, que puede ser descanso.
-            {' '}Y sólo cuenta la <strong>primera apertura del día</strong>: quien entra a relevar abre
-            caja a media tarde y eso no es un retardo, aparece como «relevo».
+            {' '}Quien entra a relevar abre caja a media tarde y eso no es un retardo: aparece
+            como «relevo». Pero si toma la caja dentro de la primera hora sí cuenta, porque
+            entonces no releva un turno, releva a quien abrió y se fue.
+            {' '}El saldo suma todos los días medibles con su signo, así que los adelantos
+            descuentan: es el acumulado de la semana, no la cuenta de los castigos.
           </p>
         </>
       )}
