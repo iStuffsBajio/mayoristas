@@ -117,11 +117,11 @@ function colorAntiguedad(dias) {
  * Encabezado que ordena al hacer clic. Mismo criterio que en Surtido: primero
  * de mayor a menor, y otro clic invierte.
  */
-function ThOrd({ children, campo, orden, num, title, extra }) {
+function ThOrd({ children, campo, valor, orden, num, title, extra }) {
   const activa = orden.campo === campo
   return (
     <th title={title ?? 'Clic para ordenar'}
-        onClick={() => orden.alternar(campo)}
+        onClick={() => orden.alternar(campo, valor)}
         style={{
           textAlign: num ? 'right' : 'left', padding: num ? '9px 8px' : '9px 12px',
           fontWeight: 700, color: activa ? TINTA : TINTA_SUAVE, fontSize: 11,
@@ -405,7 +405,7 @@ export default function InventariosPanel() {
                     {esTodas
                       ? <>
                           {tiendas.map(s => (
-                            <ThOrd key={s.slug} num orden={ord} campo={f => f.porSucursal?.[s.slug] ?? 0}>
+                            <ThOrd key={s.slug} num orden={ord} campo={'suc:' + s.slug} valor={f => f.porSucursal?.[s.slug] ?? 0}>
                               {s.nombre.split(' ')[0]}
                             </ThOrd>
                           ))}

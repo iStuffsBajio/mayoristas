@@ -83,13 +83,13 @@ function Aviso({ tono = AMBAR, children }) {
   )
 }
 
-const Th = ({ children, campo, orden, ...r }) => {
+const Th = ({ children, campo, valor, orden, ...r }) => {
   const activa = orden && campo && orden.campo === campo
   const puedeOrdenar = !!(orden && campo)
 
   return (
     <th {...r}
-      onClick={puedeOrdenar ? () => orden.alternar(campo) : undefined}
+      onClick={puedeOrdenar ? () => orden.alternar(campo, valor) : undefined}
       title={puedeOrdenar ? 'Clic para ordenar' : r.title}
       style={{
         textAlign: r.num ? 'right' : 'left', padding: '9px 10px', fontWeight: 700,
@@ -513,7 +513,7 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               <Th campo="sugerido" orden={ord} num style={{ textAlign: 'right' }}>Pedir</Th>
               {esTodas && <Th title="De dónde sale cada pieza del total">Para quién</Th>}
               {esFeria && <Th campo="esteMes" orden={ord} num style={{ textAlign: 'right' }} title="Piezas vendidas en lo que va de esta feria">Este mes</Th>}
-              {bodegaStock && !esFeria && <Th campo={f => bodegaStock[f.codigo] ?? null} orden={ord} num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
+              {bodegaStock && !esFeria && <Th campo="enBodega" valor={f => bodegaStock[f.codigo] ?? null} orden={ord} num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
             </>}>
               {ord.ordenar(porVenta).slice(0, TOPE).map((f, i) => (
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
@@ -649,7 +649,7 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               <Th campo="diasAgotado" orden={ord} num style={{ textAlign: 'right' }} title="Días desde el último movimiento">Días</Th>
               <Th campo="vendioCorto" orden={ord} num style={{ textAlign: 'right' }} title={`Piezas vendidas en los últimos ${MESES_CORTOS} meses`}>Vendió 3 m</Th>
               <Th campo="vendiaAlMes" orden={ord} num style={{ textAlign: 'right' }} title="Piezas al mes en los tres meses previos a quedarse sin stock. Es lo que se está perdiendo cada mes que sigue agotado.">Vendía/mes</Th>
-              <Th campo={piezasPerdidas} orden={ord} num style={{ textAlign: 'right' }} title="Ritmo que llevaba por los días que lleva sin stock">Perdidas</Th>
+              <Th campo="perdidas" valor={piezasPerdidas} orden={ord} num style={{ textAlign: 'right' }} title="Ritmo que llevaba por los días que lleva sin stock">Perdidas</Th>
               <Th campo="bodega" orden={ord} num style={{ textAlign: 'right' }}>Bodega</Th>
               <Th>Qué hacer</Th>
             </>}>
