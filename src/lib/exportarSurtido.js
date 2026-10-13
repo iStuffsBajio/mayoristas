@@ -6,9 +6,9 @@
 
 import XLSX from 'xlsx-js-style'
 import { diasEnCatalogo } from './surtido.js'
-import { queHacerCon } from './compras.js'
+import { queHacerCon, piezasPerdidas, DIAS_SIN_COMPRAR } from './compras.js'
 import {
-  C, estiloTitulo, estiloSubtitulo, estiloCifra, estiloEtiqueta, estiloNota,
+  C, semaforo, estiloTitulo, estiloSubtitulo, estiloCifra, estiloEtiqueta, estiloNota, estiloAviso,
   estiloSeccion, estiloEncabezado, estiloCelda, hojaDeTabla, celda,
   nombreArchivo,
 } from './excelEstilo.js'
@@ -45,7 +45,29 @@ function tarjetas(hoja, fila, datos) {
   return merges
 }
 
-function hojaPortada({ sucursal, meta, conteos, notas }) {
+/**
+ * El aviso de la portada, en una frase que se pueda leer de un vistazo.
+ *
+ * Primero cuánto se lleva perdido, luego el peor caso con nombre y apellido,
+ * y al final lo que de verdad hay que arreglar: cuántos de esos llevan meses
+ * sin que bodega los compre. Esa última parte es la que distingue un problema
+ * de surtido de uno de compra.
+ */
+function avisoDeFuga(f) {
+  const peor = f.fugas[0]
+  const partes = [
+    `Se estiman ${f.perdidas} piezas perdidas por tener agotado lo que sí se vende, repartidas en ${f.fugas.length} modelos.`,
+  ]
+  if (peor) {
+    partes.push(`El más caro es ${peor.producto} (${peor.codigo}): ${peor.diasAgotado} días en cero vendiendo ${peor.vendiaAlMes.toFixed(1)} al mes.`)
+  }
+  if (f.inactivos.length) {
+    partes.push(`De todos ellos, ${f.inactivos.length} llevan más de ${DIAS_SIN_COMPRAR} días sin que bodega los mueva: ahí la fuga no es de surtido, es que nadie los ha comprado.`)
+  }
+  return partes.join(' ')
+}
+
+function hojaPortada({ sucursal, meta, conteos, notas, fuga }) {
   const hoja = {}
   const ANCHO = 8
   const merges = []
@@ -62,11 +84,25 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
     { valor: conteos.modelos,  etiqueta: 'modelos a pedir',     color: C.verde },
     { valor: conteos.piezas,   etiqueta: 'piezas en total',     color: C.tinta },
     { valor: conteos.muestras, etiqueta: 'sin venta y en cero', color: C.ambar },
-    { valor: meta.diasHistorial, etiqueta: 'días de historial', color: C.tinta },
+    { valor: fuga?.perdidas ?? 0, etiqueta: 'piezas perdidas por agotados', color: C.rosa },
   ]))
 
-  celda(hoja, 'A7', 'Qué hay en cada hoja', estiloSeccion, 's')
+  // El aviso va antes del índice, porque es lo único de la portada sobre lo
+  // que hay que hacer algo hoy.
+  let r = 6
+  if (fuga && fuga.perdidas > 0) {
+    celda(hoja, `A${r + 1}`, avisoDeFuga(fuga), estiloAviso, 's')
+    merges.push({ s: { r, c: 0 }, e: { r: r + 1, c: ANCHO - 1 } })
+    hoja['!rows'] = [...(hoja['!rows'] ?? [])]
+    hoja['!rows'][r] = { hpt: 30 }
+    r += 3
+  }
 
+  celda(hoja, `A${r + 1}`, 'Qué hay en cada hoja', estiloSeccion, 's')
+
+  // Todo lo que sigue se coloca RELATIVO a `r`, porque el aviso de fuga lo
+  // empuja hacia abajo cuando aparece. Antes iban renglones fijos y bastaba
+  // meter una línea arriba para que el índice se encimara con las notas.
   const filas = [
     ['Pedir por venta',      conteos.modelos,  'Se mueven y no alcanzan para la cobertura'],
     ['Sin venta y agotados', conteos.muestras, 'Nunca se vendieron y están en cero: 1 de muestra'],
@@ -76,23 +112,26 @@ function hojaPortada({ sucursal, meta, conteos, notas }) {
     ['Recién llegados',      conteos.nuevos,   'Entrada real reciente y aún sin venta'],
     ['Depurar',              conteos.depurar,  'Más de un año sin una sola venta y ocupando lugar'],
   ]
-  const enc = ['Hoja', 'Modelos', 'Qué contiene']
-  enc.forEach((t, i) => celda(hoja, XLSX.utils.encode_cell({ r: 8, c: i }), t, estiloEncabezado, 's'))
-  filas.forEach((f, r) => {
-    f.forEach((v, i) => celda(hoja, XLSX.utils.encode_cell({ r: 9 + r, c: i }),
-      v, estiloCelda(r, { num: i === 1 }), typeof v === 'number' ? 'n' : 's'))
-  })
-  merges.push(...filas.map((_, r) => ({ s: { r: 9 + r, c: 2 }, e: { r: 9 + r, c: ANCHO - 1 } })))
 
-  celda(hoja, 'A16', 'Cómo se calcula', estiloSeccion, 's')
+  const rEnc = r + 2
+  const enc = ['Hoja', 'Modelos', 'Qué contiene']
+  enc.forEach((t, i) => celda(hoja, XLSX.utils.encode_cell({ r: rEnc, c: i }), t, estiloEncabezado, 's'))
+  filas.forEach((f, j) => {
+    f.forEach((v, i) => celda(hoja, XLSX.utils.encode_cell({ r: rEnc + 1 + j, c: i }),
+      v, estiloCelda(j, { num: i === 1 }), typeof v === 'number' ? 'n' : 's'))
+    merges.push({ s: { r: rEnc + 1 + j, c: 2 }, e: { r: rEnc + 1 + j, c: ANCHO - 1 } })
+  })
+
+  const rNotas = rEnc + filas.length + 2
+  celda(hoja, XLSX.utils.encode_cell({ r: rNotas, c: 0 }), 'Cómo se calcula', estiloSeccion, 's')
   notas.forEach((n, i) => {
-    celda(hoja, XLSX.utils.encode_cell({ r: 17 + i, c: 0 }), n, estiloNota, 's')
+    celda(hoja, XLSX.utils.encode_cell({ r: rNotas + 1 + i, c: 0 }), n, estiloNota, 's')
     // Las celdas vecinas del renglon combinado necesitan existir, si no la
     // combinacion se descarta al abrir.
     for (let c = 1; c < ANCHO; c++) {
-      celda(hoja, XLSX.utils.encode_cell({ r: 17 + i, c }), '', estiloNota, 's')
+      celda(hoja, XLSX.utils.encode_cell({ r: rNotas + 1 + i, c }), '', estiloNota, 's')
     }
-    merges.push({ s: { r: 17 + i, c: 0 }, e: { r: 17 + i, c: ANCHO - 1 } })
+    merges.push({ s: { r: rNotas + 1 + i, c: 0 }, e: { r: rNotas + 1 + i, c: ANCHO - 1 } })
   })
 
   hoja['!merges'] = merges
@@ -210,8 +249,11 @@ const COLS_AGOTADOS = [
   { titulo: 'Modelo',  valor: a => a.producto, ancho: 40 },
   { titulo: 'Plazas en cero', valor: a => `${a.plazasEnCero} de ${a.plazasEnCero + a.plazasConStock}`, ancho: 14,
     color: a => (a.plazasConStock === 0 ? C.rosa : C.ambar) },
-  { titulo: 'Días agotado', valor: a => a.diasAgotado ?? '', num: true,
-    color: a => (a.diasAgotado > 30 ? C.rosa : C.tintaSuave) },
+  // Semáforo: hasta 15 días es reposición normal, hasta 45 ya es descuido,
+  // hasta 90 es una fuga, y de ahí para arriba es un modelo abandonado.
+  { titulo: 'Días agotado', valor: a => a.diasAgotado ?? '', num: true, fuerte: true,
+    color: a => (a.diasAgotado > 45 ? C.rosa : C.tinta),
+    fondo: a => semaforo(a.diasAgotado, [15, 45, 90]) },
   { titulo: 'Vendidas (3 meses)', valor: a => a.vendioCorto, num: true, fuerte: true, color: C.azul },
   // Lo que vendía ANTES de agotarse. Sin esta columna, un modelo con cuatro
   // meses en cero sale con ceros en todas las ventanas recientes y parece que
@@ -219,9 +261,16 @@ const COLS_AGOTADOS = [
   { titulo: 'Vendía al mes', ancho: 13, num: true,
     valor: a => Number(a.vendiaAlMes.toFixed(1)),
     color: a => (a.vendiaAlMes >= 2 ? C.rosa : C.tintaSuave) },
-  { titulo: 'Perdidas estimadas', ancho: 16, num: true,
-    valor: a => Math.round((a.vendiaAlMes / 30) * (a.diasAgotado ?? 0)),
-    color: a => ((a.vendiaAlMes / 30) * (a.diasAgotado ?? 0) >= 5 ? C.rosa : C.tintaSuave) },
+  { titulo: 'Perdidas estimadas', ancho: 16, num: true, fuerte: true,
+    valor: a => piezasPerdidas(a),
+    color: a => (piezasPerdidas(a) >= 5 ? C.rosa : C.tinta),
+    fondo: a => semaforo(piezasPerdidas(a), [1, 5, 15]) },
+  // Cuánto lleva bodega sin mover este código. Si se vende y nadie lo ha
+  // comprado en meses, la fuga no está en la tienda sino en la compra.
+  { titulo: 'Bodega sin moverlo', ancho: 16, num: true,
+    valor: a => a.bodegaDias ?? '',
+    color: a => (a.bodegaDias > 60 ? C.rosa : C.tintaSuave),
+    fondo: a => semaforo(a.bodegaDias, [30, 60, 120]) },
   { titulo: 'Vendidas (histórico)', valor: a => a.vendio, num: true, color: C.tintaSuave },
   { titulo: 'En bodega', valor: a => (a.existeEnBodega ? a.bodega : ''), num: true,
     color: a => (a.bodega > 0 ? C.verde : C.rosa) },
@@ -256,7 +305,7 @@ const COLS_NUEVOS = [
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
 
-export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], agotados = [], compras = [], candidatos = null, bodegaStock = null, esFeria = false }) {
+export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], agotados = [], compras = [], candidatos = null, bodegaStock = null, esFeria = false, fuga = null }) {
   const libro = XLSX.utils.book_new()
 
   const conteos = {
@@ -281,7 +330,7 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
     'Agotados que duelen: solo entra lo que se vendió en los últimos 6 meses. Un modelo que lleva dos años agotado y nadie repuso no es un descuido, es que ya no se pide. Los días agotados salen del último movimiento registrado. La columna de 3 meses sirve para ver si se pide hoy, pero ojo: un modelo con meses en cero sale en cero porque no hay qué vender, no porque no lo busquen. Para esos la columna que vale es «Vendía al mes», que mide los tres meses anteriores a que se agotara, y «Perdidas estimadas», que es ese ritmo por los días que lleva sin stock.',
   ]
 
-  XLSX.utils.book_append_sheet(libro, hojaPortada({ sucursal, meta, conteos, notas }), 'Panel')
+  XLSX.utils.book_append_sheet(libro, hojaPortada({ sucursal, meta, conteos, notas, fuga }), 'Panel')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(colsVenta(bodegaStock, esFeria), porVenta), 'Pedir por venta')
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_MUESTRA, muestras), 'Sin venta y agotados')
   if (candidatos) XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_CANDIDATOS, candidatos), 'Se venden en tienda')

@@ -420,6 +420,15 @@ export const MESES_RECIENTES = 6
 // y vendía bien antes—. Así que la ventana corta se enseña y la larga decide.
 export const MESES_CORTOS = 3
 
+/**
+ * Días sin que bodega mueva un código para considerarlo compra detenida.
+ *
+ * Dos meses. Por debajo de eso cabe que el pedido esté en camino; por encima,
+ * si el modelo se vende y las tiendas lo tienen en cero, lo que falló fue la
+ * compra y no el surtido.
+ */
+export const DIAS_SIN_COMPRAR = 60
+
 // Y para que los renglones con meses agotados no sean una fila de ceros, se
 // mide lo que vendían ANTES de agotarse. Eso es lo que se está perdiendo cada
 // mes que siguen así, que es la pregunta de esta hoja.
@@ -441,6 +450,17 @@ export const ESTADO_AGOTADO = {
  * existencia en otra plaza se puede mover hoy; si no queda en ninguna hay que
  * pedirle al proveedor y esperar.
  */
+/**
+ * Piezas que se dejaron de vender por tenerlo agotado.
+ *
+ * Es el ritmo que llevaba antes de acabarse por los días que lleva sin stock.
+ * Es una estimación y no una medición —nadie registra la venta que no ocurrió—
+ * pero es el número que convierte «lleva 184 días agotado» en algo que se
+ * puede comparar contra otro renglón.
+ */
+export const piezasPerdidas = a =>
+  Math.round(((a?.vendiaAlMes ?? 0) / 30) * (a?.diasAgotado ?? 0))
+
 export function queHacerCon(a) {
   if (a.estado === ESTADO_AGOTADO.NORMAL)  return 'Ya hay generación nueva'
   if (a.estado === ESTADO_AGOTADO.REPARTO) return 'Repartir: bodega sí tiene'
@@ -594,12 +614,30 @@ export function analizarAgotados({ inventarios, historiales, productosBodega, ho
     b.vendioReciente - a.vendioReciente ||
     b.plazasEnCero - a.plazasEnCero)
 
+  // ── Fugas de ingresos ──────────────────────────────────────────────────
+  //
+  // Dos cosas distintas que conviene separar. Una es cuánto se lleva perdido
+  // por tener agotado algo que se vendía; la otra es por qué sigue agotado.
+  // Cuando bodega lleva meses sin mover un código que las tiendas sí piden,
+  // la fuga no está en la tienda: está en que nadie lo compró.
+  const perdidas = filas.reduce((a, f) => a + piezasPerdidas(f), 0)
+
+  const inactivos = filas
+    .filter(f => f.bodegaDias !== null && f.bodegaDias >= DIAS_SIN_COMPRAR && f.vendiaAlMes > 0)
+    .sort((a, b) => piezasPerdidas(b) - piezasPerdidas(a))
+
   return {
     filas,
     desde,
     compra:  filas.filter(f => f.estado === ESTADO_AGOTADO.COMPRA),
     reparto: filas.filter(f => f.estado === ESTADO_AGOTADO.REPARTO),
     normal:  filas.filter(f => f.estado === ESTADO_AGOTADO.NORMAL),
+    perdidas,
+    inactivos,
+    // Los que más cuestan, para encabezar el aviso con un nombre y no con un
+    // número suelto.
+    fugas: filas.filter(f => piezasPerdidas(f) > 0)
+      .sort((a, b) => piezasPerdidas(b) - piezasPerdidas(a)),
   }
 }
 

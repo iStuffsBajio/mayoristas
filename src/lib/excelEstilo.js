@@ -21,6 +21,28 @@ export const C = {
   fondo:    'F7FAFB',
   cebra:    'FBFDFD',
   blanco:   'FFFFFF',
+
+  // Fondos de semáforo. La librería no escribe reglas de formato condicional
+  // —se probó y las descarta al guardar, como los paneles congelados—, así
+  // que el color se calcula al generar. En un reporte que nadie va a editar
+  // se ve igual, y de paso viaja con la celda al filtrar u ordenar.
+  semaforoOk:    'E8F3DC',
+  semaforoTibio: 'FFF3D6',
+  semaforoMalo:  'FFE2D0',
+  semaforoGrave: 'FBD5E4',
+}
+
+/**
+ * El fondo que le toca a un número según en qué escalón cae.
+ *
+ * `cortes` van de menor a mayor: con [15, 45, 90], un valor por debajo de 15
+ * sale verde, hasta 45 ámbar, hasta 90 naranja y de ahí para arriba rojo.
+ */
+export const semaforo = (valor, cortes) => {
+  if (valor === null || valor === undefined || Number.isNaN(valor)) return undefined
+  const escala = [C.semaforoOk, C.semaforoTibio, C.semaforoMalo, C.semaforoGrave]
+  const i = cortes.findIndex(c => valor < c)
+  return escala[i === -1 ? cortes.length : i]
 }
 
 const borde = (color = C.linea) => ({ style: 'thin', color: { rgb: color } })
@@ -68,9 +90,9 @@ export const estiloEncabezadoNum = {
 }
 
 /** Celda normal de una tabla, con el rayado de cebra. */
-export const estiloCelda = (fila, { num = false, fuerte = false, color = C.tinta, formato } = {}) => ({
+export const estiloCelda = (fila, { num = false, fuerte = false, color = C.tinta, formato, fondo } = {}) => ({
   font:      { sz: 10, bold: fuerte, color: { rgb: color } },
-  fill:      { fgColor: { rgb: fila % 2 ? C.cebra : C.blanco } },
+  fill:      { fgColor: { rgb: fondo ?? (fila % 2 ? C.cebra : C.blanco) } },
   alignment: { horizontal: num ? 'right' : 'left', vertical: 'center' },
   border:    { bottom: borde() },
   ...(formato ? { numFmt: formato } : {}),
@@ -80,6 +102,14 @@ export const estiloCelda = (fila, { num = false, fuerte = false, color = C.tinta
 export const estiloNota = {
   font:      { sz: 9, color: { rgb: C.tintaTenue }, italic: true },
   alignment: { vertical: 'top', wrapText: true },
+}
+
+/** Recuadro de aviso: lo único de la portada sobre lo que hay que actuar. */
+export const estiloAviso = {
+  font:      { sz: 10.5, bold: true, color: { rgb: C.rosa } },
+  fill:      { fgColor: { rgb: C.semaforoGrave } },
+  alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
+  border:    { top: borde(C.rosa), bottom: borde(C.rosa), left: borde(C.rosa), right: borde(C.rosa) },
 }
 
 export const estiloSeccion = {
@@ -110,6 +140,7 @@ export function hojaDeTabla(columnas, filas) {
         num:    c.num,
         fuerte: c.fuerte,
         color:  typeof c.color === 'function' ? c.color(f) : c.color,
+        fondo:  typeof c.fondo === 'function' ? c.fondo(f) : c.fondo,
         formato: c.formato,
       })
     })

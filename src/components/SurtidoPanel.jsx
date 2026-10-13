@@ -9,7 +9,7 @@ import {
   mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
-import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS } from '../lib/compras'
+import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS, DIAS_SIN_COMPRAR } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
 
 // Para la columna de reparto: «leon 9 · slp 4» cabe, los nombres largos no.
@@ -350,6 +350,7 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
     candidatos: esFeria ? candidatos : null,
     bodegaStock,
     esFeria,
+    fuga: agotados ?? null,
   })
 
   if (cargando) {
@@ -586,7 +587,28 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               lo que se está perdiendo cada mes que siga así.
             </Aviso>
 
+            {agotados.perdidas > 0 && (
+              <div style={{ marginBottom: 14, padding: '13px 15px', borderRadius: 16, background: 'rgba(196,21,111,0.06)', border: '1.5px solid rgba(196,21,111,0.28)' }}>
+                <p style={{ fontSize: 13.5, fontWeight: 800, color: ROSA, margin: 0 }}>
+                  ⚠ Unas {agotados.perdidas} piezas perdidas por estar agotado
+                </p>
+                <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '5px 0 0', lineHeight: 1.55 }}>
+                  Repartidas en {agotados.fugas.length} modelos.
+                  {agotados.fugas[0] && (
+                    <> El más caro es <strong style={{ color: TINTA }}>{agotados.fugas[0].producto}</strong>:
+                    {' '}{agotados.fugas[0].diasAgotado} días en cero vendiendo {agotados.fugas[0].vendiaAlMes.toFixed(1)} al mes.</>
+                  )}
+                  {agotados.inactivos.length > 0 && (
+                    <> De todos ellos, <strong style={{ color: ROSA }}>{agotados.inactivos.length} llevan
+                    más de {DIAS_SIN_COMPRAR} días sin que bodega los mueva</strong>: ahí la fuga no es de
+                    surtido, es que nadie los ha comprado.</>
+                  )}
+                </p>
+              </div>
+            )}
+
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+              <Dato valor={agotados.perdidas} etiqueta="piezas perdidas" nota="por estar en cero" color={ROSA} />
               <Dato valor={agotados.compra.length} etiqueta="bodega no puede surtir" nota="comprar o mover entre plazas" color={ROSA} />
               <Dato valor={agotados.reparto.length} etiqueta="solo repartir" nota="bodega sí tiene" color={AMBAR} />
               <Dato valor={agotados.normal.length} etiqueta="con relevo" nota="ya hay generación nueva" color={TINTA_TENUE} />
