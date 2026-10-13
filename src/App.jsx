@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AuthProvider } from './context/AuthContext'
 import { SiteConfigProvider, useSiteConfig } from './context/SiteConfigContext'
 import { useAuth } from './context/AuthContext'
-import Navbar, { ALTO_BARRA } from './components/Navbar'
+import Navbar, { ALTO_BARRA, ALTO_TABS } from './components/Navbar'
 import Hero from './components/Hero'
 import Mosaico from './components/Mosaico'
 import InventarioSemanal from './components/InventarioSemanal'
@@ -35,7 +35,10 @@ function TabBar({ active, onChange }) {
       WebkitBackdropFilter: 'saturate(180%) blur(14px)',
       position: 'sticky', top: ALTO_BARRA, zIndex: 40,
     }}>
-      <div className="max-w-6xl mx-auto px-4 flex gap-1 justify-center overflow-x-auto">
+      {/* El alto se fija con la constante, no se deja al azar del relleno: el
+          panel de administración pega su menú justo debajo contando con ella. */}
+      <div className="max-w-6xl mx-auto px-4 flex gap-1 justify-center overflow-x-auto"
+           style={{ height: ALTO_TABS }}>
         {visibles.map(tab => {
           const isActive = active === tab.id
           const tono = tab.id === 'admin' ? '#D51A7A' : '#0288AD'
@@ -44,7 +47,7 @@ function TabBar({ active, onChange }) {
               className="flex items-center gap-1.5 whitespace-nowrap"
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                padding: '11px 16px', fontSize: 13.5,
+                padding: '0 16px', fontSize: 13.5,
                 fontWeight: isActive ? 600 : 400,
                 color: isActive ? tono : 'rgba(16,22,25,0.62)',
                 flexShrink: 0, transition: 'color .15s',

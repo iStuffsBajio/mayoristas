@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { ALTO_BARRA, ALTO_TABS } from './Navbar'
 import { useSiteConfig } from '../context/SiteConfigContext'
 import { gradStr, configRemotaInaccesible } from '../lib/siteConfig'
 import { SUCURSALES_PUBLICAS as SUCURSALES, telefonoWhatsApp } from '../lib/sucursales'
@@ -414,36 +415,29 @@ const SECCIONES = [
   { id: 'config',      icono: '🎨', titulo: 'Diseño',       sub: 'Textos, colores y contacto' },
 ]
 
-// Antes el botón inactivo era transparente y sin borde. Sobre un menú pegado
-// al desplazarse eso se ve mal de verdad: la tabla pasa por debajo y el texto
-// de las dos cosas queda encimado. Ahora todos tienen fondo y borde propios,
-// así que siempre tapan lo que pase detrás y se leen como botones.
+// Una pestaña de texto, igual que las de la barra de arriba. Antes eran
+// tarjetas en una columna a la izquierda: pegadas al desplazarse y con el
+// fondo transparente, la tabla pasaba por debajo y los textos se encimaban.
+// Ponerles fondo arregló el encimado pero seguían pesando demasiado para lo
+// que son, que es un cambio de vista. Así pesan lo que deben.
 function BotonSeccion({ s, activa, onClick }) {
-  const fondoQuieto = activa ? '#fff' : '#F4F7F8'
-
   return (
-    <button type="button" onClick={onClick} className="admin-boton"
+    <button type="button" onClick={onClick}
+      className="flex items-center gap-1.5 whitespace-nowrap"
       style={{
-        display: 'flex', alignItems: 'center', gap: 11, width: '100%',
-        padding: '11px 13px', borderRadius: 14, cursor: 'pointer', textAlign: 'left',
-        background: fondoQuieto,
-        border: '1px solid ' + (activa ? 'rgba(16,22,25,0.14)' : 'rgba(16,22,25,0.07)'),
-        boxShadow: activa ? '0 2px 10px rgba(16,22,25,0.07)' : 'none',
-        transition: 'background .15s, border-color .15s',
-        // Una barrita de color a la izquierda marca la activa sin depender
-        // sólo del peso de la letra, que a este tamaño casi no se nota.
-        borderLeft: activa ? '3px solid #C4156F' : '1px solid rgba(16,22,25,0.07)',
-        paddingLeft: activa ? 11 : 13,
+        background: 'none', border: 'none', cursor: 'pointer',
+        padding: '9px 13px', fontSize: 12.5,
+        fontWeight: activa ? 600 : 400,
+        color: activa ? '#C4156F' : 'rgba(16,22,25,0.58)',
+        flexShrink: 0, transition: 'color .15s',
+        // Un subrayado fino en vez de una caja: marca cuál está sin añadir
+        // otro recuadro a una pantalla que ya está llena de tablas.
+        boxShadow: activa ? 'inset 0 -2px 0 #C4156F' : 'none',
       }}
-      onMouseEnter={e => { if (!activa) e.currentTarget.style.background = '#EAF0F2' }}
-      onMouseLeave={e => { if (!activa) e.currentTarget.style.background = fondoQuieto }}>
-      <span style={{ fontSize: 17, lineHeight: 1 }}>{s.icono}</span>
-      <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 13.5, fontWeight: activa ? 700 : 600, color: activa ? '#101619' : '#4A5A61' }}>
-          {s.titulo}
-        </span>
-        <span style={{ display: 'block', fontSize: 11, color: '#8598A1', marginTop: 1 }}>{s.sub}</span>
-      </span>
+      onMouseEnter={e => { if (!activa) e.currentTarget.style.color = '#101619' }}
+      onMouseLeave={e => { if (!activa) e.currentTarget.style.color = 'rgba(16,22,25,0.58)' }}>
+      <span style={{ fontSize: 13 }}>{s.icono}</span>
+      <span>{s.titulo}</span>
     </button>
   )
 }
@@ -472,72 +466,49 @@ export default function AdminPanel() {
         </div>
       )}
 
-      {/* El menú va a la izquierda, donde antes no había nada, y se queda
-          pegado al desplazarse para no perderlo en las tablas largas.
+      {/* El menú va en una barra horizontal pegada justo debajo de la de
+          pestañas, con el mismo aspecto. Antes era una columna a la izquierda
+          y daba más problemas de los que resolvía: pegada y angosta se
+          encimaba con las tablas anchas, y en pantalla chica se comía media
+          pantalla. Una barra ocupa 38px y no estorba nunca.
 
-          Va dentro de una tarjeta con fondo propio. Pegado y transparente se
-          veía encimado con la tabla que pasaba por detrás. En pantalla
-          angosta no se pega —arriba no hay columna, y un menú fijo se comería
-          media pantalla— sino que se vuelve una fila que se desliza. */}
-      <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'minmax(0, 1fr)', alignItems: 'start' }}
-           className="admin-rejilla">
-        <nav className="admin-menu"
-             style={{
-               display: 'flex', gap: 5, padding: 7,
-               background: 'rgba(255,255,255,0.92)',
-               backdropFilter: 'blur(10px)',
-               WebkitBackdropFilter: 'blur(10px)',
-               border: '1px solid rgba(16,22,25,0.08)',
-               borderRadius: 20,
-               boxShadow: '0 2px 14px rgba(16,22,25,0.05)',
-             }}>
+          El `top` sale de sumar las dos barras de arriba. Si cambia el alto de
+          alguna y esto no, el menú se mete debajo de ellas. */}
+      <div style={{
+        position: 'sticky', top: ALTO_BARRA + ALTO_TABS, zIndex: 30,
+        marginBottom: 18,
+        borderBottom: '1px solid rgba(16,22,25,0.06)',
+        backgroundColor: 'rgba(255,255,255,0.88)',
+        backdropFilter: 'saturate(180%) blur(14px)',
+        WebkitBackdropFilter: 'saturate(180%) blur(14px)',
+      }}>
+        <nav className="admin-menu-barra flex gap-0.5 justify-center overflow-x-auto"
+             style={{ scrollbarWidth: 'none' }}>
           {SECCIONES.map(s => (
             <BotonSeccion key={s.id} s={s} activa={seccion === s.id} onClick={() => setSeccion(s.id)} />
           ))}
         </nav>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
-          {seccion === 'ventas'      && <EstadisticasPanel />}
-          {seccion === 'inventarios' && <InventariosPanel />}
-          {seccion === 'surtido'     && <SurtidoPanel ambito="sucursales" />}
-          {seccion === 'bodega'      && <SurtidoPanel ambito="bodega" />}
-          {seccion === 'personal'    && <PersonalPanel />}
-          {seccion === 'config'      && (
-            <>
-              <SeccionTabs     config={config} save={save} guardando={guardando} />
-              <SeccionHero     config={config} save={save} />
-              <SeccionColores  config={config} save={save} />
-              <SeccionFooter   config={config} save={save} />
-              <SeccionWhatsApp config={config} save={save} />
-              <SeccionDropbox  config={config} save={save} />
-            </>
-          )}
-        </div>
       </div>
 
-      <style>{`
-        /* Angosto: fila horizontal que se desliza, sin pegarse. */
-        .admin-menu {
-          flex-direction: row;
-          overflow-x: auto;
-          scrollbar-width: none;
-          -webkit-overflow-scrolling: touch;
-        }
-        .admin-menu::-webkit-scrollbar { display: none; }
-        .admin-menu .admin-boton { width: auto; flex: 0 0 auto; white-space: nowrap; }
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
+        {seccion === 'ventas'      && <EstadisticasPanel />}
+        {seccion === 'inventarios' && <InventariosPanel />}
+        {seccion === 'surtido'     && <SurtidoPanel ambito="sucursales" />}
+        {seccion === 'bodega'      && <SurtidoPanel ambito="bodega" />}
+        {seccion === 'personal'    && <PersonalPanel />}
+        {seccion === 'config'      && (
+          <>
+            <SeccionTabs     config={config} save={save} guardando={guardando} />
+            <SeccionHero     config={config} save={save} />
+            <SeccionColores  config={config} save={save} />
+            <SeccionFooter   config={config} save={save} />
+            <SeccionWhatsApp config={config} save={save} />
+            <SeccionDropbox  config={config} save={save} />
+          </>
+        )}
+      </div>
 
-        /* Ancho: columna pegada a la izquierda. */
-        @media (min-width: 900px) {
-          .admin-rejilla { grid-template-columns: 232px minmax(0, 1fr); gap: 26px; }
-          .admin-menu {
-            flex-direction: column;
-            overflow-x: visible;
-            position: sticky;
-            top: 104px;
-          }
-          .admin-menu .admin-boton { width: 100%; white-space: normal; }
-        }
-      `}</style>
-    </section>
+      <style>{`.admin-menu-barra::-webkit-scrollbar { display: none; }`}</style>
+   </section>
   )
 }

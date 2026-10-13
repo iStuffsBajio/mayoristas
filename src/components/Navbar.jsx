@@ -28,6 +28,11 @@ const LogoutIcon = () => (
 /** Alto de la barra. La de pestañas se pega justo debajo usando este valor. */
 export const ALTO_BARRA = 52
 
+// Alto de la barra de pestañas que va debajo de ésta. Vive aquí y no en App
+// para que el panel de administración pueda pegar su propio menú bajo las dos
+// sin importar de App, que lo importa a él: eso sería un círculo.
+export const ALTO_TABS = 40
+
 export default function Navbar({ onLoginClick }) {
   const { session, logout, branchName } = useAuth()
   const [query, setQuery]   = useState('')
