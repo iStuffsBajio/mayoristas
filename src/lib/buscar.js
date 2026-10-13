@@ -37,3 +37,25 @@ export function coincideCon(busqueda, campos = f => [f.producto, f.codigo]) {
     return palabras.every(p => heno.includes(p))
   }
 }
+
+/**
+ * Filtra una lista aplicando el filtro de la pantalla Y la búsqueda, con la
+ * regla que los une: **mientras se busca, el filtro no cuenta**.
+ *
+ * Vive aquí y no dentro del componente a propósito. La regla se ha roto tres
+ * veces: buscar «s23 ultra» en bodega devolvía cero porque el filtro «Urgente
+ * (1-3)» estaba puesto y los dos Ultra tienen 34 y 4 piezas. El dato estaba
+ * bien y la respuesta parecía mentira. Encerrada aquí, con pruebas que la
+ * fijan, cambiarla sin darse cuenta deja de ser posible.
+ *
+ * Buscar es ir por un modelo concreto. Si existe, tiene que aparecer, esté en
+ * el tramo de existencia que esté y sea de la marca que sea.
+ */
+export function filtrarYBuscar({ filas, busqueda, pasaFiltro = () => true, campos }) {
+  const hayBusqueda = String(busqueda ?? '').trim().length > 0
+  const base = hayBusqueda ? (filas ?? []) : (filas ?? []).filter(pasaFiltro)
+  return base.filter(coincideCon(busqueda, campos))
+}
+
+/** True si hay algo escrito. Para que la pantalla lo diga sin recalcularlo. */
+export const hayBusqueda = b => String(b ?? '').trim().length > 0

@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { inventarioUrl, loadInventarioJson, s3Configured } from '../lib/s3'
 import { subirInventario, apiConfigurada } from '../lib/api'
 import StockBadge, { nivelStock, COLOR_NIVEL, ETIQUETAS_LEYENDA } from './StockBadge'
-import { coincideCon } from '../lib/buscar'
+import { filtrarYBuscar } from '../lib/buscar'
 
 const SUCURSALES = [
   { name: 'León',            slug: 'leon' },
@@ -185,8 +185,11 @@ export default function InventarioSemanal({ onLoginClick, busqueda, onBuscar }) 
     // mirando nombre y código. Antes era un includes sobre el nombre en
     // minúsculas, así que «a16» no encontraba «GALAXY A 16» y el código no
     // servía para buscar.
-    const coincide = coincideCon(search, r => [r[COL_PRODUCTO], r[COL_CODIGO]])
-    return allRows.filter(coincide)
+    return filtrarYBuscar({
+      filas: allRows,
+      busqueda: search,
+      campos: r => [r[COL_PRODUCTO], r[COL_CODIGO]],
+    })
   }, [allRows, search])
 
   // ── Estadísticas ─────────────────────────────────────────────────

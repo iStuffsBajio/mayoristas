@@ -4,7 +4,7 @@ import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA } from '../lib/sucursales'
 import { inventarioJsonUrl, estadisticasUrl } from '../lib/s3'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
 import { seProduce } from '../lib/produccion'
-import { coincideCon } from '../lib/buscar'
+import { filtrarYBuscar, hayBusqueda } from '../lib/buscar'
 import { useOrdenTabla } from '../lib/orden'
 import { nivelStock, COLOR_NIVEL, UMBRAL_VERDE, UMBRAL_NARANJA } from './StockBadge'
 import { descargarInventario, descargarInventarioConsolidado } from '../lib/exportarInventario'
@@ -255,23 +255,26 @@ export default function InventariosPanel() {
     return c
   }, [sinProduccion, esTodas])
 
+  const buscando = hayBusqueda(busqueda)
+
   // Los que cumplen el filtro de existencia, antes de mirar la venta. Sirve
   // para enseñar cuántos quedan fuera al exigir que se vendan.
   const porExistencia = useMemo(() => {
+    if (buscando) return sinProduccion
     const prueba = FILTROS.find(f => f.id === filtro)?.prueba ?? (() => true)
     return sinProduccion.filter(f => prueba(valorDe(f)))
-  }, [sinProduccion, filtro, esTodas])
+  }, [sinProduccion, filtro, esTodas, buscando])
 
   const visibles = useMemo(() => {
-    // La búsqueda ignora acentos, espacios y signos, y pide que cada palabra
-    // aparezca en alguna parte del nombre o del código. Antes era un
-    // `includes` crudo: «A 16» no encontraba el «A16» del catálogo, y la
-    // marca delante hacía fallar la coincidencia.
-    const coincide = coincideCon(busqueda)
-
-    const lista = porExistencia.filter(f =>
-      (!soloConVenta || !hayVentas || f.v30 > 0) && coincide(f)
-    )
+    // `filtrarYBuscar` es quien decide que al buscar NO se aplica el filtro de
+    // existencia. Esa regla vive en la librería, con pruebas que la fijan, y
+    // no aquí: se rompió tres veces por estar suelta dentro del componente.
+    const prueba = FILTROS.find(f => f.id === filtro)?.prueba ?? (() => true)
+    const lista = filtrarYBuscar({
+      filas: sinProduccion,
+      busqueda,
+      pasaFiltro: f => prueba(valorDe(f)),
+    }).filter(f => !soloConVenta || !hayVentas || f.v30 > 0)
 
     // La cabecera manda sobre las píldoras cuando está puesta.
     if (ord.campo) return ord.ordenar(lista)
@@ -283,7 +286,7 @@ export default function InventariosPanel() {
     if (orden === 'vendidos') return lista.sort((a, b) => b.v30 - a.v30 || valorDe(a) - valorDe(b) || porNombre(a, b))
     const dir = orden === 'menor' ? 1 : -1
     return lista.sort((a, b) => (valorDe(a) - valorDe(b)) * dir || porNombre(a, b))
-  }, [porExistencia, orden, busqueda, soloConVenta, hayVentas, esTodas, ord.campo, ord.dir])
+  }, [sinProduccion, filtro, orden, busqueda, soloConVenta, hayVentas, esTodas, ord.campo, ord.dir])
 
   const etiquetaFiltro = FILTROS.find(f => f.id === filtro)?.etiqueta ?? 'todos'
 
@@ -385,13 +388,23 @@ export default function InventariosPanel() {
           </div>
 
           <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '0 0 10px' }}>
-            <strong style={{ color: TINTA }}>{visibles.length}</strong> modelos en «{etiquetaFiltro}»
-            {soloConVenta && hayVentas && !busqueda && porExistencia.length > visibles.length && (
-              <> con venta en 30 días <span style={{ color: TINTA_TENUE }}>
-                — los otros {porExistencia.length - visibles.length} están bajos pero nadie los pide
-              </span></>
+            <strong style={{ color: TINTA }}>{visibles.length}</strong>
+            {buscando ? (
+              <> {visibles.length === 1 ? 'modelo' : 'modelos'} que coinciden con «{busqueda.trim()}»
+                {' '}<span style={{ color: TINTA_TENUE }}>
+                  en todo el catálogo de {sucursal.nombre} — buscar no respeta el filtro de existencia,
+                  para que un modelo no desaparezca por tener más piezas de las del tramo elegido
+                </span>
+              </>
+            ) : (
+              <> modelos en «{etiquetaFiltro}»
+                {soloConVenta && hayVentas && porExistencia.length > visibles.length && (
+                  <> con venta en 30 días <span style={{ color: TINTA_TENUE }}>
+                    — los otros {porExistencia.length - visibles.length} están bajos pero nadie los pide
+                  </span></>
+                )}
+              </>
             )}
-            {busqueda && ` que coinciden con "${busqueda}"`}
             {visibles.length > TOPE_EN_PANTALLA && ` — se listan los primeros ${TOPE_EN_PANTALLA}`}
           </p>
 
