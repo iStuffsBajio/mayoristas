@@ -599,12 +599,17 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
                   Sin dato para {compras.faltantes.join(', ')}: la referencia de esos meses sale incompleta.
                 </p>
               )}
-              {compras.sinAportar.length > 0 && (
+              {compras.estimadas.length > 0 && (
                 <p style={{ fontSize: 11, color: AMBAR, margin: '6px 0 0', lineHeight: 1.5 }}>
-                  <strong>{compras.sinAportar.join(', ')}</strong> no aporta ningún dato a esta referencia:
-                  su historial todavía no llegaba a esos meses. La compra sale calculada
-                  con {compras.cobertura.length - compras.sinAportar.length} de {compras.cobertura.length} plazas,
-                  así que se queda corta.
+                  {compras.estimadas.map(e => (
+                    <span key={e.plaza}>
+                      <strong>{e.plaza}</strong> no tiene dato de {e.meses.join(', ')} —empezó a medirse
+                      en {e.desde}— así que su aporte va <strong>estimado en unas {e.piezas} piezas</strong>:
+                      su propio ritmo, corregido por la temporada
+                      (×{compras.factorTemporada.toFixed(2)}) que midieron las plazas que sí tienen esos meses.
+                      Dejarla en cero sería decir que no vendió nada, y es la plaza que más vende.{' '}
+                    </span>
+                  ))}
                 </p>
               )}
               <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>

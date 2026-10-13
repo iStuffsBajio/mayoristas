@@ -168,6 +168,119 @@ function demandaDe(historiales, meses) {
   }
 }
 
+// ── Plazas con historial corto ───────────────────────────────────────────────
+//
+// La referencia son los mismos meses del año pasado. El problema: León empezó
+// a medirse en enero de 2026, así que para octubre-diciembre de 2025 no tiene
+// un solo dato. Contarlo como cero equivale a decir que no vendió nada, y León
+// es el 52% de la venta: la compra salía calculada a la mitad.
+//
+// Lo que sí se puede hacer es estimarlo con su propio ritmo, corregido por la
+// temporada que midieron las plazas que sí tienen esos meses.
+//
+// Con un cuidado, porque no todo hueco es un hueco: ferias no tiene diciembre,
+// pero tampoco lo tiene en 2023, 2024 ni 2025. No es que falte el dato, es que
+// el puesto no abre en diciembre, y estimarle venta sería inventarla. La
+// diferencia está en CUÁNDO empieza su historial: si el mes que falta es
+// anterior al primer dato de la plaza, es un hueco; si cae dentro de su
+// historial y aun así no está, es un cero de verdad.
+
+/** El primer mes con dato de un historial. */
+const inicioDe = h => {
+  const ps = (h?.periodos ?? []).filter(p => diasDePeriodo(p) > 0).map(p => p.p).sort()
+  return ps[0] ?? null
+}
+
+/** Ritmo diario por código de una plaza, sobre todo su historial. */
+function ritmoDe(historial) {
+  const piezas = {}
+  let dias = 0
+  for (const p of historial?.periodos ?? []) {
+    const d = diasDePeriodo(p)
+    if (d <= 0) continue
+    dias += d
+    for (const [k, n] of Object.entries(p.m ?? {})) piezas[k] = (piezas[k] || 0) + n
+  }
+  const tasa = {}
+  if (dias > 0) for (const [k, n] of Object.entries(piezas)) tasa[k] = n / dias
+  return { tasa, dias, total: Object.values(piezas).reduce((a, b) => a + b, 0) }
+}
+
+const diasDelMes = m => {
+  const [a, mm] = m.split('-').map(Number)
+  return new Date(a, mm, 0).getDate()
+}
+
+/**
+ * Cuánto más se vende en los meses de la referencia que en un mes cualquiera,
+ * medido por las plazas que tienen ambos periodos. Si ninguna los tiene,
+ * devuelve 1 y no se inventa nada.
+ */
+function factorDeTemporada(historiales, referencia) {
+  let pRef = 0, dRef = 0, pTodo = 0, dTodo = 0
+  for (const h of historiales) {
+    for (const p of h?.periodos ?? []) {
+      const d = diasDePeriodo(p)
+      if (d <= 0) continue
+      const n = Object.values(p.m ?? {}).reduce((a, b) => a + b, 0)
+      pTodo += n; dTodo += d
+      if (referencia.includes(p.p)) { pRef += n; dRef += d }
+    }
+  }
+  if (dRef === 0 || dTodo === 0 || pTodo === 0) return 1
+  const rRef = pRef / dRef
+  const rTodo = pTodo / dTodo
+  return rTodo > 0 ? rRef / rTodo : 1
+}
+
+/**
+ * Estima lo que habrían vendido en la referencia las plazas cuyo historial
+ * todavía no llegaba a esos meses.
+ */
+function estimarFaltantes(historiales, referencia) {
+  const vivos = (historiales ?? []).filter(Boolean)
+  const cubre = m => h => (h.periodos ?? []).some(p => p.p === m && diasDePeriodo(p) > 0)
+
+  // El factor sale sólo de las plazas que midieron la referencia COMPLETA.
+  // Con las que la cubren a medias se deforma: ferias tiene octubre y
+  // noviembre de 2025 pero no diciembre, y su temporada fuerte es enero, así
+  // que metía un x0.94 donde las tiendas dicen x1.23.
+  const completas = vivos.filter(h => referencia.every(m => cubre(m)(h)))
+  const factor = factorDeTemporada(completas, referencia)
+
+  const piezas = {}
+  const detalle = []
+
+  for (const h of vivos) {
+    const inicio = inicioDe(h)
+    if (!inicio) continue
+    // Sólo los meses anteriores a su primer dato. Un mes posterior sin venta
+    // es un cero real.
+    const huecos = referencia.filter(m => m < inicio && !cubre(m)(h))
+    if (!huecos.length) continue
+
+    const { tasa, dias } = ritmoDe(h)
+    if (dias <= 0) continue
+
+    const diasHueco = huecos.reduce((a, m) => a + diasDelMes(m), 0)
+    let suma = 0
+    for (const [k, t] of Object.entries(tasa)) {
+      const n = t * diasHueco * factor
+      piezas[k] = (piezas[k] || 0) + n
+      suma += n
+    }
+    detalle.push({
+      plaza: h.sucursal ?? h.slug ?? '?',
+      nombre: h.nombre ?? h.sucursal ?? '?',
+      meses: huecos,
+      desde: inicio,
+      piezas: Math.round(suma),
+    })
+  }
+
+  return { piezas, detalle, factor }
+}
+
 /**
  * Qué comprar.
  *
@@ -207,7 +320,12 @@ export function calcularCompras({ historiales, productosBodega, hoy = new Date()
   // Cada código conserva su propia demanda. Transferirla a la generación
   // siguiente dejaba sin comprar cosas que se venden todos los días: una funda
   // de iPhone 13 no se sustituye con una de iPhone 17.
+  //
+  // A lo medido se le suma lo estimado de las plazas que todavía no existían
+  // en la referencia. León es el 52% de la venta y se contaba como cero.
+  const estimado = estimarFaltantes(historiales, referencia)
   const demanda = { ...piezas }
+  for (const [k, n] of Object.entries(estimado.piezas)) demanda[k] = (demanda[k] || 0) + n
 
   const enBodega = {}
   const nombres = {}
@@ -261,6 +379,9 @@ export function calcularCompras({ historiales, productosBodega, hoy = new Date()
     dias,
     cobertura,
     sinAportar,
+    // Plazas cuyo aporte a la referencia está estimado y no medido.
+    estimadas: estimado.detalle,
+    factorTemporada: estimado.factor,
     mapa,
     // Meses de la referencia para los que no hay dato en ninguna sucursal.
     faltantes: referencia.filter(m => !cubiertos.includes(m)),
@@ -497,6 +618,10 @@ export function calcularCompraBodega({ historiales, inventarios, productosBodega
   const ventana = mesesAtras(2, hoy)
   const { piezas: recientes, dias: diasVentana } = demandaDe(historiales, ventana)
 
+  // Venta de los últimos seis meses, para no comprar lo que ya nadie pide.
+  // La referencia es de hace un año y no se entera de que un modelo murió.
+  const { piezas: medioAnio } = demandaDe(historiales, mesesAtras(MESES_RECIENTES, hoy))
+
   const nombres = {}
   const enBodega = {}
   for (const p of productosBodega ?? []) {
@@ -562,7 +687,22 @@ export function calcularCompraBodega({ historiales, inventarios, productosBodega
     const relevo = base.mapa?.[codigo]
     if (relevo) obs.push(`Ya existe ${nombres[relevo] || relevo}: revisar si la venta va bajando`)
 
-    const sugerido = Math.max(0, Math.ceil(esperado * (1 + margen) - existencia))
+    let sugerido = Math.max(0, Math.ceil(esperado * (1 + margen) - existencia))
+
+    // Freno: si no se ha vendido una sola pieza en medio año, la referencia
+    // del año pasado está describiendo un modelo que ya murió. Eran 35
+    // códigos y 78 piezas, entre ellos fundas de iPhone 7 y Galaxy A03S.
+    //
+    // Al quedar en cero, el filtro de abajo saca de la tabla a los que
+    // tampoco vendieron en los dos últimos meses ni están agotados doliendo.
+    // Es lo correcto para una lista de compra; de proponer cuáles dar de baja
+    // se encarga la hoja Depurar, que mira otra cosa.
+    const sinVentaMedioAnio = (medioAnio[codigo] ?? 0) === 0
+    if (sugerido > 0 && sinVentaMedioAnio && !estimadoDe) {
+      obs.push(`Sin una sola venta en ${MESES_RECIENTES} meses: la referencia es del año pasado y el modelo pudo salir del mercado`)
+      sugerido = 0
+    }
+
     if (sugerido === 0 && vendidas2m === 0 && !ag) continue
 
     filas.push({
