@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { inventarioUrl, loadInventarioJson, s3Configured } from '../lib/s3'
 import { subirInventario, apiConfigurada } from '../lib/api'
 import StockBadge, { nivelStock, COLOR_NIVEL, ETIQUETAS_LEYENDA } from './StockBadge'
+import { coincideCon } from '../lib/buscar'
 
 const SUCURSALES = [
   { name: 'León',            slug: 'leon' },
@@ -56,7 +57,7 @@ function HighlightText({ text, query }) {
 
 // ─── Componente principal ────────────────────────────────────────
 
-export default function InventarioSemanal({ onLoginClick }) {
+export default function InventarioSemanal({ onLoginClick, busqueda, onBuscar }) {
   const { canUpload, session, token } = useAuth()
   const [sucursal, setSucursal]     = useState(SUCURSALES[0])
   const [allRows, setAllRows]       = useState(null)
@@ -65,7 +66,11 @@ export default function InventarioSemanal({ onLoginClick }) {
   const [lastUpdate, setLastUpdate] = useState(null)
   const [fileName, setFileName]     = useState(null)
   const [origen, setOrigen]         = useState(null)   // metadatos del inventario.json (respaldo, origen)
-  const [search, setSearch]         = useState('')
+  // La búsqueda la manda la barra de arriba, para que escribir ahí filtre
+  // aquí. Si el componente se usa suelto, se apaña con su propio estado.
+  const [searchLocal, setSearchLocal] = useState('')
+  const search    = busqueda ?? searchLocal
+  const setSearch = onBuscar ?? setSearchLocal
   const [uploading, setUploading]   = useState(false)
   const fileInputRef = useRef(null)
   const searchRef    = useRef(null)
@@ -176,9 +181,12 @@ export default function InventarioSemanal({ onLoginClick }) {
   // ── Filtrado en tiempo real ──────────────────────────────────────
   const filteredRows = useMemo(() => {
     if (!allRows) return []
-    const q = search.trim().toLowerCase()
-    if (!q) return allRows
-    return allRows.filter(r => r[COL_PRODUCTO].toLowerCase().includes(q))
+    // Mismo criterio que en el panel: sin acentos ni signos y por palabras,
+    // mirando nombre y código. Antes era un includes sobre el nombre en
+    // minúsculas, así que «a16» no encontraba «GALAXY A 16» y el código no
+    // servía para buscar.
+    const coincide = coincideCon(search, r => [r[COL_PRODUCTO], r[COL_CODIGO]])
+    return allRows.filter(coincide)
   }, [allRows, search])
 
   // ── Estadísticas ─────────────────────────────────────────────────

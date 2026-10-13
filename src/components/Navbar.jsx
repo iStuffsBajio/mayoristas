@@ -33,9 +33,8 @@ export const ALTO_BARRA = 52
 // sin importar de App, que lo importa a él: eso sería un círculo.
 export const ALTO_TABS = 40
 
-export default function Navbar({ onLoginClick }) {
+export default function Navbar({ onLoginClick, busqueda = '', onBuscar = () => {} }) {
   const { session, logout, branchName } = useAuth()
-  const [query, setQuery]   = useState('')
   const cartCount = 3
 
   return (
@@ -58,8 +57,8 @@ export default function Navbar({ onLoginClick }) {
           <span className="absolute left-3 top-1/2 pointer-events-none" style={{ color: 'rgba(0,0,0,0.3)', transform: 'translateY(-50%)' }}>
             <SearchIcon />
           </span>
-          <input type="text" placeholder="Buscar fundas, accesorios, modelos..."
-            value={query} onChange={e => setQuery(e.target.value)}
+          <input type="text" placeholder="Buscar modelo: a16, iphone 15, tpu..."
+            value={busqueda} onChange={e => onBuscar(e.target.value)}
             className="w-full text-sm outline-none transition-all"
             style={{ backgroundColor: 'rgba(0,0,0,0.035)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', padding: '6px 14px 6px 32px', fontSize: 13, color: '#101619' }}
             onFocus={e => { e.target.style.borderColor = 'rgba(0,188,242,0.5)'; e.target.style.backgroundColor = 'rgba(0,188,242,0.03)' }}
