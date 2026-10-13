@@ -455,7 +455,10 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
         <Dato valor={porVenta.length} etiqueta="modelos a pedir" nota="porque se venden" color={VERDE} />
         <Dato valor={piezasVenta} etiqueta="piezas en total" />
         <Dato valor={muestras.length} etiqueta="sin venta y en cero" nota="1 pieza de muestra" color={AMBAR} />
-        <Dato valor={diasHistorial} etiqueta="días de historial" />
+        {/* Los días de historial ya no se enseñan: era el del calendario más
+            largo en todas las vistas, y el dato no cambia ninguna decisión.
+            El número se sigue usando por dentro, para el aviso de historial
+            corto y para no proponer depurar sin medición suficiente. */}
       </div>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
