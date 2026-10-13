@@ -9,8 +9,9 @@ import {
   mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
-import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS, DIAS_SIN_COMPRAR } from '../lib/compras'
+import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS, DIAS_SIN_COMPRAR, piezasPerdidas } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
+import { useOrdenTabla } from '../lib/orden'
 
 // Para la columna de reparto: «leon 9 · slp 4» cabe, los nombres largos no.
 const NOMBRE_CORTO = {
@@ -82,11 +83,31 @@ function Aviso({ tono = AMBAR, children }) {
   )
 }
 
-const Th = ({ children, ...r }) => (
-  <th {...r} style={{ textAlign: r.num ? 'right' : 'left', padding: '9px 10px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA, whiteSpace: 'nowrap', ...r.style }}>
-    {children}
-  </th>
-)
+const Th = ({ children, campo, orden, ...r }) => {
+  const activa = orden && campo && orden.campo === campo
+  const puedeOrdenar = !!(orden && campo)
+
+  return (
+    <th {...r}
+      onClick={puedeOrdenar ? () => orden.alternar(campo) : undefined}
+      title={puedeOrdenar ? 'Clic para ordenar' : r.title}
+      style={{
+        textAlign: r.num ? 'right' : 'left', padding: '9px 10px', fontWeight: 700,
+        color: activa ? TINTA : TINTA_SUAVE, fontSize: 11,
+        borderBottom: '1px solid ' + LINEA, whiteSpace: 'nowrap',
+        cursor: puedeOrdenar ? 'pointer' : 'default',
+        userSelect: 'none',
+        ...r.style,
+      }}>
+      {children}
+      {puedeOrdenar && (
+        <span style={{ marginLeft: 4, fontSize: 9, color: activa ? ROSA : 'rgba(133,152,161,0.5)' }}>
+          {activa ? (orden.dir === -1 ? '▼' : '▲') : '⇅'}
+        </span>
+      )}
+    </th>
+  )
+}
 
 function Tabla({ children, encabezados }) {
   return (
@@ -123,9 +144,17 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
   const opciones = useMemo(() => [TODAS, ...sucursales, ...(FERIAS ? [FERIAS] : [])], [sucursales])
 
   const [sel, setSel]       = useState(TODAS.slug)
-  const [vista, setVista]   = useState(ambito === 'bodega' ? 'compras' : 'venta')
+  const [vista, setVistaCruda] = useState(ambito === 'bodega' ? 'compras' : 'venta')
   const [altaManual, setAltaManual] = useState(null)   // null = automático
   const [margen, setMargen] = useState(MARGEN_FERIA)
+  // Un solo orden para todo el panel. Al cambiar de vista se olvida, porque
+  // las columnas son otras y mantenerlo dejaría la tabla ordenada por un
+  // campo que ya no está a la vista.
+  const ord = useOrdenTabla(null)
+
+  // Cambiar de vista limpia el orden: las columnas son otras y dejarlo puesto
+  // ordenaría por un campo que ya no está a la vista.
+  const setVista = v => { ord.limpiar(); setVistaCruda(v) }
   const [datos, setDatos]   = useState(null)
   const [cargando, setCargando] = useState(true)
 
@@ -477,16 +506,16 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               {porVenta.length > TOPE && ` — se listan los primeros ${TOPE}`}
             </p>
             <Tabla encabezados={<>
-              <Th>Modelo</Th><Th>Código</Th>
-              <Th num style={{ textAlign: 'right' }}>Tiene</Th>
-              <Th num style={{ textAlign: 'right' }} title="Piezas que salen al día, sobre todo el historial">Ritmo</Th>
-              <Th num style={{ textAlign: 'right' }} title="Días que aguanta con lo que tiene">Aguanta</Th>
-              <Th num style={{ textAlign: 'right' }}>Pedir</Th>
+              <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
+              <Th campo="existencia" orden={ord} num style={{ textAlign: 'right' }}>Tiene</Th>
+              <Th campo="ritmo" orden={ord} num style={{ textAlign: 'right' }} title="Piezas que salen al día, sobre todo el historial">Ritmo</Th>
+              <Th campo="cobertura" orden={ord} num style={{ textAlign: 'right' }} title="Días que aguanta con lo que tiene">Aguanta</Th>
+              <Th campo="sugerido" orden={ord} num style={{ textAlign: 'right' }}>Pedir</Th>
               {esTodas && <Th title="De dónde sale cada pieza del total">Para quién</Th>}
-              {esFeria && <Th num style={{ textAlign: 'right' }} title="Piezas vendidas en lo que va de esta feria">Este mes</Th>}
-              {bodegaStock && !esFeria && <Th num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
+              {esFeria && <Th campo="esteMes" orden={ord} num style={{ textAlign: 'right' }} title="Piezas vendidas en lo que va de esta feria">Este mes</Th>}
+              {bodegaStock && !esFeria && <Th campo={f => bodegaStock[f.codigo] ?? null} orden={ord} num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
             </>}>
-              {porVenta.slice(0, TOPE).map((f, i) => (
+              {ord.ordenar(porVenta).slice(0, TOPE).map((f, i) => (
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={f} />
                   <Celda num>{f.existencia}</Celda>
@@ -534,8 +563,8 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
           </Aviso>
           {muestras.length === 0
             ? <p style={{ fontSize: 13, color: TINTA_TENUE }}>No hay modelos en este caso.</p>
-            : <Tabla encabezados={<><Th>Modelo</Th><Th>Código</Th><Th num style={{ textAlign: 'right' }}>Pedir</Th></>}>
-                {muestras.slice(0, TOPE).map((f, i) => (
+            : <Tabla encabezados={<><Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th><Th campo="sugerido" orden={ord} num style={{ textAlign: 'right' }}>Pedir</Th></>}>
+                {ord.ordenar(muestras).slice(0, TOPE).map((f, i) => (
                   <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                     <Modelo f={f} />
                     <Celda num fuerte color={AMBAR}>1</Celda>
@@ -556,11 +585,11 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
           {candidatos.length === 0
             ? <p style={{ fontSize: 13, color: TINTA_TENUE }}>No hay modelos en este caso.</p>
             : <Tabla encabezados={<>
-                <Th>Modelo</Th><Th>Código</Th>
-                <Th num style={{ textAlign: 'right' }}>En la feria</Th>
-                <Th num style={{ textAlign: 'right' }}>Vendidas en tienda</Th>
+                <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
+                <Th campo="existencia" orden={ord} num style={{ textAlign: 'right' }}>En la feria</Th>
+                <Th campo="enTiendas" orden={ord} num style={{ textAlign: 'right' }}>Vendidas en tienda</Th>
               </>}>
-                {candidatos.slice(0, TOPE).map((f, i) => (
+                {ord.ordenar(candidatos).slice(0, TOPE).map((f, i) => (
                   <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                     <Modelo f={f} />
                     <Celda num color={f.existencia > 0 ? TINTA : TINTA_TENUE}>{f.existencia}</Celda>
@@ -615,15 +644,16 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
             </div>
 
             <Tabla encabezados={<>
-              <Th>Modelo</Th><Th>Código</Th>
-              <Th num style={{ textAlign: 'right' }}>En cero</Th>
-              <Th num style={{ textAlign: 'right' }} title="Días desde el último movimiento">Días</Th>
-              <Th num style={{ textAlign: 'right' }} title={`Piezas vendidas en los últimos ${MESES_CORTOS} meses`}>Vendió 3 m</Th>
-              <Th num style={{ textAlign: 'right' }} title="Piezas al mes en los tres meses previos a quedarse sin stock. Es lo que se está perdiendo cada mes que sigue agotado.">Vendía/mes</Th>
-              <Th num style={{ textAlign: 'right' }}>Bodega</Th>
+              <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
+              <Th campo="plazasEnCero" orden={ord} num style={{ textAlign: 'right' }}>En cero</Th>
+              <Th campo="diasAgotado" orden={ord} num style={{ textAlign: 'right' }} title="Días desde el último movimiento">Días</Th>
+              <Th campo="vendioCorto" orden={ord} num style={{ textAlign: 'right' }} title={`Piezas vendidas en los últimos ${MESES_CORTOS} meses`}>Vendió 3 m</Th>
+              <Th campo="vendiaAlMes" orden={ord} num style={{ textAlign: 'right' }} title="Piezas al mes en los tres meses previos a quedarse sin stock. Es lo que se está perdiendo cada mes que sigue agotado.">Vendía/mes</Th>
+              <Th campo={piezasPerdidas} orden={ord} num style={{ textAlign: 'right' }} title="Ritmo que llevaba por los días que lleva sin stock">Perdidas</Th>
+              <Th campo="bodega" orden={ord} num style={{ textAlign: 'right' }}>Bodega</Th>
               <Th>Qué hacer</Th>
             </>}>
-              {agotados.filas.slice(0, TOPE).map((a, i) => (
+              {ord.ordenar(agotados.filas).slice(0, TOPE).map((a, i) => (
                 <tr key={a.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={a} />
                   <Celda num color={a.plazasConStock === 0 ? ROSA : AMBAR}>
@@ -634,6 +664,9 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
                   <Celda num color={a.vendiaAlMes >= 2 ? ROSA : TINTA_SUAVE}
                          title="Piezas al mes en los tres meses previos a quedarse sin stock">
                     {a.vendiaAlMes.toFixed(1)}
+                  </Celda>
+                  <Celda num fuerte color={piezasPerdidas(a) >= 5 ? ROSA : TINTA_SUAVE}>
+                    {piezasPerdidas(a) || '—'}
                   </Celda>
                   <Celda num color={a.bodega > 0 ? VERDE : ROSA}>{a.existeEnBodega ? a.bodega : '—'}</Celda>
                   <Celda color={a.estado === 'compra' ? ROSA : a.estado === 'reparto' ? AMBAR : TINTA_TENUE}>
@@ -708,15 +741,15 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
             </div>
 
             <Tabla encabezados={<>
-              <Th>Código</Th><Th>Modelo</Th>
-              <Th num style={{ textAlign: 'right' }} title="Existencia actual en bodega">Inventario</Th>
-              <Th num style={{ textAlign: 'right' }} title="Piezas vendidas en los últimos 2 meses, todas las plazas">Ventas 2 m</Th>
-              <Th num style={{ textAlign: 'right' }}>COMPRAR</Th>
-              <Th num style={{ textAlign: 'right' }} title="En cuántas sucursales está en cero">Agotado en</Th>
-              <Th num style={{ textAlign: 'right' }} title="Días desde el último movimiento">Días</Th>
+              <Th campo="codigo" orden={ord}>Código</Th><Th campo="producto" orden={ord}>Modelo</Th>
+              <Th campo="existencia" orden={ord} num style={{ textAlign: 'right' }} title="Existencia actual en bodega">Inventario</Th>
+              <Th campo="vendidas2m" orden={ord} num style={{ textAlign: 'right' }} title="Piezas vendidas en los últimos 2 meses, todas las plazas">Ventas 2 m</Th>
+              <Th campo="sugerido" orden={ord} num style={{ textAlign: 'right' }}>COMPRAR</Th>
+              <Th campo="plazasEnCero" orden={ord} num style={{ textAlign: 'right' }} title="En cuántas sucursales está en cero">Agotado en</Th>
+              <Th campo="diasAgotado" orden={ord} num style={{ textAlign: 'right' }} title="Días desde el último movimiento">Días</Th>
               <Th>Observaciones</Th>
             </>}>
-              {compras.filas.slice(0, TOPE).map((f, i) => (
+              {ord.ordenar(compras.filas).slice(0, TOPE).map((f, i) => (
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <td style={{ padding: '7px 10px', color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{f.codigo}</td>
                   <Celda>
@@ -754,11 +787,11 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
                   Están aquí para que decidas si moderar el pedido cuando notes que la venta cae.
                 </p>
                 <Tabla encabezados={<>
-                  <Th>Modelo</Th><Th>Código</Th>
-                  <Th num style={{ textAlign: 'right' }}>Vendió</Th>
+                  <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
+                  <Th campo="piezas" orden={ord} num style={{ textAlign: 'right' }}>Vendió</Th>
                   <Th>Generación nueva</Th>
                 </>}>
-                  {compras.conRelevo.slice(0, 60).map((d, i) => (
+                  {ord.ordenar(compras.conRelevo).slice(0, 60).map((d, i) => (
                     <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                       <Modelo f={d} />
                       <Celda num color={TINTA_SUAVE}>{d.piezas}</Celda>
@@ -783,13 +816,13 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               Lo que piden las tres sucursales contra lo que hay en bodega.
             </p>
             <Tabla encabezados={<>
-              <Th>Modelo</Th><Th>Código</Th>
-              <Th num style={{ textAlign: 'right' }}>Piden</Th>
-              <Th num style={{ textAlign: 'right' }}>Bodega</Th>
-              <Th num style={{ textAlign: 'right' }}>Falta</Th>
-              <Th>Estado</Th>
+              <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
+              <Th campo="piden" orden={ord} num style={{ textAlign: 'right' }}>Piden</Th>
+              <Th campo="tiene" orden={ord} num style={{ textAlign: 'right' }}>Bodega</Th>
+              <Th campo="falta" orden={ord} num style={{ textAlign: 'right' }}>Falta</Th>
+              <Th campo="estado" orden={ord}>Estado</Th>
             </>}>
-              {bodega.slice(0, TOPE).map((b, i) => (
+              {ord.ordenar(bodega).slice(0, TOPE).map((b, i) => (
                 <tr key={b.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={b} />
                   <Celda num>{b.piden}</Celda>
@@ -821,12 +854,12 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
                 {depurar.suficiente ? 'No hay modelos recién llegados sin venta.' : 'Hace falta más historial para separarlos.'}
               </p>
             : <Tabla encabezados={<>
-                <Th>Modelo</Th><Th>Código</Th>
-                <Th num style={{ textAlign: 'right' }}>Piezas</Th>
-                <Th>Entró</Th>
-                <Th num style={{ textAlign: 'right' }}>Lleva</Th>
+                <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
+                <Th campo="existencia" orden={ord} num style={{ textAlign: 'right' }}>Piezas</Th>
+                <Th campo="alta" orden={ord}>Entró</Th>
+                <Th campo="alta" orden={ord} num style={{ textAlign: 'right' }}>Lleva</Th>
               </>}>
-                {depurar.nuevos.slice(0, TOPE).map((d, i) => {
+                {ord.ordenar(depurar.nuevos).slice(0, TOPE).map((d, i) => {
                   const dias = diasEnCatalogo(d.alta)
                   return (
                     <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
@@ -861,11 +894,11 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               {depurar.sinFecha > 0 && ` ${depurar.sinFecha} quedan fuera por no saber cuándo entraron.`}
             </Aviso>
             <Tabla encabezados={<>
-              <Th>Modelo</Th><Th>Código</Th>
-              <Th num style={{ textAlign: 'right' }}>Piezas paradas</Th>
-              <Th>Entró</Th><Th>Dónde</Th>
+              <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
+              <Th campo="existencia" orden={ord} num style={{ textAlign: 'right' }}>Piezas paradas</Th>
+              <Th campo="alta" orden={ord}>Entró</Th><Th>Dónde</Th>
             </>}>
-              {depurar.filas.slice(0, TOPE).map((d, i) => (
+              {ord.ordenar(depurar.filas).slice(0, TOPE).map((d, i) => (
                 <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={d} />
                   <Celda num fuerte color={AMBAR}>{d.existencia}</Celda>

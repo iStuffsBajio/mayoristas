@@ -4,6 +4,8 @@ import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA } from '../lib/sucursales'
 import { inventarioJsonUrl, estadisticasUrl } from '../lib/s3'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
 import { seProduce } from '../lib/produccion'
+import { coincideCon } from '../lib/buscar'
+import { useOrdenTabla } from '../lib/orden'
 import { nivelStock, COLOR_NIVEL, UMBRAL_VERDE, UMBRAL_NARANJA } from './StockBadge'
 import { descargarInventario, descargarInventarioConsolidado } from '../lib/exportarInventario'
 
@@ -111,6 +113,29 @@ function colorAntiguedad(dias) {
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Encabezado que ordena al hacer clic. Mismo criterio que en Surtido: primero
+ * de mayor a menor, y otro clic invierte.
+ */
+function ThOrd({ children, campo, orden, num, title, extra }) {
+  const activa = orden.campo === campo
+  return (
+    <th title={title ?? 'Clic para ordenar'}
+        onClick={() => orden.alternar(campo)}
+        style={{
+          textAlign: num ? 'right' : 'left', padding: num ? '9px 8px' : '9px 12px',
+          fontWeight: 700, color: activa ? TINTA : TINTA_SUAVE, fontSize: 11,
+          borderBottom: '1px solid ' + LINEA, whiteSpace: 'nowrap',
+          cursor: 'pointer', userSelect: 'none', ...extra,
+        }}>
+      {children}
+      <span style={{ marginLeft: 4, fontSize: 9, color: activa ? '#C4156F' : 'rgba(133,152,161,0.5)' }}>
+        {activa ? (orden.dir === -1 ? '▼' : '▲') : '⇅'}
+      </span>
+    </th>
+  )
+}
+
 export default function InventariosPanel() {
   // Se eligen todas, pero "Todas" solo suma las tiendas: bodega es almacén y
   // ferias vende por temporadas. Mezclarlas tapaba los faltantes de mostrador
@@ -122,6 +147,11 @@ export default function InventariosPanel() {
   const [sel, setSel]         = useState(TODAS.slug)
   const [filtro, setFiltro]   = useState('urgente')
   const [orden, setOrden]     = useState(ORDEN_INICIAL)
+  // Orden por columna. Mientras no se toque una cabecera manda el de las
+  // píldoras; en cuanto se toca, manda la cabecera. Y al elegir una píldora
+  // se suelta la cabecera, para que no queden dos órdenes peleándose.
+  const ord = useOrdenTabla(null)
+  const elegirOrden = o => { ord.limpiar(); setOrden(o) }
   const [soloConVenta, setSoloConVenta] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [inventarios, setInventarios] = useState(null)
@@ -233,12 +263,18 @@ export default function InventariosPanel() {
   }, [sinProduccion, filtro, esTodas])
 
   const visibles = useMemo(() => {
-    const q = busqueda.trim().toUpperCase()
+    // La búsqueda ignora acentos, espacios y signos, y pide que cada palabra
+    // aparezca en alguna parte del nombre o del código. Antes era un
+    // `includes` crudo: «A 16» no encontraba el «A16» del catálogo, y la
+    // marca delante hacía fallar la coincidencia.
+    const coincide = coincideCon(busqueda)
 
     const lista = porExistencia.filter(f =>
-      (!soloConVenta || !hayVentas || f.v30 > 0) &&
-      (!q || f.producto.toUpperCase().includes(q) || f.codigo.toUpperCase().includes(q))
+      (!soloConVenta || !hayVentas || f.v30 > 0) && coincide(f)
     )
+
+    // La cabecera manda sobre las píldoras cuando está puesta.
+    if (ord.campo) return ord.ordenar(lista)
 
     const porNombre = (a, b) => a.producto.localeCompare(b.producto)
     if (orden === 'nombre')   return lista.sort(porNombre)
@@ -247,7 +283,7 @@ export default function InventariosPanel() {
     if (orden === 'vendidos') return lista.sort((a, b) => b.v30 - a.v30 || valorDe(a) - valorDe(b) || porNombre(a, b))
     const dir = orden === 'menor' ? 1 : -1
     return lista.sort((a, b) => (valorDe(a) - valorDe(b)) * dir || porNombre(a, b))
-  }, [porExistencia, orden, busqueda, soloConVenta, hayVentas, esTodas])
+  }, [porExistencia, orden, busqueda, soloConVenta, hayVentas, esTodas, ord.campo, ord.dir])
 
   const etiquetaFiltro = FILTROS.find(f => f.id === filtro)?.etiqueta ?? 'todos'
 
@@ -325,7 +361,7 @@ export default function InventariosPanel() {
             <input
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
-              placeholder="Buscar modelo o código..."
+              placeholder="Buscar: a16, iphone 15, tpu..."
               style={{ flex: 1, minWidth: 190, padding: '8px 14px', fontSize: 13, borderRadius: 999, border: '1px solid ' + LINEA, outline: 'none', color: TINTA }}
             />
             {busqueda && (
@@ -335,7 +371,7 @@ export default function InventariosPanel() {
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14, alignItems: 'center' }}>
             {ORDENES.map(o => (
-              <Pildora key={o.id} activa={orden === o.id} onClick={() => setOrden(o.id)}>{o.etiqueta}</Pildora>
+              <Pildora key={o.id} activa={!ord.campo && orden === o.id} onClick={() => elegirOrden(o.id)}>{o.etiqueta}</Pildora>
             ))}
             {hayVentas && (
               <>
@@ -364,27 +400,27 @@ export default function InventariosPanel() {
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
                 <thead style={{ position: 'sticky', top: 0, background: '#F7FAFB', zIndex: 1 }}>
                   <tr>
-                    <th style={{ textAlign: 'left', padding: '9px 12px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA }}>Modelo</th>
-                    <th style={{ textAlign: 'left', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA }}>Código</th>
+                    <ThOrd campo="producto" orden={ord}>Modelo</ThOrd>
+                    <ThOrd campo="codigo" orden={ord} extra={{ padding: '9px 8px' }}>Código</ThOrd>
                     {esTodas
                       ? <>
                           {tiendas.map(s => (
-                            <th key={s.slug} style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA, whiteSpace: 'nowrap' }}>
+                            <ThOrd key={s.slug} num orden={ord} campo={f => f.porSucursal?.[s.slug] ?? 0}>
                               {s.nombre.split(' ')[0]}
-                            </th>
+                            </ThOrd>
                           ))}
-                          <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA }}>Total</th>
+                          <ThOrd num campo="total" orden={ord}>Total</ThOrd>
                         </>
-                      : <th style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA }}>Existencia</th>}
+                      : <ThOrd num campo="existencia" orden={ord}>Existencia</ThOrd>}
                     {hayVentas && <>
-                      <th title="Piezas que salieron en los últimos 7 días"
-                          style={{ textAlign: 'right', padding: '9px 8px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA, borderLeft: '1px solid ' + LINEA, whiteSpace: 'nowrap' }}>
+                      <ThOrd num campo="v7" orden={ord} title="Piezas que salieron en los últimos 7 días"
+                             extra={{ borderLeft: '1px solid ' + LINEA }}>
                         7 días
-                      </th>
-                      <th title="Piezas que salieron en los últimos 30 días"
-                          style={{ textAlign: 'right', padding: '9px 12px', fontWeight: 700, color: TINTA_SUAVE, fontSize: 11, borderBottom: '1px solid ' + LINEA, whiteSpace: 'nowrap' }}>
+                      </ThOrd>
+                      <ThOrd num campo="v30" orden={ord} title="Piezas que salieron en los últimos 30 días"
+                             extra={{ padding: '9px 12px' }}>
                         30 días
-                      </th>
+                      </ThOrd>
                     </>}
                   </tr>
                 </thead>
