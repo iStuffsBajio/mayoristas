@@ -93,18 +93,34 @@ export const soloHora = iso2 => {
 export function resumirSemana(turnos, { desde, hasta }) {
   const dentro = (turnos ?? []).filter(t => t.fecha >= desde && t.fecha <= hasta)
 
+  // Sólo la PRIMERA apertura del día de cada plaza mide puntualidad. Cuando
+  // dos personas se turnan, la segunda abre caja a media tarde y eso no es
+  // llegar tarde, es un cambio de turno. Contándolas todas, 67 de los 853
+  // retardos del historial eran esto: el 8%, con casos de +292 minutos que
+  // no significaban nada.
+  const primeraDelDia = new Set()
+  const porDia = new Map()
+  for (const t of dentro) {
+    const clave = `${t.slug}|${t.fecha}`
+    const actual = porDia.get(clave)
+    if (!actual || String(t.inicio) < String(actual.inicio)) porDia.set(clave, t)
+  }
+  for (const t of porDia.values()) primeraDelDia.add(`${t.slug}|${t.fecha}|${t.inicio}`)
+
   const porPersona = new Map()
   for (const t of dentro) {
     const clave = `${t.slug}|${t.persona}`
     const e = porPersona.get(clave) ?? {
       slug: t.slug, sucursal: t.sucursal, persona: t.persona,
-      dias: [], retardos: 0, minutosTotales: 0, ventas: 0,
+      dias: [], retardos: 0, minutosTotales: 0, ventas: 0, relevos: 0,
     }
-    const tarde = minutosTarde(t.inicio, t.slug)
+    const abrio = primeraDelDia.has(`${t.slug}|${t.fecha}|${t.inicio}`)
+    const tarde = abrio ? minutosTarde(t.inicio, t.slug) : null
     const esRetardo = tarde !== null && tarde > TOLERANCIA_MIN
     if (esRetardo) { e.retardos++; e.minutosTotales += tarde }
+    if (!abrio) e.relevos++
     e.ventas += t.ventas ?? 0
-    e.dias.push({ ...t, tarde, esRetardo })
+    e.dias.push({ ...t, tarde, esRetardo, abrio })
     porPersona.set(clave, e)
   }
 

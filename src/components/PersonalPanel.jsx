@@ -37,7 +37,9 @@ function Cifra({ valor, etiqueta, color }) {
 
 /** El día de la semana con su hora, en una celdita. */
 function Dia({ d, conHorario }) {
-  const color = !conHorario ? TINTA_SUAVE
+  // Un relevo no abrió la tienda, así que su hora no se juzga.
+  const medible = conHorario && d.abrio !== false
+  const color = !medible ? TINTA_SUAVE
     : d.esRetardo ? ROSA
     : d.tarde <= 0 ? VERDE
     : AMBAR
@@ -53,10 +55,12 @@ function Dia({ d, conHorario }) {
       <div style={{ fontSize: 13.5, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>
         {soloHora(d.inicio)}
       </div>
-      {conHorario && (
+      {medible ? (
         <div style={{ fontSize: 9.5, color, marginTop: 1 }}>
           {d.tarde > 0 ? `+${d.tarde}` : d.tarde === 0 ? '0' : d.tarde}
         </div>
+      ) : conHorario && (
+        <div style={{ fontSize: 9, color: TINTA_TENUE, marginTop: 1 }}>relevo</div>
       )}
     </div>
   )
@@ -211,6 +215,8 @@ export default function PersonalPanel() {
             puntual pero tarda en abrir sale como retardo, así que sirve para ver tendencias y no para
             cobrar un minuto. Ferias no se califica: un puesto no abre a hora fija.
             {' '}Un día sin turno es un día sin caja abierta, que puede ser descanso.
+            {' '}Y sólo cuenta la <strong>primera apertura del día</strong>: quien entra a relevar abre
+            caja a media tarde y eso no es un retardo, aparece como «relevo».
           </p>
         </>
       )}
