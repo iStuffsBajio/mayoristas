@@ -447,11 +447,10 @@ export default function AdminPanel() {
   const [seccion, setSeccion] = useState('ventas')
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
-      <div className="mb-6">
-        <p className="text-xs font-bold tracking-widest uppercase mb-1.5" style={{ color: '#C4156F' }}>Solo administrador</p>
-        <h2 className="text-2xl sm:text-3xl font-black" style={{ color: '#101619' }}>Panel de administración</h2>
-      </div>
+    <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-8 sm:pb-12 pt-4">
+      {/* Sin encabezado: la pestaña «Panel Admin» de arriba ya dice dónde está
+          uno, y el aviso de que es sólo para administrador sobraba en una
+          pantalla a la que no se entra sin serlo. */}
 
       {configRemotaInaccesible && (
         <div style={{ marginBottom: 18, padding: '14px 16px', borderRadius: 24, background: 'rgba(213,26,122,0.06)', border: '1.5px solid rgba(213,26,122,0.25)' }}>
