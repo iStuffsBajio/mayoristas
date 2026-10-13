@@ -81,7 +81,10 @@ export default function PersonalPanel() {
         const d = await pedirTurnos(token)
         if (!cancelado) { setTurnos(d?.turnos ?? []); setError(null) }
       } catch (e) {
-        if (!cancelado) setError(e.message || 'sin-datos')
+        // Un 404 es «todavía no se ha publicado el archivo», que no es una
+        // falla: el backend contestó bien. Merece un aviso tranquilo y no uno
+        // rojo que parezca que algo se rompió.
+        if (!cancelado) setError(e.codigo === 404 ? 'sin-publicar' : (e.message || 'sin-datos'))
       } finally {
         if (!cancelado) setCargando(false)
       }
@@ -112,7 +115,21 @@ export default function PersonalPanel() {
 
       {cargando && <p style={{ fontSize: 13, color: TINTA_TENUE }}>Cargando turnos...</p>}
 
-      {!cargando && error && (
+      {!cargando && error === 'sin-publicar' && (
+        <div style={{ padding: '14px 16px', borderRadius: 16, background: 'rgba(16,22,25,0.03)', border: '1px solid ' + LINEA }}>
+          <p style={{ fontSize: 13, color: TINTA, fontWeight: 700, margin: 0 }}>
+            Todavía no hay turnos publicados
+          </p>
+          <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '4px 0 0', lineHeight: 1.5 }}>
+            El backend responde bien; lo que falta es el archivo. Los turnos salen de la tabla
+            TURNOS de los respaldos de cada sucursal, y se publican
+            con <code>node scripts/extraer-turnos.js</code>. En cuanto corra una vez, esta
+            sección se llena sola y se mantiene al día con la sincronización.
+          </p>
+        </div>
+      )}
+
+      {!cargando && error && error !== 'sin-publicar' && (
         <div style={{ padding: '14px 16px', borderRadius: 16, background: 'rgba(196,21,111,0.05)', border: '1px solid rgba(196,21,111,0.18)' }}>
           <p style={{ fontSize: 13, color: ROSA, fontWeight: 700, margin: 0 }}>
             {error === 'sin-backend' ? 'Esta sección necesita el backend' : 'No se pudieron leer los turnos'}
@@ -121,7 +138,7 @@ export default function PersonalPanel() {
             Los turnos son nombres de empleados y la hora a la que llegaron cada día, así que viven
             en un prefijo privado del bucket y no en el público. Alcanzarlos desde el navegador
             obligaría a llevar credenciales, que es justo lo que se quitó, así que los sirve el
-            backend. Mientras no esté desplegado, el reporte se saca en Excel
+            backend. Mientras tanto el reporte se saca en Excel
             con <code>node scripts/extraer-turnos.js --reporte</code>.
           </p>
         </div>

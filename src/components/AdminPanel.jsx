@@ -5,6 +5,7 @@ import { SUCURSALES_PUBLICAS as SUCURSALES, telefonoWhatsApp } from '../lib/sucu
 import EstadisticasPanel from './EstadisticasPanel'
 import InventariosPanel from './InventariosPanel'
 import SurtidoPanel from './SurtidoPanel'
+import PersonalPanel from './PersonalPanel'
 
 const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
   <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid rgba(16,22,25,0.05)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -409,25 +410,36 @@ const SECCIONES = [
   { id: 'inventarios', icono: '📦', titulo: 'Inventarios',  sub: 'Existencias y faltantes' },
   { id: 'surtido',     icono: '🚚', titulo: 'Surtido',      sub: 'Qué mandar a cada plaza' },
   { id: 'bodega',      icono: '🏬', titulo: 'Bodega',       sub: 'Compra y cobertura' },
+  { id: 'personal',    icono: '🕗', titulo: 'Personal',     sub: 'Puntualidad y retardos' },
   { id: 'config',      icono: '🎨', titulo: 'Diseño',       sub: 'Textos, colores y contacto' },
 ]
 
+// Antes el botón inactivo era transparente y sin borde. Sobre un menú pegado
+// al desplazarse eso se ve mal de verdad: la tabla pasa por debajo y el texto
+// de las dos cosas queda encimado. Ahora todos tienen fondo y borde propios,
+// así que siempre tapan lo que pase detrás y se leen como botones.
 function BotonSeccion({ s, activa, onClick }) {
+  const fondoQuieto = activa ? '#fff' : '#F4F7F8'
+
   return (
-    <button type="button" onClick={onClick}
+    <button type="button" onClick={onClick} className="admin-boton"
       style={{
         display: 'flex', alignItems: 'center', gap: 11, width: '100%',
-        padding: '11px 13px', borderRadius: 16, cursor: 'pointer', textAlign: 'left',
-        background: activa ? '#fff' : 'transparent',
-        border: '1px solid ' + (activa ? 'rgba(16,22,25,0.08)' : 'transparent'),
-        boxShadow: activa ? '0 2px 10px rgba(16,22,25,0.05)' : 'none',
-        transition: 'background .15s',
+        padding: '11px 13px', borderRadius: 14, cursor: 'pointer', textAlign: 'left',
+        background: fondoQuieto,
+        border: '1px solid ' + (activa ? 'rgba(16,22,25,0.14)' : 'rgba(16,22,25,0.07)'),
+        boxShadow: activa ? '0 2px 10px rgba(16,22,25,0.07)' : 'none',
+        transition: 'background .15s, border-color .15s',
+        // Una barrita de color a la izquierda marca la activa sin depender
+        // sólo del peso de la letra, que a este tamaño casi no se nota.
+        borderLeft: activa ? '3px solid #C4156F' : '1px solid rgba(16,22,25,0.07)',
+        paddingLeft: activa ? 11 : 13,
       }}
-      onMouseEnter={e => { if (!activa) e.currentTarget.style.background = 'rgba(255,255,255,0.6)' }}
-      onMouseLeave={e => { if (!activa) e.currentTarget.style.background = 'transparent' }}>
+      onMouseEnter={e => { if (!activa) e.currentTarget.style.background = '#EAF0F2' }}
+      onMouseLeave={e => { if (!activa) e.currentTarget.style.background = fondoQuieto }}>
       <span style={{ fontSize: 17, lineHeight: 1 }}>{s.icono}</span>
       <span style={{ minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 13.5, fontWeight: activa ? 700 : 500, color: activa ? '#101619' : '#4A5A61' }}>
+        <span style={{ display: 'block', fontSize: 13.5, fontWeight: activa ? 700 : 600, color: activa ? '#101619' : '#4A5A61' }}>
           {s.titulo}
         </span>
         <span style={{ display: 'block', fontSize: 11, color: '#8598A1', marginTop: 1 }}>{s.sub}</span>
@@ -461,10 +473,24 @@ export default function AdminPanel() {
       )}
 
       {/* El menú va a la izquierda, donde antes no había nada, y se queda
-          pegado al desplazarse para no perderlo en las tablas largas. */}
+          pegado al desplazarse para no perderlo en las tablas largas.
+
+          Va dentro de una tarjeta con fondo propio. Pegado y transparente se
+          veía encimado con la tabla que pasaba por detrás. En pantalla
+          angosta no se pega —arriba no hay columna, y un menú fijo se comería
+          media pantalla— sino que se vuelve una fila que se desliza. */}
       <div style={{ display: 'grid', gap: 18, gridTemplateColumns: 'minmax(0, 1fr)', alignItems: 'start' }}
            className="admin-rejilla">
-        <nav style={{ display: 'flex', flexDirection: 'column', gap: 3, position: 'sticky', top: 104 }}>
+        <nav className="admin-menu"
+             style={{
+               display: 'flex', gap: 5, padding: 7,
+               background: 'rgba(255,255,255,0.92)',
+               backdropFilter: 'blur(10px)',
+               WebkitBackdropFilter: 'blur(10px)',
+               border: '1px solid rgba(16,22,25,0.08)',
+               borderRadius: 20,
+               boxShadow: '0 2px 14px rgba(16,22,25,0.05)',
+             }}>
           {SECCIONES.map(s => (
             <BotonSeccion key={s.id} s={s} activa={seccion === s.id} onClick={() => setSeccion(s.id)} />
           ))}
@@ -475,6 +501,7 @@ export default function AdminPanel() {
           {seccion === 'inventarios' && <InventariosPanel />}
           {seccion === 'surtido'     && <SurtidoPanel ambito="sucursales" />}
           {seccion === 'bodega'      && <SurtidoPanel ambito="bodega" />}
+          {seccion === 'personal'    && <PersonalPanel />}
           {seccion === 'config'      && (
             <>
               <SeccionTabs     config={config} save={save} guardando={guardando} />
@@ -489,8 +516,26 @@ export default function AdminPanel() {
       </div>
 
       <style>{`
+        /* Angosto: fila horizontal que se desliza, sin pegarse. */
+        .admin-menu {
+          flex-direction: row;
+          overflow-x: auto;
+          scrollbar-width: none;
+          -webkit-overflow-scrolling: touch;
+        }
+        .admin-menu::-webkit-scrollbar { display: none; }
+        .admin-menu .admin-boton { width: auto; flex: 0 0 auto; white-space: nowrap; }
+
+        /* Ancho: columna pegada a la izquierda. */
         @media (min-width: 900px) {
-          .admin-rejilla { grid-template-columns: 216px minmax(0, 1fr); gap: 26px; }
+          .admin-rejilla { grid-template-columns: 232px minmax(0, 1fr); gap: 26px; }
+          .admin-menu {
+            flex-direction: column;
+            overflow-x: visible;
+            position: sticky;
+            top: 104px;
+          }
+          .admin-menu .admin-boton { width: 100%; white-space: normal; }
         }
       `}</style>
     </section>
