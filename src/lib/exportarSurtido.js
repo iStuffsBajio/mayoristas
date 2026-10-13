@@ -212,7 +212,16 @@ const COLS_AGOTADOS = [
     color: a => (a.plazasConStock === 0 ? C.rosa : C.ambar) },
   { titulo: 'Días agotado', valor: a => a.diasAgotado ?? '', num: true,
     color: a => (a.diasAgotado > 30 ? C.rosa : C.tintaSuave) },
-  { titulo: 'Vendidas (6 meses)', valor: a => a.vendioReciente, num: true, fuerte: true, color: C.azul },
+  { titulo: 'Vendidas (3 meses)', valor: a => a.vendioCorto, num: true, fuerte: true, color: C.azul },
+  // Lo que vendía ANTES de agotarse. Sin esta columna, un modelo con cuatro
+  // meses en cero sale con ceros en todas las ventanas recientes y parece que
+  // no se pide, cuando lo que pasa es que no hay qué vender.
+  { titulo: 'Vendía al mes', ancho: 13, num: true,
+    valor: a => Number(a.vendiaAlMes.toFixed(1)),
+    color: a => (a.vendiaAlMes >= 2 ? C.rosa : C.tintaSuave) },
+  { titulo: 'Perdidas estimadas', ancho: 16, num: true,
+    valor: a => Math.round((a.vendiaAlMes / 30) * (a.diasAgotado ?? 0)),
+    color: a => ((a.vendiaAlMes / 30) * (a.diasAgotado ?? 0) >= 5 ? C.rosa : C.tintaSuave) },
   { titulo: 'Vendidas (histórico)', valor: a => a.vendio, num: true, color: C.tintaSuave },
   { titulo: 'En bodega', valor: a => (a.existeEnBodega ? a.bodega : ''), num: true,
     color: a => (a.bodega > 0 ? C.verde : C.rosa) },
@@ -269,7 +278,7 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
     'La hoja Pedir por venta trae al final de donde sale cada pieza: si bodega la cubre, si la cubre a medias o si hay que comprarla fuera.',
     'La hoja Depurar solo se llena con 90 días o más de historial, y solo con modelos que lleven más de un año en el catálogo. Recién llegados usa una ventana más corta, de 120 días: a los diez meses un modelo ya tuvo su temporada, y no haber vendido deja de ser cosa de ser nuevo.',
     'La fecha de entrada es el primer movimiento que queda en el historial, y se toma la más temprana de todas las plazas. El historial de cada sucursal arranca en un día concreto, así que todo lo que ya existía ese día sale con esa fecha: eso aparece como «antes de» y significa edad mínima, no fecha de entrada. Recién llegados solo cuenta entradas reales; Depurar sí acepta un «antes de», porque para saber que algo es viejo basta la cota.',
-    'Agotados que duelen: solo entra lo que se vendió en los últimos 6 meses. Un modelo que lleva dos años agotado y nadie repuso no es un descuido, es que ya no se pide. Los días agotados salen del último movimiento registrado.',
+    'Agotados que duelen: solo entra lo que se vendió en los últimos 6 meses. Un modelo que lleva dos años agotado y nadie repuso no es un descuido, es que ya no se pide. Los días agotados salen del último movimiento registrado. La columna de 3 meses sirve para ver si se pide hoy, pero ojo: un modelo con meses en cero sale en cero porque no hay qué vender, no porque no lo busquen. Para esos la columna que vale es «Vendía al mes», que mide los tres meses anteriores a que se agotara, y «Perdidas estimadas», que es ese ritmo por los días que lleva sin stock.',
   ]
 
   XLSX.utils.book_append_sheet(libro, hojaPortada({ sucursal, meta, conteos, notas }), 'Panel')

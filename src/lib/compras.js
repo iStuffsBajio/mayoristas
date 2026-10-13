@@ -412,6 +412,19 @@ export function calcularCompras({ historiales, productosBodega, hoy = new Date()
 // piden. Eso no es un descuido, es un producto descontinuado.
 export const MESES_RECIENTES = 6
 
+// Ventana corta para la columna de la hoja. Seis meses es demasiado para
+// saber si algo se pide HOY, pero no se puede usar la ventana corta para
+// filtrar: estos modelos están agotados, así que su venta reciente está
+// suprimida por la propia falta de stock. Con tres meses, 50 de 110 renglones
+// quedaban en cero —y entre ellos el Moto Edge 50, que lleva 108 días en cero
+// y vendía bien antes—. Así que la ventana corta se enseña y la larga decide.
+export const MESES_CORTOS = 3
+
+// Y para que los renglones con meses agotados no sean una fila de ceros, se
+// mide lo que vendían ANTES de agotarse. Eso es lo que se está perdiendo cada
+// mes que siguen así, que es la pregunta de esta hoja.
+const MESES_ANTES = 3
+
 export const ESTADO_AGOTADO = {
   REPARTO: 'reparto',
   COMPRA:  'compra',
@@ -459,18 +472,45 @@ export function analizarAgotados({ inventarios, historiales, productosBodega, ho
   corte.setMonth(corte.getMonth() - MESES_RECIENTES)
   const desde = `${corte.getFullYear()}-${String(corte.getMonth() + 1).padStart(2, '0')}`
 
+  const corte3 = new Date(hoy)
+  corte3.setMonth(corte3.getMonth() - MESES_CORTOS)
+  const desdeCorto = `${corte3.getFullYear()}-${String(corte3.getMonth() + 1).padStart(2, '0')}`
+
   const vendidas = {}
   const recientes = {}
+  const cortos = {}
   const catalogo = {}
+  // Serie mensual por código, para poder mirar hacia atrás desde el día en que
+  // cada modelo se agotó, que es distinto para cada uno.
+  const porMes = {}
   for (const h of (historiales ?? []).filter(Boolean)) {
     Object.assign(catalogo, h.catalogo ?? {})
     for (const p of h.periodos ?? []) {
       const esReciente = p.p >= desde
+      const esCorto = p.p >= desdeCorto
       for (const [k, n] of Object.entries(p.m ?? {})) {
         vendidas[k] = (vendidas[k] || 0) + n
         if (esReciente) recientes[k] = (recientes[k] || 0) + n
+        if (esCorto) cortos[k] = (cortos[k] || 0) + n
+        ;(porMes[k] ??= {})[p.p] = (porMes[k][p.p] ?? 0) + n
       }
     }
+  }
+
+  /** Piezas al mes que vendía en los meses previos a quedarse sin stock. */
+  const ritmoAntes = (codigo, diasAgotado) => {
+    const serie = porMes[codigo]
+    if (!serie) return 0
+    // El mes en que se agotó. Sin dato de cuándo, se mira desde hoy.
+    const fin = new Date(hoy)
+    fin.setDate(fin.getDate() - (diasAgotado ?? 0))
+    const meses = []
+    for (let i = 1; i <= MESES_ANTES; i++) {
+      const d = new Date(fin.getFullYear(), fin.getMonth() - i, 1)
+      meses.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`)
+    }
+    const suma = meses.reduce((a, m) => a + (serie[m] ?? 0), 0)
+    return suma / MESES_ANTES
   }
 
   const enBodega = {}
@@ -535,6 +575,8 @@ export function analizarAgotados({ inventarios, historiales, productosBodega, ho
       diasAgotado,
       vendio,
       vendioReciente,
+      vendioCorto: cortos[e.codigo] ?? 0,
+      vendiaAlMes: ritmoAntes(e.codigo, diasAgotado),
       bodega,
       existeEnBodega,
       bodegaDias: bodega <= 0 ? diasDesde(bodegaUltimo[e.codigo], hoy) : null,

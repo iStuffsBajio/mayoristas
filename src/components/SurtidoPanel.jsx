@@ -9,7 +9,7 @@ import {
   mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
-import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES } from '../lib/compras'
+import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
 
 // Para la columna de reparto: «leon 9 · slp 4» cabe, los nombres largos no.
@@ -580,6 +580,10 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               venta rechazada cada vez. Solo entra lo vendido en los últimos {MESES_RECIENTES} meses:
               sin ese filtro la lista se llenaba de modelos con dos años agotados que nadie repuso porque
               ya no se buscan. Los días salen del último movimiento registrado.
+              {' '}La columna de {MESES_CORTOS} meses dice si se pide hoy, pero sale en cero cuando el
+              modelo lleva tiempo agotado —no hay qué vender—. Para esos la que vale
+              es <strong>Vendía/mes</strong>, que mide los tres meses anteriores a que se acabara: eso es
+              lo que se está perdiendo cada mes que siga así.
             </Aviso>
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -592,7 +596,8 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               <Th>Modelo</Th><Th>Código</Th>
               <Th num style={{ textAlign: 'right' }}>En cero</Th>
               <Th num style={{ textAlign: 'right' }} title="Días desde el último movimiento">Días</Th>
-              <Th num style={{ textAlign: 'right' }} title={`Piezas vendidas en los últimos ${MESES_RECIENTES} meses`}>Vendió</Th>
+              <Th num style={{ textAlign: 'right' }} title={`Piezas vendidas en los últimos ${MESES_CORTOS} meses`}>Vendió 3 m</Th>
+              <Th num style={{ textAlign: 'right' }} title="Piezas al mes en los tres meses previos a quedarse sin stock. Es lo que se está perdiendo cada mes que sigue agotado.">Vendía/mes</Th>
               <Th num style={{ textAlign: 'right' }}>Bodega</Th>
               <Th>Qué hacer</Th>
             </>}>
@@ -603,7 +608,11 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
                     {a.plazasEnCero}/{a.plazasEnCero + a.plazasConStock}
                   </Celda>
                   <Celda num color={a.diasAgotado > 30 ? ROSA : TINTA_SUAVE}>{a.diasAgotado ?? '—'}</Celda>
-                  <Celda num fuerte color={'#0288AD'}>{a.vendioReciente}</Celda>
+                  <Celda num fuerte color={'#0288AD'}>{a.vendioCorto}</Celda>
+                  <Celda num color={a.vendiaAlMes >= 2 ? ROSA : TINTA_SUAVE}
+                         title="Piezas al mes en los tres meses previos a quedarse sin stock">
+                    {a.vendiaAlMes.toFixed(1)}
+                  </Celda>
                   <Celda num color={a.bodega > 0 ? VERDE : ROSA}>{a.existeEnBodega ? a.bodega : '—'}</Celda>
                   <Celda color={a.estado === 'compra' ? ROSA : a.estado === 'reparto' ? AMBAR : TINTA_TENUE}>
                     {a.estado === 'compra'
