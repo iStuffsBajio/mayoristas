@@ -18,6 +18,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { ultimoRespaldo, obtenerArchivo, origenPorDefecto } from './lib/respaldos.js'
+import { dropboxConfigurado } from './lib/dropbox-api.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.join(__dirname, '..')
@@ -40,7 +42,9 @@ const ISQL = process.env.ISQL || (esWindows ? path.join(ELEVENTA, 'isql.exe') : 
 const FB_USER = process.env.FIREBIRD_USER || 'SYSDBA'
 const FB_PASS = process.env.FIREBIRD_PASS || 'masterkey'
 const FB_PREFIJO = process.env.FB_PREFIJO || ''
-const BACKUPS_DIR = process.env.INVENTARIO_BACKUPS_DIR || 'A:\\Dropbox\\Espacio familiar\\RESPALDOS SUCURSALES'
+// De donde salen los respaldos. Igual que el de inventarios: del disco en tu
+// maquina, de la API de Dropbox en GitHub Actions, donde no hay unidad A:.
+const ORIGEN = process.argv.find(a => a.startsWith('--origen='))?.split('=')[1] || origenPorDefecto()
 
 const run = (c, a, o = {}) => promisify(execFile)(c, a, { maxBuffer: 64 * 1024 * 1024, windowsHide: true, ...o })
 
@@ -71,37 +75,27 @@ WHERE t.INICIO_EN >= '${DESDE}'
 ORDER BY t.INICIO_EN;
 `
 
-function ultimoRespaldo(carpeta) {
-  const dir = path.join(BACKUPS_DIR, carpeta)
-  if (!fs.existsSync(dir)) return null
-  const hallados = []
-  const buscar = d => {
-    for (const n of fs.readdirSync(d)) {
-      const p = path.join(d, n)
-      let st; try { st = fs.statSync(p) } catch { continue }
-      if (st.isDirectory()) buscar(p)
-      else if (/\.fbk$/i.test(n)) hallados.push({ p, n })
-    }
-  }
-  buscar(dir)
-  if (!hallados.length) return null
-  const fecha = n => { const m = /(\d{2})-(\d{2})-(\d{2})/.exec(n); return m ? `20${m[3]}-${m[2]}-${m[1]}` : '0' }
-  hallados.sort((a, b) => fecha(b.n).localeCompare(fecha(a.n)))
-  return hallados[0].p
-}
-
 console.log(DRY_RUN ? 'Extracción de turnos (dry-run)\n' : 'Extracción de turnos\n')
+
+if (ORIGEN === 'dropbox' && !dropboxConfigurado()) {
+  console.error('Falta la configuración de Dropbox para bajar los respaldos.')
+  process.exit(1)
+}
+console.log(`  origen de los respaldos: ${ORIGEN}
+`)
 
 const todos = []
 for (const suc of SUCURSALES) {
-  const fbk = ultimoRespaldo(suc.carpeta)
-  if (!fbk) { console.log(`  ${suc.slug.padEnd(16)} sin respaldos, se omite`); continue }
-
   const trabajo = fs.mkdtempSync(path.join(os.tmpdir(), 'turnos-'))
   if (!esWindows) { try { fs.chmodSync(trabajo, 0o777) } catch { /* lo dirá gbak */ } }
   const fdb = path.join(trabajo, 'b.fdb')
 
   try {
+    let respaldo
+    try { respaldo = await ultimoRespaldo(suc.carpeta, ORIGEN) }
+    catch { console.log(`  ${suc.slug.padEnd(16)} sin respaldos, se omite`); continue }
+    const fbk = await obtenerArchivo(respaldo, trabajo, ORIGEN)
+
     await run(GBAK, ['-c', '-user', FB_USER, '-password', FB_PASS, fbk, `${FB_PREFIJO}${fdb}`])
     const sqlFile = path.join(trabajo, 'q.sql')
     const outFile = path.join(trabajo, 'o.txt')

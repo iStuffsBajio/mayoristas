@@ -20,7 +20,8 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
-import { listarArchivos, descargar, dropboxConfigurado } from './lib/dropbox-api.js'
+import { dropboxConfigurado } from './lib/dropbox-api.js'
+import { ultimoRespaldo, obtenerArchivo, origenPorDefecto } from './lib/respaldos.js'
 import { salidasEntre, agregarDia, estadisticaVacia, acumularEnPeriodo, historialVacio } from './lib/estadisticas.js'
 import { deptoOculto } from './lib/departamentos.js'
 
@@ -47,8 +48,6 @@ try { process.loadEnvFile(path.join(ROOT, '.env')) } catch { /* en CI las variab
 
 // ── Configuración ──────────────────────────────────────────────────────────
 
-const BACKUPS_DIR    = process.env.INVENTARIO_BACKUPS_DIR || 'A:\\Dropbox\\Espacio familiar\\RESPALDOS SUCURSALES'
-const BACKUPS_DROPBOX = process.env.INVENTARIO_BACKUPS_DROPBOX || '/Espacio familiar/RESPALDOS SUCURSALES'
 const ELEVENTA_DIR   = process.env.ELEVENTA_DIR || 'C:\\Program Files (x86)\\AbarrotesPDV'
 
 // En Windows se usan los binarios que trae Eleventa. En Linux, los de Firebird
@@ -105,8 +104,7 @@ const args    = process.argv.slice(2)
 const DRY_RUN = args.includes('--dry-run')
 const FORZAR  = args.includes('--forzar')
 const SOLO    = args.find(a => a.startsWith('--sucursal='))?.split('=')[1]
-const ORIGEN  = args.find(a => a.startsWith('--origen='))?.split('=')[1]
-  || (fs.existsSync(BACKUPS_DIR) ? 'local' : 'dropbox')
+const ORIGEN  = args.find(a => a.startsWith('--origen='))?.split('=')[1] || origenPorDefecto()
 
 // ── Protección de datos ────────────────────────────────────────────────────
 const MIN_PRODUCTOS = 50   // menos de esto se considera respaldo incompleto
@@ -127,68 +125,6 @@ const s3 = new S3Client({
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-MX', { hour12: false }), ...m)
 
 // "respaldo-10-09-26.fbk" → "2026-09-10"
-function fechaDelNombre(archivo) {
-  const m = /(\d{2})-(\d{2})-(\d{2})/.exec(path.basename(archivo))
-  return m ? `20${m[3]}-${m[2]}-${m[1]}` : null
-}
-
-// Se usa statSync (no dirent) porque los archivos "solo en línea" de Dropbox
-// son reparse points y dirent.isFile() los reporta como false.
-function buscarFbkLocal(dir, acc = []) {
-  for (const nombre of fs.readdirSync(dir)) {
-    const p = path.join(dir, nombre)
-    let st
-    try { st = fs.statSync(p) } catch { continue }
-    if (st.isDirectory()) buscarFbkLocal(p, acc)
-    else if (st.isFile() && /\.fbk$/i.test(nombre)) {
-      acc.push({
-        nombre,
-        origen: p,
-        fecha:  fechaDelNombre(nombre) || st.mtime.toISOString().slice(0, 10),
-        marca:  st.mtime.toISOString(),
-      })
-    }
-  }
-  return acc
-}
-
-async function buscarFbkDropbox(carpeta) {
-  const entradas = await listarArchivos(`${BACKUPS_DROPBOX}/${carpeta}`)
-  return entradas
-    .filter(e => /\.fbk$/i.test(e.name))
-    .map(e => ({
-      nombre: e.name,
-      origen: e.path_lower,
-      fecha:  fechaDelNombre(e.name) || e.server_modified.slice(0, 10),
-      marca:  e.server_modified,
-      tamano: e.size,
-    }))
-}
-
-/** Devuelve el respaldo más reciente de una sucursal, sea cual sea el origen. */
-async function ultimoRespaldo(carpeta) {
-  let todos
-  if (ORIGEN === 'local') {
-    const dir = path.join(BACKUPS_DIR, carpeta)
-    if (!fs.existsSync(dir)) throw new Error(`No existe la carpeta ${dir}`)
-    todos = buscarFbkLocal(dir)
-  } else {
-    todos = await buscarFbkDropbox(carpeta)
-  }
-  if (todos.length === 0) throw new Error(`Sin archivos .fbk en ${carpeta}`)
-  // Más reciente por fecha del nombre (respaldo-DD-MM-YY); desempata por fecha real
-  todos.sort((a, b) => b.fecha.localeCompare(a.fecha) || b.marca.localeCompare(a.marca))
-  return todos[0]
-}
-
-/** Deja el .fbk en disco listo para gbak, descargándolo si hace falta. */
-async function obtenerArchivo(respaldo, workDir) {
-  if (ORIGEN === 'local') return respaldo.origen
-  const destino = path.join(workDir, respaldo.nombre)
-  await descargar(respaldo.origen, destino)
-  return destino
-}
-
 async function restaurar(fbk, destinoFdb) {
   fs.rmSync(destinoFdb, { force: true })
   // El .fbk lo lee gbak del lado del cliente; la base la crea el servidor,
@@ -347,11 +283,11 @@ async function subirJson(slug, json, anterior) {
 // ── Proceso por sucursal ───────────────────────────────────────────────────
 
 async function procesar(suc, workDir) {
-  const respaldo = await ultimoRespaldo(suc.carpeta)
+  const respaldo = await ultimoRespaldo(suc.carpeta, ORIGEN)
   const mb = respaldo.tamano ? ` ${(respaldo.tamano / 1048576).toFixed(0)} MB` : ''
   log(`[${suc.slug}] respaldo ${respaldo.nombre} del ${respaldo.fecha}${mb}`)
 
-  const fbk = await obtenerArchivo(respaldo, workDir)
+  const fbk = await obtenerArchivo(respaldo, workDir, ORIGEN)
   const fdb = path.join(workDir, `${suc.slug}.fdb`)
   await restaurar(fbk, fdb)
 

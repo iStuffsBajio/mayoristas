@@ -176,6 +176,28 @@ jobs:
           node scripts/sincronizar-inventarios.js $ARGS 2>&1 | tee -a /tmp/diagnostico.txt
           exit ${PIPESTATUS[0]}
 
+      # Los turnos salen de los MISMOS respaldos que acaba de usar el paso
+      # anterior, asi que van aqui y no en su propia corrida: bajarlos dos
+      # veces seria tirar el doble de datos para leer dos tablas del mismo
+      # archivo. Si falla, no tumba la sincronizacion de inventarios, que es
+      # lo que de verdad no puede faltar.
+      - name: Extraer turnos del personal
+        if: ${{ inputs.dry_run != true }}
+        continue-on-error: true
+        env:
+          GBAK: fb-gbak
+          ISQL: fb-isql
+          FB_PREFIJO: ${{ env.PREFIJO_FB }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_APP_KEY:       ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET:    ${{ secrets.DROPBOX_APP_SECRET }}
+          S3_BUCKET:             ${{ secrets.S3_BUCKET }}
+          S3_REGION:             ${{ secrets.S3_REGION }}
+          S3_ACCESS_KEY:         ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY:         ${{ secrets.S3_SECRET_KEY }}
+        run: |
+          node scripts/extraer-turnos.js --origen=dropbox 2>&1 | tee -a /tmp/diagnostico.txt
+
       - name: Guardar resultado de la prueba
         if: ${{ inputs.dry_run == true }}
         uses: actions/upload-artifact@v4
