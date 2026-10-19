@@ -14,6 +14,23 @@ import { fileURLToPath } from 'node:url'
 import { readPsd } from 'ag-psd'
 import { fundaDe, recortar, pareceFunda } from './extraer.mjs'
 import { simularCamara } from './camara.mjs'
+
+/**
+ * ¿Salió el mockup en blanco? Algunos PSD componen una silueta clara y nada
+ * más: sin contorno, sin cámara, sin botones. En la página se ven como una
+ * mancha, así que se marcan y no se enseñan.
+ */
+function estaVacio(c) {
+  const { width: W, height: H } = c
+  const d = c.getContext('2d').getImageData(0, 0, W, H).data
+  let opaco = 0, oscuro = 0
+  for (let p = 0; p < W * H; p++) {
+    if (d[p * 4 + 3] < 100) continue
+    opaco++
+    if ((d[p * 4] + d[p * 4 + 1] + d[p * 4 + 2]) / 3 < 120) oscuro++
+  }
+  return opaco > 0 && oscuro / opaco < 0.01
+}
 import { emparejar } from './emparejar.mjs'
 
 const args = process.argv.slice(2)
@@ -78,7 +95,7 @@ console.log(`${lista.length} códigos · ${conPsd.length} con mockup · salida: 
 // Un mismo PSD sirve a varios códigos: se lee una vez y se guarda recortado.
 const cache = new Map()
 const indice = []
-let hechos = 0, simulados = 0, fallos = []
+let hechos = 0, simulados = 0, rescatados = 0, fallos = [], vacios = []
 
 for (const p of conPsd) {
   try {
@@ -88,6 +105,18 @@ for (const p of conPsd) {
       const r = fundaDe(psd)
       if (!r) throw new Error('no se encontró la funda dentro del PSD')
       let c = recortar(r.canvas)
+
+      // Silueta en blanco: ni contorno ni cámara, sólo el relleno. En esos
+      // PSD la funda está en una capa con nombre de foto, que el filtro
+      // normal descarta. Se vuelve a componer incluyéndolas y se queda con
+      // el segundo intento sólo si de verdad trae algo.
+      if (estaVacio(c)) {
+        const r2 = fundaDe(psd, { conFotos: true })
+        if (r2) {
+          const c2 = recortar(r2.canvas)
+          if (!estaVacio(c2) && pareceFunda(c2).ok) { c = c2; rescatados++ }
+        }
+      }
       // Hay PSD de producción -siluetas de corte con el nombre en letras
       // blancas- que tienen forma de funda y pasan cualquier prueba
       // geométrica. Se reconocen porque no tienen área blanca donde imprimir.
@@ -105,6 +134,10 @@ for (const p of conPsd) {
       // Los mockups de dibujo de línea traen los lentes como agujeros
       // transparentes y se ven planos. Aquí se les dibuja la cámara; los que
       // ya la traen no tienen agujeros y no se tocan.
+      // Se mide ANTES de dibujar la cámara: después, el módulo que pinta
+      // `simularCamara` aporta sus propios píxeles oscuros y una silueta en
+      // blanco dejaba de parecerlo.
+      cache.set(p.psd.ruta + '#vacio', estaVacio(c))
       const lentes = simularCamara(c)
       png = c.toBuffer('image/png')
       cache.set(p.psd.ruta, png)
@@ -112,12 +145,26 @@ for (const p of conPsd) {
     }
     const archivo = `${limpio(p.codigo)}.png`
     fs.writeFileSync(path.join(SALIDA, archivo), png)
-    indice.push({ codigo: p.codigo, nombre: p.nombre, archivo, origen: p.psd.nombre, piezas: p.piezas })
+    const vacio = cache.get(p.psd.ruta + '#vacio') === true
+    if (vacio) vacios.push(p.codigo)
+    // `vacio` marca el mockup que salió del PSD como una silueta blanca y
+    // nada más: ni contorno ni cámara. La página los salta en lugar de
+    // enseñar una mancha blanca con el nombre debajo. La causa está antes,
+    // en qué capas compone `fundaDe`, y sigue abierta.
+    indice.push({ codigo: p.codigo, nombre: p.nombre, archivo, origen: p.psd.nombre, piezas: p.piezas, ...(vacio && { vacio: true }) })
     hechos++
     if (hechos % 10 === 0) console.log(`  ${hechos}/${conPsd.length}...`)
   } catch (e) {
     fallos.push({ codigo: p.codigo, nombre: p.nombre, psd: p.psd.nombre, error: e.message })
   }
+}
+
+if (rescatados) console.log(`
+rescatados de la capa de foto: ${rescatados}`)
+if (vacios.length) {
+  console.log(`
+salieron en blanco (${vacios.length}): ${vacios.join(' ')}`)
+  console.log('  (silueta sin contorno ni cámara; marcados `vacio` en el índice)')
 }
 
 fs.writeFileSync(path.join(SALIDA, 'indice.json'), JSON.stringify({

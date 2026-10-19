@@ -1,5 +1,5 @@
 {
-  "generado": "2026-10-19T04:29:54.193Z",
+  "generado": "2026-10-19T17:46:46.619Z",
   "total": 83,
   "mockups": [
     {
@@ -371,14 +371,16 @@
       "nombre": "XIAOMI NOTE 13 PRO 4G/POCCO M6 PRO TPU CASE",
       "archivo": "XRN13PT.png",
       "origen": "XIAOMI REDMI NOTE 13 PRO 4G-POCO M6 PRO 4G",
-      "piezas": 87
+      "piezas": 87,
+      "vacio": true
     },
     {
       "codigo": "HX7CT",
       "nombre": "HONOR X7C TPU CASE",
       "archivo": "HX7CT.png",
       "origen": "HONOR X7C",
-      "piezas": 85
+      "piezas": 85,
+      "vacio": true
     },
     {
       "codigo": "I14PT",

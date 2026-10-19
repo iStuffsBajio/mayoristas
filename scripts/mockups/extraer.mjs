@@ -31,7 +31,7 @@ export const RAIZ = process.env.MOCKUPS_DIR || 'A:/Dropbox/MOCKUPS'
  */
 const FOTO = /WHATSAPP|IMG[-_ ]?\d|IMAGE|DESCARGA|SCREENSHOT|CAPTURA|REMOVEBG|PHOTOROOM|^\d{6,}|^[0-9A-F]{16,}/i
 
-const descartar = (l, psd) => {
+const descartar = (l, psd, conFotos = false) => {
   const n = (l.name || '').toUpperCase()
   const w = l.right - l.left, h = l.bottom - l.top
   if (!l.canvas || w < 20 || h < 20) return true
@@ -42,7 +42,13 @@ const descartar = (l, psd) => {
   // El nombre del modelo, escrito en vertical al costado.
   if (h / w > 3) return true
   // Fotos y recortes que se quedaron dentro del archivo.
-  if (FOTO.test(n) && !/PHOTOROOM/i.test(n)) return true
+  //
+  // Salvo cuando se pide lo contrario. En unos cuantos PSD la funda ESTÁ en
+  // una capa con nombre de foto -«20240403_135357»- y descartarla dejaba
+  // sólo el relleno blanco: una silueta sin contorno ni cámara. Diez de los
+  // ochenta y tres salían así. El rescate se pide sólo cuando el camino
+  // normal ya falló, para no estropear los que sí funcionan.
+  if (!conFotos && FOTO.test(n) && !/PHOTOROOM/i.test(n)) return true
   return false
 }
 
@@ -56,12 +62,12 @@ const descartar = (l, psd) => {
  * case» mide lo mismo que la funda y está más llena que ella. Apilarlas todas
  * reproduce lo que enseña Photoshop, menos los adornos.
  */
-export function fundaDe(psd) {
+export function fundaDe(psd, { conFotos = false } = {}) {
   let capas = []
   const rec = ls => {
     for (const l of ls || []) {
       if (l.children) { rec(l.children); continue }
-      if (descartar(l, psd)) continue
+      if (descartar(l, psd, conFotos)) continue
       capas.push(l)
     }
   }
