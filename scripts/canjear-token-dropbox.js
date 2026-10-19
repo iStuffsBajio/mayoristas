@@ -23,10 +23,10 @@ if (!codigo) {
   process.exit(2)
 }
 
-const key    = process.env.VITE_DROPBOX_APP_KEY
-const secret = process.env.VITE_DROPBOX_APP_SECRET
+const key    = process.env.DROPBOX_APP_KEY    || process.env.VITE_DROPBOX_APP_KEY
+const secret = process.env.DROPBOX_APP_SECRET || process.env.VITE_DROPBOX_APP_SECRET
 if (!key || !secret) {
-  console.error('Faltan VITE_DROPBOX_APP_KEY o VITE_DROPBOX_APP_SECRET en .env')
+  console.error('Faltan DROPBOX_APP_KEY o DROPBOX_APP_SECRET en .env')
   process.exit(2)
 }
 

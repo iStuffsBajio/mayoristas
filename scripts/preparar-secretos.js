@@ -23,11 +23,11 @@ const refresh = fs.existsSync(tokenFile)
 const secretos = {
   DROPBOX_REFRESH_TOKEN: refresh,
   DROPBOX_APP_KEY:       process.env.VITE_DROPBOX_APP_KEY,
-  DROPBOX_APP_SECRET:    process.env.VITE_DROPBOX_APP_SECRET,
+  DROPBOX_APP_SECRET:    process.env.DROPBOX_APP_SECRET || process.env.VITE_DROPBOX_APP_SECRET,
   S3_BUCKET:             process.env.VITE_S3_BUCKET,
   S3_REGION:             process.env.VITE_S3_REGION || 'us-east-1',
-  S3_ACCESS_KEY:         process.env.VITE_S3_ACCESS_KEY,
-  S3_SECRET_KEY:         process.env.VITE_S3_SECRET_KEY,
+  S3_ACCESS_KEY:         process.env.S3_ACCESS_KEY || process.env.VITE_S3_ACCESS_KEY,
+  S3_SECRET_KEY:         process.env.S3_SECRET_KEY || process.env.VITE_S3_SECRET_KEY,
 }
 
 const faltantes = Object.entries(secretos).filter(([, v]) => !v).map(([k]) => k)

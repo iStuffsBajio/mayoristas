@@ -68,13 +68,80 @@ no necesita borrar ni listar el bucket.
 
 ### 4. Crear el usuario de despliegue
 
-Un usuario de IAM aparte, solo con `lambda:UpdateFunctionCode` sobre esa
-función. Sus llaves se cargan como secretos del repositorio:
+**Hecho el 2026-10-19.** Usuario `istuffs-deploy`, con una política en línea
+que permite exactamente dos acciones —`lambda:UpdateFunctionCode` y
+`lambda:GetFunctionConfiguration`, esta última porque el workflow espera a que
+la función termine de actualizarse— sobre un único recurso:
+`arn:aws:lambda:us-east-1:<cuenta>:function:istuffs-backend`. Nada más.
+
+Sus llaves están en los secretos del repositorio:
 
 - `AWS_DEPLOY_ACCESS_KEY`
 - `AWS_DEPLOY_SECRET_KEY`
 
-A partir de ahí, cada cambio en `backend/` se publica solo.
+**Esto llevaba roto desde el principio y nadie lo había notado**: el workflow
+pedía esos dos secretos y no existían, así que `desplegar-backend.yml` nunca
+se había ejecutado ni una vez. Cada cambio en `backend/` había que subirlo a
+mano. Ahora corre solo.
+
+Antes de activarlo se comparó el código desplegado con el del repo —`src/index.js`
+y `src/seguridad.js`, idénticos— para que el primer despliegue no cambiara el
+comportamiento en vivo. Conviene repetir esa comprobación si el despliegue
+lleva mucho tiempo parado.
+
+El paquete pasó de 7 KB a 3.3 MB porque el workflow incluye `node_modules` a
+propósito, para no depender de la versión del SDK que traiga Lambda. Las
+variables de entorno **no** se tocan aquí: `update-function-code` sólo sustituye
+el código. Se comprobó después: las 13 siguen en su sitio.
+
+### 4b. El usuario administrador
+
+**Hecho el 2026-10-19.** El CLI de la máquina de trabajo iba con una **llave
+de la cuenta raíz**. Una llave de root no se puede limitar, no se puede
+auditar bien y, sobre todo, **se salta el MFA**: la cuenta tenía dos
+dispositivos de MFA configurados y no servían de nada frente a una llamada por
+API con esa clave.
+
+Había **dos** claves de root, las dos de 40 días. Una no se había usado nunca.
+
+El orden que se siguió, y que hay que repetir si alguna vez se rehace:
+
+1. Crear `istuffs-admin` con `AdministratorAccess` (desde la consola).
+2. Crearle una clave de acceso.
+3. Ponerla en `~/.aws/credentials` **como un perfil aparte**, no como
+   `[default]`, y probar con `--profile` los servicios que se usan de verdad:
+   Lambda, S3, IAM, Route53, Amplify y CloudWatch Logs.
+4. Sólo con los seis respondiendo, pasarla a `[default]`.
+5. Sólo entonces, borrar las claves de root desde la consola.
+
+Nunca al revés: borrar la de root antes de probar la nueva deja sin acceso.
+
+**Un tropiezo que parecía falta de permisos y no lo era.** Un perfil nuevo en
+`~/.aws/credentials` no hereda la región: tres comandos fallaron con
+`NoRegion`. La región va en `~/.aws/config`, en su propia sección
+`[profile <nombre>]`. No era IAM.
+
+**Y `get-account-summary` miente un rato.** Su `AccountAccessKeysPresent` es
+un sí/no, no un conteo, y va cacheado horas: seguía diciendo que había claves
+de root después de borrarlas. Para comprobarlo de verdad:
+
+```
+aws iam generate-credential-report
+aws iam get-credential-report --query Content --output text | base64 -d
+```
+
+La fila `<root_account>` trae `access_key_1_active` y `access_key_2_active`, y
+`GeneratedTime` dice de cuándo es el informe.
+
+### Quién puede hacer qué, desde el 2026-10-19
+
+| Usuario | Permisos | Para qué |
+|---|---|---|
+| `istuffs-admin` | `AdministratorAccess` | El CLI de la máquina de trabajo |
+| `istuffs-deploy` | 2 acciones sobre 1 función Lambda | GitHub Actions, desplegar el backend |
+| `istuffs-s3-uploader` | Escribir en el bucket | GitHub Actions, publicar inventarios |
+| rol de la Lambda | `s3:PutObject` en un prefijo | El backend |
+| cuenta raíz | **sin claves de acceso** | Sólo consola, con MFA |
 
 ### 5. Conectar el frontend
 
@@ -97,13 +164,49 @@ apuntan a archivos que ya son públicos.
 
 ### 7. Rotar lo que estuvo expuesto
 
-Estas credenciales estuvieron públicas y hay que considerarlas comprometidas:
-
-- Llave de acceso de S3: crear una nueva y desactivar la anterior
-- Secreto de la app de Dropbox: regenerarlo en la consola de apps
-- Contraseñas de sucursales y administrador: cambiarlas todas
-
 Rotar antes del paso 6 no sirve de nada: las nuevas volverían a publicarse.
+Se comprobó sobre el archivo en vivo que el paso 6 estaba hecho —cero rastros
+de llaves, tokens o contraseñas— antes de tocar nada.
+
+**Hecho el 2026-10-19:**
+
+- **Llave de S3.** Creada `AKIA…(ver consola IAM)`, cargada en los secretos de
+  GitHub, comprobada con una corrida real de inventarios que escribió en S3, y
+  sólo entonces desactivada la anterior `AKIA…(la vieja, ver consola IAM)`. AWS admite dos
+  llaves activas a la vez, así que no hubo un segundo de caída. **Falta
+  borrarla del todo**; conviene dejarla inactiva unos días por si algo la usaba
+  sin que lo supiéramos.
+- **Dropbox.** La consola de apps no deja regenerar el App secret. Da igual: el
+  secreto solo no abre nada, hace falta un token. Se desconectó la app desde
+  *Cuenta → Aplicaciones conectadas*, lo que **revoca todos los tokens** que
+  haya emitido, incluido el filtrado —comprobado: el viejo devuelve
+  `invalid_grant`—. Luego se autorizó de nuevo y el token nuevo se repartió a
+  la Lambda y a GitHub.
+- **El `.env` local.** Reescrito. **Ningún secreto lleva ya el prefijo
+  `VITE_`**, que era la causa raíz: los scripts ya aceptaban los nombres sin
+  prefijo, así que sólo hubo que renombrar. Se quitaron las cinco
+  `VITE_PASS_*`, muertas desde que la sesión se valida en el backend.
+- **`backend/out/variables-lambda.txt`** borrado. Sus 13 variables ya vivían en
+  la Lambda.
+
+**Pendiente: las cinco contraseñas.** Siguen siendo las que estuvieron
+públicas. Se cambian generando hashes nuevos con
+`backend/scripts/generar-credenciales.js` y subiéndolos a la Lambda. Conviene
+cambiar también `SESION_SECRETO` en la misma pasada: eso tira al instante
+cualquier sesión abierta con las contraseñas filtradas.
+
+### Dos trampas que costaron tiempo aquí
+
+**`canjear-token-dropbox.js` escribía el token en `VITE_DROPBOX_REFRESH_TOKEN`.**
+O sea, el canje volvía a sembrar un token recién creado justo en el prefijo que
+Vite publica. Y como el resto del proyecto lee `DROPBOX_REFRESH_TOKEN`, el
+token nuevo quedaba donde nadie lo leía mientras el viejo seguía en uso. Ya
+escribe el nombre correcto y borra la línea con prefijo si la encuentra.
+
+**Un 403 «Carpeta no permitida» que no era un fallo.** `curl --data-urlencode`
+codifica el espacio como `+`, y el Function URL no lo decodifica como espacio,
+así que la ruta no coincidía con la lista blanca. Con `%20` pasa. Para probar
+rutas con espacios, codificar a mano.
 
 ## Decisiones del backend
 

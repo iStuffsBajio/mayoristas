@@ -8,3 +8,7 @@ dist/
 scripts/out/
 backend/out/
 backend/node_modules/
+
+# Carpeta de trabajo de la herramienta de diseno: capturas y mediciones.
+# Se regenera sola y no describe el proyecto.
+.taste-skill/

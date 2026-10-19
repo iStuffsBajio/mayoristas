@@ -102,17 +102,65 @@ variable global y revienta en el navegador. Ya pasó dos veces —`LogoutIcon` y
 npm test                      # reglas de negocio y búsqueda
 cd backend && npm test        # 19 pruebas del backend
 npm run build
+npm run verificar             # ejecuta el paquete en jsdom
 ```
 
-Y ejecutar el paquete en jsdom con **las tres sesiones** (sin sesión,
-sucursal, administrador), recorriendo las seis secciones del panel y
-**pulsando todas las cabeceras ordenables**, no las primeras. La caída de la
-pantalla en blanco se escapó porque la comprobación pulsaba cuatro y la
-columna rota era la octava.
+`npm run verificar` corre `scripts/verificar-panel.mjs`, que levanta el
+paquete YA CONSTRUIDO con **las tres sesiones** (sin sesión, sucursal,
+administrador), recorre las pestañas y las seis secciones del panel, y pulsa
+**todas las cabeceras ordenables** —las dos direcciones— no las primeras. La
+caída de la pantalla en blanco se escapó porque la comprobación pulsaba
+cuatro y la columna rota era la octava. Falla si el cuerpo se queda vacío o
+si la consola suelta un error.
+
+Hoy cubre: 3 sesiones · 10 pestañas · 6 secciones de admin · 22 cabeceras.
+Si ese número baja, algo dejó de pintarse.
+
+Dos cosas que hacen falta para que la comprobación sea de verdad:
+
+- **Los datos de mentira tienen que tener la forma exacta.** `dias` en
+  estadísticas es una LISTA de `{ f, m }`, no un número, y `periodos` otra de
+  `{ p, m, dias }`. Un número donde iba una lista tumbó el panel entero.
+- **Una cabecera ordenable se reconoce por `aria-sort`**, no por el cursor:
+  el cursor sale del CSS y jsdom no maqueta. Toda columna ordenable nueva
+  tiene que llevarlo, o la comprobación la salta en silencio.
+
+**jsdom NO aplica la política de seguridad de contenido.** Un guion en línea
+bloqueado en el navegador aquí corre tan campante; eso fue lo que dejó la
+página de mockups en «cargando…». Esta comprobación no sustituye mirar la
+página servida.
 
 La sesión va en `sessionStorage` bajo `istuffs_session`, con forma
 `{ isAdmin, branch, token }`. Para escribir en un campo controlado por React
 hace falta `input._valueTracker.setValue('')` antes, o el cambio no llega.
+
+---
+
+## ⚠️ VERIFICAR — Los mockups salen de los PSD, y los PSD mienten
+
+Las 83 imágenes de `public/mockups/` se componen de los PSD propios con
+`node scripts/mockups/generar-web.mjs`. Tres cosas que ya salieron mal:
+
+**Elegir UNA capa no funciona.** La capa «Editar color case» mide lo mismo
+que la funda y está más llena, así que quedarse con la mayor devolvía un
+rectángulo blanco liso. Se apilan todas las que no son adorno.
+
+**A veces la funda ESTÁ en una capa con nombre de foto.** El filtro descarta
+las capas llamadas `20240403_135357` y parecidas porque suelen ser recortes
+que quedaron en el archivo. En diez PSD esa capa era la funda —una fotografía
+real del producto— y descartarla dejaba una silueta blanca sin contorno ni
+cámara. Ahora, si la composición sale en blanco, se reintenta con
+`fundaDe(psd, { conFotos: true })` y se queda con el segundo intento sólo si
+trae algo. **El reintento se pide únicamente cuando el primero falló**: si se
+activa siempre, estropea los setenta y tres que ya salían bien.
+
+**Lo que salga en blanco se marca, no se enseña.** `indice.json` lleva
+`vacio: true` en esos casos y las dos secciones de la página los saltan. La
+medición se hace ANTES de dibujar la cámara simulada; después, el módulo
+aporta sus propios píxeles oscuros y una silueta en blanco deja de parecerlo.
+
+Quedan **2 en blanco** (XRN13PT, HX7CT), **2 rechazados** porque el PSD es una
+plantilla de corte (SGS25UT, SGS25U3) y **7 sin PSD**.
 
 ---
 
@@ -184,6 +232,28 @@ ningún año porque no abre.
   (`.../CATALOGOS/Fundas` y `/Personalizados`) **no existen**. Lleva roto
   desde antes y el código viejo se tragaba el error. Falta que el dueño diga
   dónde están esas imágenes.
-- **Los turnos se congelan.** `personal/turnos.json` se publicó a mano el
-  2026-10-13. No está en la corrida diaria de GitHub Actions.
-- **Credenciales sin rotar.** Estuvieron publicadas meses. Pendiente.
+- **Los turnos ya no se congelan.** El paso «Extraer turnos del personal»
+  entró en la corrida de GitHub Actions y `personal/turnos.json` se publica
+  solo. Comprobado el 2026-10-19.
+- **Las cinco contraseñas sin rotar.** León, San Luis, Aguascalientes, Torreón
+  y administrador siguen siendo las que estuvieron publicadas en el
+  JavaScript. Se cambian con `backend/scripts/generar-credenciales.js` y las
+  variables de la Lambda; de paso hay que cambiar `SESION_SECRETO`, que tira
+  cualquier sesión abierta. **Es lo último que queda de la fuga.**
+- **La llave de AWS vieja, inactiva pero sin borrar.** `AKIA…(la vieja, ver consola IAM)`.
+  Desactivada el 2026-10-19; borrarla pasados unos días.
+- **La cuenta raíz ya no tiene claves de acceso.** El CLI va con
+  `istuffs-admin`. Si alguna vez `aws sts get-caller-identity` devuelve algo
+  que acabe en `:root`, algo se ha rehecho mal: una clave de root se salta el
+  MFA de la cuenta.
+
+### Lo que YA se rotó (2026-10-19)
+
+La llave de S3 y el token de Dropbox. Ninguno de los dos sirve ya. El detalle
+y el orden están en `SEGURIDAD.md`; lo que hay que recordar aquí es la regla:
+
+**Ningún secreto lleva el prefijo `VITE_`.** Vite incrusta en el JavaScript
+público toda variable que empiece así, y por eso estuvieron meses a la vista
+la llave de AWS, el secreto de Dropbox y las cinco contraseñas. Sólo
+`VITE_S3_BUCKET` y `VITE_S3_REGION` lo llevan, y no son secretos. Si un script
+nuevo necesita una credencial, el nombre va **sin prefijo**.
