@@ -7,8 +7,55 @@
      Chrome en Android oscurece por su cuenta los sitios que no declaran su
      esquema de color, y eso invertía los fondos y ensuciaba el diseño. Con
      esto el navegador entiende que la página maneja sus propios colores. */
+  /* Las fichas del diseño. Todo lo demás las referencia; ningún color ni
+     tamaño se escribe suelto.
+
+     La paleta repartida para esta dirección era teal y pizarra. Se conservan
+     sus PROPORCIONES —un fondo, una tinta, un acento que aparece una vez por
+     pantalla— pero el acento se toma de la marca: el magenta del logotipo es
+     un color propio de la casa y pesa más que un teal genérico. */
   :root {
     color-scheme: light;
+
+    /* Los cuatro del logotipo. No son adorno: son la marca, y el negocio es
+       de accesorios de color. La version anterior de esta pagina los escondio
+       detras de grises y el resultado parecia una tienda de ropa. */
+    --cian: #00bcf2;
+    --lima: #8dc63f;
+    --magenta: #d51a7a;
+    --naranja: #ff6b1a;
+
+    --splash: linear-gradient(135deg, var(--cian) 0%, var(--lima) 100%);
+    --accion: linear-gradient(135deg, var(--magenta) 0%, var(--naranja) 100%);
+
+    --bg: #ffffff;
+    --surface: #f2f6f8;
+    --ink: #0d1114;
+    --muted: #52646d;
+    --accent: var(--magenta);
+    --accent-ink: #ffffff;
+    --oscuro: #121212;
+
+    /* Cinco tamanos. En Inter, con el peso alto y el tracking cerrado que usan
+       las tiendas de tecnologia: la letra no llama la atencion, deja que la
+       llame el producto. */
+    --step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.9375rem);
+    --step-body: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem);
+    --step-lead: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+    --step-head: clamp(1.875rem, 1.3rem + 2.6vw, 3rem);
+    --step-display: clamp(2.375rem, 1.3rem + 4.3vw, 5rem);
+
+    --salida: cubic-bezier(0.23, 1, 0.32, 1);
+    --entrada-salida: cubic-bezier(0.77, 0, 0.175, 1);
+
+    --marco: clamp(20px, 4vw, 48px);
+    --barra: 100px;
+    --ancho: 1344px;
+  }
+
+  .marco {
+    width: 100%;
+    padding-inline: max(var(--marco), (100% - var(--ancho)) / 2);
   }
 
   * {
@@ -18,38 +65,63 @@
   }
 
   html {
-    background-color: #FAFCFD;
+    background-color: var(--bg);
+    /* La tira del catálogo se arrastra de lado dentro de su propia caja. Sin
+       esto, su desborde movía la PÁGINA entera de lado y descuadraba los dos
+       márgenes exteriores. */
+    overflow-x: hidden;
   }
 
   body {
-    /* Ambiente con los colores del logotipo. Son tintes muy bajos, entre 4% y
-       7%: el contenido vive en tarjetas blancas, así que el degradado se
-       percibe como luz de fondo y no compite con el texto.
-       El fondo va fijo para que no se arrastre al hacer scroll. */
-    background-color: #F2F7FA;
-    background-image:
-      radial-gradient(55rem 38rem at 6% -8%,   rgba(0, 188, 242, 0.38), transparent 60%),
-      radial-gradient(45rem 34rem at 96% 4%,   rgba(141, 198, 63, 0.32), transparent 58%),
-      radial-gradient(50rem 40rem at 90% 94%,  rgba(213, 26, 122, 0.28), transparent 60%),
-      radial-gradient(38rem 32rem at 0% 86%,   rgba(255, 107, 26, 0.24), transparent 58%);
-    background-attachment: fixed;
-    background-repeat: no-repeat;
+    /* Fondo plano. Antes había cuatro degradados de colores del logotipo
+       cruzándose; es el recurso que delata una página hecha en serie, y
+       además hundía el contraste del texto encima. El color de marca ahora
+       aparece una vez por pantalla, donde se actúa. */
+    background-color: var(--bg);
     min-height: 100vh;
-    color: #101619;
-    font-family: 'Inter', system-ui, sans-serif;
+    color: var(--ink);
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-size: var(--step-body);
+    line-height: 1.55;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* En pantallas chicas el fondo fijo cuesta batería y en iOS da saltos al
-     hacer scroll. Ahí se deja quieto y se reducen los tintes. */
-  @media (max-width: 640px) {
-    body {
-      background-attachment: scroll;
-      background-image:
-        radial-gradient(26rem 20rem at 0% 0%,    rgba(0, 188, 242, 0.34), transparent 62%),
-        radial-gradient(22rem 18rem at 100% 10%, rgba(141, 198, 63, 0.28), transparent 60%),
-        radial-gradient(24rem 22rem at 100% 90%, rgba(213, 26, 122, 0.26), transparent 62%);
+  /* Los titulos.
+     Antes era Imbue -una condensada con serifas, en versales-, que es
+     tipografia de revista de moda. En una tienda de accesorios de telefono
+     no pintaba nada: el dueno lo dijo sin rodeos y tenia razon.
+     Ahora es la misma familia que el texto, con mas peso y el tracking
+     cerrado, en minusculas. Es lo que hacen Apple y Google: la letra no se
+     hace notar y el producto manda. */
+  .rotulo {
+    font-family: inherit;
+    font-weight: 600;
+    letter-spacing: -0.035em;
+    line-height: 1.04;
+    text-transform: none;
+  }
+
+  /* Entradas por sección. El contenido NO depende del script: nace visible y
+     el script sólo lo esconde para volver a mostrarlo. Si falla, se lee. */
+  .js [data-entra] {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+
+  .js [data-entra].dentro {
+    opacity: 1;
+    transform: none;
+    transition: opacity 520ms var(--salida), transform 520ms var(--salida);
+    transition-delay: var(--retraso, 0ms);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .js [data-entra],
+    .js [data-entra].dentro {
+      opacity: 1;
+      transform: none;
+      transition: opacity 200ms ease;
     }
   }
 
@@ -96,5 +168,714 @@
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+}
+
+/* ── El escenario partido ─────────────────────────────────────────────────
+   Mitad fija, mitad que se lee. La geometría viene de la dirección; el
+   contenido es el inventario real. */
+@layer components {
+  .escenario {
+    display: grid;
+    /* La columna del texto se lleva mas ancho: con mitad y mitad, el titular
+       a 80px se partia en tres lineas. */
+    grid-template-columns: 1.15fr 0.85fr;
+    min-height: calc(100svh - var(--barra));
+    background: var(--bg);
+  }
+
+  /* Centrado, no al fondo. Pegado abajo, el botón quedaba fuera de la
+     primera pantalla y no había NINGUNA acción visible al entrar. */
+  .escenario-texto {
+    display: flex;
+    align-items: center;
+    padding-block: var(--marco);
+    padding-inline-start: max(var(--marco), (100% - var(--ancho)) / 2);
+    padding-inline-end: var(--marco);
+  }
+
+  .escenario-dentro { max-width: 46rem; width: 100%; }
+
+  .escenario-titulo {
+    font-size: var(--step-display);
+    color: var(--ink);
+    margin-block-end: 24px;
+  }
+
+  /* Una palabra del titular con el degradado de accion. Un solo acento por
+     pantalla; mas de uno y deja de ser acento. */
+  .escenario-titulo em {
+    font-style: normal;
+    background: var(--accion);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .escenario-entrada {
+    font-size: var(--step-body);
+    color: var(--ink);
+    max-width: 38ch;
+    margin-block-end: 36px;
+  }
+
+  .escenario-etiqueta {
+    display: block;
+    font-size: var(--step-small);
+    color: var(--muted);
+    margin-block-end: 8px;
+  }
+
+  .escenario-buscar { position: relative; margin-block-end: 28px; }
+
+  .escenario-buscar input {
+    width: 100%;
+    padding: 14px 18px;
+    font: inherit;
+    font-size: var(--step-body);
+    color: var(--ink);
+    background: #fff;
+    border: 1.5px solid #dde4e8;
+    border-radius: 14px;
+    outline: none;
+    transition: border-color 160ms var(--salida);
+  }
+  .escenario-buscar input:focus { border-color: var(--cian); }
+
+  /* Flota de verdad sobre el contenido: aquí la sombra sí corresponde. */
+  .escenario-resultados {
+    position: absolute;
+    inset-inline: 0;
+    z-index: 5;
+    list-style: none;
+    background: #fff;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 14px 38px rgba(13, 17, 20, 0.16);
+  }
+  .escenario-resultados button {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    width: 100%;
+    padding: 12px 18px;
+    font: inherit;
+    font-size: var(--step-small);
+    color: var(--ink);
+    text-align: left;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background 140ms var(--salida);
+  }
+  .escenario-resultados button:hover,
+  .escenario-resultados button:focus-visible { background: var(--surface); }
+  .escenario-piezas { color: var(--muted); white-space: nowrap; }
+
+  /* El boton de accion lleva el degradado magenta-naranja del logotipo y un
+     brillo del mismo color debajo. La guia de estilo que segui antes prohibe
+     degradados y sombras; en esta categoria -Samsung, Xiaomi, accesorios- son
+     el idioma normal, asi que se salta a proposito. La regla general no
+     conoce este negocio. */
+  .escenario-accion {
+    padding: 17px 32px;
+    font: inherit;
+    font-size: var(--step-body);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: #fff;
+    background: var(--accion);
+    border: none;
+    border-radius: 999px;
+    cursor: pointer;
+    box-shadow: 0 8px 26px rgba(213, 26, 122, 0.32);
+    transition: transform 160ms var(--salida), box-shadow 200ms var(--salida), filter 160ms ease;
+  }
+  .escenario-accion:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) {
+    .escenario-accion:hover {
+      filter: brightness(1.06);
+      box-shadow: 0 12px 34px rgba(213, 26, 122, 0.42);
+    }
+  }
+
+  .escenario-campo {
+    position: sticky;
+    top: var(--barra);
+    height: calc(100svh - var(--barra));
+    /* El splash del logotipo, a pantalla completa. Es lo que recupera la
+       energia de la version anterior: el gris pizarra de en medio hacia que
+       la pagina pareciera de otro negocio. */
+    background: var(--splash);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    padding: var(--marco);
+  }
+
+  .escenario-pieza {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: min(34vw, 470px);
+    height: min(68svh, 660px);
+  }
+  /* Contenida por las dos medidas. Con sólo `height` la funda se salía del
+     cuadro por los lados en cuanto el cuadro era más bajo que ancho. */
+  .escenario-pieza img {
+    max-height: 100%;
+    max-width: 100%;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    /* Cada funda entra con un cambio de llave: el salto seco delataba el
+       intercambio. El desenfoque tapa el cruce entre dos piezas distintas. */
+    animation: pieza-entra 420ms var(--salida);
+  }
+
+  @keyframes pieza-entra {
+    from { opacity: 0; transform: translateY(14px) scale(0.96); filter: blur(6px); }
+    to   { opacity: 1; transform: none; filter: blur(0); }
+  }
+
+  .escenario-ficha { width: min(34vw, 470px); }
+  .escenario-modelo { font-size: var(--step-body); color: #fff; font-weight: 600; letter-spacing: -0.01em; }
+  .escenario-stock  { font-size: var(--step-small); color: rgba(255,255,255,0.85); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .escenario-pieza img { animation: none; }
+  }
+
+  /* En el teléfono la mitad de color va primero, se queda pegada, y el texto
+     sube sobre su borde inferior. */
+  @media (max-width: 860px) {
+    .escenario { grid-template-columns: 1fr; min-height: 0; }
+    /* La banda de tinta cede alto hasta que la acción entra en la primera
+       pantalla. La funda se encoge con ella -flex y `min-height: 0`- en vez
+       de desbordarse por arriba, que es lo que hacía con un alto fijo. */
+    .escenario-campo {
+      order: -1;
+      height: 30svh;
+      min-height: 210px;
+      position: sticky;
+      top: var(--barra);
+      gap: 10px;
+      padding: 18px var(--marco);
+    }
+    .escenario-pieza { width: auto; height: auto; flex: 1 1 auto; min-height: 0; }
+    .escenario-ficha { width: 100%; text-align: center; flex: 0 0 auto; }
+    .escenario-texto {
+      position: relative;
+      z-index: 2;
+      background: var(--bg);
+      padding-block: 26px var(--marco);
+      padding-inline: var(--marco);
+    }
+    .escenario-titulo  { margin-block-end: 16px; }
+    .escenario-entrada { margin-block-end: 20px; }
+    .escenario-buscar  { margin-block-end: 18px; }
+    .escenario-etiqueta { margin-block-end: 6px; }
+    .escenario-accion { width: 100%; }
+  }
+}
+
+/* ── Oficios, franja, cifras y plazas ─────────────────────────────────────
+   Cada sección cambia de composición respecto a su vecina: partida, franja
+   horizontal, fila de cifras, lista. Ninguna es una rejilla de tarjetas. */
+@layer components {
+  .oficios {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 88svh;
+    background: var(--bg);
+    border-block-start: 1px solid transparent;
+  }
+
+  .oficios-plato {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--marco);
+    background: var(--surface);
+  }
+  .oficios-plato img {
+    height: min(62svh, 560px);
+    width: auto;
+    object-fit: contain;
+    animation: pieza-entra 420ms var(--salida);
+  }
+
+  /* Centrada y apilada. Con `space-between` y 88svh de alto, el título, el
+     texto y los botones se iban a las esquinas y dejaban un vacío en medio
+     que no era descanso, era una sección sin terminar. */
+  .oficios-columna {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 40px;
+    padding-block: var(--marco);
+    padding-inline-start: var(--marco);
+    padding-inline-end: max(var(--marco), (100% - var(--ancho) / 2));
+  }
+
+  .oficios-pestanas { display: flex; gap: 28px; }
+  .oficios-pestanas button {
+    font: inherit;
+    font-size: var(--step-body);
+    /* Las inactivas no se desvanecen: se leen igual y se distinguen por el
+       peso y por la barra del acento. Texto a media tinta es texto a medias. */
+    color: var(--muted);
+    background: none;
+    border: none;
+    padding: 0 0 8px;
+    cursor: pointer;
+    box-shadow: inset 0 -2px 0 transparent;
+    transition: color 160ms var(--salida), box-shadow 160ms var(--salida);
+  }
+  .oficios-pestanas button.activa {
+    color: var(--ink);
+    font-weight: 500;
+    box-shadow: inset 0 -3px 0 var(--cian);
+  }
+  .oficios-pestanas button:active { transform: translateY(1px); }
+
+  .oficios-medio { max-width: 42ch; }
+  .oficios-titulo { font-size: var(--step-head); color: var(--ink); margin-block-end: 20px; }
+  .oficios-texto  { font-size: var(--step-body); color: var(--ink); }
+
+  .oficios-puntos {
+    display: grid;
+    gap: 22px;
+    margin-block-start: 36px;
+  }
+  .oficios-puntos dt {
+    font-size: var(--step-body);
+    color: var(--ink);
+    font-weight: 600;
+    margin-block-end: 4px;
+  }
+  .oficios-puntos dd {
+    font-size: var(--step-small);
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  .oficios-celdas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .celda {
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 72px;
+    padding: 0 20px;
+    font: inherit;
+    font-size: var(--step-body);
+    font-weight: 500;
+    text-align: center;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+    transition: transform 160ms var(--salida), background 160ms var(--salida);
+  }
+  .celda:active { transform: scale(0.98); }
+  .celda-tinta { background: var(--accion); color: #fff; font-weight: 600; }
+  .celda-tono  { background: var(--surface); color: var(--ink); font-weight: 600; }
+  @media (hover: hover) and (pointer: fine) {
+    .celda-tinta:hover { filter: brightness(1.06); }
+    .celda-tono:hover  { background: #e6ecef; }
+  }
+
+  .franja { background: var(--oscuro); padding: clamp(64px, 9vw, 120px) 0; }
+  .franja-titulo {
+    font-size: var(--step-head);
+    color: var(--bg);
+    padding-inline: max(var(--marco), (100% - var(--ancho)) / 2);
+    margin-block-end: 40px;
+    max-width: 26ch;
+  }
+
+  /* Rejilla, no tira que se arrastra.
+     Era un carrusel horizontal y daba dos problemas de una vez: una fila
+     cortada en el borde se lee como recortada, no como arrastrable; y el
+     `scroll-snap` se comía el relleno de la izquierda -el contenedor nacía
+     con scrollLeft en 48- así que el primer nombre quedaba pegado al canto
+     de la pantalla, a cero pixeles. Dos filas de cinco caben enteras. */
+  .franja-tira {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 36px 24px;
+    padding-inline: max(var(--marco), (100% - var(--ancho)) / 2);
+  }
+  .franja-tira img {
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: contain;
+    display: block;
+    transition: transform 320ms var(--salida);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .franja-tira figure:hover img { transform: translateY(-6px); }
+  }
+  .franja-tira figcaption {
+    margin-block-start: 12px;
+    font-size: var(--step-small);
+    color: #c3ccd1;
+    line-height: 1.4;
+  }
+
+  .cifras {
+    background: var(--bg);
+    padding-block: clamp(72px, 10vw, 150px);
+    padding-inline: max(var(--marco), (100% - var(--ancho)) / 2);
+  }
+  .cifras-titulo { font-size: var(--step-head); color: var(--ink); margin-block-end: 48px; }
+  .cifras-lista {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+  }
+  .cifras-lista > div {
+    padding: 32px 28px 36px;
+    border-radius: 22px;
+  }
+  .cifras-lista > div:nth-child(1) { background: var(--cian); }
+  .cifras-lista > div:nth-child(2) { background: var(--lima); }
+  .cifras-lista > div:nth-child(3) { background: var(--magenta); }
+  .cifras-lista > div:nth-child(4) { background: var(--naranja); }
+  /* Cada cifra de un color del logotipo. Antes las cuatro eran del mismo
+     magenta y la seccion se leia como una lista gris con numeros. */
+  .cifras-lista dt {
+    font-size: var(--step-head);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    margin-block-end: 10px;
+    color: var(--ink);
+  }
+  .cifras-lista dd { color: var(--ink); }
+
+  /* El magenta es el unico lo bastante oscuro para pedir tinta blanca. */
+  .cifras-lista > div:nth-child(3) dt,
+  .cifras-lista > div:nth-child(3) dd { color: #fff; }
+  .cifras-lista dd { font-size: var(--step-body); max-width: 26ch; }
+
+  .plazas {
+    background: var(--surface);
+    padding-block: clamp(72px, 10vw, 150px);
+    padding-inline: max(var(--marco), (100% - var(--ancho)) / 2);
+  }
+  .plazas-titulo { font-size: var(--step-head); color: var(--ink); margin-block-end: 48px; }
+  .plazas-lista {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 44px 32px;
+  }
+  .plazas-nombre { font-size: var(--step-lead); color: var(--ink); margin-block-end: 10px; }
+  .plazas-calle  { font-size: var(--step-body); color: var(--ink); }
+  .plazas-tel {
+    display: inline-block;
+    margin-block-start: 14px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    font-size: var(--step-small);
+    font-weight: 600;
+    color: #fff;
+    background: var(--splash);
+    text-decoration: none;
+    transition: filter 160ms ease, transform 140ms var(--salida);
+  }
+  .plazas-tel:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) {
+    .plazas-tel:hover { filter: brightness(1.07); }
+  }
+
+  @media (max-width: 1100px) and (min-width: 861px) {
+    .franja-tira { grid-template-columns: repeat(5, 1fr); }
+  }
+
+  @media (max-width: 860px) {
+    .oficios { grid-template-columns: 1fr; min-height: 0; }
+    .oficios-plato { padding-block: 40px; }
+    .oficios-plato img { height: 46svh; }
+    .oficios-columna { gap: 32px; padding-block: 36px 48px; }
+    .oficios-celdas { grid-template-columns: 1fr; }
+    .franja-tira { grid-template-columns: repeat(3, 1fr); gap: 28px 18px; }
+  }
+}
+
+/* ── La barra de pestañas ──────────────────────────────────────────────────
+   Plana. Antes eran píldoras con degradado de marca, relieve de tres capas y
+   un emoji delante: el único sitio de la página con degradados, y peleaban
+   con todo lo demás. El estado activo se dice ahora con una sola cosa —tinta
+   llena y una barra debajo— porque dos señales para un estado es una de más.
+
+   El hundido al presionar se queda: cuesta nada y es lo que hace que una cosa
+   se sienta pulsada. */
+@layer components {
+  /* Blanca, pegada a la barra del logotipo: las dos forman un solo bloque
+     sobre el fondo de la página. El escalón de tono separa sin una línea. */
+  .barra-pestanas {
+    position: sticky;
+    z-index: 40;
+    background: #ffffff;
+  }
+
+  .barra-pestanas-dentro {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding-inline: max(var(--marco), (100% - var(--ancho)) / 2);
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .barra-pestanas-dentro::-webkit-scrollbar { display: none; }
+
+  .pestana {
+    position: relative;
+    flex: 0 0 auto;
+    align-self: center;
+    padding: 8px 18px;
+    margin-inline-end: 8px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: var(--step-small);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 150ms ease, background 180ms ease, transform 140ms var(--salida);
+  }
+  .pestana:last-child { margin-inline-end: 0; }
+  .pestana:active { transform: scale(0.97); }
+
+  /* La barra inferior crece desde el centro en vez de aparecer de golpe.
+     Nada en el mundo real aparece de la nada: escala, no se enciende. */
+  .pestana.activa {
+    color: #fff;
+    background: var(--splash);
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .pestana:hover:not(.activa) { color: var(--ink); background: var(--surface); }
+  }
+}
+
+/* ── Movimiento ────────────────────────────────────────────────────────────
+   Todo en CSS y fuera del hilo principal: cuando el navegador está ocupado
+   trayendo los inventarios de las tres plazas, una animación en JavaScript
+   pierde fotogramas justo en la primera pantalla.
+
+   Sólo transform, opacity, filter y clip-path. Ninguna toca el layout. */
+@layer components {
+
+  /* El gesto de la casa: la funda se queda fija mientras el texto pasa, y al
+     salir la primera pantalla se aleja un poco y se inclina, como una pieza
+     que se deja en la mesa. Ligada al scroll, no a un reloj: va exactamente
+     al ritmo del dedo. */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) and (min-width: 861px) {
+      .escenario-pieza {
+        animation: pieza-se-aleja linear both;
+        animation-timeline: view(block);
+        animation-range: exit-crossing 0% exit-crossing 100%;
+      }
+      @keyframes pieza-se-aleja {
+        from { transform: none; }
+        to   { transform: scale(0.88) rotate(-2.5deg); }
+      }
+    }
+  }
+
+  /* Cada funda de la tira se descubre de abajo arriba al entrar en pantalla.
+     Un recorte, no un fundido: la imagen nunca se ve a medio opacar sobre el
+     fondo oscuro, que es donde un fundido se nota sucio. */
+  @media (prefers-reduced-motion: no-preference) {
+    .js .franja-tira figure img {
+      clip-path: inset(0 0 100% 0);
+      transition: clip-path 620ms var(--salida), transform 320ms var(--salida);
+      transition-delay: var(--retraso, 0ms);
+    }
+    .js .franja-tira figure.dentro img {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+
+  /* Los números se ponen de pie uno tras otro. El retraso lo pone el
+     componente, así que la cascada no se escribe dos veces. */
+  @media (prefers-reduced-motion: no-preference) {
+    .js .cifras-lista > div dt {
+      transform: translateY(14px) scale(0.96);
+      transition: transform 560ms var(--salida);
+      transition-delay: calc(var(--retraso, 0ms) + 80ms);
+    }
+    .js .cifras-lista > div.dentro dt { transform: none; }
+  }
+
+  /* El campo de búsqueda, que es la cosa viva de la página, se marca con el
+     acento en cuanto se escribe en él. */
+  .escenario-buscar input { transition: border-color 180ms ease, box-shadow 180ms ease; }
+  .escenario-buscar input:focus-visible {
+    box-shadow: 0 0 0 4px rgba(0, 188, 242, 0.18);
+    outline: none;
+  }
+
+  /* Los resultados bajan en cascada: así se ve que son una lista y no un
+     bloque que apareció. Con transición, no con fotogramas, para que una
+     tecla más no reinicie la animación desde cero. */
+  @media (prefers-reduced-motion: no-preference) {
+    .escenario-resultados { animation: lista-baja 200ms var(--salida); }
+    @keyframes lista-baja {
+      from { opacity: 0; transform: translateY(-6px) scale(0.99); }
+      to   { opacity: 1; transform: none; }
+    }
+  }
+
+  /* El plato de oficios cambia de funda al cambiar de pestaña. El desenfoque
+     tapa el cruce: sin él se ven dos fundas distintas superpuestas. */
+  @media (prefers-reduced-motion: no-preference) {
+    .oficios-plato img { animation: plato-cambia 380ms var(--salida); }
+    @keyframes plato-cambia {
+      from { opacity: 0; filter: blur(8px); transform: scale(0.97); }
+      to   { opacity: 1; filter: blur(0); transform: none; }
+    }
+  }
+}
+
+/* ── Botones ───────────────────────────────────────────────────────────────
+   Tres formas y ni una más: tinta llena para la acción principal, tono para
+   la secundaria, y pestaña de texto para elegir entre iguales.
+
+   Lo que había antes en el panel de inventario era un botón con degradado de
+   dos colores de marca y un resplandor del mismo color debajo. Un relleno
+   plano de un color es más fácil de leer y no compite con la funda, que es
+   lo que hay que mirar. */
+@layer components {
+  .boton-tinta,
+  .boton-tono,
+  .plaza-pest {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    font: inherit;
+    font-size: var(--step-small);
+    font-weight: 500;
+    line-height: 1;
+    padding: 13px 22px;
+    cursor: pointer;
+    transition: background 160ms ease, color 160ms ease, transform 140ms var(--salida);
+  }
+  .boton-tinta:active,
+  .boton-tono:active,
+  .plaza-pest:active { transform: scale(0.97); }
+
+  .boton-tinta { background: var(--accent); color: var(--accent-ink); }
+  .boton-tono  { background: var(--surface); color: var(--ink); }
+  .boton-tinta:disabled { background: var(--surface); color: var(--muted); cursor: default; transform: none; }
+
+  .plaza-pest { background: var(--surface); color: var(--muted); }
+  .plaza-pest.activa { background: var(--ink); color: var(--bg); font-weight: 600; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .boton-tinta:hover:not(:disabled) { background: #8e0e53; }
+    .boton-tono:hover  { background: #e2e6e9; }
+    .plaza-pest:hover:not(.activa) { background: #e2e6e9; color: var(--ink); }
+  }
+}
+
+/* ── Formularios ───────────────────────────────────────────────────────────
+   Las dos pestañas de pedido —«Diseña tu funda» y «Stickers»— venían del
+   diseño viejo: rótulos diminutos en versales, tarjetas con sombra y
+   esquinas de 34px, y píldoras con degradado de dos colores de marca. Aquí
+   usan las mismas fichas que el resto. */
+@layer components {
+  .panel {
+    background: #ffffff;
+    border-radius: 18px;
+    padding: 24px;
+  }
+  .panel-tono { background: var(--surface); border-radius: 18px; padding: 24px; }
+
+  /* Un rótulo de campo se lee en minúsculas y al tamaño pequeño de la
+     escala. En versales a 11px con separación de letras no se lee: se
+     adivina. */
+  .rotulo-campo {
+    display: block;
+    font-size: var(--step-small);
+    color: var(--muted);
+    font-weight: 500;
+    margin-block-end: 6px;
+  }
+
+  /* El número del paso: tinta cuando está hecho, tono cuando falta. */
+  .paso-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    font-size: var(--step-small);
+    font-weight: 600;
+    flex-shrink: 0;
+    transition: background 200ms ease, color 200ms ease;
+  }
+  .paso-num.hecho  { background: var(--ink); color: var(--bg); }
+  .paso-num.espera { background: var(--surface); color: var(--muted); }
+
+  /* El interruptor, sin degradado ni sombra bajo el botón. */
+  .palanca {
+    position: relative;
+    width: 42px; height: 24px;
+    border-radius: 999px;
+    background: #c6ced2;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: background 200ms var(--salida);
+  }
+  .palanca.si { background: var(--accent); }
+  .palanca > span {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    transition: transform 200ms var(--salida);
+  }
+  .palanca.si > span { transform: translateX(18px); }
+
+  /* El botón de WhatsApp. Plano y en el verde de WhatsApp, que ahí sí es un
+     dato -dice a dónde va el pedido- y no un adorno. */
+  .boton-whats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    padding: 15px 0;
+    border: 0;
+    font: inherit;
+    font-size: var(--step-small);
+    font-weight: 600;
+    background: #1f9d55;
+    color: #fff;
+    cursor: pointer;
+    transition: background 160ms ease, transform 140ms var(--salida);
+  }
+  .boton-whats:active { transform: scale(0.98); }
+  .boton-whats:disabled {
+    background: var(--surface);
+    color: var(--muted);
+    cursor: default;
+    transform: none;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .boton-whats:hover:not(:disabled) { background: #198447; }
   }
 }

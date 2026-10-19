@@ -10,9 +10,9 @@ const KEY    = 'config/site.json'
 
 export const DEFAULT_CONFIG = {
   tabs: {
-    inventario: { visible: true, label: 'Consulta de Inventario', emoji: '📋' },
-    personaliza: { visible: true, label: 'Diseña tu Funda',        emoji: '📱' },
-    stikers:     { visible: true, label: 'Pedidos de Stickers',    emoji: '🏷️' },
+    inventario:  { visible: true, label: 'Inventario' },
+    personaliza: { visible: true, label: 'Diseña tu funda' },
+    stikers:     { visible: true, label: 'Stickers' },
   },
   hero: {
     badge:     'Portal de mayoristas',

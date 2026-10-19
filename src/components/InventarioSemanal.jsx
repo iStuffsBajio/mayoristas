@@ -232,19 +232,17 @@ export default function InventarioSemanal({ onLoginClick, busqueda, onBuscar }) 
 
   // ── Render ───────────────────────────────────────────────────────
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
+    <section className="marco py-10 sm:py-14">
 
       {/* ── Encabezado ─────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-7">
         <div>
-          <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#0288AD' }}>
-            Inventario Semanal
-          </p>
-          <h2 className="text-3xl sm:text-4xl font-black" style={{ color: '#101619' }}>
-            Modelos y Existencias
+          <h2 className="rotulo" style={{ fontSize: 'var(--step-head)', color: 'var(--ink)' }}>
+            Inventario de la semana
           </h2>
-          <p className="text-sm mt-1" style={{ color: '#6C818B' }}>
-            Selecciona la sucursal y carga el archivo Excel exportado
+          <p style={{ fontSize: 'var(--step-body)', color: 'var(--ink)', marginTop: 10, maxWidth: '44ch' }}>
+            Elige la sucursal. Lo que ves es lo que había en la caja la última vez
+            que se publicó.
           </p>
         </div>
 
@@ -261,13 +259,10 @@ export default function InventarioSemanal({ onLoginClick, busqueda, onBuscar }) 
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploading}
-                className="flex items-center gap-2 px-5 py-3 text-sm font-semibold text-white transition-all"
-                style={{ background: uploading ? 'rgba(16,22,25,0.09)' : 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: '999px', border: 'none', cursor: uploading ? 'default' : 'pointer', boxShadow: uploading ? 'none' : '0 4px 20px rgba(213,26,122,0.3)', color: uploading ? '#999' : 'white' }}
-                onMouseEnter={e => { if (!uploading) e.currentTarget.style.transform = 'scale(1.04)' }}
-                onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
+                className="boton-tinta"
               >
                 <UploadIcon />
-                {uploading ? 'Guardando en nube...' : allRows ? 'Actualizar Excel' : 'Cargar Excel'}
+                {uploading ? 'Guardando…' : allRows ? 'Actualizar Excel' : 'Cargar Excel'}
               </button>
               <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden"
                 onChange={e => handleFileUpload(e.target.files[0])} />
@@ -275,12 +270,9 @@ export default function InventarioSemanal({ onLoginClick, busqueda, onBuscar }) 
           ) : (
             <button
               onClick={onLoginClick}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-all"
-              style={{ backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', color: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = '#0A0A0A' }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.5)' }}
+              className="boton-tono"
             >
-              🔒 Acceso sucursales
+              Acceso sucursales
             </button>
           )}
         </div>
@@ -294,14 +286,7 @@ export default function InventarioSemanal({ onLoginClick, busqueda, onBuscar }) 
             <button
               key={suc.slug}
               onClick={() => { setSucursal(suc); setSearch('') }}
-              className="px-5 py-2.5 text-sm font-semibold transition-all"
-              style={
-                isActive
-                  ? { background: 'linear-gradient(135deg, #00BCF2, #8DC63F)', borderRadius: '999px', color: 'white', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,188,242,0.25)' }
-                  : { backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', color: '#4A5A61', cursor: 'pointer', background: 'none' }
-              }
-              onMouseEnter={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)' }}
-              onMouseLeave={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)' }}
+              className={'plaza-pest' + (isActive ? ' activa' : '')}
             >
               {suc.name}
               {isActive && allRows && (
@@ -360,12 +345,13 @@ export default function InventarioSemanal({ onLoginClick, busqueda, onBuscar }) 
 
       {/* ── Tarjeta de tabla ───────────────────────────────────── */}
       <div
+        /* Un escalón de tono separa la tabla del fondo. Antes la despegaba una
+           sombra, que es para lo que de verdad flota: menús, diálogos, barras
+           pegadas. Una tabla quieta no flota. */
         style={{
           backgroundColor: '#ffffff',
-          borderRadius: '30px',
-          border: '1px solid rgba(16,22,25,0.05)',
+          borderRadius: 18,
           overflow: 'hidden',
-          boxShadow: '0 4px 24px rgba(16,22,25,0.05)',
         }}
       >
         {/* Barra info superior */}
@@ -402,21 +388,20 @@ export default function InventarioSemanal({ onLoginClick, busqueda, onBuscar }) 
         {loading && (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
             <div style={{ fontSize: 36 }}>⏳</div>
-            <p style={{ fontSize: 14, color: '#8598A1' }}>Leyendo archivo...</p>
+            <p style={{ fontSize: 'var(--step-body)', color: 'var(--muted)' }}>Leyendo archivo…</p>
           </div>
         )}
 
         {/* ── Estado: sin inventario ── */}
         {error && !loading && (
           <div className="flex flex-col items-center justify-center py-20 gap-5">
-            <div style={{ fontSize: 44 }}>📂</div>
             <div style={{ textAlign: 'center' }}>
-              <p className="font-semibold mb-1" style={{ color: '#2C3A40', fontSize: 15 }}>
-                Sin inventario cargado — {sucursal.name}
+              <p className="rotulo" style={{ fontSize: 'var(--step-lead)', color: 'var(--ink)', marginBottom: 10 }}>
+                Sin inventario de {sucursal.name}
               </p>
-              <p style={{ fontSize: 13, color: '#8598A1', maxWidth: 340, lineHeight: 1.6 }}>
+              <p style={{ fontSize: 'var(--step-body)', color: 'var(--ink)', maxWidth: '40ch', lineHeight: 1.6 }}>
                 {canUpload(sucursal.slug)
-                  ? <>Haz clic en <strong style={{ color: '#C4156F' }}>Seleccionar archivo Excel</strong> y elige el archivo exportado de tu sistema para esta sucursal.</>
+                  ? <>Pulsa <strong style={{ color: 'var(--accent)' }}>Seleccionar archivo Excel</strong> y elige el archivo exportado de tu sistema para esta sucursal.</>
                   : <>El inventario de esta sucursal aún no ha sido cargado. Inicia sesión como sucursal para subir el archivo.</>
                 }
               </p>
@@ -424,20 +409,16 @@ export default function InventarioSemanal({ onLoginClick, busqueda, onBuscar }) 
             {canUpload(sucursal.slug) ? (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-6 py-3 font-semibold text-white text-sm"
-                style={{ background: 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: '999px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(213,26,122,0.28)' }}
+                className="boton-tinta"
               >
                 <UploadIcon /> Seleccionar archivo Excel
               </button>
             ) : (
               <button
                 onClick={onLoginClick}
-                className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold transition-all"
-                style={{ backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', color: 'rgba(0,0,0,0.5)', cursor: 'pointer' }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = '#0A0A0A' }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(16,22,25,0.05)'; e.currentTarget.style.color = 'rgba(0,0,0,0.5)' }}
+                className="boton-tono"
               >
-                🔒 Iniciar sesión
+                Iniciar sesión
               </button>
             )}
           </div>

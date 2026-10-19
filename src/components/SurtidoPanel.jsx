@@ -90,6 +90,7 @@ const Th = ({ children, campo, valor, orden, ...r }) => {
   return (
     <th {...r}
       onClick={puedeOrdenar ? () => orden.alternar(campo, valor) : undefined}
+      aria-sort={!puedeOrdenar ? undefined : activa ? (orden.dir === -1 ? 'descending' : 'ascending') : 'none'}
       title={puedeOrdenar ? 'Clic para ordenar' : r.title}
       style={{
         textAlign: r.num ? 'right' : 'left', padding: '9px 10px', fontWeight: 700,

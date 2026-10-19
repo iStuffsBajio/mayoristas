@@ -32,16 +32,16 @@ const IconoWhatsApp = () => (
 // ── Estilos compartidos ───────────────────────────────────────────────────────
 
 const inp = {
-  width: '100%', padding: '10px 14px', borderRadius: 15, border: '1.5px solid rgba(16,22,25,0.09)',
-  backgroundColor: '#F4F7F8', fontSize: 13.5, color: '#101619', outline: 'none',
+  width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(31,43,49,0.18)',
+  backgroundColor: '#fff', fontSize: 'var(--step-small)', color: 'var(--ink)', outline: 'none',
   fontFamily: 'inherit', transition: 'border-color 0.15s', boxSizing: 'border-box',
 }
-const fp = e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }
-const bl = e => { e.target.style.borderColor = 'rgba(16,22,25,0.09)'; e.target.style.backgroundColor = '#f7f8fa' }
+const fp = e => { e.target.style.borderColor = 'var(--accent)' }
+const bl = e => { e.target.style.borderColor = 'rgba(31,43,49,0.18)' }
 
 const Campo = ({ label, children }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-    <label style={{ fontSize: 11, fontWeight: 700, color: '#6C818B', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
+    <label className="rotulo-campo">{label}</label>
     {children}
   </div>
 )
@@ -50,7 +50,7 @@ function Paso({ n, titulo, hecho, resumen, ultimo, children }) {
   return (
     <div style={{ display: 'flex', gap: 14 }}>
       <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ width: 26, height: 26, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, color: 'white', background: hecho ? 'linear-gradient(135deg,#00BCF2,#8DC63F)' : 'rgba(0,0,0,0.16)', transition: 'background 0.25s' }}>
+        <div className={'paso-num ' + (hecho ? 'hecho' : 'espera')}>
           {hecho ? '✓' : n}
         </div>
         {!ultimo && <div style={{ flex: 1, width: 2, backgroundColor: 'rgba(16,22,25,0.05)', marginTop: 6, minHeight: 8 }} />}
@@ -75,15 +75,14 @@ function ResumenPedido({ lineas, totalPiezas }) {
     // Pegajoso solo en pantalla grande. En celular el resumen va debajo del
     // formulario, y ahí quedarse fijo al hacer scroll estorba en vez de ayudar.
     <div className="lg:sticky" style={{ top: 120 }}>
-      <div style={{ background: '#fff', borderRadius: 34, border: '1px solid rgba(16,22,25,0.05)', padding: 18, boxShadow: '0 4px 20px rgba(16,22,25,0.05)' }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: '#9DAEB6', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
+      <div className="panel">
+        <p className="rotulo-campo" style={{ marginBottom: 14 }}>
           Tu pedido
         </p>
 
         {lineas.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '28px 10px' }}>
-            <div style={{ fontSize: 38, marginBottom: 8 }}>📱</div>
-            <p style={{ fontSize: 12.5, color: '#9DAEB6', margin: 0, lineHeight: 1.5 }}>
+          <div style={{ padding: '24px 0' }}>
+            <p style={{ fontSize: 'var(--step-small)', color: 'var(--muted)', margin: 0, lineHeight: 1.6 }}>
               Elige uno o varios modelos y aparecerán aquí
             </p>
           </div>
@@ -92,7 +91,7 @@ function ResumenPedido({ lineas, totalPiezas }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 9, maxHeight: 340, overflowY: 'auto' }}>
               {lineas.map(l => (
                 <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 14, flexShrink: 0, overflow: 'hidden', background: 'linear-gradient(135deg,#f2f3f5,#e8e9eb)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 42, height: 42, flexShrink: 0, overflow: 'hidden', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {l.imagen
                       ? <img src={l.imagen.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       : <span style={{ fontSize: 15, opacity: 0.35 }}>📷</span>}
@@ -305,12 +304,16 @@ export default function Personalizer() {
   const ocultos = modelos ? modelos.totalCatalogo - modelos.items.length : 0
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
-      <div className="mb-8">
-        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#C4156F' }}>Diseña tu funda</p>
-        <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#101619' }}>Arma tu pedido</h2>
-        <p className="text-sm" style={{ color: '#6C818B' }}>
-          Elige los modelos que necesites con su cantidad, asigna un diseño a cada uno y el pedido llega al WhatsApp de la sucursal.
+    <section className="marco py-10 sm:py-14">
+      <div className="mb-10">
+        {/* El rótulo diminuto de encima decía lo mismo que la pestaña activa.
+            Si llevaba información iba dentro del título; no la llevaba. */}
+        <h2 className="rotulo" style={{ fontSize: 'var(--step-head)', color: 'var(--ink)' }}>
+          Arma tu pedido
+        </h2>
+        <p style={{ fontSize: 'var(--step-body)', color: 'var(--ink)', marginTop: 10, maxWidth: '58ch' }}>
+          Elige los modelos que necesites con su cantidad, asigna un diseño a cada uno
+          y el pedido llega al WhatsApp de la sucursal.
         </p>
       </div>
 
@@ -329,10 +332,7 @@ export default function Personalizer() {
                 const activa = sucursal.slug === s.slug
                 return (
                   <button key={s.slug} type="button" onClick={() => setSucursal(s)}
-                    className="px-5 py-2.5 text-sm font-semibold transition-all"
-                    style={activa
-                      ? { background: 'linear-gradient(135deg, #00BCF2, #8DC63F)', borderRadius: 999, color: 'white', border: 'none', cursor: 'pointer', boxShadow: '0 4px 16px rgba(0,188,242,0.25)' }
-                      : { backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: 999, color: '#4A5A61', cursor: 'pointer', background: 'none' }}>
+                    className={'plaza-pest' + (activa ? ' activa' : '')}>
                     {s.nombre}
                   </button>
                 )
@@ -403,7 +403,7 @@ export default function Personalizer() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               {lineas.map(l => (
-                <div key={l.id} style={{ border: `1.5px solid ${l.imagen ? 'rgba(141,198,63,0.35)' : 'rgba(16,22,25,0.09)'}`, borderRadius: 30, padding: 13, background: l.imagen ? 'rgba(141,198,63,0.03)' : '#fff', transition: 'all 0.2s' }}>
+                <div key={l.id} style={{ borderRadius: 14, padding: 14, background: l.imagen ? 'var(--surface)' : '#fff', transition: 'background 200ms ease' }}>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 11 }}>
                     <span style={{ fontSize: 13, fontWeight: 700, color: '#101619', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -438,7 +438,7 @@ export default function Personalizer() {
                         style={{ ...inp, padding: '8px 12px', fontSize: 12.5 }} onFocus={fp} onBlur={bl} />
 
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#6C818B', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Piezas</span>
+                        <span className="rotulo-campo" style={{ marginBottom: 0 }}>Piezas</span>
                         <button type="button" onClick={() => cambiar(l.id, 'cantidad', Math.max(1, Number(l.cantidad) - 1))}
                           style={{ width: 26, height: 26, borderRadius: 9, border: '1px solid rgba(0,0,0,0.12)', background: '#fff', cursor: 'pointer', fontSize: 15, lineHeight: 1, color: '#4A5A61' }}>−</button>
                         <input type="number" min="1" value={l.cantidad}
@@ -476,11 +476,11 @@ export default function Personalizer() {
                 <input value={form.nombre} onChange={set('nombre')} placeholder="Ej. Juan Pérez" style={inp} onFocus={fp} onBlur={bl} />
               </Campo>
 
-              <div style={{ padding: '13px 15px', borderRadius: 34, border: `1.5px solid ${form.mayorista ? 'rgba(0,188,242,0.35)' : 'rgba(16,22,25,0.09)'}`, background: form.mayorista ? 'rgba(0,188,242,0.04)' : '#f7f8fa', transition: 'all 0.2s' }}>
+              <div style={{ padding: '14px 16px', borderRadius: 14, background: 'var(--surface)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 11, cursor: 'pointer' }}>
                   <div onClick={() => setForm(f => ({ ...f, mayorista: !f.mayorista }))}
-                    style={{ width: 40, height: 23, borderRadius: 999, background: form.mayorista ? 'linear-gradient(135deg,#00BCF2,#8DC63F)' : 'rgba(0,0,0,0.15)', position: 'relative', transition: 'all 0.2s', flexShrink: 0 }}>
-                    <div style={{ position: 'absolute', top: 2, left: form.mayorista ? 19 : 2, width: 19, height: 19, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+                    className={'palanca' + (form.mayorista ? ' si' : '')}>
+                    <span />
                   </div>
                   <div>
                     <p style={{ fontSize: 13, fontWeight: 700, color: '#101619', margin: 0 }}>¿Cuentas con registro de mayorista?</p>
@@ -509,7 +509,7 @@ export default function Personalizer() {
               )}
 
               <button type="submit" disabled={!completo || subiendo}
-                style={{ width: '100%', padding: '14px 0', borderRadius: 999, border: 'none', fontSize: 15, fontWeight: 700, cursor: completo && !subiendo ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', background: completo && !subiendo ? 'linear-gradient(135deg,#25D366,#128C7E)' : 'rgba(16,22,25,0.05)', color: completo && !subiendo ? 'white' : 'rgba(0,0,0,0.28)', boxShadow: completo && !subiendo ? '0 6px 20px rgba(37,211,102,0.3)' : 'none' }}>
+                className="boton-whats">
                 <IconoWhatsApp />
                 {subiendo ? (progreso || 'Guardando...') : enviado ? '¡Pedido enviado!' : `Enviar a ${sucursal.nombre} por WhatsApp`}
               </button>

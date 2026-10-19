@@ -121,6 +121,7 @@ function ThOrd({ children, campo, valor, orden, num, title, extra }) {
   const activa = orden.campo === campo
   return (
     <th title={title ?? 'Clic para ordenar'}
+        aria-sort={activa ? (orden.dir === -1 ? 'descending' : 'ascending') : 'none'}
         onClick={() => orden.alternar(campo, valor)}
         style={{
           textAlign: num ? 'right' : 'left', padding: num ? '9px 8px' : '9px 12px',

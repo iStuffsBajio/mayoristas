@@ -74,16 +74,10 @@ function SeccionTabs({ config, save, guardando: gGlobal }) {
                   <div style={{ position: 'absolute', top: 2, left: tab.visible ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
                 </div>
               </label>
-              <span style={{ fontSize: 18, flexShrink: 0 }}>{tab.emoji}</span>
               <div style={{ flex: 1 }}>
                 <Label>Etiqueta</Label>
                 <input value={tab.label || ''} onChange={e => setTabs(t => ({ ...t, [key]: { ...t[key], label: e.target.value } }))}
                   style={{ ...inp, padding: '7px 12px' }} onFocus={fp} onBlur={bl} />
-              </div>
-              <div style={{ flexShrink: 0 }}>
-                <Label>Emoji</Label>
-                <input value={tab.emoji || ''} onChange={e => setTabs(t => ({ ...t, [key]: { ...t[key], emoji: e.target.value } }))}
-                  style={{ ...inp, padding: '7px 12px', width: 64, textAlign: 'center', fontSize: 18 }} onFocus={fp} onBlur={bl} />
               </div>
             </div>
           )

@@ -30,22 +30,21 @@ function PreviewDestacado({ preview, tipo }) {
 
   if (!preview) {
     return (
-      <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', borderRadius: 30, background: 'linear-gradient(135deg,#f7f8fa,#ececec)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, border: '2px dashed rgba(16,22,25,0.09)' }}>
-        <span style={{ fontSize: 48 }}>{esStiker ? '📱' : '🏷️'}</span>
-        <p style={{ fontSize: 13, color: '#9DAEB6', fontWeight: 600, textAlign: 'center', padding: '0 20px' }}>
-          Selecciona un diseño del catálogo o sube tu imagen
+      <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', maxHeight: '58svh', background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <p style={{ fontSize: 'var(--step-small)', color: 'var(--muted)', textAlign: 'center', padding: '0 24px', maxWidth: '24ch' }}>
+          Elige un diseño del catálogo o sube tu imagen y la verás aquí.
         </p>
       </div>
     )
   }
 
   return (
-    <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', borderRadius: 30, overflow: 'hidden', position: 'relative', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+    <div style={{ width: '100%', aspectRatio: esStiker ? '9/16' : '1', maxHeight: '58svh', overflow: 'hidden', position: 'relative', background: 'var(--surface)' }}>
       <img src={preview.url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       {/* Overlay con nombre */}
       {preview.name && (
-        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '16px 14px 12px', background: 'linear-gradient(to top, rgba(0,0,0,0.6), transparent)' }}>
-          <p style={{ fontSize: 12, color: 'white', fontWeight: 600, margin: 0 }}>{preview.name.replace(/\.[^.]+$/, '')}</p>
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 14px', background: 'var(--ink)' }}>
+          <p style={{ fontSize: 'var(--step-small)', color: 'var(--bg)', margin: 0 }}>{preview.name.replace(/\.[^.]+$/, '')}</p>
         </div>
       )}
       {/* Marco decorativo para tipo funda */}
@@ -58,18 +57,18 @@ function PreviewDestacado({ preview, tipo }) {
 
 const Field = ({ label, children }) => (
   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-    <label style={{ fontSize: 11, fontWeight: 700, color: '#6C818B', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
+    <label className="rotulo-campo">{label}</label>
     {children}
   </div>
 )
 
 const inp = {
-  width: '100%', padding: '11px 16px', borderRadius: 30, border: '1.5px solid rgba(16,22,25,0.09)',
-  backgroundColor: '#F4F7F8', fontSize: 14, color: '#101619', outline: 'none',
+  width: '100%', padding: '12px 14px', borderRadius: 10, border: '1px solid rgba(31,43,49,0.18)',
+  backgroundColor: '#fff', fontSize: 'var(--step-small)', color: 'var(--ink)', outline: 'none',
   fontFamily: 'inherit', transition: 'border-color 0.15s', boxSizing: 'border-box',
 }
-const fp = e => { e.target.style.borderColor = 'rgba(213,26,122,0.5)'; e.target.style.backgroundColor = 'rgba(213,26,122,0.02)' }
-const bl = e => { e.target.style.borderColor = 'rgba(16,22,25,0.09)'; e.target.style.backgroundColor = '#f7f8fa' }
+const fp = e => { e.target.style.borderColor = 'var(--accent)' }
+const bl = e => { e.target.style.borderColor = 'rgba(31,43,49,0.18)' }
 
 function FormBase() {
   const { config } = useSiteConfig()
@@ -157,7 +156,7 @@ function FormBase() {
 
         {/* Upload propio */}
         <div>
-          <p style={{ fontSize: 10, fontWeight: 700, color: '#9DAEB6', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>O sube tu propio diseño</p>
+          <p className="rotulo-campo">O sube tu propio diseño</p>
           <div
             onClick={() => inputRef.current?.click()}
             onDragOver={e => { e.preventDefault(); setDragging(true) }}
@@ -182,22 +181,23 @@ function FormBase() {
       </div>
 
       {/* Formulario — columna derecha */}
-      <form onSubmit={handleSubmit} className="lg:col-span-3"
-        style={{ backgroundColor: '#fff', borderRadius: 34, border: '1px solid rgba(16,22,25,0.05)', padding: '28px 24px', boxShadow: '0 4px 24px rgba(16,22,25,0.05)', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <form onSubmit={handleSubmit}
+        className="panel lg:col-span-3"
+        style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
 
         {/* Tipo de stiker: al activarlo se entiende que es para funda de celular
             y se omiten los campos que solo aplican a los personalizados. */}
-        <div style={{ padding: '14px 16px', borderRadius: 34, border: `1.5px solid ${paraCelular ? 'rgba(0,188,242,0.35)' : 'rgba(16,22,25,0.09)'}`, background: paraCelular ? 'rgba(0,188,242,0.05)' : '#f7f8fa', transition: 'all 0.2s' }}>
+        <div style={{ padding: '14px 16px', borderRadius: 14, background: 'var(--surface)' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer' }}>
             <div onClick={() => setParaCelular(v => !v)}
-              style={{ width: 44, height: 25, borderRadius: 999, background: paraCelular ? 'linear-gradient(135deg,#00BCF2,#8DC63F)' : 'rgba(0,0,0,0.15)', position: 'relative', transition: 'all 0.2s', flexShrink: 0 }}>
-              <div style={{ position: 'absolute', top: 2.5, left: paraCelular ? 21 : 2.5, width: 20, height: 20, borderRadius: '50%', background: 'white', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }} />
+              className={'palanca' + (paraCelular ? ' si' : '')}>
+              <span />
             </div>
             <div>
-              <p style={{ fontSize: 14, fontWeight: 800, color: '#101619', margin: 0 }}>
+              <p style={{ fontSize: 'var(--step-body)', fontWeight: 600, color: 'var(--ink)', margin: 0 }}>
                 Mi stiker es para una funda de celular
               </p>
-              <p style={{ fontSize: 12, color: '#8598A1', margin: 0 }}>
+              <p style={{ fontSize: 'var(--step-small)', color: 'var(--muted)', margin: 0 }}>
                 {paraCelular
                   ? 'Se usa el tamaño de funda, no hace falta especificarlo.'
                   : 'Stiker personalizado: indica el tamaño que necesitas.'}
@@ -225,7 +225,7 @@ function FormBase() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {TAMANIOS.map(t => (
                 <button key={t} type="button" onClick={() => setForm(f => ({ ...f, tamanio: t }))}
-                  style={{ padding: '7px 14px', borderRadius: 999, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: form.tamanio === t ? 'linear-gradient(135deg,#D51A7A,#FF6B1A)' : 'none', border: form.tamanio === t ? 'none' : '1.5px solid rgba(0,0,0,0.12)', color: form.tamanio === t ? 'white' : '#555' }}>
+                  className={'plaza-pest' + (form.tamanio === t ? ' activa' : '')}>
                   {t}
                 </button>
               ))}
@@ -257,7 +257,7 @@ function FormBase() {
         {errorMsg && <p style={{ fontSize: 12, color: '#C4156F', marginTop: -8 }}>⚠ {errorMsg}</p>}
 
         <button type="submit" disabled={!completo || subiendo}
-          style={{ width: '100%', padding: '14px 0', borderRadius: 999, border: 'none', fontSize: 15, fontWeight: 700, cursor: completo && !subiendo ? 'pointer' : 'default', fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, transition: 'all 0.2s', background: completo && !subiendo ? 'linear-gradient(135deg,#25D366,#128C7E)' : 'rgba(16,22,25,0.05)', color: completo && !subiendo ? 'white' : 'rgba(0,0,0,0.28)', boxShadow: completo && !subiendo ? '0 6px 20px rgba(37,211,102,0.3)' : 'none' }}
+          className="boton-whats"
           onMouseEnter={e => { if (completo && !subiendo) e.currentTarget.style.transform = 'scale(1.02)' }}
           onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}>
           <WhatsAppIcon />
@@ -270,12 +270,15 @@ function FormBase() {
 
 export default function PedidosStikers() {
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
-      <div className="mb-8">
-        <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: '#C4156F' }}>Stickers Personalizados</p>
-        <h2 className="text-3xl sm:text-4xl font-black mb-1" style={{ color: '#101619' }}>Pedidos para tus clientes</h2>
-        <p className="text-sm" style={{ color: '#6C818B' }}>
-          Indica si el stiker es para funda de celular, elige un diseño del catálogo o sube tu imagen, y envía el pedido por WhatsApp.
+    <section className="marco py-10 sm:py-14">
+      <div className="mb-10">
+        <h2 className="rotulo" style={{ fontSize: 'var(--step-head)', color: 'var(--ink)' }}>
+          Stickers para tus clientes
+        </h2>
+        <p style={{ fontSize: 'var(--step-body)', color: 'var(--ink)', marginTop: 10, maxWidth: '58ch' }}>
+          Di si el sticker es para funda de celular, elige un diseño del catálogo o sube
+          tu imagen, y manda el pedido por WhatsApp. Se imprimen contra el pedido: no hay
+          existencia que se agote.
         </p>
       </div>
 
