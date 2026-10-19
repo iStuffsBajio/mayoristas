@@ -40,31 +40,85 @@
     <meta name="twitter:card" content="summary" />
 
     <!-- Quiénes somos, en el formato que los buscadores entienden sin leer
-         el diseño. No lleva direcciones de calle porque todavía no las tengo:
-         una dirección incompleta en este bloque es peor que ninguna, Google
-         la marca como dato malo. Cuando el dueño pase las direcciones de cada
-         tienda, esto pasa a ser un LocalBusiness por sucursal, que es lo que
-         de verdad conecta el sitio con las fichas de Maps. -->
+         el diseño. Una entrada por tienda, con la dirección tal como está en
+         su ficha de Google: el nombre, la dirección y el teléfono tienen que
+         coincidir letra por letra con la ficha, porque Google los compara
+         para decidir si el sitio y el negocio son el mismo. Si no coinciden,
+         reparte la fuerza en vez de sumarla.
+
+         Los nombres son los de las fichas reales, que hoy son tres
+         distintos. No se unifican aquí: cambiar el nombre de una ficha con
+         años de historial es decisión del dueño y puede costar posición. -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "Store",
+      "@type": "Organization",
       "name": "iStuffs Bajío",
-      "alternateName": ["iStuffs", "iStuffs Custom Cases"],
+      "alternateName": ["iStuffs", "iStuffs Custom Cases", "iStuffs Fundas Personalizadas"],
       "url": "https://istuffsbajio.com",
       "logo": "https://istuffsbajio.com/logo-istuffs.png",
-      "image": "https://istuffsbajio.com/logo-istuffs.png",
       "description": "Fundas, micas y accesorios para celular en León, San Luis Potosí y Aguascalientes. Venta al mayoreo y menudeo, fundas personalizadas e impresión de stickers.",
-      "areaServed": [
-        { "@type": "City", "name": "León", "addressRegion": "Guanajuato" },
-        { "@type": "City", "name": "San Luis Potosí", "addressRegion": "San Luis Potosí" },
-        { "@type": "City", "name": "Aguascalientes", "addressRegion": "Aguascalientes" }
-      ],
-      "address": { "@type": "PostalAddress", "addressCountry": "MX" },
-      "contactPoint": [
-        { "@type": "ContactPoint", "contactType": "sales", "areaServed": "MX", "telephone": "+52-477-663-9890", "availableLanguage": "es" },
-        { "@type": "ContactPoint", "contactType": "sales", "areaServed": "MX", "telephone": "+52-444-501-1007", "availableLanguage": "es" },
-        { "@type": "ContactPoint", "contactType": "sales", "areaServed": "MX", "telephone": "+52-449-394-6507", "availableLanguage": "es" }
+      "subOrganization": [
+        {
+          "@type": "Store",
+          "name": "iStuffs Leon Fundas Personalizadas",
+          "url": "https://istuffsbajio.com",
+          "image": "https://istuffsbajio.com/logo-istuffs.png",
+          "telephone": "+52-477-663-9890",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "5 de Mayo 216, Local 40 Planta Baja",
+            "addressLocality": "León",
+            "addressRegion": "Guanajuato",
+            "postalCode": "37000",
+            "addressCountry": "MX"
+          },
+          "openingHoursSpecification": [{
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+            "opens": "10:30", "closes": "20:00"
+          }]
+        },
+        {
+          "@type": "Store",
+          "name": "ISTUFFS FUNDAS PERSONALIZADAS SLP",
+          "url": "https://istuffsbajio.com",
+          "image": "https://istuffsbajio.com/logo-istuffs.png",
+          "telephone": "+52-444-501-1007",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "Álvaro Obregón 457, interior 403 planta baja",
+            "addressLocality": "San Luis Potosí",
+            "addressRegion": "San Luis Potosí",
+            "postalCode": "78000",
+            "addressCountry": "MX"
+          },
+          "openingHoursSpecification": [{
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+            "opens": "10:30", "closes": "20:00"
+          }]
+        },
+        {
+          "@type": "Store",
+          "name": "iStuffs Aguascalientes",
+          "url": "https://istuffsbajio.com",
+          "image": "https://istuffsbajio.com/logo-istuffs.png",
+          "telephone": "+52-449-394-6507",
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "5 de Mayo 219, Zona Centro",
+            "addressLocality": "Aguascalientes",
+            "addressRegion": "Aguascalientes",
+            "postalCode": "20000",
+            "addressCountry": "MX"
+          },
+          "openingHoursSpecification": [{
+            "@type": "OpeningHoursSpecification",
+            "dayOfWeek": ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"],
+            "opens": "10:30", "closes": "20:00"
+          }]
+        }
       ]
     }
     </script>
