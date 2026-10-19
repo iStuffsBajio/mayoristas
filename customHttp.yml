@@ -26,6 +26,22 @@ customHeaders:
       - key: Cache-Control
         value: 'no-store, must-revalidate'
 
+  # La página de revisión de mockups cambia a mano, no lleva hash en el
+  # nombre y Amplify la guardaba un año en CloudFront. Mientras se corrige
+  # algo ahí, nadie vería el cambio.
+  - pattern: '/mockups.html'
+    headers:
+      - key: Cache-Control
+        value: 'no-store, must-revalidate'
+  - pattern: '/mockups.js'
+    headers:
+      - key: Cache-Control
+        value: 'no-store, must-revalidate'
+  - pattern: '/mockups/indice.json'
+    headers:
+      - key: Cache-Control
+        value: 'no-store, must-revalidate'
+
   # Los archivos con hash en el nombre sí se guardan: un cambio genera un
   # nombre nuevo, así que nunca se sirve una versión vieja por error.
   - pattern: '/assets/*'
