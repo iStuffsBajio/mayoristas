@@ -1,11 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
-const SearchIcon = () => (
-  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
-  </svg>
-)
 const CartIcon = () => (
   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="8" cy="21" r="1" /><circle cx="19" cy="21" r="1" />
@@ -33,7 +28,7 @@ export const ALTO_BARRA = 52
 // sin importar de App, que lo importa a él: eso sería un círculo.
 export const ALTO_TABS = 40
 
-export default function Navbar({ onLoginClick, busqueda = '', onBuscar = () => {} }) {
+export default function Navbar({ onLoginClick }) {
   const { session, logout, branchName } = useAuth()
   const cartCount = 3
 
@@ -52,19 +47,10 @@ export default function Navbar({ onLoginClick, busqueda = '', onBuscar = () => {
             style={{ height: 34, width: 'auto', display: 'block' }} />
         </a>
 
-        {/* Search */}
-        <div className="flex-1 relative">
-          <span className="absolute left-3 top-1/2 pointer-events-none" style={{ color: 'rgba(0,0,0,0.3)', transform: 'translateY(-50%)' }}>
-            <SearchIcon />
-          </span>
-          <input type="text" placeholder="Buscar modelo: a16, iphone 15, tpu..."
-            value={busqueda} onChange={e => onBuscar(e.target.value)}
-            className="w-full text-sm outline-none transition-all"
-            style={{ backgroundColor: 'rgba(0,0,0,0.035)', border: '1px solid rgba(16,22,25,0.05)', borderRadius: '999px', padding: '6px 14px 6px 32px', fontSize: 13, color: '#101619' }}
-            onFocus={e => { e.target.style.borderColor = 'rgba(0,188,242,0.5)'; e.target.style.backgroundColor = 'rgba(0,188,242,0.03)' }}
-            onBlur={e => { e.target.style.borderColor = 'rgba(16,22,25,0.05)'; e.target.style.backgroundColor = 'rgba(0,0,0,0.04)' }}
-          />
-        </div>
+        {/* Un hueco en vez del buscador. El de aquí se quitó: el inventario
+            tiene el suyo, dentro de la pantalla donde se busca, y tener dos
+            campos que hacen lo mismo obligaba a adivinar cuál usar. */}
+        <div className="flex-1" />
 
         {/* Actions */}
         <div className="flex items-center gap-1" style={{ flexShrink: 0 }}>

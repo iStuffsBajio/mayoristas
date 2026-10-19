@@ -111,15 +111,6 @@ function TabBar({ active, onChange }) {
 function AppContent() {
   const [showLogin, setShowLogin] = useState(false)
   const [activeTab, setActiveTab] = useState('inventario')
-
-  // El buscador de la barra de arriba vive aquí porque tiene que poder
-  // cambiar de pestaña. Antes guardaba lo que escribías en una variable que
-  // no se usaba: era el buscador más visible de la página y no hacía nada.
-  const [busqueda, setBusqueda] = useState('')
-  const buscar = q => {
-    setBusqueda(q)
-    if (q.trim()) setActiveTab('inventario')
-  }
   const { isAdmin } = useAuth()
   const { config } = useSiteConfig()
 
@@ -144,7 +135,7 @@ function AppContent() {
     // Sin fondo propio: este contenedor cubre toda la pantalla y su blanco
     // tapaba el degradado de marca que vive en el body.
     <div className="min-h-screen font-sans" style={{ color: '#101619' }}>
-      <Navbar onLoginClick={() => setShowLogin(true)} busqueda={busqueda} onBuscar={buscar} />
+      <Navbar onLoginClick={() => setShowLogin(true)} />
       <TabBar active={safeTab} onChange={setActiveTab} />
       <main>
         {safeTab === 'inventario' && (
@@ -152,8 +143,7 @@ function AppContent() {
             <Hero onExplorar={() => irA('inventario', 'tabla-inventario')}
                   onPersonalizar={() => irA('personaliza')} />
             <Mosaico onIr={irA} />
-            <InventarioSemanal onLoginClick={() => setShowLogin(true)}
-                               busqueda={busqueda} onBuscar={setBusqueda} />
+            <InventarioSemanal onLoginClick={() => setShowLogin(true)} />
           </>
         )}
         {safeTab === 'personaliza' && <Personalizer />}
