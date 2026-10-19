@@ -13,6 +13,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readPsd } from 'ag-psd'
 import { fundaDe, recortar, pareceFunda } from './extraer.mjs'
+import { simularCamara } from './camara.mjs'
 import { emparejar } from './emparejar.mjs'
 
 const args = process.argv.slice(2)
@@ -77,7 +78,7 @@ console.log(`${lista.length} códigos · ${conPsd.length} con mockup · salida: 
 // Un mismo PSD sirve a varios códigos: se lee una vez y se guarda recortado.
 const cache = new Map()
 const indice = []
-let hechos = 0, fallos = []
+let hechos = 0, simulados = 0, fallos = []
 
 for (const p of conPsd) {
   try {
@@ -101,8 +102,13 @@ for (const p of conPsd) {
         chico.getContext('2d').drawImage(c, 0, 0, ANCHO, alto)
         c = chico
       }
+      // Los mockups de dibujo de línea traen los lentes como agujeros
+      // transparentes y se ven planos. Aquí se les dibuja la cámara; los que
+      // ya la traen no tienen agujeros y no se tocan.
+      const lentes = simularCamara(c)
       png = c.toBuffer('image/png')
       cache.set(p.psd.ruta, png)
+      if (lentes) simulados++
     }
     const archivo = `${limpio(p.codigo)}.png`
     fs.writeFileSync(path.join(SALIDA, archivo), png)

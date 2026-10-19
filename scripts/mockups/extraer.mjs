@@ -162,3 +162,67 @@ export function listarPsd(marca = null) {
   }
   return out
 }
+
+/**
+ * Separa el área imprimible del resto de la funda.
+ *
+ * Devuelve dos lienzos:
+ *   hueco — la funda con el centro VACÍO, para poner encima del diseño
+ *   area  — una silueta opaca de ese centro, para recortar el diseño
+ *
+ * Se parte del centro y se extiende por los pixeles casi blancos contiguos.
+ * No vale borrar «todo lo blanco»: el flash de la cámara y los brillos del
+ * marco también son claros, y se abrirían agujeros donde no van.
+ */
+export function separarAreaImprimible(canvas) {
+  const W = canvas.width, H = canvas.height
+  const ctx = canvas.getContext('2d')
+  const img = ctx.getImageData(0, 0, W, H)
+  const d = img.data
+  const claro = i => d[i + 3] > 100 && d[i] > 215 && d[i + 1] > 215 && d[i + 2] > 215
+
+  // Varias semillas por si la cámara o un reflejo tapan una.
+  const semillas = [[0.5, 0.6], [0.5, 0.75], [0.45, 0.5], [0.6, 0.65], [0.5, 0.4]]
+    .map(([fx, fy]) => [Math.floor(W * fx), Math.floor(H * fy)])
+    .filter(([x, y]) => claro((y * W + x) * 4))
+  if (!semillas.length) return null
+
+  const dentro = new Uint8Array(W * H)
+  const visto = new Uint8Array(W * H)
+  const pila = semillas.map(([x, y]) => y * W + x)
+  let n = 0
+  while (pila.length) {
+    const p = pila.pop()
+    if (visto[p]) continue
+    visto[p] = 1
+    if (!claro(p * 4)) continue
+    dentro[p] = 1; n++
+    const x = p % W, y = (p / W) | 0
+    if (x > 0) pila.push(p - 1)
+    if (x < W - 1) pila.push(p + 1)
+    if (y > 0) pila.push(p - W)
+    if (y < H - 1) pila.push(p + W)
+  }
+  // Un área imprimible que no llega ni al 15% del lienzo no es el área: es un
+  // reflejo. Mejor no entregar nada que entregar un recorte equivocado.
+  if (n / (W * H) < 0.15) return null
+
+  const hueco = createCanvas(W, H)
+  const hImg = hueco.getContext('2d').createImageData(W, H)
+  const area = createCanvas(W, H)
+  const aImg = area.getContext('2d').createImageData(W, H)
+
+  for (let p = 0; p < W * H; p++) {
+    const i = p * 4
+    if (dentro[p]) {
+      aImg.data[i] = aImg.data[i + 1] = aImg.data[i + 2] = 255
+      aImg.data[i + 3] = 255
+    } else {
+      hImg.data[i] = d[i]; hImg.data[i + 1] = d[i + 1]
+      hImg.data[i + 2] = d[i + 2]; hImg.data[i + 3] = d[i + 3]
+    }
+  }
+  hueco.getContext('2d').putImageData(hImg, 0, 0)
+  area.getContext('2d').putImageData(aImg, 0, 0)
+  return { hueco, area, proporcion: n / (W * H) }
+}
