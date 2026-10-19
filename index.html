@@ -39,12 +39,69 @@
     <meta property="og:locale" content="es_MX" />
     <meta name="twitter:card" content="summary" />
 
+    <!-- Quiénes somos, en el formato que los buscadores entienden sin leer
+         el diseño. No lleva direcciones de calle porque todavía no las tengo:
+         una dirección incompleta en este bloque es peor que ninguna, Google
+         la marca como dato malo. Cuando el dueño pase las direcciones de cada
+         tienda, esto pasa a ser un LocalBusiness por sucursal, que es lo que
+         de verdad conecta el sitio con las fichas de Maps. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Store",
+      "name": "iStuffs Bajío",
+      "alternateName": ["iStuffs", "iStuffs Custom Cases"],
+      "url": "https://istuffsbajio.com",
+      "logo": "https://istuffsbajio.com/logo-istuffs.png",
+      "image": "https://istuffsbajio.com/logo-istuffs.png",
+      "description": "Fundas, micas y accesorios para celular en León, San Luis Potosí y Aguascalientes. Venta al mayoreo y menudeo, fundas personalizadas e impresión de stickers.",
+      "areaServed": [
+        { "@type": "City", "name": "León", "addressRegion": "Guanajuato" },
+        { "@type": "City", "name": "San Luis Potosí", "addressRegion": "San Luis Potosí" },
+        { "@type": "City", "name": "Aguascalientes", "addressRegion": "Aguascalientes" }
+      ],
+      "address": { "@type": "PostalAddress", "addressCountry": "MX" },
+      "contactPoint": [
+        { "@type": "ContactPoint", "contactType": "sales", "areaServed": "MX", "telephone": "+52-477-663-9890", "availableLanguage": "es" },
+        { "@type": "ContactPoint", "contactType": "sales", "areaServed": "MX", "telephone": "+52-444-501-1007", "availableLanguage": "es" },
+        { "@type": "ContactPoint", "contactType": "sales", "areaServed": "MX", "telephone": "+52-449-394-6507", "availableLanguage": "es" }
+      ]
+    }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Contenido dentro de #root. React lo reemplaza al montar, pero existe
+         para quien lee el HTML sin ejecutar JavaScript: los buscadores en su
+         primera pasada, y el lector de pantalla mientras carga.
+
+         Sin esto el cuerpo llegaba literalmente vacío. Google sí ejecuta
+         JavaScript, pero en una segunda vuelta que puede tardar semanas en un
+         dominio recién creado. Esto le da algo que leer de inmediato.
+
+         De paso sirve de pantalla de carga: se ve el nombre en vez de un
+         blanco, que es lo que había. -->
+    <div id="root">
+      <div style="min-height:60vh;display:flex;align-items:center;justify-content:center;padding:40px 20px;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;text-align:center">
+        <div style="max-width:620px">
+          <h1 style="font-size:clamp(28px,5vw,44px);font-weight:800;letter-spacing:-0.03em;color:#101619;margin:0 0 14px">
+            iStuffs Bajío
+          </h1>
+          <p style="font-size:17px;line-height:1.5;color:rgba(16,22,25,0.66);margin:0 0 10px">
+            Fundas, micas y accesorios para celular al mayoreo y menudeo en
+            León, San Luis Potosí y Aguascalientes.
+          </p>
+          <p style="font-size:15px;line-height:1.5;color:rgba(16,22,25,0.55);margin:0">
+            Consulta las existencias de cada sucursal y manda tu pedido por
+            WhatsApp a cualquier hora. También personalizamos fundas con tu
+            diseño e imprimimos stickers.
+          </p>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
