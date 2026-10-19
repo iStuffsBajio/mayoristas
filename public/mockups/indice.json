@@ -1,0 +1,587 @@
+{
+  "generado": "2026-10-19T03:59:45.769Z",
+  "total": 83,
+  "mockups": [
+    {
+      "codigo": "I13T",
+      "nombre": "IPHONE 13 TPU CASE",
+      "archivo": "I13T.png",
+      "origen": "IPHONE 13-12 PRO MAX 3 EN 1",
+      "piezas": 468
+    },
+    {
+      "codigo": "I11T",
+      "nombre": "IPHONE 11 TPU CASE",
+      "archivo": "I11T.png",
+      "origen": "IPHONE 11 3 EN 1",
+      "piezas": 402
+    },
+    {
+      "codigo": "I143",
+      "nombre": "IPHONE 14/13/15 3 IN 1",
+      "archivo": "I143.png",
+      "origen": "IPHONE 13-14-15 3 EN 1",
+      "piezas": 356
+    },
+    {
+      "codigo": "I12T",
+      "nombre": "IPHONE 12 6.1 TPU CASE",
+      "archivo": "I12T.png",
+      "origen": "IPHONE 12 3 EN 1",
+      "piezas": 295
+    },
+    {
+      "codigo": "MTG24T",
+      "nombre": "MOTO G24/G04/G04S/E14 TPU CASE",
+      "archivo": "MTG24T.png",
+      "origen": "MOTO G04-G24-G24POWER-E14",
+      "piezas": 273
+    },
+    {
+      "codigo": "SGA16T",
+      "nombre": "SAMSUNG A16 TPU CASE",
+      "archivo": "SGA16T.png",
+      "origen": "SAMSUNG A16",
+      "piezas": 271
+    },
+    {
+      "codigo": "I14T",
+      "nombre": "IPHONE 14 TPU CASE",
+      "archivo": "I14T.png",
+      "origen": "IPHONE 13-14-15 3 EN 1",
+      "piezas": 246
+    },
+    {
+      "codigo": "SGA56T",
+      "nombre": "SAMSUNG A56 TPU CASE",
+      "archivo": "SGA56T.png",
+      "origen": "SAMSUNG A56",
+      "piezas": 226
+    },
+    {
+      "codigo": "I15T",
+      "nombre": "IPHONE 15 TPU CASE",
+      "archivo": "I15T.png",
+      "origen": "IPHONE 13-14-15 3 EN 1",
+      "piezas": 219
+    },
+    {
+      "codigo": "I15PMT",
+      "nombre": "IPHONE 15 PRO MAX TPU CASE",
+      "archivo": "I15PMT.png",
+      "origen": "IPHONE 15 PRO MAX 3 EN 1",
+      "piezas": 206
+    },
+    {
+      "codigo": "I16PMT",
+      "nombre": "IPHONE 16 PRO MAX TPU CASE",
+      "archivo": "I16PMT.png",
+      "origen": "IPHONE 16 PRO MAX 3 EN 1",
+      "piezas": 197
+    },
+    {
+      "codigo": "SGA06T",
+      "nombre": "SAMSUNG A06 TPU CASE",
+      "archivo": "SGA06T.png",
+      "origen": "SAMSUNG A06",
+      "piezas": 191
+    },
+    {
+      "codigo": "OPR74GT",
+      "nombre": "OPPO RENO 7 4G TPU CASE",
+      "archivo": "OPR74GT.png",
+      "origen": "OPPO RENO 7 4G",
+      "piezas": 184
+    },
+    {
+      "codigo": "SGA55T",
+      "nombre": "SAMSUNG A55 5G TPU CASE",
+      "archivo": "SGA55T.png",
+      "origen": "SAMSUNG A55",
+      "piezas": 165
+    },
+    {
+      "codigo": "OPA40T",
+      "nombre": "OPPO A40/A60 TPU CASE",
+      "archivo": "OPA40T.png",
+      "origen": "OPPO A40-A60",
+      "piezas": 158
+    },
+    {
+      "codigo": "I14PMT",
+      "nombre": "IPHONE 14 PRO MAX TPU CASE",
+      "archivo": "I14PMT.png",
+      "origen": "IPHONE 14 PRO MAX 3 EN 1",
+      "piezas": 155
+    },
+    {
+      "codigo": "I16T",
+      "nombre": "IPHONE 16 TPU CASE",
+      "archivo": "I16T.png",
+      "origen": "IPHONE 16 3 EN 1",
+      "piezas": 155
+    },
+    {
+      "codigo": "SGA15T",
+      "nombre": "SAMSUNG A15 TPU CASE",
+      "archivo": "SGA15T.png",
+      "origen": "SAMSUNG A15",
+      "piezas": 155
+    },
+    {
+      "codigo": "SGA54T",
+      "nombre": "SAMSUNG A54 TPU CASE",
+      "archivo": "SGA54T.png",
+      "origen": "SAMSUNG A54",
+      "piezas": 147
+    },
+    {
+      "codigo": "I113",
+      "nombre": "IPHONE 11 3 IN 1",
+      "archivo": "I113.png",
+      "origen": "IPHONE 11 3 EN 1",
+      "piezas": 141
+    },
+    {
+      "codigo": "SGA14T",
+      "nombre": "SAMSUNG A14 TPU CASE",
+      "archivo": "SGA14T.png",
+      "origen": "SAMSUNG A14",
+      "piezas": 139
+    },
+    {
+      "codigo": "I16PM3",
+      "nombre": "IPHONE 16 PRO MAX 3 IN 1",
+      "archivo": "I16PM3.png",
+      "origen": "IPHONE 16 PRO MAX 3 EN 1",
+      "piezas": 136
+    },
+    {
+      "codigo": "OPA58T",
+      "nombre": "OPPO A58 TPU CASE",
+      "archivo": "OPA58T.png",
+      "origen": "OPPO A58",
+      "piezas": 130
+    },
+    {
+      "codigo": "SGA17T",
+      "nombre": "GALAXY A17/A26/A27 TPU CASE",
+      "archivo": "SGA17T.png",
+      "origen": "SAMSUNG A26-A17-A27",
+      "piezas": 128
+    },
+    {
+      "codigo": "I15PM3",
+      "nombre": "IPHONE 15 PRO MAX 3 IN 1",
+      "archivo": "I15PM3.png",
+      "origen": "IPHONE 15 PRO MAX 3 EN 1",
+      "piezas": 127
+    },
+    {
+      "codigo": "I13PMT",
+      "nombre": "IPHONE 13 PRO MAX TPU CASE",
+      "archivo": "I13PMT.png",
+      "origen": "IPHONE 13 PRO MAX",
+      "piezas": 126
+    },
+    {
+      "codigo": "MTG15T",
+      "nombre": "MOTO G15 TPU CASE",
+      "archivo": "MTG15T.png",
+      "origen": "MOTO G15-G17",
+      "piezas": 121
+    },
+    {
+      "codigo": "OPA38T",
+      "nombre": "OPPO A38/A18 TPU CASE",
+      "archivo": "OPA38T.png",
+      "origen": "OPPO A38-A18",
+      "piezas": 121
+    },
+    {
+      "codigo": "OPR12FT",
+      "nombre": "OPPO RENO 12F TPU CASE",
+      "archivo": "OPR12FT.png",
+      "origen": "OPPO RENO 12F",
+      "piezas": 121
+    },
+    {
+      "codigo": "OPR13FT",
+      "nombre": "OPPO RENO 13F TPU CASE",
+      "archivo": "OPR13FT.png",
+      "origen": "OPPO RENO 13F",
+      "piezas": 116
+    },
+    {
+      "codigo": "I15PLT",
+      "nombre": "IPHONE 15 PLUS/14 PLUS TPU CASE",
+      "archivo": "I15PLT.png",
+      "origen": "IPHONE 14-15 PLUS 3 EN 1",
+      "piezas": 115
+    },
+    {
+      "codigo": "OPA57T",
+      "nombre": "OPPO A57 / A77 TPU CASE",
+      "archivo": "OPA57T.png",
+      "origen": "OPPO A57-A77",
+      "piezas": 109
+    },
+    {
+      "codigo": "MTG05T",
+      "nombre": "MOTO G05/E15 TPU CASE",
+      "archivo": "MTG05T.png",
+      "origen": "MOTO G05-E15",
+      "piezas": 108
+    },
+    {
+      "codigo": "OPR11T",
+      "nombre": "OPPO RENO 11 5G TPU CASE",
+      "archivo": "OPR11T.png",
+      "origen": "OPPO RENO 11",
+      "piezas": 107
+    },
+    {
+      "codigo": "HM7LT",
+      "nombre": "HONOR MAGIC 7 LITE TPU CASE/ X9C",
+      "archivo": "HM7LT.png",
+      "origen": "HONOR MAGIC 7 LITE",
+      "piezas": 106
+    },
+    {
+      "codigo": "I123",
+      "nombre": "IPHONE 12 3 IN 1",
+      "archivo": "I123.png",
+      "origen": "IPHONE 12 3 EN 1",
+      "piezas": 104
+    },
+    {
+      "codigo": "I13PM3",
+      "nombre": "IPHONE 13 PRO MAX/12 PRO MAX 3 IN 1",
+      "archivo": "I13PM3.png",
+      "origen": "IPHONE 13 PRO MAX",
+      "piezas": 101
+    },
+    {
+      "codigo": "SGA35T",
+      "nombre": "SAMSUNG A35 TPU CASE",
+      "archivo": "SGA35T.png",
+      "origen": "SAMSUNG A35",
+      "piezas": 101
+    },
+    {
+      "codigo": "SGS24UT",
+      "nombre": "SAMSUNG S24 ULTRA TPU CASE",
+      "archivo": "SGS24UT.png",
+      "origen": "SAMSUNG S24 ULTRA",
+      "piezas": 101
+    },
+    {
+      "codigo": "OPA5PT",
+      "nombre": "OPPO A5 PRO TPU CASE",
+      "archivo": "OPA5PT.png",
+      "origen": "OPPO A5 PRO",
+      "piezas": 100
+    },
+    {
+      "codigo": "I15PT",
+      "nombre": "IPHONE 15 PRO TPU CASE",
+      "archivo": "I15PT.png",
+      "origen": "IPHONE 15 PRO",
+      "piezas": 99
+    },
+    {
+      "codigo": "OPR10T",
+      "nombre": "OPPO RENO 10/RENO 10 PRO TPU CASE",
+      "archivo": "OPR10T.png",
+      "origen": "OPPO RENO 10 5G-RENO 10 PRO",
+      "piezas": 99
+    },
+    {
+      "codigo": "I13PT",
+      "nombre": "IPHONE 13 PRO TPU CASE",
+      "archivo": "I13PT.png",
+      "origen": "IPHONE 13 PRO",
+      "piezas": 98
+    },
+    {
+      "codigo": "MTED50FT",
+      "nombre": "MOTO EDGE 50 FUSION TPU CASE",
+      "archivo": "MTED50FT.png",
+      "origen": "MOTO EDGE 50 FUSION",
+      "piezas": 96
+    },
+    {
+      "codigo": "SGA36T",
+      "nombre": "SAMSUNG A36 TPU CASE",
+      "archivo": "SGA36T.png",
+      "origen": "SAMSUNG A36",
+      "piezas": 94
+    },
+    {
+      "codigo": "SGA34T",
+      "nombre": "SAMSUNG A34 TPU CASE",
+      "archivo": "SGA34T.png",
+      "origen": "SAMSUNG A34",
+      "piezas": 93
+    },
+    {
+      "codigo": "SGS24U3",
+      "nombre": "SAMSUNG S24 ULTRA 3 IN 1",
+      "archivo": "SGS24U3.png",
+      "origen": "SAMSUNG S24 ULTRA",
+      "piezas": 91
+    },
+    {
+      "codigo": "XRA5T",
+      "nombre": "XIAOMI REDMI A5/POCCO C71 TPU CASE",
+      "archivo": "XRA5T.png",
+      "origen": "XIAOMI REDMI A5-POCO C71",
+      "piezas": 91
+    },
+    {
+      "codigo": "MTG54T",
+      "nombre": "MOTO G54/G55 TPU CASE",
+      "archivo": "MTG54T.png",
+      "origen": "MOTO G54-G55",
+      "piezas": 88
+    },
+    {
+      "codigo": "SGA26T",
+      "nombre": "SAMSUNG A26 TPU CASE",
+      "archivo": "SGA26T.png",
+      "origen": "SAMSUNG A26-A17-A27",
+      "piezas": 88
+    },
+    {
+      "codigo": "XRN10T",
+      "nombre": "XIAOMI NOTE 10/NOTE 10S/POCCO M5S TPU CASE",
+      "archivo": "XRN10T.png",
+      "origen": "POCO M3 PRO-NOTE 10 5G",
+      "piezas": 88
+    },
+    {
+      "codigo": "SGA05T",
+      "nombre": "SAMSUNG A05 TPU CASE",
+      "archivo": "SGA05T.png",
+      "origen": "SAMSUNG A05",
+      "piezas": 87
+    },
+    {
+      "codigo": "XRN13PT",
+      "nombre": "XIAOMI NOTE 13 PRO 4G/POCCO M6 PRO TPU CASE",
+      "archivo": "XRN13PT.png",
+      "origen": "XIAOMI REDMI NOTE 13 PRO 4G-POCO M6 PRO 4G",
+      "piezas": 87
+    },
+    {
+      "codigo": "HX7CT",
+      "nombre": "HONOR X7C TPU CASE",
+      "archivo": "HX7CT.png",
+      "origen": "HONOR X7C",
+      "piezas": 85
+    },
+    {
+      "codigo": "I14PT",
+      "nombre": "IPHONE 14 PRO TPU CASE",
+      "archivo": "I14PT.png",
+      "origen": "IPHONE 14 PRO",
+      "piezas": 77
+    },
+    {
+      "codigo": "I163",
+      "nombre": "IPHONE 16 3 IN 1",
+      "archivo": "I163.png",
+      "origen": "IPHONE 16 3 EN 1",
+      "piezas": 77
+    },
+    {
+      "codigo": "MTG06T",
+      "nombre": "MOTO G06 TPU CASE",
+      "archivo": "MTG06T.png",
+      "origen": "MOTO G06",
+      "piezas": 74
+    },
+    {
+      "codigo": "MTG30T",
+      "nombre": "MOTO G30/G20 TPU CASE",
+      "archivo": "MTG30T.png",
+      "origen": "MOTO G30-G20-G10",
+      "piezas": 74
+    },
+    {
+      "codigo": "ZA50L3",
+      "nombre": "ZTE AXON 50 LITE/BLADE V50 SMART 3 IN 1",
+      "archivo": "ZA50L3.png",
+      "origen": "ZTE AXON 50 LITE",
+      "piezas": 74
+    },
+    {
+      "codigo": "I12PMT",
+      "nombre": "IPHONE 12 PRO MAX 6.7 TPU CASE",
+      "archivo": "I12PMT.png",
+      "origen": "IPHONE 12 PRO MAX",
+      "piezas": 73
+    },
+    {
+      "codigo": "HX6AT",
+      "nombre": "HONOR X6A/X6A PLUS TPU CASE",
+      "archivo": "HX6AT.png",
+      "origen": "HONOR X6A-X6A PLUS",
+      "piezas": 71
+    },
+    {
+      "codigo": "I14PM3",
+      "nombre": "IPHONE 14 PRO MAX 3 IN 1",
+      "archivo": "I14PM3.png",
+      "origen": "IPHONE 14 PRO MAX 3 EN 1",
+      "piezas": 71
+    },
+    {
+      "codigo": "OPA5T",
+      "nombre": "OPPO A5 TPU CASE",
+      "archivo": "OPA5T.png",
+      "origen": "XIAOMI REDMI A5-POCO C71",
+      "piezas": 71
+    },
+    {
+      "codigo": "I11T-WiHRPYpaKVFJXXD",
+      "nombre": "IPHONE 11 TPU CASE",
+      "archivo": "I11T-WiHRPYpaKVFJXXD.png",
+      "origen": "IPHONE 11 3 EN 1",
+      "piezas": 71
+    },
+    {
+      "codigo": "I13",
+      "nombre": "IPHONE 13 HARD CASE",
+      "archivo": "I13.png",
+      "origen": "IPHONE 13-12 PRO MAX 3 EN 1",
+      "piezas": 70
+    },
+    {
+      "codigo": "MTG53T",
+      "nombre": "MOTO G53/G13/G23 TPU CASE",
+      "archivo": "MTG53T.png",
+      "origen": "MOTO G53",
+      "piezas": 70
+    },
+    {
+      "codigo": "I16PT",
+      "nombre": "IPHONE 16 PRO TPU CASE",
+      "archivo": "I16PT.png",
+      "origen": "IPHONE 16 PRO 3 EN 1",
+      "piezas": 69
+    },
+    {
+      "codigo": "XRN11T",
+      "nombre": "XIAOMI NOTE 11/NOTE 11S TPU CASE",
+      "archivo": "XRN11T.png",
+      "origen": "XIAOMI REDMI NOTE 11-11S",
+      "piezas": 69
+    },
+    {
+      "codigo": "SA324GT",
+      "nombre": "SAMSUNG A32 4G TPU CASE",
+      "archivo": "SA324GT.png",
+      "origen": "SAMSUNG A32 4G",
+      "piezas": 67
+    },
+    {
+      "codigo": "SGS23UT",
+      "nombre": "SAMSUNG S23 ULTRA TPU CASE",
+      "archivo": "SGS23UT.png",
+      "origen": "SAMSUNG S23 ULTRA",
+      "piezas": 66
+    },
+    {
+      "codigo": "XR13CT",
+      "nombre": "XIAOMI REDMI 13C/POCCO C65 TPU CASE",
+      "archivo": "XR13CT.png",
+      "origen": "XIAOMI REDMI 13C- POCO C65",
+      "piezas": 66
+    },
+    {
+      "codigo": "SGS23U3",
+      "nombre": "SAMSUNG S23 ULTRA 3 IN 1",
+      "archivo": "SGS23U3.png",
+      "origen": "SAMSUNG S23 ULTRA",
+      "piezas": 65
+    },
+    {
+      "codigo": "XRN13T",
+      "nombre": "XIAOMI NOTE 13 TPU CASE",
+      "archivo": "XRN13T.png",
+      "origen": "XIAOMI REDMI NOTE 13 4G",
+      "piezas": 65
+    },
+    {
+      "codigo": "IXRT",
+      "nombre": "IPHONE XR TPU CASE",
+      "archivo": "IXRT.png",
+      "origen": "IPHONE XR",
+      "piezas": 63
+    },
+    {
+      "codigo": "XR14CT",
+      "nombre": "XIAOMI REDMI 14C/POCCO C75 TPU CASE",
+      "archivo": "XR14CT.png",
+      "origen": "XIAOMI REDMI 14C-POCO C75",
+      "piezas": 63
+    },
+    {
+      "codigo": "HM6LT",
+      "nombre": "HONOR MAGIC 6 LITE/HONOR X9B TPU CASE",
+      "archivo": "HM6LT.png",
+      "origen": "HONOR MAGIC 6 LITE-HONOR X9B",
+      "piezas": 62
+    },
+    {
+      "codigo": "OPA17T",
+      "nombre": "OPPO A17 TPU CASE",
+      "archivo": "OPA17T.png",
+      "origen": "OPPO A17",
+      "piezas": 62
+    },
+    {
+      "codigo": "HX8AT",
+      "nombre": "HONOR X8A TPU CASE",
+      "archivo": "HX8AT.png",
+      "origen": "HONOR X8A",
+      "piezas": 61
+    },
+    {
+      "codigo": "HX8BT",
+      "nombre": "HONOR X8B TPU CASE",
+      "archivo": "HX8BT.png",
+      "origen": "HONOR X8B",
+      "piezas": 61
+    },
+    {
+      "codigo": "OPA78T",
+      "nombre": "OPPO A78 TPU CASE",
+      "archivo": "OPA78T.png",
+      "origen": "OPPO A78",
+      "piezas": 60
+    },
+    {
+      "codigo": "SGA04T",
+      "nombre": "SAMSUNG A04 TPU CASE",
+      "archivo": "SGA04T.png",
+      "origen": "SAMSUNG A04",
+      "piezas": 60
+    },
+    {
+      "codigo": "SGA05ST",
+      "nombre": "SAMSUNG A05S TPU CASE",
+      "archivo": "SGA05ST.png",
+      "origen": "SAMSUNG A05S",
+      "piezas": 60
+    },
+    {
+      "codigo": "XRN14T",
+      "nombre": "XIAOMI NOTE 14 4G TPU CASE",
+      "archivo": "XRN14T.png",
+      "origen": "XIAOMI REDMI NOTE 14",
+      "piezas": 60
+    }
+  ]
+}
