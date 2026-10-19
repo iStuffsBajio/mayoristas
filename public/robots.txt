@@ -5,4 +5,7 @@ Allow: /
 # El panel de administración no tiene nada que hacer en un buscador.
 Disallow: /inventarios/
 
+# Pagina de trabajo para revisar los mockups, no es de la tienda.
+Disallow: /mockups.html
+
 Sitemap: https://istuffsbajio.com/sitemap.xml

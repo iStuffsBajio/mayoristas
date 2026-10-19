@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revisión de mockups · iStuffs</title>
+
+<!-- Esta página es una herramienta de trabajo, no parte de la tienda. No
+     tiene que salir en Google ni aparecer compartida en WhatsApp. -->
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+
+<style>
+  :root {
+    --tinta: #101619; --suave: #4A5A61; --tenue: #8598A1;
+    --linea: #D6E0E4; --rosa: #C4156F; --verde: #5E9422;
+    --azul: #0288AD; --ambar: #B45309; --fondo: #F7FAFB;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--fondo); color: var(--tinta);
+    font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  }
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(255,255,255,0.93); backdrop-filter: saturate(180%) blur(14px);
+    border-bottom: 1px solid var(--linea); padding: 14px 20px;
+  }
+  .barra { max-width: 1360px; margin: 0 auto; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  h1 { font-size: 17px; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+  .sub { font-size: 12px; color: var(--tenue); }
+  input[type=search] {
+    flex: 1; min-width: 200px; padding: 8px 14px; font-size: 13.5;
+    border: 1px solid var(--linea); border-radius: 999px; outline: none; color: var(--tinta);
+  }
+  input[type=search]:focus { border-color: rgba(0,188,242,0.55); }
+
+  .cifras { display: flex; gap: 8px; flex-wrap: wrap; }
+  .cifra {
+    font-size: 12px; padding: 5px 11px; border-radius: 999px;
+    border: 1px solid var(--linea); background: #fff; white-space: nowrap;
+  }
+  .cifra b { font-weight: 800; }
+
+  main { max-width: 1360px; margin: 0 auto; padding: 20px; }
+  .rejilla {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  }
+  .card {
+    background: #fff; border: 1px solid var(--linea); border-radius: 18px;
+    padding: 12px; display: flex; flex-direction: column; gap: 8px;
+    transition: box-shadow .15s, transform .15s;
+  }
+  .card:hover { box-shadow: 0 6px 20px rgba(16,22,25,0.09); transform: translateY(-2px); }
+
+  /* Cuadros grises: sin esto no se distingue el fondo transparente del
+     blanco del área imprimible, que es justo lo que hay que revisar. */
+  .lienzo {
+    height: 210px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    background-color: #eef3f5;
+    background-image:
+      linear-gradient(45deg, #dde6ea 25%, transparent 25%, transparent 75%, #dde6ea 75%),
+      linear-gradient(45deg, #dde6ea 25%, transparent 25%, transparent 75%, #dde6ea 75%);
+    background-size: 16px 16px; background-position: 0 0, 8px 8px;
+    cursor: zoom-in;
+  }
+  .lienzo img { max-height: 194px; max-width: 100%; object-fit: contain; display: block; }
+
+  .codigo { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--azul); font-weight: 700; }
+  .nombre { font-size: 12px; color: var(--suave); line-height: 1.35;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .pie { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--tenue); }
+
+  .falta { border-style: dashed; border-color: rgba(196,21,111,0.4); background: rgba(196,21,111,0.03); }
+  .falta .lienzo { background: rgba(196,21,111,0.05); background-image: none; color: var(--rosa); font-size: 12px; text-align: center; padding: 14px; cursor: default; }
+
+  /* Mirar una de cerca es la única forma de juzgarla. */
+  .lupa {
+    position: fixed; inset: 0; background: rgba(16,22,25,0.86); z-index: 50;
+    display: none; align-items: center; justify-content: center; padding: 24px; cursor: zoom-out;
+  }
+  .lupa.abierta { display: flex; }
+  .lupa img { max-width: 92vw; max-height: 80vh; object-fit: contain;
+              background-color: #eef3f5;
+              background-image:
+                linear-gradient(45deg, #dde6ea 25%, transparent 25%, transparent 75%, #dde6ea 75%),
+                linear-gradient(45deg, #dde6ea 25%, transparent 25%, transparent 75%, #dde6ea 75%);
+              background-size: 22px 22px; background-position: 0 0, 11px 11px;
+              border-radius: 10px; }
+  .lupa .etiqueta { position: absolute; bottom: 22px; color: #fff; font-size: 14px; text-align: center; width: 100%; }
+
+  .nota { font-size: 12px; color: var(--tenue); line-height: 1.6; margin: 26px 0 0;
+          padding-top: 16px; border-top: 1px solid var(--linea); }
+  .seccion { font-size: 14px; font-weight: 800; margin: 30px 0 12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="barra">
+    <div>
+      <h1>Revisión de mockups</h1>
+      <div class="sub" id="resumen">cargando…</div>
+    </div>
+    <input type="search" id="buscar" placeholder="Buscar: a16, iphone 15, moto…" autocomplete="off">
+    <div class="cifras" id="cifras"></div>
+  </div>
+</header>
+
+<main>
+  <div class="rejilla" id="rejilla"></div>
+
+  <div id="pendientes"></div>
+
+  <p class="nota">
+    El cuadriculado gris es <strong>transparencia</strong>: ahí no hay imagen, y así debe verse
+    alrededor de la funda. Lo blanco de en medio es el área donde se imprime el diseño.
+    Haz clic en cualquiera para verla en grande.
+    <br><br>
+    Si alguna está mal —se coló un fondo, falta la cámara, el recorte comió un borde— dime el
+    <strong>código</strong> y qué le pasa.
+  </p>
+</main>
+
+<div class="lupa" id="lupa"><img id="lupaImg" alt=""><div class="etiqueta" id="lupaTxt"></div></div>
+
+<script>
+// Normaliza igual que el buscador del inventario: sin acentos ni signos y por
+// palabras, para que «a 16» encuentre el «A16» del catálogo.
+const normalizar = t => String(t ?? '')
+  .normalize('NFD').replace(/[̀-ͯ]/g, '')
+  .toUpperCase().replace(/[^A-Z0-9]/g, '')
+
+const coincide = (q, campos) => {
+  const palabras = String(q).split(/\s+/).map(normalizar).filter(Boolean)
+  if (!palabras.length) return true
+  const heno = campos.map(normalizar).join(' ')
+  return palabras.every(p => heno.includes(p))
+}
+
+// Los que todavía no tienen mockup. Se escriben aquí a mano porque vienen del
+// proceso de generación, no del índice: el índice sólo lleva lo que sí salió.
+const SIN_MOCKUP = [
+  { codigo: 'I17T',    nombre: 'IPHONE 17 TPU CASE',                   razon: 'falta el PSD' },
+  { codigo: 'I17PMT',  nombre: 'IPHONE 17 PRO MAX TPU CASE',           razon: 'falta el PSD' },
+  { codigo: 'I17PM3',  nombre: 'IPHONE 17 PRO MAX 3 IN 1',             razon: 'falta el PSD' },
+  { codigo: 'SGA07T',  nombre: 'GALAXY A07 TPU CASE',                  razon: 'falta el PSD' },
+  { codigo: 'OPR14FT', nombre: 'OPPO RENO 14F TPU CASE',               razon: 'falta el PSD' },
+  { codigo: 'MTED60T', nombre: 'MOTO EDGE 60/EDGE 60 FUSION TPU CASE', razon: 'falta el PSD' },
+  { codigo: 'HX6CT',   nombre: 'HONOR X6C TPU CASE',                   razon: 'falta el PSD' },
+  { codigo: 'SGS25UT', nombre: 'SAMSUNG S25 ULTRA TPU CASE',           razon: 'el PSD es plantilla de corte, no mockup' },
+  { codigo: 'SGS25U3', nombre: 'SAMSUNG S25 ULTRA 3 IN 1',             razon: 'el PSD es plantilla de corte, no mockup' },
+]
+
+let datos = []
+
+const tarjeta = m => `
+  <div class="card">
+    <div class="lienzo" data-src="/mockups/${m.archivo}" data-txt="${m.codigo} · ${m.nombre}">
+      <img src="/mockups/${m.archivo}" alt="${m.nombre}" loading="lazy">
+    </div>
+    <div>
+      <div class="codigo">${m.codigo}</div>
+      <div class="nombre">${m.nombre}</div>
+    </div>
+    <div class="pie"><span>${m.piezas} pz vendidas</span></div>
+  </div>`
+
+const tarjetaFalta = m => `
+  <div class="card falta">
+    <div class="lienzo">${m.razon}</div>
+    <div>
+      <div class="codigo">${m.codigo}</div>
+      <div class="nombre">${m.nombre}</div>
+    </div>
+    <div class="pie"><span>sin mockup</span></div>
+  </div>`
+
+function pintar(q = '') {
+  const vis = datos.filter(m => coincide(q, [m.codigo, m.nombre]))
+  document.getElementById('rejilla').innerHTML = vis.map(tarjeta).join('')
+
+  const faltan = SIN_MOCKUP.filter(m => coincide(q, [m.codigo, m.nombre]))
+  document.getElementById('pendientes').innerHTML = faltan.length
+    ? `<div class="seccion">Sin mockup todavía (${faltan.length})</div>
+       <div class="rejilla">${faltan.map(tarjetaFalta).join('')}</div>`
+    : ''
+
+  document.getElementById('resumen').textContent =
+    q ? `${vis.length} de ${datos.length} coinciden` : `${datos.length} fundas listas`
+}
+
+fetch('/mockups/indice.json?t=' + Date.now())
+  .then(r => r.json())
+  .then(j => {
+    datos = j.mockups
+    const fecha = new Date(j.generado).toLocaleDateString('es-MX', { day: 'numeric', month: 'long' })
+    document.getElementById('cifras').innerHTML = `
+      <span class="cifra"><b>${j.total}</b> listas</span>
+      <span class="cifra"><b>${SIN_MOCKUP.length}</b> pendientes</span>
+      <span class="cifra">generadas el ${fecha}</span>`
+    pintar()
+  })
+  .catch(() => { document.getElementById('resumen').textContent = 'No se pudo leer el índice.' })
+
+document.getElementById('buscar').addEventListener('input', e => pintar(e.target.value))
+
+// Ver una en grande
+const lupa = document.getElementById('lupa')
+document.addEventListener('click', e => {
+  const l = e.target.closest('.lienzo[data-src]')
+  if (l) {
+    document.getElementById('lupaImg').src = l.dataset.src
+    document.getElementById('lupaTxt').textContent = l.dataset.txt
+    lupa.classList.add('abierta')
+  } else if (e.target.closest('.lupa')) {
+    lupa.classList.remove('abierta')
+  }
+})
+document.addEventListener('keydown', e => { if (e.key === 'Escape') lupa.classList.remove('abierta') })
+</script>
+</body>
+</html>
