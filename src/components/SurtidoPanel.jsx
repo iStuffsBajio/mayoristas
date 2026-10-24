@@ -142,12 +142,31 @@ const Modelo = ({ f }) => (
   </>
 )
 
-export default function SurtidoPanel({ ambito = 'todo' }) {
+/**
+ * `foco` llega desde el tablero cuando se pulsa «Ver» en una alerta. Sin él,
+ * el boton solo cambiaba de seccion y dejaba al dueno buscando a mano cual de
+ * los 86 renglones era el que le estaban senalando.
+ *
+ * Trae `{ vista, filtro }`: la pestana que abrir y que subconjunto marcar.
+ */
+export default function SurtidoPanel({ ambito = 'todo', foco = null }) {
   const sucursales = SUCURSALES_ACTIVAS
   const opciones = useMemo(() => [TODAS, ...sucursales, ...(FERIAS ? [FERIAS] : [])], [sucursales])
 
   const [sel, setSel]       = useState(TODAS.slug)
-  const [vista, setVistaCruda] = useState(ambito === 'bodega' ? 'compras' : 'venta')
+  const [vista, setVistaCruda] = useState(foco?.vista || (ambito === 'bodega' ? 'compras' : 'venta'))
+
+  // El filtro que pidio la alerta. Se puede quitar desde la pantalla: una vez
+  // visto lo senalado, lo normal es querer ver el resto.
+  const [filtroFoco, setFiltroFoco] = useState(foco?.filtro ?? null)
+
+  // Si llega un foco nuevo -se pulsa otra alerta sin salir del panel- manda el
+  // nuevo, no el que estaba puesto.
+  useEffect(() => {
+    if (!foco) return
+    if (foco.vista) setVistaCruda(foco.vista)
+    setFiltroFoco(foco.filtro ?? null)
+  }, [foco])
   const [altaManual, setAltaManual] = useState(null)   // null = automático
   const [margen, setMargen] = useState(MARGEN_FERIA)
   // Un solo orden para todo el panel. Al cambiar de vista se olvida, porque
@@ -362,6 +381,36 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
     const clases = clasePorModelo(historiales)
     return agotadosPorUbicacion(agotados.filas, clases, sucursales, BODEGA)
   }, [agotados, datos, sucursales])
+
+  // Lo que la alerta queria ensenar. Cada filtro dice tambien POR QUE, para
+  // que quien llega desde el tablero entienda que esta mirando.
+  const FOCOS = useMemo(() => ({
+    claseA: {
+      texto: 'modelos de clase A en cero',
+      nota: 'Clase A es lo que vende 5 o más piezas al mes: 69 modelos que son el 58% de la venta.',
+      filtrar: (filas, clases) => filas.filter(f => (clases?.[f.codigo] ?? 'C') === 'A'),
+    },
+    perdidas: {
+      texto: 'los que más piezas están costando',
+      nota: 'Ordenados por piezas que se habrían vendido: días agotado × lo que vendía al mes.',
+      filtrar: filas => filas.filter(f => piezasPerdidas(f) > 0)
+        .sort((a, b) => piezasPerdidas(b) - piezasPerdidas(a)),
+    },
+    inactivos: {
+      texto: `los que se venden y bodega no compra hace ${DIAS_SIN_COMPRAR}+ días`,
+      nota: 'La fuga no está en la tienda: está en que nadie los repuso.',
+      filtrar: filas => filas.filter(f => f.bodegaDias !== null && f.bodegaDias >= DIAS_SIN_COMPRAR && f.vendiaAlMes > 0),
+    },
+  }), [])
+
+  const focoActivo = filtroFoco ? FOCOS[filtroFoco] : null
+
+  const filasAgotados = useMemo(() => {
+    if (!agotados) return []
+    if (!focoActivo) return agotados.filas
+    const historiales = [...sucursales.map(s => datos?.[s.slug]?.hist), datos?.[FERIAS?.slug]?.hist]
+    return focoActivo.filtrar(agotados.filas, clasePorModelo(historiales))
+  }, [agotados, focoActivo, datos, sucursales])
 
   const comprasVenta = useMemo(
     () => (compras ? separarProduccion(compras.filas).compra.filter(f => f.sugerido > 0) : []),
@@ -635,6 +684,20 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               </div>
             )}
 
+            {/* Cuando se llega desde una alerta, se dice QUE se esta viendo y
+                se deja quitarlo: una vez visto lo senalado, lo normal es
+                querer ver el resto. */}
+            {focoActivo && (
+              <div className="foco-aviso">
+                <span className="foco-marca" />
+                <span>
+                  Mostrando <strong>{filasAgotados.length}</strong> {focoActivo.texto}.
+                  <br /><span className="foco-nota">{focoActivo.nota}</span>
+                </span>
+                <button type="button" onClick={() => setFiltroFoco(null)}>Ver los {agotados.filas.length}</button>
+              </div>
+            )}
+
             {agotados.perdidas > 0 && (
               <div style={{ marginBottom: 14, padding: '13px 15px', borderRadius: 16, background: 'rgba(196,21,111,0.06)', border: '1.5px solid rgba(196,21,111,0.28)' }}>
                 <p style={{ fontSize: 13.5, fontWeight: 800, color: ROSA, margin: 0 }}>
@@ -672,7 +735,7 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               <Th campo="bodega" orden={ord} num style={{ textAlign: 'right' }}>Bodega</Th>
               <Th>Qué hacer</Th>
             </>}>
-              {ord.ordenar(agotados.filas).slice(0, TOPE).map((a, i) => (
+              {ord.ordenar(filasAgotados).slice(0, TOPE).map((a, i) => (
                 <tr key={a.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={a} />
                   <Celda num color={a.plazasConStock === 0 ? ROSA : AMBAR}>

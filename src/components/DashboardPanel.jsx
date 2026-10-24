@@ -161,11 +161,11 @@ export default function DashboardPanel({ onIrA }) {
 
     if (agotados) {
       const claseA = porUbicacion?.reduce((n, u) => n + u.A, 0) ?? 0
-      if (claseA > 0) out.push({ tono: 'grave', texto: `${claseA} ${claseA === 1 ? 'modelo' : 'modelos'} de clase A en cero`, ir: 'bodega' })
-      if (agotados.perdidas > 0) out.push({ tono: 'aviso', texto: `Unas ${agotados.perdidas} piezas perdidas por estar agotado`, ir: 'bodega' })
+      if (claseA > 0) out.push({ tono: 'grave', texto: `${claseA} ${claseA === 1 ? 'modelo' : 'modelos'} de clase A en cero`, ir: 'bodega', foco: { vista: 'agotados', filtro: 'claseA' } })
+      if (agotados.perdidas > 0) out.push({ tono: 'aviso', texto: `Unas ${agotados.perdidas} piezas perdidas por estar agotado`, ir: 'bodega', foco: { vista: 'agotados', filtro: 'perdidas' } })
       const protEnCero = agotadosProtector.length
-      if (protEnCero > 0) out.push({ tono: 'aviso', texto: `${protEnCero} ${protEnCero === 1 ? 'mica o hidrogel' : 'micas o hidrogeles'} en cero`, ir: 'bodega' })
-      if (agotados.inactivos?.length) out.push({ tono: 'aviso', texto: `${agotados.inactivos.length} modelos que se venden y bodega no compra hace ${DIAS_SIN_COMPRAR}+ días`, ir: 'bodega' })
+      if (protEnCero > 0) out.push({ tono: 'aviso', texto: `${protEnCero} ${protEnCero === 1 ? 'mica o hidrogel' : 'micas o hidrogeles'} en cero`, ir: 'bodega', foco: { vista: 'agotados' } })
+      if (agotados.inactivos?.length) out.push({ tono: 'aviso', texto: `${agotados.inactivos.length} modelos que se venden y bodega no compra hace ${DIAS_SIN_COMPRAR}+ días`, ir: 'bodega', foco: { vista: 'agotados', filtro: 'inactivos' } })
     }
 
     if (personal?.filas?.length) {
@@ -197,7 +197,7 @@ export default function DashboardPanel({ onIrA }) {
               <li key={i} className={`alerta alerta-${a.tono}`}>
                 <span className="alerta-marca" aria-hidden="true" />
                 <span className="alerta-texto">{a.texto}</span>
-                {onIrA && <button type="button" onClick={() => onIrA(a.ir)}>Ver</button>}
+                {onIrA && <button type="button" onClick={() => onIrA(a.ir, a.foco)}>Ver</button>}
               </li>
             ))}
           </ul>
