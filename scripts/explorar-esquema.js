@@ -55,7 +55,15 @@ ORDER BY rf.RDB$FIELD_POSITION;
 // están vacías: una columna que existe pero nadie llena no sirve de nada.
 const MUESTRA = cols => `
 SET HEADING OFF;
-SELECT FIRST 5 ${cols.map(c => `COALESCE(CAST(p."${c}" AS VARCHAR(20)), 'nulo')`).join(" || ' | ' || ")}
+SELECT FIRST 6 ${cols.map(c => `COALESCE(CAST(p."${c}" AS VARCHAR(20)), 'nulo')`).join(" || ' | ' || ")}
+FROM PRODUCTOS p
+WHERE p.ELIMINADO_EN IS NULL;
+`
+
+/** Cuantos productos traen valor en cada columna. Existir no es estar llena. */
+const LLENAS = cols => `
+SET HEADING OFF;
+SELECT ${cols.map(c => `'${c}=' || COUNT(CASE WHEN p."${c}" IS NOT NULL AND p."${c}" <> 0 THEN 1 END) || '/' || COUNT(*)`).join(" || '  ' || ")}
 FROM PRODUCTOS p
 WHERE p.ELIMINADO_EN IS NULL;
 `
@@ -71,7 +79,11 @@ async function isql(fdb, sql, workDir, nombre) {
     .split(/\r?\n/).map(l => l.trim()).filter(Boolean)
 }
 
-const DINERO = /PRECIO|COSTO|IMPORTE|MONTO|VALOR|UTILIDAD|MARGEN/i
+// No solo dinero: tambien lo que decide reposicion. `DINVMINIMO` es el punto
+// de reorden que ya esta configurado en el punto de venta, y `USA_INVENTARIO`
+// dice si el producto maneja existencias -la regla de los stickers, que aqui
+// llevamos a mano en produccion.js, Eleventa ya la tiene-.
+const DINERO = /PRECIO|PVENTA|PCOSTO|PFINAL|MAYOREO|COSTO|IMPORTE|MONTO|VALOR|UTILIDAD|MARGEN|GANANCIA|DINVMIN|DINVMAX|USA_INVENTARIO/i
 
 const workDir = fs.mkdtempSync(path.join(os.tmpdir(), 'esquema-'))
 try {
@@ -90,7 +102,7 @@ try {
 
   const candidatas = filas
     .map(f => f.split('|')[0].trim())
-    .filter(c => DINERO.test(c))
+    .filter(c => DINERO.test(c) && !/_ANTERIOR$/.test(c))
 
   console.log(`\n=== columnas que suenan a dinero (${candidatas.length}) ===`)
   if (!candidatas.length) {
