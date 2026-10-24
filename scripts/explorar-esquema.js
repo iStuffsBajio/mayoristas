@@ -53,17 +53,23 @@ ORDER BY rf.RDB$FIELD_POSITION;
 
 // Una muestra de las columnas que suenan a dinero, para ver si traen valor o
 // están vacías: una columna que existe pero nadie llena no sirve de nada.
+// Con codigo y nombre: una columna de precios suelta no se puede interpretar
+// sin saber de que producto habla. Se ordena por existencia para que salgan
+// los que de verdad se mueven, no los de prueba.
 const MUESTRA = cols => `
 SET HEADING OFF;
-SELECT FIRST 6 ${cols.map(c => `COALESCE(CAST(p."${c}" AS VARCHAR(20)), 'nulo')`).join(" || ' | ' || ")}
+SELECT FIRST 12 TRIM(p.CODIGO) || ' | ' || TRIM(SUBSTRING(p.DESCRIPCION FROM 1 FOR 28))
+       || ' | ' || ${cols.map(c => `COALESCE(CAST(p."${c}" AS VARCHAR(16)), 'nulo')`).join(" || ' | ' || ")}
 FROM PRODUCTOS p
-WHERE p.ELIMINADO_EN IS NULL;
+LEFT JOIN INVENTARIO_BALANCES b ON b.PRODUCTO_ID = p.ID
+WHERE p.ELIMINADO_EN IS NULL AND COALESCE(b.CANTIDAD_ACTUAL, 0) > 0
+ORDER BY b.CANTIDAD_ACTUAL DESC;
 `
 
 /** Cuantos productos traen valor en cada columna. Existir no es estar llena. */
 const LLENAS = cols => `
 SET HEADING OFF;
-SELECT ${cols.map(c => `'${c}=' || COUNT(CASE WHEN p."${c}" IS NOT NULL AND p."${c}" <> 0 THEN 1 END) || '/' || COUNT(*)`).join(" || '  ' || ")}
+SELECT ${cols.map(c => `'${c}=' || COUNT(CASE WHEN p."${c}" > 0 THEN 1 END) || '/' || COUNT(*)`).join(" || '  ' || ")}
 FROM PRODUCTOS p
 WHERE p.ELIMINADO_EN IS NULL;
 `
