@@ -879,3 +879,374 @@
     .boton-whats:hover:not(:disabled) { background: #198447; }
   }
 }
+
+/* ── Gráficas del panel ────────────────────────────────────────────────────
+   Las reglas de marca vienen de la guía de visualización: trazos finos,
+   separación de 2px entre tramos para que se distingan sin depender del
+   color, extremos redondeados, rejilla discreta y la cifra escrita al lado.
+
+   El texto nunca lleva el color de la serie: va en tinta, y el color lo
+   carga el punto de la leyenda. Un número magenta junto a una barra magenta
+   se lee como decoración, no como dato. */
+@layer components {
+  .grafica {
+    margin: 0;
+    padding: 22px 24px 18px;
+    background: #fff;
+    border-radius: 18px;
+  }
+
+  .grafica figcaption { margin-block-end: 20px; }
+  .grafica figcaption h4 {
+    margin: 0;
+    font-size: var(--step-body);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .grafica figcaption p {
+    margin: 2px 0 0;
+    font-size: var(--step-small);
+    color: var(--muted);
+  }
+
+  .grafica-filas { display: grid; gap: 10px; }
+
+  .grafica-fila {
+    display: grid;
+    grid-template-columns: minmax(84px, 128px) 1fr auto;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .grafica-nombre {
+    font-size: var(--step-small);
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* La pista de fondo dice cuánto falta para el tope: sin ella una barra
+     corta no se distingue de una barra sin escala. */
+  .grafica-pista {
+    display: flex;
+    gap: 2px;
+    height: 14px;
+    border-radius: 7px;
+    background: #eef2f4;
+    overflow: hidden;
+  }
+
+  .grafica-tramo {
+    height: 100%;
+    min-width: 3px;
+    transition: filter 140ms ease;
+  }
+  .grafica-tramo:first-child { border-start-start-radius: 7px; border-end-start-radius: 7px; }
+  .grafica-tramo:last-child  { border-start-end-radius: 7px;  border-end-end-radius: 7px; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .grafica-pista:hover .grafica-tramo { filter: saturate(0.45) opacity(0.5); }
+    .grafica-pista .grafica-tramo:hover { filter: none; }
+  }
+
+  .grafica-cifra {
+    font-size: var(--step-body);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+    min-width: 2.5ch;
+    text-align: right;
+  }
+
+  .grafica-aviso {
+    margin: 14px 0 0;
+    font-size: var(--step-small);
+    color: var(--ink);
+  }
+
+  .grafica-pie {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-block-start: 18px;
+  }
+
+  .grafica-leyenda {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .grafica-leyenda li {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: var(--step-small);
+    color: var(--muted);
+  }
+
+  .grafica-punto {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+    display: inline-block;
+  }
+
+  .grafica-tabla-boton {
+    border: 0;
+    background: none;
+    padding: 0;
+    font: inherit;
+    font-size: var(--step-small);
+    color: var(--muted);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .grafica-tabla-boton:hover { color: var(--ink); }
+
+  .grafica-tabla {
+    width: 100%;
+    margin-block-start: 16px;
+    border-collapse: collapse;
+    font-size: var(--step-small);
+  }
+  .grafica-tabla th,
+  .grafica-tabla td {
+    padding: 7px 10px;
+    text-align: right;
+    color: var(--ink);
+  }
+  .grafica-tabla thead th,
+  .grafica-tabla tbody th { text-align: left; color: var(--muted); font-weight: 500; }
+  .grafica-tabla tbody tr:nth-child(odd) { background: #f7fafb; }
+
+  .grafica-nota,
+  .grafica-vacia {
+    margin: 14px 0 0;
+    font-size: var(--step-small);
+    color: var(--muted);
+  }
+
+  @media (max-width: 640px) {
+    .grafica { padding: 18px 16px 14px; }
+    .grafica-fila { grid-template-columns: minmax(70px, 96px) 1fr auto; gap: 10px; }
+  }
+}
+
+/* ── Dashboard ─────────────────────────────────────────────────────────────
+   El orden de la pantalla es el orden de la urgencia: primero lo que pide una
+   decisión hoy, después las cifras, y al final el detalle. Un tablero que
+   empieza por el gráfico bonito obliga a buscar el problema. */
+@layer components {
+  .tablero { display: grid; gap: 16px; }
+  .tablero-cargando { font-size: var(--step-body); color: var(--muted); padding: 40px 0; }
+
+  /* ── Lo que pide una decisión ──────────────────────────────────────── */
+  .tablero-alertas {
+    background: #fff;
+    border-radius: 18px;
+    padding: 20px 22px;
+  }
+  .tablero-alertas h3 {
+    margin: 0 0 14px;
+    font-size: var(--step-body);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .tablero-alertas ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .tablero-ok { margin: 0; font-size: var(--step-small); color: var(--muted); }
+
+  .alerta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-radius: 12px;
+    background: var(--surface);
+    font-size: var(--step-small);
+    color: var(--ink);
+  }
+  /* El estado no se dice sólo con color: la marca cambia de forma además de
+     tono, y el texto explica el caso. Un punto de color no es un mensaje. */
+  .alerta-marca { width: 4px; height: 20px; border-radius: 2px; flex-shrink: 0; }
+  .alerta-grave .alerta-marca { background: var(--magenta); }
+  .alerta-aviso .alerta-marca { background: var(--naranja); }
+  .alerta-grave { background: rgba(213, 26, 122, 0.07); }
+  .alerta-texto { flex: 1; }
+  .alerta button {
+    border: 0;
+    background: none;
+    padding: 4px 2px;
+    font: inherit;
+    font-size: var(--step-small);
+    font-weight: 600;
+    color: var(--magenta);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .alerta button:hover { text-decoration: underline; }
+
+  /* ── Las cifras de cabecera ────────────────────────────────────────── */
+  .tablero-cifras {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .cifra { background: #fff; border-radius: 18px; padding: 18px 20px 16px; }
+  .cifra-n {
+    margin: 0;
+    font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    line-height: 1;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .cifra-alerta .cifra-n { color: var(--magenta); }
+  .cifra-que  { margin: 8px 0 0; font-size: var(--step-small); color: var(--ink); }
+  .cifra-nota { margin: 2px 0 0; font-size: var(--step-small); color: var(--muted); }
+
+  /* ── La rejilla de tarjetas ────────────────────────────────────────── */
+  .tablero-rejilla {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 16px;
+    align-items: start;
+  }
+
+  .tarjeta { background: #fff; border-radius: 18px; padding: 22px 24px 18px; }
+  .tarjeta h4 {
+    margin: 0;
+    font-size: var(--step-body);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .tarjeta-sub { margin: 2px 0 18px; font-size: var(--step-small); color: var(--muted); }
+  .tablero-nota { margin: 14px 0 0; font-size: var(--step-small); color: var(--muted); line-height: 1.5; }
+
+  /* ── Barras de una sola serie ──────────────────────────────────────── */
+  .ranking { margin: 0; padding: 0; list-style: none; display: grid; gap: 9px; }
+  .ranking li {
+    display: grid;
+    grid-template-columns: minmax(0, 1.9fr) minmax(56px, 0.9fr) auto;
+    align-items: center;
+    gap: 12px;
+  }
+  .ranking-nombre {
+    font-size: var(--step-small);
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .ranking-pista { height: 10px; border-radius: 5px; background: #eef2f4; overflow: hidden; }
+  .ranking-barra { display: block; height: 100%; border-radius: 5px; min-width: 3px; }
+  .ranking-valor {
+    font-size: var(--step-small);
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    min-width: 3ch;
+    text-align: right;
+  }
+
+  /* ── Personal ──────────────────────────────────────────────────────── */
+  .tablero-personas { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+  .tablero-personas li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+  }
+  .tablero-personas li + li { border-top: 1px solid #eef2f4; }
+  .persona-nombre {
+    font-size: var(--step-small);
+    font-weight: 500;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .persona-plaza {
+    font-size: var(--step-small);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .persona-saldo {
+    font-size: var(--step-small);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    min-width: 7ch;
+    text-align: right;
+  }
+  .persona-saldo.tarde { color: var(--magenta); }
+  .persona-saldo.antes { color: #1f7a4d; }
+
+  /* ── Inventarios ───────────────────────────────────────────────────── */
+  .tablero-plazas { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+  .tablero-plazas li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: baseline;
+    gap: 14px;
+    padding: 9px 0;
+  }
+  .tablero-plazas li + li { border-top: 1px solid #eef2f4; }
+  .plaza-nombre { font-size: var(--step-small); color: var(--ink); }
+  .plaza-piezas {
+    font-size: var(--step-body);
+    font-weight: 600;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .plaza-dias { font-size: var(--step-small); color: var(--muted); min-width: 9ch; text-align: right; }
+  .plaza-dias.viejo { color: var(--magenta); font-weight: 600; }
+
+  @media (max-width: 640px) {
+    .tarjeta, .tablero-alertas { padding: 18px 16px 14px; }
+    .ranking li { grid-template-columns: minmax(0, 1fr) 54px auto; gap: 8px; }
+  }
+}
+
+/* Precios fuera de la raya. La diferencia lleva color porque el signo importa
+   -caro o barato no son lo mismo-, pero el nombre y la plaza van en tinta. */
+@layer components {
+  .tablero-precios { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+  .tablero-precios li {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 0;
+  }
+  .tablero-precios li + li { border-top: 1px solid #eef2f4; }
+  .precio-producto {
+    font-size: var(--step-small);
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .precio-plaza { font-size: var(--step-small); color: var(--muted); white-space: nowrap; }
+  .precio-dif {
+    font-size: var(--step-small);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    min-width: 5ch;
+    text-align: right;
+  }
+  .precio-dif.alto { color: var(--naranja); }
+  .precio-dif.bajo { color: var(--magenta); }
+}

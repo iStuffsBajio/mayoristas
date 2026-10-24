@@ -40,6 +40,28 @@ a las tiendas. Preguntar siempre.
 | `MARGEN_FERIA` | `surtido.js` | `0.3` | Cuánto se pide de más para una feria |
 | `TOLERANCIA_MIN` | `personal.js` | `10` | Minutos de gracia antes de contar retardo |
 | `HORARIOS` | `personal.js` | 10:30 / Torreón 10:00 | Hora de apertura por plaza |
+| `CLASE_A` | `clases.js` | `5` | Piezas al mes desde las que un modelo es clase A |
+| `CLASE_B` | `clases.js` | `2` | Y desde las que es clase B |
+| `MAYOREO_MINIMO` | `precios.js` | `100` | Bajo este mayoreo no se vigila el precio |
+| `DESVIACION` | `precios.js` | `0.15` | Desviación que se considera digna de mirar |
+
+### Los cortes de clase se miden, no se copian
+
+`CLASE_A` y `CLASE_B` salieron de mirar el catálogo real el 2026-10-24: 581
+modelos con venta, 1,337 piezas al mes entre las cuatro tiendas.
+
+|            | modelos | % de la venta |
+|---|---|---|
+| 5+ pz/mes  | 69      | **58%** |
+| 2-5 pz/mes | 107     | 25% |
+| 0-2 pz/mes | 405     | 18% |
+
+El primer intento usó los números de manual —A: 20+, B: 5-20— y con esos
+**todo el catálogo caía en clase C**: el modelo más vendido de la casa hace 22
+piezas al mes y sólo 26 pasan de 10. La gráfica salía de un solo color.
+
+Si el catálogo cambia de tamaño, se vuelven a medir. No se copian de ningún
+sitio.
 
 ### Tres reglas que NO son números y pesan más
 
@@ -57,6 +79,20 @@ tiendas decían ×1.23.
 
 **Los stickers no tienen inventario.** Bodega los imprime cuando hacen falta.
 Un sticker en cero no es un agotado. Ver `produccion.js`.
+
+**Las micas y el hidrogel no se comparan con las fundas.** Llevan su propio
+control de venta y se reponen con otras reglas. Son **ocho códigos de 581**
+—HDA, PV, MT, HDB, HDT, MTT, MU, HDR— pero el **8.3% de la venta**, y ocupan
+**cuatro de los cinco primeros puestos** del ranking: mezclados, las fundas
+que de verdad mueven el mostrador no aparecían por ningún lado.
+
+El ranking pasó de encabezarlo cuatro micas a encabezarlo el Galaxy A07, que
+es lo que había que ver. Ver `familias.js`.
+
+Se identifican por CÓDIGO, igual que los de producción, con el nombre como red
+de seguridad. El patrón acepta las erratas que hay en el catálogo de verdad:
+**HIDRIOGEL** y **HODROGEL** conviven con HIDROGEL, y exigir que alguien
+corrija el catálogo no es un plan.
 
 ---
 
@@ -161,6 +197,43 @@ aporta sus propios píxeles oscuros y una silueta en blanco deja de parecerlo.
 
 Quedan **2 en blanco** (XRN13PT, HX7CT), **2 rechazados** porque el PSD es una
 plantilla de corte (SGS25UT, SGS25U3) y **7 sin PSD**.
+
+---
+
+## ⚠️ VERIFICAR — Los precios de bodega NO sirven
+
+Eleventa guarda 27 columnas por producto; durante meses se extraían cinco.
+Ahora también salen `PVENTA`, `MAYOREO`, `PCOSTO` y `DINVMINIMO`.
+
+**Bodega no mantiene precios porque bodega no vende.** Ahí el iPhone 15 figura
+con precio igual al costo —36.00 contra 36.00, margen −13.8%— y un «mayoreo»
+de 214.14, que es 5.95 veces el costo, la misma proporción exacta en todas las
+fundas. Es basura heredada.
+
+Los precios buenos están en las plazas que venden. En Aguascalientes el mismo
+iPhone 15 es **costo $55, público $250, mayoreo $150**.
+
+`promedioEntrePlazas()` excluye bodega por defecto. **Si alguien la mete, todo
+lo que se valore en pesos saldrá mal.**
+
+**El IVA no se maneja igual en cada plaza.** En bodega `PFINAL = PVENTA × 1.16`;
+en Aguascalientes `PFINAL = PVENTA`. Por eso el precio se guarda tal cual viene
+y no se le aplica ningún impuesto por nuestra cuenta.
+
+**Un cero es «sin capturar», no «gratis».** Por eso los campos se omiten del
+JSON cuando valen cero, en vez de publicar un cero que alguien sume.
+
+**La desviación se mide contra la MEDIANA, no contra el promedio.** Con León a
+$200, San Luis a $200 y Aguascalientes a $100, el promedio es $167 y salían las
+tres plazas desviadas: el que se sale arrastra la referencia y ensucia a los
+que están bien. Con la mediana sólo salta Aguascalientes.
+
+**El umbral de $100 va sobre el MAYOREO, no sobre el costo.** Todo el catálogo
+cuesta entre $55 y $60, así que un umbral de $100 por costo dejaba fuera
+absolutamente todo.
+
+**`USA_INVENTARIO` no sirve para detectar lo que se produce.** Viene en `t`
+para todo, incluido el STIKER DISEÑO. `produccion.js` sigue haciendo falta.
 
 ---
 

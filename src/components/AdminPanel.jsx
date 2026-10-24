@@ -7,6 +7,7 @@ import EstadisticasPanel from './EstadisticasPanel'
 import InventariosPanel from './InventariosPanel'
 import SurtidoPanel from './SurtidoPanel'
 import PersonalPanel from './PersonalPanel'
+import DashboardPanel from './DashboardPanel'
 
 const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
   <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid rgba(16,22,25,0.05)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -401,6 +402,7 @@ function SeccionWhatsApp({ config, save }) {
 // estrecha: había que bajar media pantalla para llegar a la configuración y
 // el espacio de los lados quedaba vacío. Ahora son un menú.
 const SECCIONES = [
+  { id: 'tablero',     icono: '🧭', titulo: 'Dashboard',    sub: 'Lo importante de cada sección' },
   { id: 'ventas',      icono: '📊', titulo: 'Ventas',       sub: 'Movimiento por sucursal' },
   { id: 'inventarios', icono: '📦', titulo: 'Inventarios',  sub: 'Existencias y faltantes' },
   { id: 'surtido',     icono: '🚚', titulo: 'Surtido',      sub: 'Qué mandar a cada plaza' },
@@ -438,7 +440,7 @@ function BotonSeccion({ s, activa, onClick }) {
 
 export default function AdminPanel() {
   const { config, save, guardando } = useSiteConfig()
-  const [seccion, setSeccion] = useState('ventas')
+  const [seccion, setSeccion] = useState('tablero')
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-8 sm:pb-12 pt-4">
@@ -484,6 +486,9 @@ export default function AdminPanel() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
+        {/* El dashboard puede mandar a la seccion que corresponda: una
+            alerta que no lleva a ningun sitio obliga a buscar a mano. */}
+        {seccion === 'tablero'     && <DashboardPanel onIrA={setSeccion} />}
         {seccion === 'ventas'      && <EstadisticasPanel />}
         {seccion === 'inventarios' && <InventariosPanel />}
         {seccion === 'surtido'     && <SurtidoPanel ambito="sucursales" />}

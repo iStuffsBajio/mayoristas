@@ -88,11 +88,35 @@ const SEP = '~|~'
 // El CODIGO se extrae además del nombre: es la clave estable para comparar un
 // producto entre dos fechas. Los nombres se editan en el punto de venta y al
 // hacerlo el producto parecería nuevo, falseando las estadísticas.
+//
+// ── Precios y punto de reorden ──────────────────────────────────────────────
+//
+// Durante meses se extrajeron cinco campos de los veintisiete que guarda
+// Eleventa, y el panel no podía decir cuánto dinero cuesta tener algo agotado:
+// sólo cuántas piezas. «174 piezas perdidas» es un dato; «$26,100 perdidos» es
+// una decisión.
+//
+// PVENTA es el precio al público y MAYOREO el de mayoreo. Ojo: el IVA NO se
+// maneja igual en todas las plazas —en bodega PFINAL = PVENTA × 1.16, en
+// Aguascalientes PFINAL = PVENTA—, así que el precio se guarda tal cual viene
+// y no se le aplica ningún impuesto por nuestra cuenta.
+//
+// Y una advertencia que costó dos corridas descubrir: **los precios de bodega
+// no se mantienen**, porque bodega no vende. Ahí el iPhone 15 figura con
+// precio igual al costo y un «mayoreo» de 5.95 veces el costo, heredado de
+// quién sabe cuándo. Para valorar cualquier cosa en pesos hay que usar los
+// precios de una plaza que VENDA, nunca los de bodega.
+//
+// DINVMINIMO es el punto de reorden que ya está capturado producto por
+// producto en la caja: 15 para el iPhone 13, 50 para las micas. Es el criterio
+// del dueño, y vale más que cualquier cobertura que calculemos nosotros.
 const SQL = `
 SET HEADING OFF;
 SELECT p.CODIGO || '${SEP}' || p.DESCRIPCION || '${SEP}' || COALESCE(b.CANTIDAD_ACTUAL, 0) || '${SEP}' || COALESCE(d.NOMBRE, '')
        || '${SEP}' || COALESCE((SELECT MIN(h.CUANDO_FUE) FROM INVENTARIO_HISTORIAL h WHERE h.PRODUCTO_ID = p.ID), '')
        || '${SEP}' || COALESCE((SELECT MAX(h.CUANDO_FUE) FROM INVENTARIO_HISTORIAL h WHERE h.PRODUCTO_ID = p.ID), '')
+       || '${SEP}' || COALESCE(p.PVENTA, 0) || '${SEP}' || COALESCE(p.MAYOREO, 0)
+       || '${SEP}' || COALESCE(p.PCOSTO, 0) || '${SEP}' || COALESCE(p.DINVMINIMO, 0)
 FROM PRODUCTOS p
 LEFT JOIN INVENTARIO_BALANCES b ON b.PRODUCTO_ID = p.ID
 LEFT JOIN DEPARTAMENTOS d ON d.ID = p.DEPT
@@ -144,16 +168,21 @@ async function consultar(fdb, workDir) {
   const filas = []
   for (const linea of texto.split(/\r?\n/)) {
     if (!linea.includes(SEP)) continue
-    const [codigo, producto, existencia, depto, alta, ultimo] = linea.split(SEP).map(s => s.trim())
+    const [codigo, producto, existencia, depto, alta, ultimo,
+           pventa, mayoreo, pcosto, minimo] = linea.split(SEP).map(s => s.trim())
     if (!producto) continue
     // Las fechas llegan como "2024-04-18 15:03:02.0000"; basta el día.
     const soloDia = v => /^\d{4}-\d{2}-\d{2}/.exec(v ?? '')?.[0] ?? null
     // El último movimiento de un producto que está en cero es cuándo se
     // acabó. Sin esto no hay forma de saber si lleva un día agotado o tres
     // meses, que es la diferencia entre un hueco y un descuido.
+    // Los campos de precio se añadieron después: un respaldo viejo o una
+    // consulta de otra versión pueden no traerlos, y entonces valen 0.
+    const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0 }
     filas.push({
       codigo, producto, existencia: parseFloat(existencia) || 0, depto,
       alta: soloDia(alta), ultimo: soloDia(ultimo),
+      pventa: num(pventa), mayoreo: num(mayoreo), pcosto: num(pcosto), minimo: num(minimo),
     })
   }
   return filas
@@ -298,7 +327,16 @@ async function procesar(suc, workDir) {
 
   const productos = filas
     .filter(f => !deptoOculto(f.depto))
-    .map(f => ({ Codigo: f.codigo, Producto: f.producto, Existencia: f.existencia, Alta: f.alta, UltimoMov: f.ultimo }))
+    .map(f => ({
+      Codigo: f.codigo, Producto: f.producto, Existencia: f.existencia,
+      Alta: f.alta, UltimoMov: f.ultimo,
+      // Cero significa «sin capturar», no «gratis». Quien los lea tiene que
+      // distinguirlo, así que se omiten en vez de publicar un cero engañoso.
+      ...(f.pventa  > 0 && { Precio:  f.pventa }),
+      ...(f.mayoreo > 0 && { Mayoreo: f.mayoreo }),
+      ...(f.pcosto  > 0 && { Costo:   f.pcosto }),
+      ...(f.minimo  > 0 && { Minimo:  f.minimo }),
+    }))
 
   const json = {
     sucursal:  suc.slug,

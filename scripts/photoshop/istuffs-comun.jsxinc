@@ -1,0 +1,79 @@
+// Reglas para reconocer las capas de una plantilla de funda.
+// Son las mismas del plan de estandarizacion: nunca por nombre exacto,
+// porque los nombres cambian entre modelos.
+
+var RE_MARCA = /PATTERN|ISTUFFS|MARCA DE AGUA|WATERMARK/i;
+var RE_MOCKUP = /TRANSPARENTE|MOCKUP/i;
+
+// Todas las capas de pixeles/objeto inteligente, de arriba hacia abajo,
+// entrando en los grupos.
+function capasPlanas(contenedor, salida) {
+    salida = salida || [];
+    for (var i = 0; i < contenedor.layers.length; i++) {
+        var l = contenedor.layers[i];
+        if (l.typename == 'LayerSet') capasPlanas(l, salida);
+        else salida.push(l);
+    }
+    return salida;
+}
+
+function esMarca(l) { return RE_MARCA.test(l.name); }
+
+function esObjetoInteligente(l) { return l.kind == LayerKind.SMARTOBJECT; }
+
+function buscarMarca(doc) {
+    var capas = capasPlanas(doc);
+    for (var i = 0; i < capas.length; i++) if (esMarca(capas[i])) return capas[i];
+    return null;
+}
+
+// Objeto inteligente no recortado con TRANSPARENTE/MOCKUP en el nombre;
+// si no hay, el objeto inteligente no recortado que este mas abajo.
+function buscarMockup(doc) {
+    var capas = capasPlanas(doc), ultimo = null;
+    for (var i = 0; i < capas.length; i++) {
+        var l = capas[i];
+        if (l.grouped || esMarca(l) || !esObjetoInteligente(l)) continue;
+        if (RE_MOCKUP.test(l.name)) return l;
+        ultimo = l;
+    }
+    return ultimo;
+}
+
+// Lo que se imprime: la mascara VISIBLE que tiene diseno recortado encima,
+// mas ese diseno. La otra mascara (oculta) y el mockup no entran.
+function buscarImpresion(doc) {
+    var capas = capasPlanas(doc);
+    for (var i = 0; i < capas.length; i++) {
+        if (!capas[i].grouped) continue;
+        var recortadas = [];
+        var j = i;
+        while (j < capas.length && capas[j].grouped) { recortadas.push(capas[j]); j++; }
+        var base = capas[j];
+        if (base && base.visible && !esMarca(base)) return { base: base, recortadas: recortadas };
+        i = j;
+    }
+    return null;
+}
+
+function desbloquear(l) {
+    try { l.allLocked = false; } catch (e) {}
+    try { l.positionLocked = false; } catch (e) {}
+    try { l.pixelsLocked = false; } catch (e) {}
+    try { l.transparentPixelsLocked = false; } catch (e) {}
+}
+
+// Limites de una capa en pixeles: [izq, arriba, der, abajo].
+function limites(l) {
+    var b = l.bounds;
+    return [b[0].as('px'), b[1].as('px'), b[2].as('px'), b[3].as('px')];
+}
+
+// Corre fn con la regla en pixeles y deja la preferencia como estaba.
+function conPixeles(fn) {
+    var antes = app.preferences.rulerUnits;
+    app.preferences.rulerUnits = Units.PIXELS;
+    try { fn(); } finally { app.preferences.rulerUnits = antes; }
+}
+
+function sinExtension(nombre) { return nombre.replace(/\.psd$/i, ''); }

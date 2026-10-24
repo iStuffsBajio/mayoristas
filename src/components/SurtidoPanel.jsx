@@ -12,6 +12,8 @@ import { descargarSurtido } from '../lib/exportarSurtido'
 import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS, DIAS_SIN_COMPRAR, piezasPerdidas } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
 import { useOrdenTabla } from '../lib/orden'
+import { clasePorModelo, agotadosPorUbicacion } from '../lib/clases'
+import BarrasAgotados from './BarrasAgotados'
 
 // Para la columna de reparto: «leon 9 · slp 4» cabe, los nombres largos no.
 const NOMBRE_CORTO = {
@@ -351,6 +353,16 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
     return analizarAgotados({ inventarios, historiales, productosBodega: bodegaInv.productos })
   }, [datos, sucursales, bodegaInv])
 
+  // Cuantos modelos en cero tiene cada ubicacion, repartidos por clase de
+  // venta. Ferias queda fuera a proposito: cierra ocho meses al ano, asi que
+  // su «agotado» no significa lo mismo que el de una tienda abierta.
+  const porUbicacion = useMemo(() => {
+    if (!agotados || !datos) return null
+    const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
+    const clases = clasePorModelo(historiales)
+    return agotadosPorUbicacion(agotados.filas, clases, sucursales, BODEGA)
+  }, [agotados, datos, sucursales])
+
   const comprasVenta = useMemo(
     () => (compras ? separarProduccion(compras.filas).compra.filter(f => f.sugerido > 0) : []),
     [compras],
@@ -616,6 +628,12 @@ export default function SurtidoPanel({ ambito = 'todo' }) {
               es <strong>Vendía/mes</strong>, que mide los tres meses anteriores a que se acabara: eso es
               lo que se está perdiendo cada mes que siga así.
             </Aviso>
+
+            {porUbicacion && (
+              <div style={{ marginBottom: 14 }}>
+                <BarrasAgotados datos={porUbicacion} />
+              </div>
+            )}
 
             {agotados.perdidas > 0 && (
               <div style={{ marginBottom: 14, padding: '13px 15px', borderRadius: 16, background: 'rgba(196,21,111,0.06)', border: '1.5px solid rgba(196,21,111,0.28)' }}>
