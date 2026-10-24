@@ -1,0 +1,143 @@
+name: Explorar esquema de Eleventa
+
+# Lista las columnas de una tabla de Eleventa. Solo lectura: restaura una copia
+# del respaldo en un directorio temporal y la borra al terminar.
+#
+# Existe porque el panel no puede hablar en pesos: el inventario no trae precio
+# y la consulta de sincronizacion no lo pide. Antes de anadirlo hay que saber
+# como se llama la columna, y el esquema de la base de otro no se adivina.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tabla:
+        description: Tabla a inspeccionar
+        default: PRODUCTOS
+      sucursal:
+        description: Carpeta de respaldo
+        default: BODEGA
+
+jobs:
+  explorar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Instalar dependencias
+        run: npm ci --omit=dev
+
+      - name: Preparar Firebird en contenedor
+        env:
+          IMAGEN: jacobalberty/firebird:2.5-ss
+        run: |
+          # Todo el bloque se canaliza a tee al final, en vez de redirigir con
+          # exec. Con exec la salida se perdia cuando el paso fallaba, que es
+          # justo cuando hace falta leerla.
+          {
+            # Se usa un contenedor en lugar del paquete del sistema por dos
+            # razones. El paquete de Debian corre el motor como el usuario
+            # `firebird` y gbak fallaba con "Permission denied". Y los respaldos
+            # son de Firebird 2.0: esta imagen trae 2.5, que los lee sin riesgo,
+            # en vez del 3.0 de Ubuntu.
+            echo "=== imagen: $IMAGEN ==="
+            docker pull -q "$IMAGEN" && echo "descarga correcta" || echo "FALLO LA DESCARGA"
+
+            echo "=== que trae la imagen ==="
+            docker run --rm --entrypoint sh "$IMAGEN" -c \
+              'echo "PATH=$PATH"; echo "--- binarios de firebird ---"; find / -name "gbak*" -o -name "isql*" 2>/dev/null | head -20' \
+              || echo "no se pudo inspeccionar la imagen"
+
+            # El contenedor se deja ENCENDIDO con el servidor corriendo. En el
+            # intento anterior se creaba uno nuevo por comando y fallaba con
+            # "Unable to complete network request to host localhost": isql y
+            # gbak hablan con un servidor Firebird, y en un contenedor efimero
+            # no hay ninguno escuchando.
+            echo "=== levantando el servidor ==="
+            docker rm -f firebird >/dev/null 2>&1 || true
+            docker run -d --name firebird -v /tmp:/tmp \
+              -e ISC_PASSWORD=masterkey -e FIREBIRD_ROOT_PASSWORD=masterkey \
+              "$IMAGEN" >/dev/null
+
+            echo "=== esperando a que el servidor escuche ==="
+            # La comprobacion anterior era falsa: isql con entrada vacia
+            # devuelve exito sin conectarse a nada. Ahora se intenta una
+            # conexion real contra la base de ejemplo que trae Firebird.
+            listo=0
+            for i in $(seq 1 20); do
+              if docker exec firebird /usr/local/firebird/bin/isql \
+                   -user SYSDBA -password masterkey \
+                   -q -e 'localhost:/usr/local/firebird/examples/empbuild/employee.fdb' \
+                   -i /dev/null >/dev/null 2>&1; then listo=1; break; fi
+              sleep 2
+            done
+            echo "servidor acepta conexiones: $listo (tras $((i*2))s)"
+
+            echo "=== estado del contenedor ==="
+            docker ps --filter name=firebird --format '{{.Status}}'
+            echo "--- registro del contenedor ---"
+            docker logs firebird 2>&1 | tail -25 || echo "(sin registro)"
+            echo "--- procesos dentro ---"
+            docker exec firebird sh -c 'ps ax 2>/dev/null || ps -ef 2>/dev/null' | head -15 || echo "(no se pudo)"
+            echo "--- escucha el puerto 3050? ---"
+            docker exec firebird sh -c \
+              'ss -tln 2>/dev/null || netstat -tln 2>/dev/null || cat /proc/net/tcp' | grep -i -E '3050|0BEA' || echo "puerto 3050 NO aparece"
+            echo "--- que bases hay ---"
+            docker exec firebird sh -c 'ls -la /usr/local/firebird/examples/empbuild/ 2>/dev/null' | head -5 || true
+
+            # Envoltorios que ejecutan las herramientas DENTRO del contenedor
+            # encendido. /tmp esta montado en la misma ruta, asi que los
+            # argumentos del script funcionan sin traducir.
+            for par in "fb-gbak:gbak" "fb-isql:isql"; do
+              nombre="${par%%:*}"; bin="${par##*:}"
+              printf '#!/bin/bash\nexec docker exec -u 0:0 firebird /usr/local/firebird/bin/%s "$@"\n' \
+                "$bin" | sudo tee "/usr/local/bin/$nombre" >/dev/null
+              sudo chmod +x "/usr/local/bin/$nombre"
+            done
+
+            echo "=== version ==="
+            fb-gbak -z || true
+
+            echo "=== prueba del motor ==="
+            mkdir -p /tmp/pruebafb && chmod 777 /tmp/pruebafb
+
+            # Se prueban las dos formas de nombrar la base. Con ruta suelta el
+            # cliente de Firebird en Linux intenta una conexion de red a
+            # localhost; con el prefijo localhost: se hace explicita. Se toma la
+            # que funcione y se recuerda para el resto del flujo.
+            PREFIJO=""
+            for pre in "localhost:" ""; do
+              printf 'CREATE DATABASE "%s/tmp/pruebafb/p%s.fdb";\nSELECT 1 FROM RDB$DATABASE;\n' \
+                "$pre" "${pre:+L}" > /tmp/pruebafb/p.sql
+              echo "--- probando prefijo: '${pre:-ninguno}' ---"
+              if fb-isql -user SYSDBA -password masterkey -i /tmp/pruebafb/p.sql; then
+                echo "FUNCIONA con prefijo '${pre:-ninguno}'"
+                PREFIJO="$pre"
+                echo "PREFIJO_FB=$pre" >> "$GITHUB_ENV"
+                break
+              fi
+            done
+
+            if [ -z "$PREFIJO" ] && ! grep -q 'PREFIJO_FB=' "$GITHUB_ENV" 2>/dev/null; then
+              echo "MOTOR FIREBIRD NO RESPONDE CON NINGUNA FORMA"
+              exit 1
+            fi
+            echo "MOTOR FIREBIRD OK"
+          } 2>&1 | tee -a /tmp/diagnostico.txt
+          exit ${PIPESTATUS[0]}
+
+      - name: Explorar
+        env:
+          GBAK: fb-gbak
+          ISQL: fb-isql
+          FB_PREFIJO: ${{ env.PREFIJO_FB }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_APP_KEY:       ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET:    ${{ secrets.DROPBOX_APP_SECRET }}
+        run: |
+          node scripts/explorar-esquema.js             --origen=dropbox             --tabla=${{ inputs.tabla }}             --sucursal=${{ inputs.sucursal }}
