@@ -10,6 +10,7 @@ import InventarioSemanal from './components/InventarioSemanal'
 import Personalizer from './components/Personalizer'
 import PedidosStikers from './components/PedidosStikers'
 import AdminPanel from './components/AdminPanel'
+import SucursalPanel from './components/SucursalPanel'
 import Footer from './components/Footer'
 import LoginModal from './components/LoginModal'
 
@@ -35,7 +36,10 @@ function Pestana({ tab, activa, onClick }) {
 
 function TabBar({ active, onChange }) {
   const { config } = useSiteConfig()
-  const { isAdmin } = useAuth()
+  const { isAdmin, session } = useAuth()
+  // Una sucursal con sesion tiene su propia pantalla: contesta la cola de
+  // revision y mira su surtido. Antes, entrar con su contrasena no abria nada.
+  const esSucursal = !!session?.branch && !isAdmin
   const { tabs } = config
 
   const visibles = [
@@ -43,6 +47,7 @@ function TabBar({ active, onChange }) {
     tabs.personaliza?.visible !== false && { id: 'personaliza', label: tabs.personaliza?.label || 'Diseña tu funda' },
     tabs.stikers?.visible     !== false && { id: 'stikers',     label: tabs.stikers?.label     || 'Stickers' },
     isAdmin && { id: 'admin', label: 'Panel Admin' },
+    esSucursal && { id: 'sucursal', label: 'Mi panel' },
   ].filter(Boolean)
 
   return (
@@ -59,12 +64,13 @@ function TabBar({ active, onChange }) {
 function AppContent() {
   const [showLogin, setShowLogin] = useState(false)
   const [activeTab, setActiveTab] = useState('inventario')
-  const { isAdmin, vencida } = useAuth()
+  const { isAdmin, vencida, session } = useAuth()
   const { config } = useSiteConfig()
 
   // If active tab was hidden by admin, switch to first visible
   const tabVisible = (id) => {
     if (id === 'admin') return isAdmin
+    if (id === 'sucursal') return !!session?.branch && !isAdmin
     return config.tabs[id]?.visible !== false
   }
   const safeTab = tabVisible(activeTab) ? activeTab : 'inventario'
@@ -109,6 +115,7 @@ function AppContent() {
         {safeTab === 'personaliza' && <Personalizer />}
         {safeTab === 'stikers'     && <PedidosStikers />}
         {safeTab === 'admin'       && isAdmin && <AdminPanel />}
+        {safeTab === 'sucursal'    && !isAdmin && session?.branch && <SucursalPanel />}
       </main>
       <Footer />
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}

@@ -136,6 +136,20 @@ export async function subirDiseno(sucursal, file, nombre, modelo = '') {
  */
 export const turnos = token => pedir('/turnos', { token })
 
+// ── Revisiones del catálogo ──────────────────────────────────────────────────
+//
+// Las respuestas de la cola de revisión las contesta quien tenga sesión —el
+// administrador y cualquier sucursal—, así que no pueden quedarse en el
+// navegador de cada uno: las de León tienen que llegar aquí. Van bajo
+// `revisiones/`, que es privado, y por eso las sirve el backend.
+
+/** Todas las respuestas, de todos, con quién contestó cada caso. */
+export const revisiones = token => pedir('/revisiones', { token })
+
+/** Guarda una respuesta. `estado` en null quita la marca. */
+export const guardarRevision = (id, estado, nota, token) =>
+  pedir('/revisiones', { metodo: 'POST', cuerpo: { id, estado, nota }, token })
+
 // ── Galería del catálogo ─────────────────────────────────────────────────────
 
 /** Imágenes de una carpeta del catálogo, con enlaces temporales. */

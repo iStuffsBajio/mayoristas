@@ -143,14 +143,14 @@ npm run verificar             # ejecuta el paquete en jsdom
 
 `npm run verificar` corre `scripts/verificar-panel.mjs`, que levanta el
 paquete YA CONSTRUIDO con **las tres sesiones** (sin sesión, sucursal,
-administrador), recorre las pestañas y las seis secciones del panel, y pulsa
+administrador), recorre las pestañas y todas las secciones del panel, y pulsa
 **todas las cabeceras ordenables** —las dos direcciones— no las primeras. La
 caída de la pantalla en blanco se escapó porque la comprobación pulsaba
 cuatro y la columna rota era la octava. Falla si el cuerpo se queda vacío o
 si la consola suelta un error.
 
-Hoy cubre: 3 sesiones · 10 pestañas · 8 secciones de admin · 22 cabeceras ·
-3 hallazgos de la cola de revisión. Si alguno de esos números baja, algo dejó
+Hoy cubre: 3 sesiones · 11 pestañas · 10 secciones de panel · 29 cabeceras ·
+6 hallazgos de la cola de revisión. Si alguno de esos números baja, algo dejó
 de pintarse.
 
 Tres cosas que hacen falta para que la comprobación sea de verdad:
@@ -294,6 +294,12 @@ ningún año porque no abre.
 
 ## ⚠️ VERIFICAR — Despliegue
 
+- **`revisiones/` no es público y no puede serlo.** Las notas de la cola de
+  revisión llevan nombres de empleados. La política del bucket sólo abre
+  `inventarios/*` y `config/*`; esas respuestas las sirve el backend, igual
+  que `personal/`. Cada quien escribe **sólo su propio archivo**
+  (`revisiones/<quien>.json`) y al leer se juntan: con uno compartido, dos
+  personas contestando a la vez se borrarían la respuesta sin avisar.
 - **Nunca** poner un secreto en una variable `VITE_*`. Vite las incrusta en el
   JavaScript público. Así estuvieron meses la llave de AWS, el secreto de
   Dropbox y las cinco contraseñas.

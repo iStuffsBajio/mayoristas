@@ -149,11 +149,13 @@ const Modelo = ({ f }) => (
  *
  * Trae `{ vista, filtro }`: la pestana que abrir y que subconjunto marcar.
  */
-export default function SurtidoPanel({ ambito = 'todo', foco = null }) {
+export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = null }) {
   const sucursales = SUCURSALES_ACTIVAS
   const opciones = useMemo(() => [TODAS, ...sucursales, ...(FERIAS ? [FERIAS] : [])], [sucursales])
 
-  const [sel, setSel]       = useState(TODAS.slug)
+  // La sucursal entra ya con la suya puesta: abrir en «todas» la obliga a
+  // buscarse en una lista cada vez.
+  const [sel, setSel]       = useState(plaza ?? TODAS.slug)
   const [vista, setVistaCruda] = useState(foco?.vista || (ambito === 'bodega' ? 'compras' : 'venta'))
 
   // El filtro que pidio la alerta. Se puede quitar desde la pantalla: una vez

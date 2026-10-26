@@ -108,6 +108,8 @@ function respuesta(url) {
   if (/estadistica/i.test(u)) return estadisticas
   if (/historial/i.test(u)) return historial
   if (/turnos/i.test(u)) return turnos
+  // Las respuestas de la cola viven en el backend, no en S3 publico.
+  if (/revisiones/i.test(u)) return { marcas: {} }
   if (/site\.json|config/i.test(u)) return {}
   const plaza = u.match(/inventarios\/([a-z-]+)\/inventario\.json/)?.[1]
   if (plaza) return inventarioDe(plaza)
@@ -398,8 +400,9 @@ for (const [nombre, sesion] of SESIONES) {
       await nuevaVuelta(window, 2)
     }
 
-    // El panel de administración, sección por sección.
-    if (/admin/i.test(etiqueta)) {
+    // Los paneles, seccion por seccion: el de administracion y el de
+    // sucursal, que lleva la misma cola de revision y su propio surtido.
+    if (/admin|mi panel/i.test(etiqueta)) {
       const menu = [...doc.querySelectorAll('button')]
         .filter(x => x.closest('[class*="admin" i], nav, aside') || /pestañ|hero|catálog|color|pie|usuari|dropbox|surtido|compras|personal/i.test(x.textContent))
       const vistas = new Set()

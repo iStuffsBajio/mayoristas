@@ -278,6 +278,100 @@ async function rutaSubirInventario(evento, origen, cuerpo) {
   return responder(origen, 200, { ok: true, totalProductos: productos.length })
 }
 
+// ── Revisiones del catálogo ────────────────────────────────────────────────
+//
+// Lo que cada quien contesta en la cola de revisión. Antes vivía en el
+// navegador, y eso servía mientras lo mirara una sola persona: en cuanto León
+// empieza a contestar casos, sus respuestas se quedaban en su máquina y aquí
+// no llegaba ninguna.
+//
+// **Cada quien escribe SOLO su propio archivo.** Es lo que evita que dos
+// personas contestando a la vez se pisen: con un único archivo compartido
+// haría falta leer, modificar y volver a escribir, y la respuesta de quien
+// guardara medio segundo después borraría la otra sin avisar. Al leer se
+// juntan todos.
+//
+// Van bajo `revisiones/`, que la política del bucket NO abre al público: las
+// notas llevan nombres de empleados. Por eso se sirven desde aquí.
+
+const ESTADOS = new Set(['pendiente', 'ignorado'])
+
+const quienEs = sesion => (sesion.admin ? 'admin' : sesion.sucursal)
+
+const claveRevisiones = quien => `revisiones/${quien}.json`
+
+async function leerJson(clave) {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: clave }))
+    const v = JSON.parse(await r.Body.transformToString())
+    return v && typeof v === 'object' ? v : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Todas las respuestas, de todos. Requiere sesión de cualquier tipo.
+ *
+ * Si dos personas contestaron el mismo caso gana la más reciente, y se dice
+ * quién fue: que León y bodega digan cosas distintas del mismo código es un
+ * dato, no un empate que haya que esconder.
+ */
+async function rutaRevisiones(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesión.' })
+
+  const quienes = ['admin', ...Object.keys(SUCURSALES)]
+  const archivos = await Promise.all(quienes.map(async q => [q, await leerJson(claveRevisiones(q))]))
+
+  const marcas = {}
+  for (const [quien, datos] of archivos) {
+    for (const [id, m] of Object.entries(datos)) {
+      if (!m || typeof m !== 'object') continue
+      const previo = marcas[id]
+      if (previo && String(previo.fecha ?? '') > String(m.fecha ?? '')) continue
+      marcas[id] = { ...m, por: quien }
+    }
+  }
+  return responder(origen, 200, { marcas })
+}
+
+/** Guarda una respuesta. Cada quien en su propio archivo. */
+async function rutaGuardarRevision(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesión.' })
+
+  const id = String(cuerpo?.id ?? '').slice(0, 200)
+  if (!id) return responder(origen, 400, { error: 'Falta el caso.' })
+
+  const estado = cuerpo?.estado == null ? null : String(cuerpo.estado)
+  if (estado !== null && !ESTADOS.has(estado)) {
+    return responder(origen, 400, { error: 'Estado desconocido.' })
+  }
+
+  const quien = quienEs(sesion)
+  if (!quien) return responder(origen, 403, { error: 'Sesión sin sucursal.' })
+
+  const mias = await leerJson(claveRevisiones(quien))
+  if (estado === null) delete mias[id]
+  else mias[id] = { estado, nota: String(cuerpo.nota ?? '').slice(0, 500), fecha: new Date().toISOString() }
+
+  // Un tope por si alguien deja el navegador marcando: el archivo lo escribe
+  // una persona, no un proceso.
+  if (Object.keys(mias).length > 5000) {
+    return responder(origen, 413, { error: 'Demasiadas respuestas guardadas.' })
+  }
+
+  await s3.send(new PutObjectCommand({
+    Bucket:       BUCKET,
+    Key:          claveRevisiones(quien),
+    Body:         Buffer.from(JSON.stringify(mias)),
+    ContentType:  'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+  return responder(origen, 200, { ok: true, por: quien })
+}
+
 /**
  * Turnos del personal. Solo administrador.
  *
@@ -332,6 +426,8 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/login')      return await rutaLogin(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/galeria')    return await rutaGaleria(evento, origen)
     if (metodo === 'GET'  && ruta === '/turnos')     return await rutaTurnos(evento, origen)
+    if (metodo === 'GET'  && ruta === '/revisiones') return await rutaRevisiones(evento, origen)
+    if (metodo === 'POST' && ruta === '/revisiones') return await rutaGuardarRevision(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/diseno')     return await rutaSubirDiseno(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/config')     return await rutaGuardarConfig(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/inventario') return await rutaSubirInventario(evento, origen, cuerpo)

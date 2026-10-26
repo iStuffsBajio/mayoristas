@@ -1,4 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useAuth } from '../context/AuthContext'
+import { revisiones, guardarRevision } from '../lib/api'
+import { exportarRevisiones } from '../lib/exportarRevisiones'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl } from '../lib/s3'
 import { agruparPorModelo, alternativasDe } from '../lib/variantes'
@@ -39,8 +42,14 @@ import { patronesDeEscritura } from '../lib/patrones'
  *   · **no es error** — una decisión que contradice al detector y que, si no
  *     se recordara, volvería a preguntarse cada día.
  *
- * Viven en el navegador, que es donde se hace este trabajo, y se pueden
- * quitar.
+ * **Viven en el servidor, no en el navegador.** Esta cola la contestan las
+ * sucursales, no sólo quien administra: guardadas en el navegador, lo que
+ * contestara León se quedaba en la máquina de León y aquí no llegaba nada. El
+ * backend las parte por persona —cada quien escribe sólo su archivo— y al
+ * leerlas las junta, así que dos personas contestando a la vez no se pisan.
+ *
+ * El navegador guarda una copia por si no hay red: se sigue pudiendo trabajar
+ * y lo marcado se ve, aunque no se comparta hasta que vuelva la conexión.
  *
  * ── El orden ────────────────────────────────────────────────────────────────
  *
@@ -87,10 +96,13 @@ const lista = xs => (xs.length <= 1
   : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`)
 
 export default function RevisarPanel() {
+  const { token, session, isAdmin } = useAuth()
+  const quien = isAdmin ? 'admin' : session?.branch
   const [inv, setInv] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [i, setI] = useState(0)
   const [marcas, setMarcas] = useState(leerMarcas)
+  const [sinRed, setSinRed] = useState(false)
   const [editando, setEditando] = useState(false)
   const [borrador, setBorrador] = useState('')
 
@@ -110,6 +122,18 @@ export default function RevisarPanel() {
     return () => { vivo = false }
   }, [plazas])
 
+  // Las respuestas de todos. Si el servidor no contesta se sigue con la copia
+  // del navegador: se puede trabajar, pero se avisa de que no se está
+  // compartiendo.
+  useEffect(() => {
+    if (!token) return
+    let vivo = true
+    revisiones(token)
+      .then(r => { if (vivo && r?.marcas) { setMarcas(r.marcas); guardarMarcas(r.marcas); setSinRed(false) } })
+      .catch(() => { if (vivo) setSinRed(true) })
+    return () => { vivo = false }
+  }, [token])
+
   const { grupos, existencias } = useMemo(() => {
     const todos = new Map(), ex = {}
     for (const [slug, j] of Object.entries(inv ?? {})) {
@@ -123,7 +147,10 @@ export default function RevisarPanel() {
     return { grupos: agruparPorModelo([...todos.values()]), existencias: ex }
   }, [inv])
 
-  const cola = useMemo(() => {
+  // Todos los casos, contestados o no. El Excel sale de aquí y no de la cola:
+  // un análisis que sólo mire lo que sigue en la lista deja fuera justo lo que
+  // alguien decidió que no era error, que es la mitad de la historia.
+  const todos = useMemo(() => {
     if (!inv?.[BODEGA.slug]) return []
     const tiendas = Object.fromEntries(
       Object.entries(inv).filter(([s]) => s !== BODEGA.slug))
@@ -156,17 +183,20 @@ export default function RevisarPanel() {
       items.push(fichaDeNombre(n))
     }
 
-    // Lo pendiente no se esconde —sigue sin arreglarse— pero va al final: ya
-    // tiene quien lo esté viendo, y lo que no ha mirado nadie pesa más.
-    const pendiente = x => (marcas[x.id]?.estado === 'pendiente' ? 1 : 0)
-
     return items
+  }, [inv, grupos])
+
+  // Lo pendiente no se esconde —sigue sin arreglarse— pero va al final: ya
+  // tiene quien lo esté viendo, y lo que no ha mirado nadie pesa más.
+  const cola = useMemo(() => {
+    const pendiente = x => (marcas[x.id]?.estado === 'pendiente' ? 1 : 0)
+    return todos
       .filter(x => marcas[x.id]?.estado !== 'ignorado')
       .sort((a, b) => pendiente(a) - pendiente(b)
         || (a.bloque === b.bloque
           ? b.peso - a.peso
           : a.bloque === 'codigo' ? -1 : 1))
-  }, [inv, grupos, marcas])
+  }, [todos, marcas])
 
   if (cargando) return <p className="tablero-cargando">Leyendo el catálogo de las cinco plazas…</p>
 
@@ -207,13 +237,18 @@ export default function RevisarPanel() {
   const marca = marcas[item.id]
 
   const marcar = (estado, nota) => {
+    const limpia = nota?.trim() || ''
     setMarcas(m => {
       const s = { ...m }
       if (!estado) delete s[item.id]
-      else s[item.id] = { estado, nota: nota?.trim() || '', fecha: new Date().toISOString() }
+      else s[item.id] = { estado, nota: limpia, fecha: new Date().toISOString(), por: quien }
       guardarMarcas(s)
       return s
     })
+    // Se pinta ya y se manda después: contestar casos va al ritmo de quien
+    // contesta, no al de la red. Si el envío falla se avisa arriba, porque al
+    // recargar manda lo que haya en el servidor y esa marca se perdería.
+    if (token) guardarRevision(item.id, estado, limpia, token).catch(() => setSinRed(true))
   }
 
   const irA = n => { setEditando(false); setI(Math.max(0, Math.min(n, total - 1))) }
@@ -239,7 +274,18 @@ export default function RevisarPanel() {
         <span className="revisar-barra" aria-hidden="true">
           <span style={{ width: `${(pos / total) * 100}%` }} />
         </span>
+        {sinRed && (
+          <span className="revisar-sinred" role="status">
+            Sin conexión con el servidor: lo que marques no se está compartiendo
+          </span>
+        )}
         {pendientes > 0 && <span className="revisar-pendientes">{pendientes} pendientes</span>}
+        {isAdmin && (
+          <button type="button" className="revisar-bajar"
+                  onClick={() => exportarRevisiones(todos, marcas)}>
+            Descargar los {todos.length} casos
+          </button>
+        )}
         <span className={'revisar-sello sello-' + item.bloque}>
           {item.bloque === 'codigo' ? 'Código' : 'Nombre'}
         </span>
@@ -249,7 +295,10 @@ export default function RevisarPanel() {
         {marca?.estado === 'pendiente' && (
           <p className="rev-marca">
             <strong>En corrección</strong>
-            <span>desde el {comoFecha(marca.fecha)}</span>
+            <span>
+              desde el {comoFecha(marca.fecha)}
+              {marca.por && ` · lo marcó ${marca.por === 'admin' ? 'administración' : nombreSucursal(marca.por)}`}
+            </span>
             {marca.nota && <em>«{marca.nota}»</em>}
           </p>
         )}
@@ -405,6 +454,7 @@ function fichaDePatron(p) {
     titulo,
     veredicto,
     tabla: { cabeceras, filas },
+    plazas: p.corrigen,
     accion: p.falta
       ? `Añadir «${p.b}» en ${nombresDe(p.corrigen)}`
       : `Unificar en «${p.gana}»: corregir ${nombresDe(p.corrigen)}`,
@@ -428,6 +478,7 @@ function fichaDeMuertos(muertos) {
     veredicto: 'Bodega no los tiene, llevan medio año o más sin moverse y no queda existencia '
       + 'en ninguna plaza. No hay nada que agotar: sólo ocupan sitio en el catálogo.',
     tabla: filas.length ? { cabeceras: ['Plaza', 'Códigos'], filas } : null,
+    plazas: Object.keys(porPlaza),
     detalle: muertos.map(h => `${h.codigo} · ${h.producto}`),
     accion: 'Eliminar los códigos del catálogo de cada plaza',
     peso: muertos.length,
@@ -458,6 +509,7 @@ function fichaDeCodigo(h) {
     titulo,
     veredicto,
     tabla: filas.length ? { cabeceras: ['Plaza', 'Existencia'], filas } : null,
+    plazas: Object.keys(h.plazas),
     accion: h.accion,
     codigo: h.codigo,
     producto: h.producto,
@@ -479,6 +531,7 @@ function fichaDeNombre(n) {
         cabeceras: ['Plaza', 'Lo que tiene escrito'],
         filas: n.fuera.map(f => [nombreSucursal(f.slug), f.nombre]),
       },
+      plazas: n.fuera.map(f => f.slug),
       accion: 'Elegir cuál de las dos vale y corregir la otra',
       peso: 0,
     }
@@ -496,6 +549,7 @@ function fichaDeNombre(n) {
       filas: [['Catálogo', n.referencia], ...n.fuera.map(f => [nombreSucursal(f.slug), f.nombre])],
       destacar: 0,
     },
+    plazas: n.fuera.map(f => f.slug),
     accion: `Corregir en ${nombresDe(n.fuera.map(f => f.slug))}`,
     peso: 0,
   }

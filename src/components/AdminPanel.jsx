@@ -418,7 +418,7 @@ const SECCIONES = [
 // fondo transparente, la tabla pasaba por debajo y los textos se encimaban.
 // Ponerles fondo arregló el encimado pero seguían pesando demasiado para lo
 // que son, que es un cambio de vista. Así pesan lo que deben.
-function BotonSeccion({ s, activa, onClick }) {
+export function BotonSeccion({ s, activa, onClick }) {
   return (
     <button type="button" onClick={onClick}
       className="flex items-center gap-1.5 whitespace-nowrap"

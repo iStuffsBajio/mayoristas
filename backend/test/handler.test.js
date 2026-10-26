@@ -239,3 +239,43 @@ test('un modelo con caracteres raros no puede salirse de la carpeta', async () =
     globalThis.fetch = original
   }
 })
+
+// ── Revisiones del catálogo ────────────────────────────────────────────────
+//
+// No tocan S3: lo que se comprueba aquí es el permiso y la validación, que es
+// donde se decide si un usuario de sucursal puede contestar casos y si puede
+// escribir en el archivo de otro.
+
+const tokenLeon  = () => crearSesion({ sucursal: 'leon', admin: false }, SECRETO)
+const tokenAdmin = () => crearSesion({ sucursal: 'leon', admin: true }, SECRETO)
+
+test('las revisiones piden sesion', async () => {
+  assert.equal((await pedir('GET', '/revisiones')).statusCode, 403)
+  assert.equal((await pedir('POST', '/revisiones', { cuerpo: { id: 'x', estado: 'pendiente' } })).statusCode, 403)
+})
+
+test('una sucursal SI puede contestar casos', async () => {
+  // Es el punto de todo esto: Leon contesta y el administrador lo ve.
+  const r = await pedir('POST', '/revisiones', {
+    token: tokenLeon(),
+    cuerpo: { id: 'cod|HX7CT', estado: 'pendiente', nota: 'lo ve Brenda' },
+  })
+  assert.notEqual(r.statusCode, 403)
+})
+
+test('un estado inventado se rechaza', async () => {
+  const r = await pedir('POST', '/revisiones', {
+    token: tokenAdmin(), cuerpo: { id: 'x', estado: 'borrado' },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('sin caso no se guarda nada', async () => {
+  const r = await pedir('POST', '/revisiones', { token: tokenAdmin(), cuerpo: { estado: 'pendiente' } })
+  assert.equal(r.statusCode, 400)
+})
+
+test('estado nulo es quitar la marca, no un error', async () => {
+  const r = await pedir('POST', '/revisiones', { token: tokenLeon(), cuerpo: { id: 'x', estado: null } })
+  assert.notEqual(r.statusCode, 400)
+})
