@@ -41,9 +41,47 @@ async function pedir(ruta, { metodo = 'GET', cuerpo, token } = {}) {
   let datos = {}
   try { datos = await res.json() } catch { /* respuesta sin cuerpo */ }
 
-  if (!res.ok) throw new ErrorApi(datos.error || `Error ${res.status}.`, res.status)
+  if (!res.ok) {
+    // Una sesión caducada se avisa UNA vez y desde aquí, no en cada pantalla.
+    //
+    // El navegador da por buena la sesión guardada mientras tenga token, sin
+    // comprobar que siga valiendo: la pantalla seguía diciendo «administrador»
+    // y el backend rechazaba todo. El resultado era un «no se pudieron leer
+    // los turnos» que parecía un fallo de los turnos, cuando lo que pasaba es
+    // que había que volver a entrar.
+    //
+    // Pasa cada ocho horas, que es lo que dura un token, y pasó de golpe el
+    // día que se regeneró el secreto de sesión al cambiar las contraseñas.
+    if ((res.status === 401 || res.status === 403) && token) {
+      avisarSesionVencida()
+      throw new ErrorApi('Tu sesión expiró. Vuelve a iniciar sesión.', res.status)
+    }
+    throw new ErrorApi(datos.error || `Error ${res.status}.`, res.status)
+  }
   return datos
 }
+
+// Quien escuche se entera de que hay que volver a entrar. Es un aviso suelto y
+// no un import directo de la sesión, para que esta capa siga sin saber nada de
+// React ni del contexto.
+const OYENTES = new Set()
+let avisado = false
+
+export function alVencerSesion(fn) {
+  OYENTES.add(fn)
+  return () => OYENTES.delete(fn)
+}
+
+function avisarSesionVencida() {
+  // Una sola vez por sesión: el panel hace varias llamadas a la vez y si no,
+  // el aviso salta cuatro o cinco veces seguidas.
+  if (avisado) return
+  avisado = true
+  for (const fn of OYENTES) { try { fn() } catch { /* un oyente roto no para a los demás */ } }
+}
+
+/** Se llama al entrar de nuevo, para que el aviso pueda volver a saltar. */
+export function reiniciarAvisoSesion() { avisado = false }
 
 // ── Sesión ───────────────────────────────────────────────────────────────────
 

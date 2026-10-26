@@ -59,7 +59,7 @@ function TabBar({ active, onChange }) {
 function AppContent() {
   const [showLogin, setShowLogin] = useState(false)
   const [activeTab, setActiveTab] = useState('inventario')
-  const { isAdmin } = useAuth()
+  const { isAdmin, vencida } = useAuth()
   const { config } = useSiteConfig()
 
   // If active tab was hidden by admin, switch to first visible
@@ -88,6 +88,15 @@ function AppContent() {
     // tapaba el degradado de marca que vive en el body.
     <div className="min-h-screen">
       <Navbar onLoginClick={() => setShowLogin(true)} />
+      {/* Una sesión caducada se dice UNA vez y arriba, no la deja adivinar
+          cada sección con su propio mensaje. Un token dura ocho horas. */}
+      {vencida && (
+        <div className="sesion-vencida" role="status">
+          <span>Tu sesión expiró. Vuelve a iniciar sesión para ver el panel.</span>
+          <button type="button" onClick={() => setShowLogin(true)}>Iniciar sesión</button>
+        </div>
+      )}
+
       <TabBar active={safeTab} onChange={setActiveTab} />
       <main>
         {safeTab === 'inventario' && (

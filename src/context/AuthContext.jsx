@@ -1,5 +1,5 @@
-import { createContext, useContext, useState } from 'react'
-import { login as loginApi, apiConfigurada } from '../lib/api'
+import { createContext, useContext, useState, useEffect } from 'react'
+import { login as loginApi, apiConfigurada, alVencerSesion, reiniciarAvisoSesion } from '../lib/api'
 
 const AuthContext = createContext(null)
 
@@ -34,6 +34,10 @@ function sesionGuardada() {
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(sesionGuardada)
 
+  // Se enseña una sola vez, cuando el backend rechaza un token que el
+  // navegador daba por bueno. No es un error: es que caducó.
+  const [vencida, setVencida] = useState(false)
+
   const login = async (branchSlug, password) => {
     if (!apiConfigurada) {
       return { ok: false, msg: 'El servidor de acceso no está configurado todavía.' }
@@ -55,8 +59,22 @@ export function AuthProvider({ children }) {
 
   const logout = () => {
     setSession(null)
+    setVencida(false)
+    reiniciarAvisoSesion()
     try { sessionStorage.removeItem(CLAVE_SESION) } catch { /* ignora */ }
   }
+
+  // El backend avisa cuando rechaza el token. Sin esto, la pantalla seguía
+  // diciendo «administrador» con una sesión muerta y cada seccion fallaba por
+  // su cuenta con un mensaje distinto: «no se pudieron leer los turnos» parecía
+  // un problema de los turnos cuando sólo había que volver a entrar.
+  //
+  // Un token dura ocho horas, así que esto pasa todos los días.
+  useEffect(() => alVencerSesion(() => {
+    setVencida(true)
+    setSession(null)
+    try { sessionStorage.removeItem(CLAVE_SESION) } catch { /* ignora */ }
+  }), [])
 
   // Sigue siendo una comprobación de interfaz, para no enseñar botones que no
   // van a funcionar. Quien manda es el backend, que revalida el token en cada
@@ -71,7 +89,7 @@ export function AuthProvider({ children }) {
   const token      = session?.token ?? null
 
   return (
-    <AuthContext.Provider value={{ session, token, login, logout, canUpload, branchName, isAdmin }}>
+    <AuthContext.Provider value={{ session, token, login, logout, canUpload, branchName, isAdmin, vencida }}>
       {children}
     </AuthContext.Provider>
   )

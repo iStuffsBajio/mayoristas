@@ -1290,3 +1290,33 @@
   }
   .foco-aviso button:hover { text-decoration: underline; }
 }
+
+/* Sesión caducada. Va arriba del todo y en el acento, porque no es un error
+   de la sección que se estaba mirando: es que hay que volver a entrar. */
+@layer components {
+  .sesion-vencida {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 11px var(--marco);
+    background: var(--accion);
+    color: #fff;
+    font-size: var(--step-small);
+    font-weight: 500;
+  }
+  .sesion-vencida button {
+    border: 0;
+    border-radius: 999px;
+    padding: 7px 16px;
+    font: inherit;
+    font-size: var(--step-small);
+    font-weight: 600;
+    color: var(--magenta);
+    background: #fff;
+    cursor: pointer;
+    transition: transform 140ms var(--salida);
+  }
+  .sesion-vencida button:active { transform: scale(0.97); }
+}
