@@ -1,0 +1,413 @@
+import { useState, useEffect, useMemo } from 'react'
+import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA, nombreSucursal } from '../lib/sucursales'
+import { inventarioJsonUrl } from '../lib/s3'
+import { agruparPorModelo, alternativasDe } from '../lib/variantes'
+import { codigosHuerfanos, MOTIVO } from '../lib/anomalias'
+import { discrepanciasDeNombre } from '../lib/nombres'
+import { patronesDeEscritura } from '../lib/patrones'
+
+/**
+ * La cola de revisión: un hallazgo a la vez, con su tabla, para ir puliendo
+ * el catálogo decisión por decisión.
+ *
+ * La primera versión era una lista de 140 renglones. Ante 140 renglones nadie
+ * empieza. Ante uno con su tabla al lado, se contesta y se pasa al siguiente.
+ *
+ * ── Agrupar antes de preguntar ──────────────────────────────────────────────
+ *
+ * Lo que más importa de esta pantalla no es el orden, es el TAMAÑO de cada
+ * pregunta. «GALAXY o SAMSUNG» no son 189 correcciones sueltas: es una
+ * convención de bodega contra otra de las tiendas, una sola respuesta que
+ * ordena 240 renglones. Esos patrones salen de `patrones.js` y van como un
+ * hallazgo único, con el reparto de cada plaza a la vista para poder decidir
+ * mirando el dato y no la intuición.
+ *
+ * Lo mismo con los códigos muertos: los descontinuados que ya no tienen
+ * piezas se preguntan de una vez, porque la respuesta es la misma para todos.
+ *
+ * ── Qué se guarda y qué no ──────────────────────────────────────────────────
+ *
+ * Casi nada. Los hallazgos salen de los datos, así que al corregirlo en la
+ * caja desaparecen solos en la siguiente sincronización: no hay que marcar
+ * nada como hecho ni puede quedarse desincronizado.
+ *
+ * Lo único que se guarda son los «no es error»: decisiones que contradicen al
+ * detector y que, si no se recordaran, volverían a aparecer cada día. Viven en
+ * el navegador y se pueden volver a mostrar.
+ *
+ * ── El orden ────────────────────────────────────────────────────────────────
+ *
+ * Primero los códigos, que es la alerta sensible y mueve dinero. Después los
+ * nombres, que son orden y limpieza. Dentro de cada bloque, lo que más
+ * resuelve de una vez.
+ */
+
+const FERIAS = SUCURSALES.find(s => s.estacional)
+const CLAVE_IGNORADOS = 'istuffs_revisar_ignorados'
+
+const leerIgnorados = () => {
+  try { return new Set(JSON.parse(localStorage.getItem(CLAVE_IGNORADOS) ?? '[]')) }
+  catch { return new Set() }
+}
+
+const bajar = async url => {
+  const r = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' })
+  if (!r.ok) throw new Error(String(r.status))
+  return r.json()
+}
+
+const pct = (n, total) => (total > 0 ? Math.round((n / total) * 100) : 0)
+
+const lista = xs => (xs.length <= 1
+  ? (xs[0] ?? '')
+  : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`)
+
+export default function RevisarPanel() {
+  const [inv, setInv] = useState(null)
+  const [cargando, setCargando] = useState(true)
+  const [i, setI] = useState(0)
+  const [ignorados, setIgnorados] = useState(leerIgnorados)
+
+  const plazas = useMemo(
+    () => [BODEGA, ...SUCURSALES_ACTIVAS, ...(FERIAS ? [FERIAS] : [])], [])
+
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      const pares = await Promise.all(plazas.map(async p =>
+        [p.slug, await bajar(inventarioJsonUrl(p.slug)).catch(() => null)]))
+      if (vivo) {
+        setInv(Object.fromEntries(pares.filter(([, j]) => j)))
+        setCargando(false)
+      }
+    })()
+    return () => { vivo = false }
+  }, [plazas])
+
+  const { grupos, existencias } = useMemo(() => {
+    const todos = new Map(), ex = {}
+    for (const [slug, j] of Object.entries(inv ?? {})) {
+      for (const p of j?.productos ?? []) {
+        const c = String(p.Codigo ?? '').trim()
+        if (!c) continue
+        if (!todos.has(c)) todos.set(c, { Codigo: c, Producto: p.Producto })
+        ;(ex[c] ??= {})[slug] = Number(p.Existencia) || 0
+      }
+    }
+    return { grupos: agruparPorModelo([...todos.values()]), existencias: ex }
+  }, [inv])
+
+  const cola = useMemo(() => {
+    if (!inv?.[BODEGA.slug]) return []
+    const tiendas = Object.fromEntries(
+      Object.entries(inv).filter(([s]) => s !== BODEGA.slug))
+
+    const huerfanos = codigosHuerfanos({ inventarios: tiendas, bodega: inv[BODEGA.slug], grupos })
+    const patrones = patronesDeEscritura({ inventarios: inv })
+    const nombres = discrepanciasDeNombre({ inventarios: inv })
+
+    // Las palabras que ya explica un patrón no se vuelven a preguntar de una
+    // en una: sería la misma pregunta doscientas veces.
+    const explicados = new Set(patrones.flatMap(p => p.codigos))
+
+    const items = []
+
+    // ── Códigos: la alerta sensible ─────────────────────────────────────
+    const muertos = huerfanos.filter(h => h.motivo === MOTIVO.DESCONTINUADO && h.piezas === 0)
+    const enBloque = new Set(muertos.length >= 3 ? muertos.map(h => h.codigo) : [])
+
+    for (const h of huerfanos) {
+      if (!enBloque.has(h.codigo)) items.push(fichaDeCodigo(h))
+    }
+    if (enBloque.size) items.push(fichaDeMuertos(muertos))
+
+    // ── Nombres: orden y limpieza, lo que más ordena primero ────────────
+    for (const p of patrones) items.push(fichaDePatron(p))
+
+    for (const n of nombres) {
+      if (explicados.has(n.codigo)) continue
+      if (n.fuente !== 'conflicto' && n.severidad !== 'media') continue
+      items.push(fichaDeNombre(n))
+    }
+
+    return items
+      .filter(x => !ignorados.has(x.id))
+      .sort((a, b) => (a.bloque === b.bloque
+        ? b.peso - a.peso
+        : a.bloque === 'codigo' ? -1 : 1))
+  }, [inv, grupos, ignorados])
+
+  if (cargando) return <p className="tablero-cargando">Leyendo el catálogo de las cinco plazas…</p>
+
+  const total = cola.length
+
+  const volverAMostrar = () => {
+    setIgnorados(new Set())
+    try { localStorage.removeItem(CLAVE_IGNORADOS) } catch { /* modo privado */ }
+    setI(0)
+  }
+
+  if (!total) {
+    return (
+      <section className="tarjeta revisar-fin">
+        <h4>No queda nada por revisar</h4>
+        <p className="tarjeta-sub">
+          {ignorados.size > 0
+            ? `Hay ${ignorados.size} hallazgos marcados como «no es error».`
+            : 'El catálogo está en orden.'}
+        </p>
+        {ignorados.size > 0 && (
+          <button type="button" className="boton-tono" onClick={volverAMostrar}>
+            Volver a mostrarlos
+          </button>
+        )}
+      </section>
+    )
+  }
+
+  const pos = Math.min(i, total - 1)
+  const item = cola[pos]
+
+  const ignorar = () => {
+    const s = new Set(ignorados).add(item.id)
+    setIgnorados(s)
+    try { localStorage.setItem(CLAVE_IGNORADOS, JSON.stringify([...s])) } catch { /* modo privado */ }
+  }
+
+  const alt = item.codigo
+    ? alternativasDe(item.codigo, item.producto, grupos, existencias).slice(0, 3)
+    : []
+
+  return (
+    <div className="revisar">
+      <header className="revisar-avance">
+        <span className="revisar-cuenta"><strong>{pos + 1}</strong> de {total}</span>
+        <span className="revisar-barra" aria-hidden="true">
+          <span style={{ width: `${(pos / total) * 100}%` }} />
+        </span>
+        <span className={'revisar-sello sello-' + item.bloque}>
+          {item.bloque === 'codigo' ? 'Código' : 'Nombre'}
+        </span>
+      </header>
+
+      <section className="tarjeta revisar-ficha">
+        {item.chip && <p className="rev-chip">{item.chip}</p>}
+        <h4>{item.titulo}</h4>
+        <p className="rev-veredicto">{item.veredicto}</p>
+
+        {item.tabla && (
+          <table className="rev-tabla">
+            <thead>
+              <tr>
+                {item.tabla.cabeceras.map((c, n) => (
+                  <th key={n} scope="col" className={n ? 'num' : ''}>{c}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {item.tabla.filas.map((f, n) => (
+                <tr key={n} className={item.tabla.destacar === n ? 'destacada' : ''}>
+                  {f.map((celda, m) => (m === 0
+                    ? <th key={m} scope="row">{celda}</th>
+                    : <td key={m} className="num">{celda}</td>))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {item.detalle && (
+          <details className="rev-detalle">
+            <summary>Ver los códigos ({item.detalle.length})</summary>
+            <ul>{item.detalle.map(d => <li key={d}>{d}</li>)}</ul>
+          </details>
+        )}
+
+        {alt.length > 0 && (
+          <div className="rev-alternativas">
+            <p className="rev-subtitulo">Otras fundas del mismo teléfono, con existencia</p>
+            <ul>
+              {alt.map(a => (
+                <li key={a.codigo}>
+                  <span className="rev-codigo">{a.codigo}</span>
+                  <span className="rev-nombre">{a.producto}</span>
+                  <span className="rev-dato">
+                    {a.total} pz · {Object.entries(a.donde).filter(([, n]) => n > 0)
+                      .map(([s, n]) => `${nombreSucursal(s)} ${n}`).join(', ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <p className="rev-propuesta"><span>Propuesta</span> {item.accion}</p>
+
+        <div className="rev-botones">
+          <button type="button" className="boton-tinta"
+                  onClick={() => setI(n => Math.min(n + 1, total - 1))}>
+            Lo voy a corregir
+          </button>
+          <button type="button" className="boton-tono" onClick={ignorar}>
+            No es error
+          </button>
+          <button type="button" className="rev-saltar"
+                  onClick={() => setI(n => Math.min(n + 1, total - 1))}>
+            Saltar
+          </button>
+          {pos > 0 && (
+            <button type="button" className="rev-saltar" onClick={() => setI(pos - 1)}>
+              Atrás
+            </button>
+          )}
+        </div>
+      </section>
+
+      <p className="tablero-nota">
+        No hace falta marcar nada como hecho: los hallazgos salen de los datos, así que al
+        corregirlo en la caja desaparecen solos en la siguiente sincronización.
+        {ignorados.size > 0 && (
+          <> Hay {ignorados.size} marcados como «no es error».{' '}
+            <button type="button" className="grafica-tabla-boton" onClick={volverAMostrar}>
+              Volver a mostrarlos
+            </button>
+          </>
+        )}
+      </p>
+    </div>
+  )
+}
+
+// ── Las fichas ───────────────────────────────────────────────────────────────
+
+const nombresDe = slugs => lista(slugs.map(nombreSucursal))
+
+/** Un patrón de escritura: una decisión que ordena muchos renglones. */
+function fichaDePatron(p) {
+  const otras = p.filas.filter(f => !p.corrigen.includes(f.slug)).map(f => f.slug)
+
+  const titulo = p.falta
+    ? `${nombresDe(p.corrigen)} ${p.corrigen.length === 1 ? 'omite' : 'omiten'} «${p.b}»`
+    : `${nombresDe(otras)} ${otras.length === 1 ? 'escribe' : 'escriben'} «${p.gana}»; `
+      + `${nombresDe(p.corrigen)} «${p.pierde}»`
+
+  const veredicto = p.falta
+    ? `El resto del catálogo lleva «${p.b}» en estos ${p.codigos.length} códigos. `
+      + 'No es otra forma de escribirlo: falta la palabra.'
+    : p.alcance === 'catalogo'
+      ? `Es una costumbre de plaza, no ${p.renglones} descuidos sueltos: se ve en el catálogo `
+        + `entero, no sólo donde chocan. Una respuesta ordena ${p.renglones} renglones.`
+      : `Aparece en ${p.codigos.length} códigos. Una respuesta ordena ${p.renglones} renglones.`
+
+  const cabeceras = p.falta
+    ? ['Plaza', `Con «${p.b}»`, 'Sin ella']
+    : ['Plaza', `«${p.a}»`, `«${p.b}»`]
+
+  const filas = p.filas.map(f => (p.falta
+    ? [nombreSucursal(f.slug), String(f.b), f.sin ? String(f.sin) : '—']
+    : [nombreSucursal(f.slug),
+       f.a ? `${f.a} (${pct(f.a, f.total)}%)` : '0',
+       f.b ? `${f.b} (${pct(f.b, f.total)}%)` : '0']))
+
+  return {
+    id: p.id,
+    bloque: 'nombre',
+    chip: `1 decisión · ${p.renglones} renglones`,
+    titulo,
+    veredicto,
+    tabla: { cabeceras, filas },
+    accion: p.falta
+      ? `Añadir «${p.b}» en ${nombresDe(p.corrigen)}`
+      : `Unificar en «${p.gana}»: corregir ${nombresDe(p.corrigen)}`,
+    peso: p.renglones,
+  }
+}
+
+/** Los descontinuados sin una sola pieza: la respuesta es la misma para todos. */
+function fichaDeMuertos(muertos) {
+  const porPlaza = {}
+  for (const h of muertos) {
+    for (const s of Object.keys(h.plazas ?? {})) porPlaza[s] = (porPlaza[s] ?? 0) + 1
+  }
+  const filas = Object.entries(porPlaza).map(([s, n]) => [nombreSucursal(s), String(n)])
+
+  return {
+    id: 'cod|muertos',
+    bloque: 'codigo',
+    chip: `${muertos.length} códigos de una vez`,
+    titulo: `${muertos.length} códigos descontinuados y sin una sola pieza`,
+    veredicto: 'Bodega no los tiene, llevan medio año o más sin moverse y no queda existencia '
+      + 'en ninguna plaza. No hay nada que agotar: sólo ocupan sitio en el catálogo.',
+    tabla: filas.length ? { cabeceras: ['Plaza', 'Códigos'], filas } : null,
+    detalle: muertos.map(h => `${h.codigo} · ${h.producto}`),
+    accion: 'Eliminar los códigos del catálogo de cada plaza',
+    peso: muertos.length,
+  }
+}
+
+/** Un código huérfano: la alerta sensible, de una en una. */
+function fichaDeCodigo(h) {
+  const titulo = h.motivo === MOTIVO.DUPLICADO ? 'Bodega ya lo cubre con otro código'
+    : h.motivo === MOTIVO.SIN_ALTA ? 'Se mueve y bodega no lo tiene de alta'
+    : 'Descontinuado: no hay de dónde resurtirlo'
+
+  const veredicto = h.motivo === MOTIVO.DUPLICADO
+    ? `Bodega atiende ese teléfono con ${h.cubiertoPor.codigo} — ${h.cubiertoPor.producto}, `
+      + 'del mismo tipo de funda. Si es el mismo producto, este código sobra.'
+    : h.motivo === MOTIVO.SIN_ALTA
+      ? 'Ningún código de bodega cubre ese teléfono con ese tipo de funda, y éste sigue '
+        + 'moviéndose. O bodega lo da de alta, o se decide que no se maneja.'
+      : `Bodega no lo tiene y lleva ${h.diasSinMover ?? '—'} días sin moverse. `
+        + 'Lo que quede se agota y el código se elimina.'
+
+  const filas = Object.entries(h.plazas).map(([s, n]) => [nombreSucursal(s), `${n} pz`])
+
+  return {
+    id: `cod|${h.codigo}`,
+    bloque: 'codigo',
+    chip: `${h.codigo} · ${h.piezas} pz · se movió por última vez ${h.ultimo ?? 'sin registro'}`,
+    titulo,
+    veredicto,
+    tabla: filas.length ? { cabeceras: ['Plaza', 'Existencia'], filas } : null,
+    accion: h.accion,
+    codigo: h.codigo,
+    producto: h.producto,
+    peso: h.piezas,
+  }
+}
+
+/** Un nombre suelto que ningún patrón explica. */
+function fichaDeNombre(n) {
+  if (n.fuente === 'conflicto') {
+    return {
+      id: `nom|${n.codigo}`,
+      bloque: 'nombre',
+      chip: `${n.codigo} · las dos referencias`,
+      titulo: 'Bodega y León no coinciden, y no es compatibilidad',
+      veredicto: 'Las dos referencias del catálogo se contradicen. Mientras no se elija una, '
+        + 'no hay nombre bueno contra el que corregir a las demás plazas.',
+      tabla: {
+        cabeceras: ['Plaza', 'Lo que tiene escrito'],
+        filas: n.fuera.map(f => [nombreSucursal(f.slug), f.nombre]),
+      },
+      accion: 'Elegir cuál de las dos vale y corregir la otra',
+      peso: 0,
+    }
+  }
+
+  return {
+    id: `nom|${n.codigo}`,
+    bloque: 'nombre',
+    chip: `${n.codigo} · apunta a otro teléfono`,
+    titulo: 'El nombre no es sólo otra forma de escribirlo',
+    veredicto: `La referencia (${n.fuente}) dice «${n.referencia}». Lo que tienen las plazas `
+      + 'de abajo nombra otro aparato o lleva una errata, y eso rompe cualquier comparación.',
+    tabla: {
+      cabeceras: ['Plaza', 'Lo que tiene escrito'],
+      filas: [['Catálogo', n.referencia], ...n.fuera.map(f => [nombreSucursal(f.slug), f.nombre])],
+      destacar: 0,
+    },
+    accion: `Corregir en ${nombresDe(n.fuera.map(f => f.slug))}`,
+    peso: 0,
+  }
+}

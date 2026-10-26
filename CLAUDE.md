@@ -149,14 +149,22 @@ caída de la pantalla en blanco se escapó porque la comprobación pulsaba
 cuatro y la columna rota era la octava. Falla si el cuerpo se queda vacío o
 si la consola suelta un error.
 
-Hoy cubre: 3 sesiones · 10 pestañas · 6 secciones de admin · 22 cabeceras.
-Si ese número baja, algo dejó de pintarse.
+Hoy cubre: 3 sesiones · 10 pestañas · 8 secciones de admin · 22 cabeceras ·
+3 hallazgos de la cola de revisión. Si alguno de esos números baja, algo dejó
+de pintarse.
 
-Dos cosas que hacen falta para que la comprobación sea de verdad:
+Tres cosas que hacen falta para que la comprobación sea de verdad:
 
 - **Los datos de mentira tienen que tener la forma exacta.** `dias` en
   estadísticas es una LISTA de `{ f, m }`, no un número, y `periodos` otra de
   `{ p, m, dias }`. Un número donde iba una lista tumbó el panel entero.
+- **Los datos de mentira no pueden ser iguales en las cinco plazas.** La cola
+  de revisión sale de comparar unas con otras: dándoles el mismo inventario
+  salía vacía, y una cola vacía no pinta ninguna ficha —ni tabla, ni botones,
+  ni avance—. La sección pasaba en verde sin haber comprobado nada. Por eso
+  `inventarioDe()` le quita códigos a bodega y le cambia una palabra; y por
+  eso ninguno de los que quita puede ser de los SAMSUNG: con dos códigos el
+  patrón de escritura baja del mínimo y esa ficha deja de dibujarse sola.
 - **Una cabecera ordenable se reconoce por `aria-sort`**, no por el cursor:
   el cursor sale del CSS y jsdom no maqueta. Toda columna ordenable nueva
   tiene que llevarlo, o la comprobación la salta en silencio.

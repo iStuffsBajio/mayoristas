@@ -56,9 +56,11 @@ const MODELOS = [
   ['MTST01',  'STIKER MARIPOSAS'],
 ]
 
+const GENERADO = '2026-10-19T10:00:00Z'
+
 const productos = MODELOS.map(([Codigo, Producto], i) => ({
   Codigo, Producto,
-  Existencia: [34, 4, 0, 12, 7, 0, 91, 3, 25, 0][i],
+  Existencia: [34, 4, 0, 12, 7, 0, 91, 0, 25, 0][i],
   Precio: 55 + i * 3,
   Alta: `2025-${String(1 + (i % 12)).padStart(2, '0')}-14`,
 }))
@@ -107,7 +109,46 @@ function respuesta(url) {
   if (/historial/i.test(u)) return historial
   if (/turnos/i.test(u)) return turnos
   if (/site\.json|config/i.test(u)) return {}
-  return { productos, generado: '2026-10-19T10:00:00Z' }
+  const plaza = u.match(/inventarios\/([a-z-]+)\/inventario\.json/)?.[1]
+  if (plaza) return inventarioDe(plaza)
+  return { productos, generado: GENERADO }
+}
+
+/**
+ * El inventario de una plaza, con las diferencias que la cola de revisión
+ * tiene que encontrar.
+ *
+ * Devolver el MISMO inventario a las cinco plazas dejaba la cola vacía, y una
+ * cola vacía no pinta ninguna ficha: la tabla, los botones y el avance no se
+ * ejecutaban nunca. La sección pasaba por verde sin haber comprobado nada.
+ */
+// Los que bodega no tiene. HX7CT conserva piezas, así que se pregunta solo;
+// los otros tres están en cero y se preguntan en bloque, que es otra ficha
+// distinta -con su lista desplegable- y si no hay tres no se dibuja nunca.
+//
+// Ninguno puede ser de los SAMSUNG: quitarle uno a bodega dejaba el patrón de
+// escritura en dos códigos, por debajo del mínimo, y esa tercera ficha -la de
+// la tabla con porcentajes- dejaba de pintarse sin que nada fallara.
+const SIN_BODEGA = ['HX7CT', 'XRN13PT', 'MTST01', 'OPR74GT']
+
+function inventarioDe(plaza) {
+  // Bodega escribe GALAXY donde las tiendas escriben SAMSUNG. Es el patrón
+  // real del catálogo, y la ficha que más renglones ordena de una vez.
+  if (plaza === 'bodega') {
+    return {
+      productos: productos
+        .filter(p => !SIN_BODEGA.includes(p.Codigo))
+        .map(p => ({ ...p, Producto: p.Producto.replace(/^SAMSUNG\b/, 'GALAXY') })),
+      generado: GENERADO,
+    }
+  }
+  return {
+    productos: productos.map(p => ({
+      ...p,
+      UltimoMov: SIN_BODEGA.includes(p.Codigo) ? '2023-05-02' : '2026-10-18',
+    })),
+    generado: GENERADO,
+  }
 }
 
 // ── El arranque ────────────────────────────────────────────────────────────
@@ -234,6 +275,34 @@ async function todasLasCabeceras(window, donde) {
   return n
 }
 
+/**
+ * La cola de revisión, de principio a fin.
+ *
+ * Cada hallazgo pinta una ficha distinta: un patrón de escritura lleva tres
+ * columnas con porcentajes, un código huérfano lleva dos con piezas, y el
+ * bloque de códigos muertos lleva además una lista desplegable. Mirar sólo el
+ * primero comprueba una de las tres, que es la misma trampa de las cabeceras
+ * ordenables. Se pulsa «Saltar» hasta el final.
+ */
+async function recorrerCola(window, donde) {
+  const doc = window.document
+  let n = 0
+  while (doc.querySelector('.revisar-ficha')) {
+    const saltar = [...doc.querySelectorAll('.rev-botones button')]
+      .find(b => /saltar/i.test(b.textContent))
+    if (!saltar) break
+    n++
+    if (!enPie(window, `${donde} · hallazgo ${n}`)) return n
+    const antes = doc.querySelector('.revisar-cuenta')?.textContent
+    clic(window, saltar)
+    await nuevaVuelta(window, 3)
+    // El último no avanza: «Saltar» se queda en el mismo sitio a propósito.
+    if (doc.querySelector('.revisar-cuenta')?.textContent === antes) break
+  }
+  if (n) porSitio.push(`${donde}: ${n} hallazgos`)
+  return n
+}
+
 // ── El recorrido ───────────────────────────────────────────────────────────
 
 const SESIONES = [
@@ -242,7 +311,7 @@ const SESIONES = [
   ['admin',      { isAdmin: true,  branch: null,   token: 'x' }],
 ]
 
-let pestanas = 0, secciones = 0, cabeceras = 0
+let pestanas = 0, secciones = 0, cabeceras = 0, hallazgos = 0
 
 for (const [nombre, sesion] of SESIONES) {
   const { window, dichos } = await arrancar(sesion)
@@ -294,6 +363,7 @@ for (const [nombre, sesion] of SESIONES) {
         if (!enPie(window, `${nombre} · admin · «${t}»`)) break
         revisarConsola(dichos, `${nombre} · admin · «${t}»`)
         cabeceras += await todasLasCabeceras(window, `${nombre} · admin · ${t}`)
+        hallazgos += await recorrerCola(window, `${nombre} · admin · ${t}`)
       }
     }
   }
@@ -304,7 +374,7 @@ for (const [nombre, sesion] of SESIONES) {
 
 // ── El parte ───────────────────────────────────────────────────────────────
 
-console.log(`\nsesiones 3 · pestañas ${pestanas} · secciones de admin ${secciones} · cabeceras pulsadas ${cabeceras}`)
+console.log(`\nsesiones 3 · pestañas ${pestanas} · secciones de admin ${secciones} · cabeceras pulsadas ${cabeceras} · hallazgos recorridos ${hallazgos}`)
 for (const l of porSitio) console.log('  ' + l)
 if (avisos.length) console.log(`avisos de React: ${avisos.length}`)
 

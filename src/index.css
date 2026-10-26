@@ -1320,3 +1320,162 @@
   }
   .sesion-vencida button:active { transform: scale(0.97); }
 }
+
+/* ── La cola de revisión ───────────────────────────────────────────────────
+   Un hallazgo a la vez. Toda la pantalla es una sola ficha, así que puede
+   permitirse el tamaño que una lista de 140 renglones no tenía: el veredicto
+   se lee de un vistazo y la tabla está debajo para contrastarlo.
+
+   La tabla es la pieza central, no un adorno. Decidir «GALAXY o SAMSUNG»
+   mirando una frase es opinar; mirando el reparto de las cinco plazas es
+   decidir. Por eso lleva los números a la derecha, alineados, y la fila que
+   hace de referencia marcada. */
+@layer components {
+  .revisar { max-width: 760px; }
+
+  .revisar-avance {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+    font-size: var(--step-small);
+    color: var(--muted);
+  }
+  .revisar-cuenta strong { color: var(--ink); font-weight: 600; }
+  .revisar-barra {
+    flex: 1;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .revisar-barra > span {
+    display: block;
+    height: 100%;
+    background: var(--ink);
+    transition: width 240ms var(--salida);
+  }
+  .revisar-sello {
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+  }
+  /* El código mueve dinero; el nombre es orden y limpieza. El peso del color
+     dice cuál es cuál sin tener que leerlo. */
+  .sello-codigo { background: var(--ink);     color: var(--bg); }
+  .sello-nombre { background: var(--surface); color: var(--muted); }
+
+  .revisar-ficha h4 { font-size: var(--step-lead); line-height: 1.25; margin-bottom: 10px; }
+  .rev-chip {
+    margin: 0 0 8px;
+    font-size: 0.8125rem;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .rev-veredicto {
+    margin: 0 0 18px;
+    font-size: var(--step-small);
+    line-height: 1.55;
+    color: var(--ink);
+  }
+
+  .rev-tabla {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--step-small);
+    font-variant-numeric: tabular-nums;
+  }
+  .rev-tabla th,
+  .rev-tabla td { padding: 9px 10px; text-align: left; }
+  .rev-tabla thead th {
+    font-weight: 500;
+    color: var(--muted);
+    border-bottom: 1px solid rgba(13, 17, 20, 0.1);
+    white-space: nowrap;
+  }
+  .rev-tabla tbody th { font-weight: 500; color: var(--ink); }
+  .rev-tabla tbody tr + tr th,
+  .rev-tabla tbody tr + tr td { border-top: 1px solid rgba(13, 17, 20, 0.05); }
+  .rev-tabla .num { text-align: right; }
+  .rev-tabla tbody .destacada th,
+  .rev-tabla tbody .destacada td { background: var(--surface); font-weight: 600; }
+
+  .rev-detalle { margin-top: 14px; font-size: var(--step-small); }
+  .rev-detalle summary { cursor: pointer; color: var(--muted); }
+  .rev-detalle ul {
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 5px;
+    max-height: 220px;
+    overflow: auto;
+    color: var(--muted);
+  }
+
+  .rev-alternativas { margin-top: 18px; }
+  .rev-subtitulo {
+    margin: 0 0 8px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .rev-alternativas ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+  .rev-alternativas li {
+    display: grid;
+    grid-template-columns: minmax(64px, auto) minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: baseline;
+    font-size: var(--step-small);
+  }
+  .rev-codigo { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .rev-nombre { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rev-dato   { color: var(--muted); white-space: nowrap; }
+
+  .rev-propuesta {
+    margin: 20px 0 0;
+    padding: 13px 15px;
+    border-radius: 12px;
+    background: var(--surface);
+    font-size: var(--step-small);
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .rev-propuesta span {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    margin-bottom: 3px;
+  }
+
+  .rev-botones { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+  .rev-saltar {
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--step-small);
+    color: var(--muted);
+    padding: 13px 14px;
+    cursor: pointer;
+    border-radius: 999px;
+    transition: color 160ms var(--salida);
+  }
+  .rev-saltar:active { transform: scale(0.97); }
+
+  .revisar-fin { text-align: center; padding: 40px 24px; }
+  .revisar-fin .boton-tono { margin-top: 6px; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .rev-saltar:hover { color: var(--ink); }
+  }
+
+  @media (max-width: 640px) {
+    .revisar-avance { flex-wrap: wrap; }
+    .rev-tabla th, .rev-tabla td { padding: 8px 6px; }
+    .rev-alternativas li { grid-template-columns: 1fr; gap: 2px; }
+    .rev-botones > * { flex: 1 1 auto; justify-content: center; }
+  }
+}
