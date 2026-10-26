@@ -41,8 +41,17 @@ const sinFormato = s => MAYUS(s).replace(/\s*\/\s*/g, '/').replace(/[^A-Z0-9/]+/
 /** Además, con las dos formas de nombrar cada marca unificadas. */
 const sinMarca = s => sinFormato(s).replace(/\bGALAXY\b/g, 'SAMSUNG').replace(/\bPOCCO\b/g, 'POCO')
 
-/** Los teléfonos que lista un nombre: «A56/A36/A37» son tres. */
-const modelosDe = s => new Set(sinMarca(s).split(/[\s/]+/).filter(t => /\d/.test(t)))
+/**
+ * Los teléfonos que lista un nombre: «A56/A36/A37» son tres.
+ *
+ * Antes se quita lo que describe la FUNDA, porque «3 IN 1» aporta dos
+ * números que no son teléfonos y falseaban la cuenta.
+ */
+// «PLUS» NO entra: es parte del nombre del teléfono —X5C PLUS, iPhone 15
+// Plus—, no un tipo de funda.
+const TIPO_FUNDA = /\b(TPU|HARD|DUO|SMART|CASE|CASE2|3 ?EN ?1|3 ?IN ?1|MILITAR|TRANSPARENTE|CRISTAL|GLASS|LAMINA|FUNDA|PROTECTOR|USO RUDO|ARMOR|CLEAR)\b/g
+const modelosDe = s => new Set(
+  sinMarca(s).replace(TIPO_FUNDA, ' ').split(/[\s/]+/).filter(t => /\d/.test(t)))
 
 /** Las plazas que mandan, en orden. */
 export const REFERENCIAS = ['bodega', 'leon']
@@ -102,22 +111,56 @@ export function discrepanciasDeNombre({ inventarios }) {
 
     const refs = REFERENCIAS.filter(s => e.plazas[s])
 
-    // Las dos referencias se contradicen: eso mismo es el hallazgo. No se
-    // corrige a nadie hasta que una persona decida cuál vale.
-    if (refs.length === 2 && MAYUS(e.plazas[refs[0]]) !== MAYUS(e.plazas[refs[1]])) {
+    // ── La compatibilidad no se discute: gana quien liste más ───────────
+    //
+    // Si bodega dice que el MAGIC 7 LITE sirve también para el X9C, bodega
+    // tiene razón; si en otro código es León quien lista más, es al revés.
+    // No es que una se equivoque: es que a las demás les falta la
+    // actualización.
+    //
+    // Esto resuelve solo la mayoría de los choques entre las dos
+    // referencias, que si no acababan todos en «decidir a mano».
+    // Se compara entre NOMBRES distintos, no entre plazas. Si tres plazas
+    // escriben el mismo «HONOR X6/X6S», eso es un solo nombre: exigir que una
+    // plaza tuviera más que todas las demás dejaba sin resolver justo los
+    // casos en que la mayoría ya tiene la compatibilidad bien puesta.
+    const porNombre = new Map()
+    for (const [slug, nombre] of plazas) {
+      const k = sinMarca(nombre)
+      if (!porNombre.has(k)) porNombre.set(k, { slug, nombre, n: modelosDe(nombre).size })
+    }
+    const masCompleto = [...porNombre.values()].sort((a, b) => b.n - a.n)
+    const hayGanador = masCompleto.length > 1 && masCompleto[0].n > masCompleto[1].n
+
+    let referencia = null
+    let fuente = null
+
+    if (hayGanador && plazas.some(([, n]) => claseDeDiferencia(n, masCompleto[0].nombre) === CLASE.COMPATIBILIDAD)) {
+      referencia = masCompleto[0].nombre
+      fuente = `compatibilidad:${masCompleto[0].slug}`
+    } else if (refs.length === 2 && sinMarca(e.plazas[refs[0]]) !== sinMarca(e.plazas[refs[1]])) {
+      // Se compara con `sinMarca`, no en crudo. «GALAXY A07» y «SAMSUNG A07»
+      // son el mismo producto: bodega escribe GALAXY en sus 192 productos
+      // Samsung y las cuatro tiendas escriben SAMSUNG en el 92-98% de los
+      // suyos. Tratarlo como un choque entre referencias convertía una
+      // convención distinta en 171 decisiones que nadie tiene que tomar.
+      // Las dos referencias se contradicen y no es cuestión de compatibilidad:
+      // eso sí es el hallazgo, y no se corrige a nadie hasta que una persona
+      // decida cuál vale.
       out.push({
         codigo: e.codigo,
         referencia: null,
         fuente: 'conflicto',
         corregirEn: 'referencias',
+        severidad: 'media',
         fuera: refs.map(slug => ({ slug, nombre: e.plazas[slug], clase: claseDeDiferencia(e.plazas[refs[0]], e.plazas[refs[1]]) })),
         clase: claseDeDiferencia(e.plazas[refs[0]], e.plazas[refs[1]]),
       })
       continue
+    } else {
+      referencia = refs.length ? e.plazas[refs[0]] : null
+      fuente = refs.length === 2 ? 'bodega+leon' : refs[0] ?? null
     }
-
-    let referencia = refs.length ? e.plazas[refs[0]] : null
-    let fuente = refs.length === 2 ? 'bodega+leon' : refs[0] ?? null
 
     if (!referencia) {
       // Sin referencia, decide la mayoría; con empate no se señala a nadie.
@@ -130,8 +173,12 @@ export function discrepanciasDeNombre({ inventarios }) {
       fuente = 'mayoria'
     }
 
+    // Cuando manda la compatibilidad, la referencia puede ser cualquier plaza,
+    // así que se compara contra ella y no se exceptúa a nadie.
+    const exentas = fuente?.startsWith('compatibilidad') ? [masCompleto[0].slug] : refs
+
     const fuera = plazas
-      .filter(([slug, n]) => !refs.includes(slug) && MAYUS(n) !== MAYUS(referencia))
+      .filter(([slug, n]) => !exentas.includes(slug) && MAYUS(n) !== MAYUS(referencia))
       .map(([slug, nombre]) => ({ slug, nombre, clase: claseDeDiferencia(nombre, referencia) }))
 
     if (!fuera.length) continue
@@ -139,7 +186,12 @@ export function discrepanciasDeNombre({ inventarios }) {
     // La clase del renglón es la más seria de sus diferencias.
     const clase = fuera.reduce((a, f) => (PESO[f.clase] > PESO[a] ? f.clase : a), CLASE.FORMATO)
 
-    out.push({ codigo: e.codigo, referencia, fuente, corregirEn: 'sucursal', fuera, clase })
+    // Jerarquía: un nombre nunca es un error grave. Lo grave son los códigos,
+    // que van en `anomalias.js`. Aquí lo más serio es un nombre que apunta a
+    // OTRO teléfono; lo demás es pedir una corrección de escritura.
+    const severidad = clase === CLASE.OTRO ? 'media' : 'baja'
+
+    out.push({ codigo: e.codigo, referencia, fuente, corregirEn: 'sucursal', severidad, fuera, clase })
   }
 
   // Lo más serio primero, y los conflictos de referencia por delante de todo:

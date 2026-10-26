@@ -92,14 +92,60 @@ test('un código escrito igual en todas partes no aparece', () => {
   assert.equal(r.length, 0)
 })
 
-test('los conflictos de referencia van primero', () => {
+test('la compatibilidad no se discute: gana quien liste más', () => {
+  // Si bodega sabe que el X6 sirve también para el X6S, bodega tiene razón y
+  // a las demás les falta la actualización. No es que una se equivoque.
   const r = correr({
-    bodega: { CONF: 'HONOR X6/X6S TPU CASE', OK: 'IPHONE 15 TPU CASE' },
-    leon:   { CONF: 'HONOR X6 TPU CASE',     OK: 'IPHONE 15 TPU CASE' },
-    ferias: { CONF: 'HONOR X6 TPU CASE',     OK: 'IPHONE 15 TPU' },
+    bodega: { HX6T: 'HONOR X6/X6S TPU CASE' },
+    leon:   { HX6T: 'HONOR X6 TPU CASE' },
+    ferias: { HX6T: 'HONOR X6 TPU CASE' },
   })
-  assert.equal(r[0].codigo, 'CONF')
-  assert.equal(r[0].fuente, 'conflicto')
+  assert.equal(r.length, 1)
+  assert.equal(r[0].fuente, 'compatibilidad:bodega')
+  assert.equal(r[0].referencia, 'HONOR X6/X6S TPU CASE')
+  assert.deepEqual(r[0].fuera.map(f => f.slug).sort(), ['ferias', 'leon'])
+})
+
+test('y gana León cuando es León quien lista más', () => {
+  const r = correr({
+    bodega: { I16E3: 'IPHONE 16E 3 IN 1' },
+    leon:   { I16E3: 'IPHONE 16E/17E 3 IN 1' },
+  })
+  assert.equal(r[0].fuente, 'compatibilidad:leon')
+  assert.equal(r[0].referencia, 'IPHONE 16E/17E 3 IN 1')
+})
+
+test('«3 IN 1» no cuenta como dos teléfonos', () => {
+  // Sus números falseaban la cuenta de modelos y daban ganadores falsos.
+  const r = correr({
+    bodega: { X: 'IPHONE 16E 3 IN 1' },
+    leon:   { X: 'IPHONE 16E TPU CASE' },
+  })
+  // La diferencia es el tipo de funda, no la compatibilidad.
+  assert.notEqual(r[0].fuente, 'compatibilidad:bodega')
+})
+
+test('GALAXY y SAMSUNG no enfrentan a las referencias', () => {
+  // Bodega escribe GALAXY en sus 192 productos Samsung; las cuatro tiendas
+  // escriben SAMSUNG. Es una convención, no un choque que alguien resuelva.
+  const r = correr({
+    bodega: { SGA07T: 'GALAXY A07 TPU CASE' },
+    leon:   { SGA07T: 'SAMSUNG A07 TPU CASE' },
+    ferias: { SGA07T: 'SAMSUNG A07 TPU CASE' },
+  })
+  for (const x of r) assert.notEqual(x.fuente, 'conflicto')
+})
+
+test('un nombre nunca es alerta grave: eso son los códigos', () => {
+  const r = correr({
+    bodega: { A: 'HUAWEI NOVA 13 PRO TPU CASE', B: 'GALAXY A07 TPU CASE' },
+    leon:   { A: 'HUAWEI NOVA 13 PRO TPU CASE', B: 'GALAXY A07 TPU CASE' },
+    ferias: { A: 'HUAWEI NOVA 13 TPU CASE',     B: 'SAMSUNG A07 TPU CASE' },
+  })
+  const sev = Object.fromEntries(r.map(x => [x.codigo, x.severidad]))
+  assert.equal(sev.A, 'media')   // apunta a otro teléfono
+  assert.equal(sev.B, 'baja')    // sólo forma de escribir
+  for (const x of r) assert.notEqual(x.severidad, 'alta')
 })
 
 test('el resumen por plaza agrupa lo que un listado largo esconde', () => {
