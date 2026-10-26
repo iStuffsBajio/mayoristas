@@ -27,27 +27,51 @@ import { patronesDeEscritura } from '../lib/patrones'
  *
  * ── Qué se guarda y qué no ──────────────────────────────────────────────────
  *
- * Casi nada. Los hallazgos salen de los datos, así que al corregirlo en la
- * caja desaparecen solos en la siguiente sincronización: no hay que marcar
- * nada como hecho ni puede quedarse desincronizado.
+ * Nada de lo que se arregla. Los hallazgos salen de los datos, así que al
+ * corregirlo en la caja desaparecen solos en la siguiente sincronización: no
+ * hay que marcar nada como hecho ni puede quedarse desincronizado.
  *
- * Lo único que se guarda son los «no es error»: decisiones que contradicen al
- * detector y que, si no se recordaran, volverían a aparecer cada día. Viven en
- * el navegador y se pueden volver a mostrar.
+ * Se guardan sólo las dos marcas que el dato no puede deducir:
+ *
+ *   · **pendiente** — alguien ya lo está corrigiendo, con una nota para saber
+ *     quién o en qué quedó. Sin esto, mañana vuelve a salir igual que ayer y
+ *     no hay forma de distinguir «no lo he visto» de «está en marcha».
+ *   · **no es error** — una decisión que contradice al detector y que, si no
+ *     se recordara, volvería a preguntarse cada día.
+ *
+ * Viven en el navegador, que es donde se hace este trabajo, y se pueden
+ * quitar.
  *
  * ── El orden ────────────────────────────────────────────────────────────────
  *
  * Primero los códigos, que es la alerta sensible y mueve dinero. Después los
  * nombres, que son orden y limpieza. Dentro de cada bloque, lo que más
- * resuelve de una vez.
+ * resuelve de una vez. Lo marcado como pendiente va al final: ya tiene dueño.
  */
 
 const FERIAS = SUCURSALES.find(s => s.estacional)
-const CLAVE_IGNORADOS = 'istuffs_revisar_ignorados'
+const CLAVE = 'istuffs_revisar_marcas'
+const CLAVE_VIEJA = 'istuffs_revisar_ignorados'
 
-const leerIgnorados = () => {
-  try { return new Set(JSON.parse(localStorage.getItem(CLAVE_IGNORADOS) ?? '[]')) }
-  catch { return new Set() }
+/** { id: { estado: 'pendiente' | 'ignorado', nota, fecha } } */
+const leerMarcas = () => {
+  try {
+    const guardado = localStorage.getItem(CLAVE)
+    if (guardado) return JSON.parse(guardado)
+    // La primera versión sólo guardaba una lista de ignorados.
+    const viejo = JSON.parse(localStorage.getItem(CLAVE_VIEJA) ?? '[]')
+    return Object.fromEntries(viejo.map(id => [id, { estado: 'ignorado' }]))
+  } catch { return {} }
+}
+
+const guardarMarcas = m => {
+  try { localStorage.setItem(CLAVE, JSON.stringify(m)) } catch { /* modo privado */ }
+}
+
+const comoFecha = iso => {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
 }
 
 const bajar = async url => {
@@ -66,7 +90,9 @@ export default function RevisarPanel() {
   const [inv, setInv] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [i, setI] = useState(0)
-  const [ignorados, setIgnorados] = useState(leerIgnorados)
+  const [marcas, setMarcas] = useState(leerMarcas)
+  const [editando, setEditando] = useState(false)
+  const [borrador, setBorrador] = useState('')
 
   const plazas = useMemo(
     () => [BODEGA, ...SUCURSALES_ACTIVAS, ...(FERIAS ? [FERIAS] : [])], [])
@@ -130,20 +156,31 @@ export default function RevisarPanel() {
       items.push(fichaDeNombre(n))
     }
 
+    // Lo pendiente no se esconde —sigue sin arreglarse— pero va al final: ya
+    // tiene quien lo esté viendo, y lo que no ha mirado nadie pesa más.
+    const pendiente = x => (marcas[x.id]?.estado === 'pendiente' ? 1 : 0)
+
     return items
-      .filter(x => !ignorados.has(x.id))
-      .sort((a, b) => (a.bloque === b.bloque
-        ? b.peso - a.peso
-        : a.bloque === 'codigo' ? -1 : 1))
-  }, [inv, grupos, ignorados])
+      .filter(x => marcas[x.id]?.estado !== 'ignorado')
+      .sort((a, b) => pendiente(a) - pendiente(b)
+        || (a.bloque === b.bloque
+          ? b.peso - a.peso
+          : a.bloque === 'codigo' ? -1 : 1))
+  }, [inv, grupos, marcas])
 
   if (cargando) return <p className="tablero-cargando">Leyendo el catálogo de las cinco plazas…</p>
 
   const total = cola.length
+  const ignorados = Object.values(marcas).filter(m => m?.estado === 'ignorado').length
+  const pendientes = cola.filter(x => marcas[x.id]?.estado === 'pendiente').length
 
   const volverAMostrar = () => {
-    setIgnorados(new Set())
-    try { localStorage.removeItem(CLAVE_IGNORADOS) } catch { /* modo privado */ }
+    setMarcas(m => {
+      const s = Object.fromEntries(
+        Object.entries(m).filter(([, v]) => v?.estado !== 'ignorado'))
+      guardarMarcas(s)
+      return s
+    })
     setI(0)
   }
 
@@ -152,11 +189,11 @@ export default function RevisarPanel() {
       <section className="tarjeta revisar-fin">
         <h4>No queda nada por revisar</h4>
         <p className="tarjeta-sub">
-          {ignorados.size > 0
-            ? `Hay ${ignorados.size} hallazgos marcados como «no es error».`
+          {ignorados > 0
+            ? `Hay ${ignorados} ${ignorados === 1 ? 'hallazgo marcado' : 'hallazgos marcados'} como «no es error».`
             : 'El catálogo está en orden.'}
         </p>
-        {ignorados.size > 0 && (
+        {ignorados > 0 && (
           <button type="button" className="boton-tono" onClick={volverAMostrar}>
             Volver a mostrarlos
           </button>
@@ -167,11 +204,28 @@ export default function RevisarPanel() {
 
   const pos = Math.min(i, total - 1)
   const item = cola[pos]
+  const marca = marcas[item.id]
 
-  const ignorar = () => {
-    const s = new Set(ignorados).add(item.id)
-    setIgnorados(s)
-    try { localStorage.setItem(CLAVE_IGNORADOS, JSON.stringify([...s])) } catch { /* modo privado */ }
+  const marcar = (estado, nota) => {
+    setMarcas(m => {
+      const s = { ...m }
+      if (!estado) delete s[item.id]
+      else s[item.id] = { estado, nota: nota?.trim() || '', fecha: new Date().toISOString() }
+      guardarMarcas(s)
+      return s
+    })
+  }
+
+  const irA = n => { setEditando(false); setI(Math.max(0, Math.min(n, total - 1))) }
+
+  const abrirNota = () => { setBorrador(marca?.nota ?? ''); setEditando(true) }
+
+  const guardarPendiente = () => {
+    marcar('pendiente', borrador)
+    setEditando(false)
+    // La cola se reordena -lo pendiente baja al final-, así que quedarse en el
+    // mismo sitio ya enseña el siguiente.
+    setI(n => Math.min(n, total - 1))
   }
 
   const alt = item.codigo
@@ -185,12 +239,20 @@ export default function RevisarPanel() {
         <span className="revisar-barra" aria-hidden="true">
           <span style={{ width: `${(pos / total) * 100}%` }} />
         </span>
+        {pendientes > 0 && <span className="revisar-pendientes">{pendientes} pendientes</span>}
         <span className={'revisar-sello sello-' + item.bloque}>
           {item.bloque === 'codigo' ? 'Código' : 'Nombre'}
         </span>
       </header>
 
-      <section className="tarjeta revisar-ficha">
+      <section className={'tarjeta revisar-ficha' + (marca?.estado === 'pendiente' ? ' es-pendiente' : '')}>
+        {marca?.estado === 'pendiente' && (
+          <p className="rev-marca">
+            <strong>En corrección</strong>
+            <span>desde el {comoFecha(marca.fecha)}</span>
+            {marca.nota && <em>«{marca.nota}»</em>}
+          </p>
+        )}
         {item.chip && <p className="rev-chip">{item.chip}</p>}
         <h4>{item.titulo}</h4>
         <p className="rev-veredicto">{item.veredicto}</p>
@@ -243,31 +305,58 @@ export default function RevisarPanel() {
 
         <p className="rev-propuesta"><span>Propuesta</span> {item.accion}</p>
 
-        <div className="rev-botones">
-          <button type="button" className="boton-tinta"
-                  onClick={() => setI(n => Math.min(n + 1, total - 1))}>
-            Lo voy a corregir
-          </button>
-          <button type="button" className="boton-tono" onClick={ignorar}>
-            No es error
-          </button>
-          <button type="button" className="rev-saltar"
-                  onClick={() => setI(n => Math.min(n + 1, total - 1))}>
-            Saltar
-          </button>
-          {pos > 0 && (
-            <button type="button" className="rev-saltar" onClick={() => setI(pos - 1)}>
-              Atrás
+        {editando ? (
+          <div className="rev-nota">
+            <label htmlFor="rev-nota-campo">
+              ¿Quién lo está corrigiendo, o en qué quedó? (opcional)
+            </label>
+            <textarea
+              id="rev-nota-campo"
+              rows={2}
+              value={borrador}
+              autoFocus
+              placeholder="Ej.: lo corrige Brenda en León esta semana"
+              onChange={e => setBorrador(e.target.value)} />
+            <div className="rev-botones">
+              <button type="button" className="boton-tinta" onClick={guardarPendiente}>
+                Guardar como pendiente
+              </button>
+              <button type="button" className="rev-saltar" onClick={() => setEditando(false)}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="rev-botones">
+            <button type="button" className="boton-tinta" onClick={abrirNota}>
+              {marca?.estado === 'pendiente' ? 'Cambiar la nota' : 'Lo voy a corregir'}
             </button>
-          )}
-        </div>
+            {marca?.estado === 'pendiente' && (
+              <button type="button" className="boton-tono" onClick={() => marcar(null)}>
+                Quitar pendiente
+              </button>
+            )}
+            <button type="button" className="boton-tono" onClick={() => marcar('ignorado')}>
+              No es error
+            </button>
+            <button type="button" className="rev-saltar" onClick={() => irA(pos + 1)}>
+              Saltar
+            </button>
+            {pos > 0 && (
+              <button type="button" className="rev-saltar" onClick={() => irA(pos - 1)}>
+                Atrás
+              </button>
+            )}
+          </div>
+        )}
       </section>
 
       <p className="tablero-nota">
         No hace falta marcar nada como hecho: los hallazgos salen de los datos, así que al
-        corregirlo en la caja desaparecen solos en la siguiente sincronización.
-        {ignorados.size > 0 && (
-          <> Hay {ignorados.size} marcados como «no es error».{' '}
+        corregirlo en la caja desaparecen solos en la siguiente sincronización. «Pendiente»
+        es sólo para saber que ya hay alguien en ello.
+        {ignorados > 0 && (
+          <> Hay {ignorados} marcados como «no es error».{' '}
             <button type="button" className="grafica-tabla-boton" onClick={volverAMostrar}>
               Volver a mostrarlos
             </button>

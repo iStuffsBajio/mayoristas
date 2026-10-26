@@ -243,8 +243,12 @@ function escribir(window, input, valor) {
   // React guarda el valor anterior en un rastreador y descarta el evento si
   // no cambió. Sin esto el cambio no llega nunca al componente.
   input._valueTracker?.setValue('')
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-  setter.call(input, valor)
+  // El prototipo sale del elemento: un <textarea> no hereda de HTMLInputElement
+  // y usar el descriptor equivocado escribe el valor sin que React se entere.
+  const proto = input.tagName === 'TEXTAREA'
+    ? window.HTMLTextAreaElement.prototype
+    : window.HTMLInputElement.prototype
+  Object.getOwnPropertyDescriptor(proto, 'value').set.call(input, valor)
   input.dispatchEvent(new window.Event('input', { bubbles: true }))
 }
 
@@ -287,12 +291,24 @@ async function todasLasCabeceras(window, donde) {
 async function recorrerCola(window, donde) {
   const doc = window.document
   let n = 0
+  const saltarVivo = () => [...doc.querySelectorAll('.rev-botones button')]
+    .find(b => /saltar/i.test(b.textContent))
+
   while (doc.querySelector('.revisar-ficha')) {
-    const saltar = [...doc.querySelectorAll('.rev-botones button')]
-      .find(b => /saltar/i.test(b.textContent))
-    if (!saltar) break
+    if (!saltarVivo()) break
     n++
     if (!enPie(window, `${donde} · hallazgo ${n}`)) return n
+
+    // En el primero se marca «pendiente» con su nota: es la única parte de la
+    // cola que escribe algo, y el aviso que deja encima de la ficha sólo se
+    // dibuja después de guardarla.
+    if (n === 1 && !await marcarPendiente(window, donde)) return n
+
+    // El botón se vuelve a buscar aquí: marcar pendiente repinta la ficha y el
+    // nodo de antes ya no está en el documento. Pulsarlo no hacía nada y el
+    // recorrido se cortaba en el primer hallazgo sin que nada fallara.
+    const saltar = saltarVivo()
+    if (!saltar) break
     const antes = doc.querySelector('.revisar-cuenta')?.textContent
     clic(window, saltar)
     await nuevaVuelta(window, 3)
@@ -302,6 +318,40 @@ async function recorrerCola(window, donde) {
   if (n) porSitio.push(`${donde}: ${n} hallazgos`)
   return n
 }
+
+/** Marca el hallazgo a la vista como pendiente, con nota, y comprueba el aviso. */
+async function marcarPendiente(window, donde) {
+  const doc = window.document
+  const boton = txt => [...doc.querySelectorAll('.revisar-ficha button')]
+    .find(b => new RegExp(txt, 'i').test(b.textContent))
+
+  const abrir = boton('voy a corregir')
+  if (!abrir) { errores.push(`SIN BOTÓN · ${donde} · «Lo voy a corregir»`); return false }
+  clic(window, abrir)
+  await nuevaVuelta(window, 3)
+
+  const campo = doc.querySelector('.rev-nota textarea')
+  if (!campo) { errores.push(`SIN CAMPO · ${donde} · la nota de pendiente`); return false }
+  escribir(window, campo, 'lo corrige Brenda esta semana')
+  await nuevaVuelta(window, 2)
+
+  const guardar = boton('guardar como pendiente')
+  if (!guardar) { errores.push(`SIN BOTÓN · ${donde} · «Guardar como pendiente»`); return false }
+  clic(window, guardar)
+  await nuevaVuelta(window, 4)
+
+  if (!enPie(window, `${donde} · tras marcar pendiente`)) return false
+
+  // La nota tiene que haberse quedado escrita en alguna ficha de la cola: al
+  // marcarla, el hallazgo baja al final y otro ocupa su sitio.
+  if (!/Brenda/.test(doc.body.textContent) && !notaGuardada(window)) {
+    errores.push(`NOTA PERDIDA · ${donde} · se guardó pendiente y no quedó rastro`)
+    return false
+  }
+  return true
+}
+
+const notaGuardada = window => /Brenda/.test(window.localStorage.getItem('istuffs_revisar_marcas') ?? '')
 
 // ── El recorrido ───────────────────────────────────────────────────────────
 

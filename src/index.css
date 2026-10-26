@@ -1479,3 +1479,57 @@
     .rev-botones > * { flex: 1 1 auto; justify-content: center; }
   }
 }
+
+/* La marca de «pendiente»: que ya haya alguien en ello no lo arregla, así que
+   el hallazgo sigue en la cola -sólo que al final, y con el aviso arriba del
+   todo para no volver a empezarlo-. */
+@layer components {
+  .revisar-pendientes {
+    padding: 4px 11px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: rgba(255, 107, 26, 0.12);
+    color: #a33d00;
+  }
+
+  .revisar-ficha.es-pendiente { box-shadow: inset 3px 0 0 var(--naranja); }
+
+  .rev-marca {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 9px;
+    margin: 0 0 12px;
+    font-size: 0.8125rem;
+  }
+  .rev-marca strong { color: #a33d00; font-weight: 600; }
+  .rev-marca span   { color: var(--muted); }
+  .rev-marca em     { font-style: normal; color: var(--ink); flex-basis: 100%; }
+
+  .rev-nota { margin-top: 18px; }
+  .rev-nota label {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 0.8125rem;
+    color: var(--muted);
+  }
+  .rev-nota textarea {
+    width: 100%;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: var(--step-small);
+    line-height: 1.5;
+    color: var(--ink);
+    background: var(--bg);
+    border: 1px solid rgba(13, 17, 20, 0.14);
+    border-radius: 12px;
+    padding: 11px 13px;
+    resize: vertical;
+  }
+  .rev-nota textarea:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+    border-color: transparent;
+  }
+}
