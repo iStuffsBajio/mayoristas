@@ -79,6 +79,7 @@ const plazasDe = item => (item.plazas ?? []).map(nombreSucursal).join(', ')
 const COLUMNAS = [
   { titulo: 'Caso',        valor: f => f.item.id, ancho: 26 },
   { titulo: 'Tipo',        valor: f => (f.item.bloque === 'codigo' ? 'Código' : 'Nombre'), ancho: 10 },
+  { titulo: 'Qué toca',    valor: f => f.item.etiqueta ?? '', ancho: 26 },
   { titulo: 'Problema',    valor: f => f.item.titulo, ancho: 44 },
   { titulo: 'Qué se sabe', valor: f => (f.item.contexto ?? []).join(' · '), ancho: 70 },
   { titulo: 'Plazas',      valor: f => plazasDe(f.item), ancho: 30 },
@@ -106,15 +107,28 @@ const COLUMNAS = [
 const porCodigo = filas => filas.flatMap(f =>
   (f.item.codigos ?? []).map(c => ({ ...f, c })))
 
+// En qué plaza hay que hacer el trabajo.
+//
+// Va sobre dónde está dado de ALTA el código y no sobre dónde hay existencia:
+// la lista que abre esta hoja es la de los que no tienen ni una pieza en
+// ninguna parte, y con las plazas con existencia la columna salía en blanco
+// justo en los treinta renglones donde la única pregunta es «¿en dónde lo
+// borro?». Dado de alta con cero piezas es exactamente lo que hay que borrar.
+const dondeTocar = c => {
+  const alta = c.altaEn ?? []
+  return (alta.length ? alta : Object.keys(c.plazas ?? {})).map(nombreSucursal).join(', ')
+}
+
 const COLUMNAS_CODIGO = [
   { titulo: 'Código',       valor: f => f.c.codigo, fuerte: true, ancho: 14 },
   { titulo: 'Producto',     valor: f => f.c.producto ?? '', ancho: 46 },
   { titulo: 'Piezas',       valor: f => Number(f.c.piezas) || 0, num: true, ancho: 9 },
-  { titulo: 'Plazas',       valor: f => Object.keys(f.c.plazas ?? {}).map(nombreSucursal).join(', '), ancho: 30 },
+  { titulo: 'Plazas',       valor: f => dondeTocar(f.c), ancho: 30 },
   { titulo: 'Última venta', valor: f => soloFecha(f.c.ultimaVenta), ancho: 13 },
   { titulo: 'Respuesta',    valor: f => comoEstado(f.marca), fuerte: true, ancho: 12,
     color: f => { const r = respuestaDe(f.marca); return r === 'si' ? C.verde : r === 'no' ? C.tinta : C.tintaTenue } },
   { titulo: 'Qué hacer',    valor: queHacer, ancho: 60 },
+  { titulo: 'Qué toca',     valor: f => f.item.etiqueta ?? '', ancho: 26 },
   { titulo: 'Caso',         valor: f => f.item.id, ancho: 24 },
 ]
 
@@ -183,7 +197,13 @@ function portada(filas) {
  * de respuestas { id: { estado, nota, fecha, por } }.
  */
 export function libroDeRevisiones(cola, marcas) {
-  const filas = (cola ?? []).map(item => ({ item, marca: marcas?.[item.id] ?? null }))
+  // El libro sale en el mismo orden que la pantalla —por lo que hay que hacer
+  // con cada caso— y no en el que se detectaron. La hoja se reparte como lista
+  // de tareas, así que lo que se ejecuta sin pensar tiene que ir arriba.
+  const filas = (cola ?? [])
+    .map(item => ({ item, marca: marcas?.[item.id] ?? null }))
+    .sort((a, b) => (a.item.orden ?? 9) - (b.item.orden ?? 9)
+      || (b.item.peso ?? 0) - (a.item.peso ?? 0))
   if (!filas.length) return null
 
   const libro = XLSX.utils.book_new()

@@ -16,6 +16,40 @@ const lista = xs => (xs.length <= 1
 
 const nombresDe = slugs => lista(slugs.map(nombreSucursal))
 
+/**
+ * El sitio de cada ficha en la cola: por lo que hay que HACER con ella, no por
+ * cuántas piezas tiene.
+ *
+ * La primera versión ordenaba por piezas paradas y con los lotes salió al
+ * revés de lo que el dueño contestó de verdad el 2026-10-27:
+ *
+ *   · el lote de los 30 códigos sin existencia —una respuesta, cero riesgo,
+ *     se ejecuta el mismo día— tiene **0 piezas**, así que caía al último
+ *     puesto de los cuatro;
+ *   · el de los colores que bodega ya no surte —que mandó **ignorar**— tiene
+ *     53 y subía al primero.
+ *
+ * Así que el orden no lo decide el peso: lo decide la decisión que ya está
+ * tomada. De arriba abajo, lo que se ejecuta sin pensar, lo que cuesta dinero
+ * cada semana que nadie lo contesta, lo que hay que decidir, lo que sólo se
+ * anota y lo que se ignora. Dentro de un mismo paso sí manda el peso.
+ *
+ * 🔒 Cambiar este orden cambia en qué trabaja la gente primero: se avisa.
+ */
+export const PASO = {
+  BORRAR:    { n: 0, clave: 'borrar',    etiqueta: 'Se borra y se acabó' },
+  VIVO:      { n: 1, clave: 'vivo',      etiqueta: 'Se vende y bodega no lo tiene' },
+  DUPLICADO: { n: 2, clave: 'duplicado', etiqueta: 'Dos códigos, un teléfono' },
+  DECIDIR:   { n: 3, clave: 'decidir',   etiqueta: 'Hay que decidirlo' },
+  ANOTAR:    { n: 4, clave: 'anotar',    etiqueta: 'Sólo anotar' },
+  IGNORAR:   { n: 5, clave: 'ignorar',   etiqueta: 'Se ignora' },
+  NOMBRE:    { n: 6, clave: 'nombre',    etiqueta: 'Orden y limpieza' },
+}
+
+// Va en la ficha y no en un mapa aparte del componente: el orden sale de los
+// mismos hechos que la redacción, y separarlos deja que uno cambie sin el otro.
+const paso = p => ({ orden: p.n, paso: p.clave, etiqueta: p.etiqueta })
+
 /** Un patrón de escritura: una decisión que ordena muchos renglones. */
 export function fichaDePatron(p) {
   // Cuántos productos hay que tocar de verdad. Lo trae ya contado
@@ -67,6 +101,7 @@ export function fichaDePatron(p) {
   return {
     id: p.id,
     bloque: 'nombre',
+    ...paso(PASO.NOMBRE),
     chip: `Una respuesta ordena ${p.renglones} renglones`,
     titulo,
     contexto,
@@ -193,6 +228,24 @@ const REDACCION = {
 }
 
 /**
+ * Lo que el dueño dejó dicho de cada lote, el 2026-10-27, mirando el reporte:
+ *
+ *   · sin existencia  → borrarlos, con la lista de en qué plaza borrar cada uno
+ *   · un solo mostrador → qué códigos y en qué sucursal, y lo decide él
+ *   · bodega los descontinuó → no hacer nada, sólo guardar la nota, porque
+ *     «próximamente esos serán los nuevos descontinuados»
+ *   · colores que bodega no surte → ignorarlos
+ *
+ * 🔒 Es una decisión de negocio, no una preferencia de pantalla.
+ */
+const PASO_DE_CLASE = {
+  'sin-existencia': PASO.BORRAR,
+  'una-plaza':      PASO.DECIDIR,
+  'varias-plazas':  PASO.ANOTAR,
+  tono:             PASO.IGNORAR,
+}
+
+/**
  * Un lote: una pregunta que ordena muchos códigos de golpe.
  *
  * Lleva el detalle código a código a propósito. Un «sí» que da de baja veinte
@@ -219,6 +272,7 @@ export function fichaDeLote(lote) {
     plazas: lote.plazas,
     codigos: lote.codigos,
     peso: lote.piezas,
+    ...paso(PASO_DE_CLASE[lote.clase] ?? PASO.DECIDIR),
     ...r,
   }
 }
@@ -232,6 +286,16 @@ export function fichaDeCodigo(h) {
     : 'Ninguna plaza tiene existencia'
 
   const filas = Object.entries(h.plazas).map(([s, n]) => [nombreSucursal(s), `${n} pz`])
+
+  // Un suelto no trae clase de lote, así que su sitio sale de su propio
+  // motivo. Sin existencia no hay nada que decidir —se borra—, y un duplicado
+  // va delante aunque se siga vendiendo: mientras los dos códigos existan,
+  // todo lo que se cuente de ese teléfono sale repartido en dos.
+  const suPaso = h.motivo === MOTIVO.DUPLICADO ? PASO.DUPLICADO
+    : h.piezas === 0 ? PASO.BORRAR
+    : h.motivo === MOTIVO.SIN_ALTA ? PASO.VIVO
+    : PASO.DECIDIR
+
   const comun = {
     id: `cod|${h.codigo}`,
     bloque: 'codigo',
@@ -244,6 +308,7 @@ export function fichaDeCodigo(h) {
     // con el mismo código y no necesita saber cuál es de qué clase.
     codigos: [h],
     peso: h.piezas,
+    ...paso(suPaso),
   }
 
   if (h.motivo === MOTIVO.DUPLICADO) {
@@ -305,6 +370,7 @@ export function fichaDeNombre(n) {
     const [a, b] = n.fuera
     return {
       id: `nom|${n.codigo}`,
+      ...paso(PASO.NOMBRE),
       codigo: n.codigo,
       codigos: [{ codigo: n.codigo, producto: n.referencia ?? n.fuera?.[0]?.nombre ?? '', piezas: 0 }],
       bloque: 'nombre',
@@ -330,8 +396,9 @@ export function fichaDeNombre(n) {
 
   return {
     id: `nom|${n.codigo}`,
-      codigo: n.codigo,
-      codigos: [{ codigo: n.codigo, producto: n.referencia ?? n.fuera?.[0]?.nombre ?? '', piezas: 0 }],
+    ...paso(PASO.NOMBRE),
+    codigo: n.codigo,
+    codigos: [{ codigo: n.codigo, producto: n.referencia ?? n.fuera?.[0]?.nombre ?? '', piezas: 0 }],
     bloque: 'nombre',
     chip: `${n.codigo} · el nombre apunta a otro teléfono`,
     titulo: 'El nombre no es sólo otra forma de escribirlo',

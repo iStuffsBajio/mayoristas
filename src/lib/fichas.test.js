@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { MOTIVO } from './anomalias.js'
-import { fichaDeCodigo, fichaDeLote, fichaDePatron, fichaDeNombre } from './fichas.js'
+import { fichaDeCodigo, fichaDeLote, fichaDePatron, fichaDeNombre, PASO } from './fichas.js'
 import { CLASE } from './lotes.js'
 
 const huerfano = (motivo, extra = {}) => ({
@@ -134,3 +134,61 @@ test('el lote de color nombra el codigo que bodega si surte', () => {
   const f = fichaDeLote(lote(CLASE.TONO))
   assert.match(f.detalle[0], /bodega surte I11T/)
 })
+
+test('ninguna ficha puede existir sin su sitio en la cola', () => {
+  // Sin `orden`, la resta de la cola da NaN y el navegador deja el orden tal
+  // y como venia: la ficha nueva aparece donde caiga y nada falla.
+  const sitios = Object.values(PASO).map(p => p.n)
+  for (const f of TODAS()) {
+    assert.ok(sitios.includes(f.orden), `${f.id}: orden ${f.orden} no es un PASO`)
+    assert.ok(String(f.etiqueta ?? '').trim(), `${f.id}: sin etiqueta de paso`)
+    assert.ok(String(f.paso ?? '').trim(), `${f.id}: sin clave de paso`)
+  }
+})
+
+/** El mismo orden que usa la cola del panel, para poder comprobarlo aqui. */
+const enOrden = fichas => [...fichas].sort((a, b) => a.orden - b.orden || b.peso - a.peso)
+
+test('la cola va por lo que hay que hacer, no por las piezas', () => {
+  // Es la decision del dueno del 2026-10-27, y el peso la contradice: el lote
+  // que se borra y se acabo tiene CERO piezas, y el que mando ignorar, 53.
+  const lotes = enOrden(Object.values(CLASE).map(clase => fichaDeLote({
+    ...lote(clase),
+    piezas: clase === CLASE.SIN_EXISTENCIA ? 0 : clase === CLASE.TONO ? 53 : 9,
+  })))
+
+  assert.deepEqual(lotes.map(f => f.id), [
+    'lote|sin-existencia',   // se borra y se acabo: una respuesta, cero riesgo
+    'lote|una-plaza',        // hay que decidirlo plaza por plaza
+    'lote|varias-plazas',    // solo anotar: seran los proximos descontinuados
+    'lote|tono',             // se ignora
+  ])
+})
+
+test('lo que se vende y bodega no tiene va delante de lo que solo se anota', () => {
+  // Es el caso que cuesta dinero cada semana que nadie lo contesta, y es justo
+  // el que NO se agrupa: por eso no puede quedar detras de los lotes grandes.
+  const vivo = fichaDeCodigo(huerfano(MOTIVO.SIN_ALTA, { cubiertoPor: null }))
+  const anotar = fichaDeLote(lote(CLASE.VARIAS))
+  const ignorar = fichaDeLote(lote(CLASE.TONO))
+  assert.deepEqual(enOrden([anotar, ignorar, vivo]).map(f => f.paso),
+    ['vivo', 'anotar', 'ignorar'])
+})
+
+test('un suelto sin existencia se borra, no se decide', () => {
+  const sin = fichaDeCodigo(huerfano(MOTIVO.DESCONTINUADO, { cubiertoPor: null, piezas: 0, plazas: {} }))
+  const con = fichaDeCodigo(huerfano(MOTIVO.DESCONTINUADO, { cubiertoPor: null }))
+  assert.equal(sin.paso, 'borrar')
+  assert.equal(con.paso, 'decidir')
+  // Y el duplicado va delante de los dos: mientras existan los dos codigos,
+  // todo lo que se cuente de ese telefono sale repartido en dos.
+  assert.ok(fichaDeCodigo(huerfano(MOTIVO.DUPLICADO)).orden < con.orden)
+})
+
+test('los nombres van detras de todo lo que mueve piezas', () => {
+  for (const f of TODAS()) {
+    if (f.bloque === 'nombre') assert.equal(f.orden, PASO.NOMBRE.n, f.id)
+    else assert.ok(f.orden < PASO.NOMBRE.n, `${f.id}: un codigo no puede ir detras de un nombre`)
+  }
+})
+

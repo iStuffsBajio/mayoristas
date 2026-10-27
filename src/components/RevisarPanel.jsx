@@ -176,14 +176,16 @@ export default function RevisarPanel() {
   // lo que no ha mirado nadie es lo que hace falta mirar.
   const cola = useMemo(() => {
     const hecho = x => (marcas[x.id] ? 1 : 0)
-    // Los lotes van delante de las preguntas sueltas: contestar cuatro fichas
-    // deja la cola en la mitad, y lo que queda después son los casos vivos,
-    // que son los que de verdad hay que pensar uno a uno.
-    const esLote = x => (x.lote ? 0 : 1)
+    // El orden lo decide `PASO` en fichas.js: lo que hay que hacer con cada
+    // ficha, no cuántas piezas tiene. Ordenando por peso, el lote de los que
+    // ya no tienen ni una pieza —el único que se ejecuta sin pensar— salía el
+    // último de los cuatro, y los colores que hay que ignorar, el primero.
+    //
+    // Dentro de un mismo paso sí manda el peso, que ahí sí es donde hay más
+    // dinero quieto.
     return [...todos].sort((a, b) => hecho(a) - hecho(b)
-      || (a.bloque === b.bloque
-        ? esLote(a) - esLote(b) || b.peso - a.peso
-        : a.bloque === 'codigo' ? -1 : 1))
+      || a.orden - b.orden
+      || b.peso - a.peso)
   }, [todos, marcas])
 
   if (cargando) return <p className="tablero-cargando">Leyendo el catálogo de las cinco plazas…</p>
@@ -259,12 +261,14 @@ export default function RevisarPanel() {
             Descargar reporte
           </button>
         )}
+        <span className={'revisar-paso paso-' + item.paso}>{item.etiqueta}</span>
         <span className={'revisar-sello sello-' + item.bloque}>
           {item.bloque === 'codigo' ? 'Código' : 'Nombre'}
         </span>
       </header>
 
-      <section className={'tarjeta revisar-ficha' + (respuesta ? ' es-contestada' : '')}>
+      <section className={'tarjeta revisar-ficha' + (respuesta ? ' es-contestada' : '')}
+               data-paso={item.orden}>
         {respuesta && (
           <p className={'rev-marca marca-' + respuesta}>
             <strong>{respuesta === 'si' ? 'Contestado: sí' : 'Contestado: no'}</strong>

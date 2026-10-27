@@ -94,6 +94,29 @@ de seguridad. El patrón acepta las erratas que hay en el catálogo de verdad:
 **HIDRIOGEL** y **HODROGEL** conviven con HIDROGEL, y exigir que alguien
 corrija el catálogo no es un plan.
 
+### El orden de la cola de revisión lo decidió el dueño, no el peso
+
+La cola no se ordena por piezas paradas, se ordena por **lo que hay que hacer
+con cada ficha**. La escalera vive en `PASO`, en `fichas.js`:
+
+| | Paso | Qué es |
+|---|---|---|
+| 0 | borrar    | sin existencia en ninguna plaza: una respuesta y se ejecuta hoy |
+| 1 | vivo      | se vende y bodega no lo tiene de alta: cuesta ventas cada semana |
+| 2 | duplicado | dos códigos para un teléfono: reparte en dos todo lo que se cuente |
+| 3 | decidir   | suelto en un solo mostrador: la prueba es más floja |
+| 4 | anotar    | bodega los descontinuó: sólo guardar la nota |
+| 5 | ignorar   | colores que bodega ya no surte |
+| 6 | nombre    | orden y limpieza |
+
+Ordenando por peso salía **al revés de lo que se contestó**: el lote de los 30
+códigos sin existencia tiene 0 piezas y caía al último puesto, y el de los
+colores que se mandaron ignorar tiene 53 y subía al primero.
+
+Los pasos 4 y 5 son dos fichas, así que da igual que vayan al final: se
+contestan de una vez. Lo que no puede quedar detrás son los casos vivos, que
+son uno por uno y son los únicos que **no** se agrupan.
+
 ---
 
 ## 🔒 CONFIRMAR — Buscar nunca respeta el filtro de existencia
@@ -152,6 +175,11 @@ si la consola suelta un error.
 Hoy cubre: 3 sesiones · 11 pestañas · 10 secciones de panel · 29 cabeceras ·
 12 hallazgos de la cola de revisión, **y los 4 lotes**. Si alguno de esos
 números baja, algo dejó de pintarse.
+
+También comprueba que la cola va **en orden**: cada ficha lleva su sitio en
+`data-paso` y el recorrido falla si uno sube detrás de otro más bajo. Es la
+única forma de notarlo, porque reordenar la cola no cambia cuántos hallazgos
+hay —cambia cuáles van primero— y eso no sale en ningún número.
 
 Los lotes se cuentan aparte del total a propósito. Un lote es una pregunta
 que ordena muchos códigos de golpe: si la agrupación se rompiera y la cola

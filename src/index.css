@@ -1367,6 +1367,24 @@
   .sello-codigo { background: var(--ink);     color: var(--bg); }
   .sello-nombre { background: var(--surface); color: var(--muted); }
 
+  /* El paso dice qué hay que hacer con la ficha, que es lo que decide su sitio
+     en la cola. Va perfilado y no macizo para no competir con el sello de al
+     lado: sólo los dos extremos llevan color, el que se ejecuta hoy y el que
+     se ignora. */
+  .revisar-paso {
+    padding: 3px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(13, 17, 20, 0.14);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .paso-borrar    { border-color: var(--ink); color: var(--ink); }
+  .paso-vivo      { border-color: var(--magenta); color: var(--magenta); }
+  .paso-duplicado { border-color: var(--naranja); color: var(--naranja); }
+  .paso-ignorar   { opacity: 0.65; }
+
   .revisar-ficha h4 { font-size: var(--step-lead); line-height: 1.25; margin-bottom: 10px; }
   .rev-chip {
     margin: 0 0 8px;

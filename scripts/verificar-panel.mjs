@@ -359,10 +359,20 @@ async function recorrerCola(window, donde) {
     lotesVistos.add(doc.querySelector('.revisar-ficha h4')?.textContent?.trim() ?? '?')
   }
 
+  // El sitio de cada ficha en la cola viene en `data-paso`: lo que hay que
+  // hacer con ella. La cola tiene que ir de menor a mayor, y comprobarlo es la
+  // unica forma de notar que alguien volvio a ordenar por piezas, porque el
+  // total de hallazgos no se entera: no cambia cuantos hay, cambia cuales van
+  // primero, y eso no sale en ningun numero.
+  const pasos = []
+
   while (doc.querySelector('.revisar-ficha')) {
     if (!saltarVivo()) break
     n++
     apuntar()
+    const sitio = Number(doc.querySelector('.revisar-ficha').dataset.paso)
+    if (Number.isNaN(sitio)) errores.push(`SIN PASO · ${donde} · el hallazgo ${n} no dice su sitio en la cola`)
+    else pasos.push(sitio)
     if (!enPie(window, `${donde} · hallazgo ${n}`)) return n
 
     // El botón se vuelve a buscar aquí: contestar o avanzar repinta la ficha
@@ -375,6 +385,13 @@ async function recorrerCola(window, donde) {
     await nuevaVuelta(window, 3)
     // El último no avanza: «Lo veo después» se queda en el mismo sitio.
     if (doc.querySelector('.revisar-cuenta')?.textContent === antes) break
+  }
+
+  for (let k = 1; k < pasos.length; k++) {
+    if (pasos[k] < pasos[k - 1]) {
+      errores.push(`ORDEN ROTO · ${donde} · el hallazgo ${k + 1} es del paso ${pasos[k]} y va detras de uno del paso ${pasos[k - 1]}`)
+      break
+    }
   }
 
   // Contestar va AL FINAL, sobre la ficha que quedó a la vista.

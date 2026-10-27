@@ -170,6 +170,39 @@ test('en «Casos» el lote sigue siendo UN renglon', () => {
   assert.equal(tabla(libro, 'Códigos').length, 2)
 })
 
+test('el libro sale en el orden de la cola, no en el de la deteccion', () => {
+  // La hoja se reparte como lista de tareas: lo que se ejecuta sin pensar va
+  // arriba. Ordenada por peso, la lista de borrar -que no tiene piezas- caia
+  // al final de todo.
+  const orden = [
+    caso('lote|tono', { bloque: 'codigo', orden: 5, peso: 53, etiqueta: 'Se ignora' }),
+    caso('lote|sin-existencia', { bloque: 'codigo', orden: 0, peso: 0, etiqueta: 'Se borra y se acabó' }),
+    caso('cod|R165GT', { bloque: 'codigo', orden: 1, peso: 11, etiqueta: 'Se vende y bodega no lo tiene' }),
+  ]
+  const filas = tabla(libroDeRevisiones(orden, {}), 'Casos')
+  assert.deepEqual(filas.map(f => f.Caso),
+    ['lote|sin-existencia', 'cod|R165GT', 'lote|tono'])
+  assert.equal(filas[0]['Qué toca'], 'Se borra y se acabó')
+})
+
+test('un codigo sin existencia dice igual en que plaza borrarlo', () => {
+  // Es la lista que abre la hoja: treinta codigos que no tienen ni una pieza.
+  // Con las plazas de existencia la columna salia vacia justo ahi, y entonces
+  // la hoja no contestaba lo unico que se le pregunta: en donde lo borro.
+  const lote = caso('lote|sin-existencia', {
+    bloque: 'codigo', orden: 0, peso: 0, etiqueta: 'Se borra y se acabó',
+    siHacer: 'Borrar los 2 códigos en cada plaza donde sigan dados de alta.',
+    codigos: [
+      { codigo: 'I7D', producto: 'IPHONE 7 DUO CASE', piezas: 0, plazas: {},
+        altaEn: ['leon', 'ferias'] },
+      { codigo: 'LG7', producto: 'LG G7 HARD CASE', piezas: 0, plazas: {}, altaEn: ['san-luis'] },
+    ],
+  })
+  const filas = tabla(libroDeRevisiones([lote], {}), 'Códigos')
+  assert.equal(filas[0].Plazas, 'León, Ferias')
+  assert.equal(filas[1].Plazas, 'San Luis Potosí')
+})
+
 test('un patron no tiene codigo y no ensucia la hoja de codigos', () => {
   // Cambia una palabra en cientos de nombres: no es una tarea por codigo.
   const filas = tabla(libroDeRevisiones(cola, marcas), 'Códigos')
