@@ -1575,3 +1575,99 @@
   }
   .sucursal-cabecera p { margin: 4px 0 0; font-size: var(--step-small); color: var(--muted); }
 }
+
+/* ── La pregunta ───────────────────────────────────────────────────────────
+   La ficha describe y después pregunta. La pregunta tiene que pesar más que
+   todo lo de arriba: si se lee como un pie de tabla, nadie la contesta.
+
+   Las dos consecuencias van ESCRITAS antes de pulsar. Contestar sí o no a
+   ciegas es adivinar; leyendo lo que pasa con cada una, es decidir. */
+@layer components {
+  .rev-saber { margin-top: 16px; }
+  .rev-saber ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+    font-size: var(--step-small);
+    line-height: 1.5;
+    color: var(--ink);
+  }
+  .rev-saber li { padding-left: 16px; position: relative; }
+  .rev-saber li::before {
+    content: '';
+    position: absolute;
+    left: 2px; top: 0.62em;
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--muted);
+  }
+
+  .rev-pregunta {
+    margin-top: 22px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(13, 17, 20, 0.08);
+  }
+  .rev-pregunta h5 {
+    margin: 0 0 12px;
+    font-size: var(--step-lead);
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .rev-consecuencias {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 7px;
+    font-size: var(--step-small);
+    line-height: 1.5;
+    color: var(--muted);
+  }
+  .rev-consecuencias li {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 10px;
+    align-items: baseline;
+  }
+  .rev-si, .rev-no {
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 2px 0;
+    border-radius: 999px;
+  }
+  .rev-si { background: rgba(94, 148, 34, 0.14); color: #456e19; }
+  .rev-no { background: rgba(13, 17, 20, 0.07); color: var(--muted); }
+
+  /* Los dos botones de respuesta pesan lo mismo: inclinar la balanza hacia el
+     «sí» con el color de acción convierte la pregunta en una sugerencia. */
+  .rev-responde {
+    border: 1px solid rgba(13, 17, 20, 0.14);
+    background: var(--bg);
+    font: inherit;
+    font-size: var(--step-small);
+    font-weight: 600;
+    color: var(--ink);
+    min-width: 92px;
+    padding: 12px 24px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 160ms var(--salida), border-color 160ms var(--salida);
+  }
+  .rev-responde:active { transform: scale(0.97); }
+  @media (hover: hover) and (pointer: fine) {
+    .rev-es-si:hover { background: rgba(94, 148, 34, 0.1); border-color: #5e9422; }
+    .rev-es-no:hover { background: var(--surface); border-color: rgba(13, 17, 20, 0.3); }
+  }
+
+  .rev-falta { margin: 8px 0 0; font-size: 0.8125rem; color: #8e0e53; }
+  .rev-nota textarea[aria-invalid='true'] { border-color: #d51a7a; }
+
+  .revisar-ficha.es-contestada { box-shadow: inset 3px 0 0 var(--lima); }
+  .marca-si strong { color: #456e19; }
+  .marca-no strong { color: var(--muted); }
+}

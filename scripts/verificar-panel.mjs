@@ -293,18 +293,28 @@ async function todasLasCabeceras(window, donde) {
 async function recorrerCola(window, donde) {
   const doc = window.document
   let n = 0
+  // El boton de avanzar dice «Lo veo despues» si el caso esta sin contestar y
+  // «Siguiente» si ya lo esta: las dos formas tienen que encontrarse.
   const saltarVivo = () => [...doc.querySelectorAll('.rev-botones button')]
-    .find(b => /saltar/i.test(b.textContent))
+    .find(b => /lo veo despu|siguiente/i.test(b.textContent))
 
   while (doc.querySelector('.revisar-ficha')) {
     if (!saltarVivo()) break
     n++
     if (!enPie(window, `${donde} · hallazgo ${n}`)) return n
 
-    // En el primero se marca «pendiente» con su nota: es la única parte de la
-    // cola que escribe algo, y el aviso que deja encima de la ficha sólo se
-    // dibuja después de guardarla.
-    if (n === 1 && !await marcarPendiente(window, donde)) return n
+    // En el primero se contesta de verdad: es la unica parte de la cola que
+    // escribe, y el aviso que deja encima de la ficha solo aparece despues.
+    // Se contesta «no», que es el camino que lleva regla.
+    //
+    // Contestar adelanta la cola por su cuenta, así que la ficha que queda a
+    // la vista es otra y `contestarCaso` ya la comprobó: cuenta como una más.
+    // Sin esto el total bajaba de 3 a 2 sin que nada hubiera dejado de
+    // pintarse, y ese número es la alarma de que algo sí dejó de hacerlo.
+    if (n === 1) {
+      if (!await contestarCaso(window, donde)) return n
+      n++
+    }
 
     // El botón se vuelve a buscar aquí: marcar pendiente repinta la ficha y el
     // nodo de antes ya no está en el documento. Pulsarlo no hacía nada y el
@@ -321,33 +331,52 @@ async function recorrerCola(window, donde) {
   return n
 }
 
-/** Marca el hallazgo a la vista como pendiente, con nota, y comprueba el aviso. */
-async function marcarPendiente(window, donde) {
+/**
+ * Contesta el hallazgo a la vista con «no», que es el camino con regla.
+ *
+ * Se elige el «no» a propósito: el «sí» sólo guarda, pero el «no» no se puede
+ * guardar sin explicación, y esa regla es la única de esta pantalla que puede
+ * romperse en silencio. Si el botón de guardar deja de estar deshabilitado con
+ * el campo vacío, se contestaría que no a doscientos casos sin decir por qué y
+ * el reporte quedaría sin la mitad que importa.
+ */
+async function contestarCaso(window, donde) {
   const doc = window.document
   const boton = txt => [...doc.querySelectorAll('.revisar-ficha button')]
     .find(b => new RegExp(txt, 'i').test(b.textContent))
 
-  const abrir = boton('voy a corregir')
-  if (!abrir) { errores.push(`SIN BOTÓN · ${donde} · «Lo voy a corregir»`); return false }
-  clic(window, abrir)
+  const no = boton('^no$')
+  if (!no) { errores.push(`SIN BOTÓN · ${donde} · «No»`); return false }
+  clic(window, no)
   await nuevaVuelta(window, 3)
 
   const campo = doc.querySelector('.rev-nota textarea')
-  if (!campo) { errores.push(`SIN CAMPO · ${donde} · la nota de pendiente`); return false }
-  escribir(window, campo, 'lo corrige Brenda esta semana')
+  if (!campo) { errores.push(`SIN CAMPO · ${donde} · la explicación del «no»`); return false }
+
+  const guardar = boton('guardar respuesta')
+  if (!guardar) { errores.push(`SIN BOTÓN · ${donde} · «Guardar respuesta»`); return false }
+  if (!guardar.disabled) {
+    errores.push(`REGLA ROTA · ${donde} · un «no» sin explicación se puede guardar`)
+    return false
+  }
+
+  escribir(window, campo, 'lo sigue pidiendo un cliente, lo ve Brenda')
   await nuevaVuelta(window, 2)
 
-  const guardar = boton('guardar como pendiente')
-  if (!guardar) { errores.push(`SIN BOTÓN · ${donde} · «Guardar como pendiente»`); return false }
-  clic(window, guardar)
+  const guardar2 = boton('guardar respuesta')
+  if (guardar2?.disabled) {
+    errores.push(`REGLA ROTA · ${donde} · con explicación sigue sin poder guardarse`)
+    return false
+  }
+  clic(window, guardar2)
   await nuevaVuelta(window, 4)
 
-  if (!enPie(window, `${donde} · tras marcar pendiente`)) return false
+  if (!enPie(window, `${donde} · tras contestar`)) return false
 
-  // La nota tiene que haberse quedado escrita en alguna ficha de la cola: al
-  // marcarla, el hallazgo baja al final y otro ocupa su sitio.
+  // La explicación tiene que haber quedado guardada: al contestar, el caso baja
+  // al final de la cola y otro ocupa su sitio.
   if (!/Brenda/.test(doc.body.textContent) && !notaGuardada(window)) {
-    errores.push(`NOTA PERDIDA · ${donde} · se guardó pendiente y no quedó rastro`)
+    errores.push(`NOTA PERDIDA · ${donde} · se contestó y no quedó rastro`)
     return false
   }
   return true

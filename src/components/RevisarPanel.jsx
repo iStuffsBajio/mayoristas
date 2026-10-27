@@ -8,68 +8,56 @@ import { agruparPorModelo, alternativasDe } from '../lib/variantes'
 import { codigosHuerfanos, MOTIVO } from '../lib/anomalias'
 import { discrepanciasDeNombre } from '../lib/nombres'
 import { patronesDeEscritura } from '../lib/patrones'
+import { fichaDeCodigo, fichaDeMuertos, fichaDePatron, fichaDeNombre } from '../lib/fichas'
 
 /**
- * La cola de revisión: un hallazgo a la vez, con su tabla, para ir puliendo
- * el catálogo decisión por decisión.
+ * La cola de revisión: un problema a la vez, con una pregunta que se contesta
+ * sí o no.
  *
- * La primera versión era una lista de 140 renglones. Ante 140 renglones nadie
- * empieza. Ante uno con su tabla al lado, se contesta y se pasa al siguiente.
+ * La primera versión era una lista de 140 renglones. La segunda ya iba de uno
+ * en uno, pero sólo describía: enseñaba el hallazgo y dejaba al lector decidir
+ * qué hacer con él. Describir no es preguntar, y una pantalla que describe se
+ * lee y se cierra.
  *
- * ── Agrupar antes de preguntar ──────────────────────────────────────────────
+ * Ahora cada ficha tiene cuatro partes y siempre las mismas:
  *
- * Lo que más importa de esta pantalla no es el orden, es el TAMAÑO de cada
- * pregunta. «GALAXY o SAMSUNG» no son 189 correcciones sueltas: es una
- * convención de bodega contra otra de las tiendas, una sola respuesta que
- * ordena 240 renglones. Esos patrones salen de `patrones.js` y van como un
- * hallazgo único, con el reparto de cada plaza a la vista para poder decidir
- * mirando el dato y no la intuición.
+ *   1. **El problema**, en una frase.
+ *   2. **Qué se sabe**: los hechos que lo sostienen, sin adjetivos. Tres
+ *      plazas tienen este código, bodega no lo tiene, bodega sí tiene este
+ *      otro para el mismo teléfono.
+ *   3. **La pregunta**, redactada de modo que **sí signifique «aplica la
+ *      propuesta»**. Eso es lo que permite que la respuesta se convierta sola
+ *      en una instrucción concreta en vez de quedarse en una opinión.
+ *   4. **Qué pasa con cada respuesta**, escrito antes de contestar.
  *
- * Lo mismo con los códigos muertos: los descontinuados que ya no tienen
- * piezas se preguntan de una vez, porque la respuesta es la misma para todos.
+ * ── Por qué el «no» obliga a explicar ───────────────────────────────────────
+ *
+ * Un «sí» ya lleva la solución dentro: la propuesta. Un «no» sólo dice que la
+ * propuesta no vale, y eso deja el problema igual que estaba y además hace
+ * que el detector vuelva a proponer lo mismo mañana. Por eso el «no» no se
+ * puede guardar vacío: hace falta decir cómo se resuelve, y eso es lo que
+ * convierte la cola en algo de lo que se aprende.
  *
  * ── Qué se guarda y qué no ──────────────────────────────────────────────────
  *
- * Nada de lo que se arregla. Los hallazgos salen de los datos, así que al
- * corregirlo en la caja desaparecen solos en la siguiente sincronización: no
- * hay que marcar nada como hecho ni puede quedarse desincronizado.
- *
- * Se guardan sólo las dos marcas que el dato no puede deducir:
- *
- *   · **pendiente** — alguien ya lo está corrigiendo, con una nota para saber
- *     quién o en qué quedó. Sin esto, mañana vuelve a salir igual que ayer y
- *     no hay forma de distinguir «no lo he visto» de «está en marcha».
- *   · **no es error** — una decisión que contradice al detector y que, si no
- *     se recordara, volvería a preguntarse cada día.
- *
- * **Viven en el servidor, no en el navegador.** Esta cola la contestan las
- * sucursales, no sólo quien administra: guardadas en el navegador, lo que
- * contestara León se quedaba en la máquina de León y aquí no llegaba nada. El
- * backend las parte por persona —cada quien escribe sólo su archivo— y al
- * leerlas las junta, así que dos personas contestando a la vez no se pisan.
- *
- * El navegador guarda una copia por si no hay red: se sigue pudiendo trabajar
- * y lo marcado se ve, aunque no se comparta hasta que vuelva la conexión.
- *
- * ── El orden ────────────────────────────────────────────────────────────────
- *
- * Primero los códigos, que es la alerta sensible y mueve dinero. Después los
- * nombres, que son orden y limpieza. Dentro de cada bloque, lo que más
- * resuelve de una vez. Lo marcado como pendiente va al final: ya tiene dueño.
+ * Nada de lo que se arregla: los hallazgos salen de los datos, así que al
+ * corregirlo en la caja desaparecen solos. Se guardan las respuestas, que el
+ * dato no puede deducir, y viven en el servidor, no en el navegador: esta cola
+ * la contestan las sucursales y lo que conteste León tiene que llegar aquí.
+ * Cada quien escribe sólo su archivo y al leerlos se juntan.
  */
 
 const FERIAS = SUCURSALES.find(s => s.estacional)
 const CLAVE = 'istuffs_revisar_marcas'
 const CLAVE_VIEJA = 'istuffs_revisar_ignorados'
 
-/** { id: { estado: 'pendiente' | 'ignorado', nota, fecha } } */
+/** { id: { estado: 'si' | 'no', nota, fecha, por } } */
 const leerMarcas = () => {
   try {
     const guardado = localStorage.getItem(CLAVE)
     if (guardado) return JSON.parse(guardado)
-    // La primera versión sólo guardaba una lista de ignorados.
     const viejo = JSON.parse(localStorage.getItem(CLAVE_VIEJA) ?? '[]')
-    return Object.fromEntries(viejo.map(id => [id, { estado: 'ignorado' }]))
+    return Object.fromEntries(viejo.map(id => [id, { estado: 'no' }]))
   } catch { return {} }
 }
 
@@ -89,21 +77,24 @@ const bajar = async url => {
   return r.json()
 }
 
-const pct = (n, total) => (total > 0 ? Math.round((n / total) * 100) : 0)
-
-const lista = xs => (xs.length <= 1
-  ? (xs[0] ?? '')
-  : `${xs.slice(0, -1).join(', ')} y ${xs[xs.length - 1]}`)
+/** Las marcas viejas hablaban de pendiente/ignorado; se leen como sí/no. */
+const respuestaDe = marca => {
+  if (!marca) return null
+  if (marca.estado === 'si' || marca.estado === 'pendiente') return 'si'
+  if (marca.estado === 'no' || marca.estado === 'ignorado') return 'no'
+  return null
+}
 
 export default function RevisarPanel() {
   const { token, session, isAdmin } = useAuth()
   const quien = isAdmin ? 'admin' : session?.branch
+
   const [inv, setInv] = useState(null)
   const [cargando, setCargando] = useState(true)
   const [i, setI] = useState(0)
   const [marcas, setMarcas] = useState(leerMarcas)
   const [sinRed, setSinRed] = useState(false)
-  const [editando, setEditando] = useState(false)
+  const [eligiendo, setEligiendo] = useState(null)   // 'si' | 'no' | null
   const [borrador, setBorrador] = useState('')
 
   const plazas = useMemo(
@@ -123,8 +114,7 @@ export default function RevisarPanel() {
   }, [plazas])
 
   // Las respuestas de todos. Si el servidor no contesta se sigue con la copia
-  // del navegador: se puede trabajar, pero se avisa de que no se está
-  // compartiendo.
+  // del navegador: se puede trabajar, pero se avisa de que no se comparte.
   useEffect(() => {
     if (!token) return
     let vivo = true
@@ -147,9 +137,8 @@ export default function RevisarPanel() {
     return { grupos: agruparPorModelo([...todos.values()]), existencias: ex }
   }, [inv])
 
-  // Todos los casos, contestados o no. El Excel sale de aquí y no de la cola:
-  // un análisis que sólo mire lo que sigue en la lista deja fuera justo lo que
-  // alguien decidió que no era error, que es la mitad de la historia.
+  // Todos los casos, contestados o no. El reporte sale de aquí y no de la
+  // cola: lo contestado es justo lo que hay que analizar después.
   const todos = useMemo(() => {
     if (!inv?.[BODEGA.slug]) return []
     const tiendas = Object.fromEntries(
@@ -165,7 +154,6 @@ export default function RevisarPanel() {
 
     const items = []
 
-    // ── Códigos: la alerta sensible ─────────────────────────────────────
     const muertos = huerfanos.filter(h => h.motivo === MOTIVO.DESCONTINUADO && h.piezas === 0)
     const enBloque = new Set(muertos.length >= 3 ? muertos.map(h => h.codigo) : [])
 
@@ -174,7 +162,6 @@ export default function RevisarPanel() {
     }
     if (enBloque.size) items.push(fichaDeMuertos(muertos))
 
-    // ── Nombres: orden y limpieza, lo que más ordena primero ────────────
     for (const p of patrones) items.push(fichaDePatron(p))
 
     for (const n of nombres) {
@@ -186,81 +173,64 @@ export default function RevisarPanel() {
     return items
   }, [inv, grupos])
 
-  // Lo pendiente no se esconde —sigue sin arreglarse— pero va al final: ya
-  // tiene quien lo esté viendo, y lo que no ha mirado nadie pesa más.
+  // Lo contestado no se esconde —contestar no lo arregla— pero va al final:
+  // lo que no ha mirado nadie es lo que hace falta mirar.
   const cola = useMemo(() => {
-    const pendiente = x => (marcas[x.id]?.estado === 'pendiente' ? 1 : 0)
-    return todos
-      .filter(x => marcas[x.id]?.estado !== 'ignorado')
-      .sort((a, b) => pendiente(a) - pendiente(b)
-        || (a.bloque === b.bloque
-          ? b.peso - a.peso
-          : a.bloque === 'codigo' ? -1 : 1))
+    const hecho = x => (marcas[x.id] ? 1 : 0)
+    return [...todos].sort((a, b) => hecho(a) - hecho(b)
+      || (a.bloque === b.bloque
+        ? b.peso - a.peso
+        : a.bloque === 'codigo' ? -1 : 1))
   }, [todos, marcas])
 
   if (cargando) return <p className="tablero-cargando">Leyendo el catálogo de las cinco plazas…</p>
 
   const total = cola.length
-  const ignorados = Object.values(marcas).filter(m => m?.estado === 'ignorado').length
-  const pendientes = cola.filter(x => marcas[x.id]?.estado === 'pendiente').length
-
-  const volverAMostrar = () => {
-    setMarcas(m => {
-      const s = Object.fromEntries(
-        Object.entries(m).filter(([, v]) => v?.estado !== 'ignorado'))
-      guardarMarcas(s)
-      return s
-    })
-    setI(0)
-  }
-
   if (!total) {
     return (
       <section className="tarjeta revisar-fin">
-        <h4>No queda nada por revisar</h4>
-        <p className="tarjeta-sub">
-          {ignorados > 0
-            ? `Hay ${ignorados} ${ignorados === 1 ? 'hallazgo marcado' : 'hallazgos marcados'} como «no es error».`
-            : 'El catálogo está en orden.'}
-        </p>
-        {ignorados > 0 && (
-          <button type="button" className="boton-tono" onClick={volverAMostrar}>
-            Volver a mostrarlos
-          </button>
-        )}
+        <h4>No hay nada que revisar</h4>
+        <p className="tarjeta-sub">El catálogo de las cinco plazas concuerda.</p>
       </section>
     )
   }
 
+  const contestados = cola.filter(x => marcas[x.id]).length
   const pos = Math.min(i, total - 1)
   const item = cola[pos]
   const marca = marcas[item.id]
+  const respuesta = respuestaDe(marca)
 
-  const marcar = (estado, nota) => {
-    const limpia = nota?.trim() || ''
+  const irA = n => {
+    setEligiendo(null)
+    setBorrador('')
+    setI(Math.max(0, Math.min(n, total - 1)))
+  }
+
+  const elegir = sino => {
+    setEligiendo(sino)
+    setBorrador(marca?.nota ?? '')
+  }
+
+  // El «no» sin explicación no se guarda: deja el problema igual y hace que
+  // mañana se vuelva a proponer lo mismo.
+  const faltaExplicar = eligiendo === 'no' && !borrador.trim()
+
+  const guardar = () => {
+    if (faltaExplicar) return
+    const nota = borrador.trim()
     setMarcas(m => {
-      const s = { ...m }
-      if (!estado) delete s[item.id]
-      else s[item.id] = { estado, nota: limpia, fecha: new Date().toISOString(), por: quien }
+      const s = { ...m, [item.id]: { estado: eligiendo, nota, fecha: new Date().toISOString(), por: quien } }
       guardarMarcas(s)
       return s
     })
-    // Se pinta ya y se manda después: contestar casos va al ritmo de quien
-    // contesta, no al de la red. Si el envío falla se avisa arriba, porque al
-    // recargar manda lo que haya en el servidor y esa marca se perdería.
-    if (token) guardarRevision(item.id, estado, limpia, token).catch(() => setSinRed(true))
-  }
-
-  const irA = n => { setEditando(false); setI(Math.max(0, Math.min(n, total - 1))) }
-
-  const abrirNota = () => { setBorrador(marca?.nota ?? ''); setEditando(true) }
-
-  const guardarPendiente = () => {
-    marcar('pendiente', borrador)
-    setEditando(false)
-    // La cola se reordena -lo pendiente baja al final-, así que quedarse en el
-    // mismo sitio ya enseña el siguiente.
-    setI(n => Math.min(n, total - 1))
+    // Se pinta ya y se manda después: contestar va al ritmo de quien contesta,
+    // no al de la red. Si el envío falla se avisa arriba, porque al recargar
+    // manda lo que haya en el servidor y esa respuesta se perdería.
+    if (token) guardarRevision(item.id, eligiendo, nota, token).catch(() => setSinRed(true))
+    setEligiendo(null)
+    setBorrador('')
+    setI(n => Math.min(n + 1, total - 1))
   }
 
   const alt = item.codigo
@@ -272,18 +242,18 @@ export default function RevisarPanel() {
       <header className="revisar-avance">
         <span className="revisar-cuenta"><strong>{pos + 1}</strong> de {total}</span>
         <span className="revisar-barra" aria-hidden="true">
-          <span style={{ width: `${(pos / total) * 100}%` }} />
+          <span style={{ width: `${(contestados / total) * 100}%` }} />
         </span>
         {sinRed && (
           <span className="revisar-sinred" role="status">
-            Sin conexión con el servidor: lo que marques no se está compartiendo
+            Sin conexión: lo que contestes no se está compartiendo
           </span>
         )}
-        {pendientes > 0 && <span className="revisar-pendientes">{pendientes} pendientes</span>}
+        <span className="revisar-pendientes">{contestados} contestados</span>
         {isAdmin && (
           <button type="button" className="revisar-bajar"
                   onClick={() => exportarRevisiones(todos, marcas)}>
-            Descargar los {todos.length} casos
+            Descargar reporte
           </button>
         )}
         <span className={'revisar-sello sello-' + item.bloque}>
@@ -291,20 +261,25 @@ export default function RevisarPanel() {
         </span>
       </header>
 
-      <section className={'tarjeta revisar-ficha' + (marca?.estado === 'pendiente' ? ' es-pendiente' : '')}>
-        {marca?.estado === 'pendiente' && (
-          <p className="rev-marca">
-            <strong>En corrección</strong>
+      <section className={'tarjeta revisar-ficha' + (respuesta ? ' es-contestada' : '')}>
+        {respuesta && (
+          <p className={'rev-marca marca-' + respuesta}>
+            <strong>{respuesta === 'si' ? 'Contestado: sí' : 'Contestado: no'}</strong>
             <span>
-              desde el {comoFecha(marca.fecha)}
-              {marca.por && ` · lo marcó ${marca.por === 'admin' ? 'administración' : nombreSucursal(marca.por)}`}
+              {comoFecha(marca.fecha)}
+              {marca.por && ` · ${marca.por === 'admin' ? 'administración' : nombreSucursal(marca.por)}`}
             </span>
-            {marca.nota && <em>«{marca.nota}»</em>}
+            <em>{respuesta === 'si' ? item.siHacer : marca.nota}</em>
           </p>
         )}
+
         {item.chip && <p className="rev-chip">{item.chip}</p>}
         <h4>{item.titulo}</h4>
-        <p className="rev-veredicto">{item.veredicto}</p>
+
+        <div className="rev-saber">
+          <p className="rev-subtitulo">Qué se sabe</p>
+          <ul>{item.contexto.map(c => <li key={c}>{c}</li>)}</ul>
+        </div>
 
         {item.tabla && (
           <table className="rev-tabla">
@@ -352,44 +327,55 @@ export default function RevisarPanel() {
           </div>
         )}
 
-        <p className="rev-propuesta"><span>Propuesta</span> {item.accion}</p>
+        <div className="rev-pregunta">
+          <h5>{item.pregunta}</h5>
+          <ul className="rev-consecuencias">
+            <li><span className="rev-si">Sí</span> {item.siHacer}</li>
+            <li><span className="rev-no">No</span> {item.noHacer}</li>
+          </ul>
+        </div>
 
-        {editando ? (
+        {eligiendo ? (
           <div className="rev-nota">
             <label htmlFor="rev-nota-campo">
-              ¿Quién lo está corrigiendo, o en qué quedó? (opcional)
+              {eligiendo === 'si'
+                ? '¿Algo que añadir o que investigar después? (opcional)'
+                : `${item.noPide} (obligatorio)`}
             </label>
             <textarea
               id="rev-nota-campo"
-              rows={2}
+              rows={eligiendo === 'si' ? 2 : 3}
               value={borrador}
               autoFocus
-              placeholder="Ej.: lo corrige Brenda en León esta semana"
+              aria-invalid={faltaExplicar || undefined}
+              placeholder={eligiendo === 'si'
+                ? 'Ej.: lo cambia Brenda esta semana'
+                : 'Sin esto no se puede guardar: el problema se queda igual'}
               onChange={e => setBorrador(e.target.value)} />
+            {faltaExplicar && (
+              <p className="rev-falta" role="status">
+                Un «no» sin explicación deja el problema igual y mañana se vuelve a proponer.
+              </p>
+            )}
             <div className="rev-botones">
-              <button type="button" className="boton-tinta" onClick={guardarPendiente}>
-                Guardar como pendiente
+              <button type="button" className="boton-tinta" onClick={guardar} disabled={faltaExplicar}>
+                Guardar respuesta
               </button>
-              <button type="button" className="rev-saltar" onClick={() => setEditando(false)}>
+              <button type="button" className="rev-saltar" onClick={() => setEligiendo(null)}>
                 Cancelar
               </button>
             </div>
           </div>
         ) : (
           <div className="rev-botones">
-            <button type="button" className="boton-tinta" onClick={abrirNota}>
-              {marca?.estado === 'pendiente' ? 'Cambiar la nota' : 'Lo voy a corregir'}
+            <button type="button" className="rev-responde rev-es-si" onClick={() => elegir('si')}>
+              Sí
             </button>
-            {marca?.estado === 'pendiente' && (
-              <button type="button" className="boton-tono" onClick={() => marcar(null)}>
-                Quitar pendiente
-              </button>
-            )}
-            <button type="button" className="boton-tono" onClick={() => marcar('ignorado')}>
-              No es error
+            <button type="button" className="rev-responde rev-es-no" onClick={() => elegir('no')}>
+              No
             </button>
             <button type="button" className="rev-saltar" onClick={() => irA(pos + 1)}>
-              Saltar
+              {respuesta ? 'Siguiente' : 'Lo veo después'}
             </button>
             {pos > 0 && (
               <button type="button" className="rev-saltar" onClick={() => irA(pos - 1)}>
@@ -401,156 +387,10 @@ export default function RevisarPanel() {
       </section>
 
       <p className="tablero-nota">
-        No hace falta marcar nada como hecho: los hallazgos salen de los datos, así que al
-        corregirlo en la caja desaparecen solos en la siguiente sincronización. «Pendiente»
-        es sólo para saber que ya hay alguien en ello.
-        {ignorados > 0 && (
-          <> Hay {ignorados} marcados como «no es error».{' '}
-            <button type="button" className="grafica-tabla-boton" onClick={volverAMostrar}>
-              Volver a mostrarlos
-            </button>
-          </>
-        )}
+        Contestar no corrige nada: los hallazgos salen de los datos y desaparecen solos cuando
+        el catálogo cambia en la caja. Lo que queda aquí es el porqué de cada decisión, que es
+        lo que sirve para que el mismo error no se repita.
       </p>
     </div>
   )
-}
-
-// ── Las fichas ───────────────────────────────────────────────────────────────
-
-const nombresDe = slugs => lista(slugs.map(nombreSucursal))
-
-/** Un patrón de escritura: una decisión que ordena muchos renglones. */
-function fichaDePatron(p) {
-  const otras = p.filas.filter(f => !p.corrigen.includes(f.slug)).map(f => f.slug)
-
-  const titulo = p.falta
-    ? `${nombresDe(p.corrigen)} ${p.corrigen.length === 1 ? 'omite' : 'omiten'} «${p.b}»`
-    : `${nombresDe(otras)} ${otras.length === 1 ? 'escribe' : 'escriben'} «${p.gana}»; `
-      + `${nombresDe(p.corrigen)} «${p.pierde}»`
-
-  const veredicto = p.falta
-    ? `El resto del catálogo lleva «${p.b}» en estos ${p.codigos.length} códigos. `
-      + 'No es otra forma de escribirlo: falta la palabra.'
-    : p.alcance === 'catalogo'
-      ? `Es una costumbre de plaza, no ${p.renglones} descuidos sueltos: se ve en el catálogo `
-        + `entero, no sólo donde chocan. Una respuesta ordena ${p.renglones} renglones.`
-      : `Aparece en ${p.codigos.length} códigos. Una respuesta ordena ${p.renglones} renglones.`
-
-  const cabeceras = p.falta
-    ? ['Plaza', `Con «${p.b}»`, 'Sin ella']
-    : ['Plaza', `«${p.a}»`, `«${p.b}»`]
-
-  const filas = p.filas.map(f => (p.falta
-    ? [nombreSucursal(f.slug), String(f.b), f.sin ? String(f.sin) : '—']
-    : [nombreSucursal(f.slug),
-       f.a ? `${f.a} (${pct(f.a, f.total)}%)` : '0',
-       f.b ? `${f.b} (${pct(f.b, f.total)}%)` : '0']))
-
-  return {
-    id: p.id,
-    bloque: 'nombre',
-    chip: `1 decisión · ${p.renglones} renglones`,
-    titulo,
-    veredicto,
-    tabla: { cabeceras, filas },
-    plazas: p.corrigen,
-    accion: p.falta
-      ? `Añadir «${p.b}» en ${nombresDe(p.corrigen)}`
-      : `Unificar en «${p.gana}»: corregir ${nombresDe(p.corrigen)}`,
-    peso: p.renglones,
-  }
-}
-
-/** Los descontinuados sin una sola pieza: la respuesta es la misma para todos. */
-function fichaDeMuertos(muertos) {
-  const porPlaza = {}
-  for (const h of muertos) {
-    for (const s of Object.keys(h.plazas ?? {})) porPlaza[s] = (porPlaza[s] ?? 0) + 1
-  }
-  const filas = Object.entries(porPlaza).map(([s, n]) => [nombreSucursal(s), String(n)])
-
-  return {
-    id: 'cod|muertos',
-    bloque: 'codigo',
-    chip: `${muertos.length} códigos de una vez`,
-    titulo: `${muertos.length} códigos descontinuados y sin una sola pieza`,
-    veredicto: 'Bodega no los tiene, llevan medio año o más sin moverse y no queda existencia '
-      + 'en ninguna plaza. No hay nada que agotar: sólo ocupan sitio en el catálogo.',
-    tabla: filas.length ? { cabeceras: ['Plaza', 'Códigos'], filas } : null,
-    plazas: Object.keys(porPlaza),
-    detalle: muertos.map(h => `${h.codigo} · ${h.producto}`),
-    accion: 'Eliminar los códigos del catálogo de cada plaza',
-    peso: muertos.length,
-  }
-}
-
-/** Un código huérfano: la alerta sensible, de una en una. */
-function fichaDeCodigo(h) {
-  const titulo = h.motivo === MOTIVO.DUPLICADO ? 'Bodega ya lo cubre con otro código'
-    : h.motivo === MOTIVO.SIN_ALTA ? 'Se mueve y bodega no lo tiene de alta'
-    : 'Descontinuado: no hay de dónde resurtirlo'
-
-  const veredicto = h.motivo === MOTIVO.DUPLICADO
-    ? `Bodega atiende ese teléfono con ${h.cubiertoPor.codigo} — ${h.cubiertoPor.producto}, `
-      + 'del mismo tipo de funda. Si es el mismo producto, este código sobra.'
-    : h.motivo === MOTIVO.SIN_ALTA
-      ? 'Ningún código de bodega cubre ese teléfono con ese tipo de funda, y éste sigue '
-        + 'moviéndose. O bodega lo da de alta, o se decide que no se maneja.'
-      : `Bodega no lo tiene y lleva ${h.diasSinMover ?? '—'} días sin moverse. `
-        + 'Lo que quede se agota y el código se elimina.'
-
-  const filas = Object.entries(h.plazas).map(([s, n]) => [nombreSucursal(s), `${n} pz`])
-
-  return {
-    id: `cod|${h.codigo}`,
-    bloque: 'codigo',
-    chip: `${h.codigo} · ${h.piezas} pz · se movió por última vez ${h.ultimo ?? 'sin registro'}`,
-    titulo,
-    veredicto,
-    tabla: filas.length ? { cabeceras: ['Plaza', 'Existencia'], filas } : null,
-    plazas: Object.keys(h.plazas),
-    accion: h.accion,
-    codigo: h.codigo,
-    producto: h.producto,
-    peso: h.piezas,
-  }
-}
-
-/** Un nombre suelto que ningún patrón explica. */
-function fichaDeNombre(n) {
-  if (n.fuente === 'conflicto') {
-    return {
-      id: `nom|${n.codigo}`,
-      bloque: 'nombre',
-      chip: `${n.codigo} · las dos referencias`,
-      titulo: 'Bodega y León no coinciden, y no es compatibilidad',
-      veredicto: 'Las dos referencias del catálogo se contradicen. Mientras no se elija una, '
-        + 'no hay nombre bueno contra el que corregir a las demás plazas.',
-      tabla: {
-        cabeceras: ['Plaza', 'Lo que tiene escrito'],
-        filas: n.fuera.map(f => [nombreSucursal(f.slug), f.nombre]),
-      },
-      plazas: n.fuera.map(f => f.slug),
-      accion: 'Elegir cuál de las dos vale y corregir la otra',
-      peso: 0,
-    }
-  }
-
-  return {
-    id: `nom|${n.codigo}`,
-    bloque: 'nombre',
-    chip: `${n.codigo} · apunta a otro teléfono`,
-    titulo: 'El nombre no es sólo otra forma de escribirlo',
-    veredicto: `La referencia (${n.fuente}) dice «${n.referencia}». Lo que tienen las plazas `
-      + 'de abajo nombra otro aparato o lleva una errata, y eso rompe cualquier comparación.',
-    tabla: {
-      cabeceras: ['Plaza', 'Lo que tiene escrito'],
-      filas: [['Catálogo', n.referencia], ...n.fuera.map(f => [nombreSucursal(f.slug), f.nombre])],
-      destacar: 0,
-    },
-    plazas: n.fuera.map(f => f.slug),
-    accion: `Corregir en ${nombresDe(n.fuera.map(f => f.slug))}`,
-    peso: 0,
-  }
 }

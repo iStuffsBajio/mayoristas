@@ -279,3 +279,10 @@ test('estado nulo es quitar la marca, no un error', async () => {
   const r = await pedir('POST', '/revisiones', { token: tokenLeon(), cuerpo: { id: 'x', estado: null } })
   assert.notEqual(r.statusCode, 400)
 })
+
+test('se contesta si o no, y lo viejo se sigue aceptando', async () => {
+  for (const estado of ['si', 'no', 'pendiente', 'ignorado']) {
+    const r = await pedir('POST', '/revisiones', { token: tokenLeon(), cuerpo: { id: 'x', estado } })
+    assert.notEqual(r.statusCode, 400, `rechazo el estado ${estado}`)
+  }
+})

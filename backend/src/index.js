@@ -294,7 +294,9 @@ async function rutaSubirInventario(evento, origen, cuerpo) {
 // Van bajo `revisiones/`, que la política del bucket NO abre al público: las
 // notas llevan nombres de empleados. Por eso se sirven desde aquí.
 
-const ESTADOS = new Set(['pendiente', 'ignorado'])
+// Se contesta si o no. «pendiente» e «ignorado» son como se llamaban antes:
+// se siguen aceptando para no tirar lo que ya este guardado.
+const ESTADOS = new Set(['si', 'no', 'pendiente', 'ignorado'])
 
 const quienEs = sesion => (sesion.admin ? 'admin' : sesion.sucursal)
 

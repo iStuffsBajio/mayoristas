@@ -31,10 +31,32 @@ const hoy = () => {
 
 const quienEs = por => (!por ? '' : por === 'admin' ? 'Administración' : nombreSucursal(por))
 
-const comoEstado = m => (!m ? 'Sin contestar'
-  : m.estado === 'pendiente' ? 'En corrección'
-  : m.estado === 'ignorado' ? 'No es error'
-  : String(m.estado))
+/** «pendiente» e «ignorado» son como se llamaban el sí y el no al principio. */
+const respuestaDe = m => {
+  if (!m) return null
+  if (m.estado === 'si' || m.estado === 'pendiente') return 'si'
+  if (m.estado === 'no' || m.estado === 'ignorado') return 'no'
+  return null
+}
+
+const comoEstado = m => {
+  const r = respuestaDe(m)
+  return r === 'si' ? 'Sí' : r === 'no' ? 'No' : 'Sin contestar'
+}
+
+/**
+ * Lo que hay que hacer con el caso, según lo contestado.
+ *
+ * Un «sí» lleva la solución dentro —es la propuesta— y un «no» la lleva en la
+ * explicación que se obligó a escribir. Ponerlas en la misma columna es lo que
+ * hace que la hoja se pueda repartir como lista de tareas.
+ */
+const queHacer = f => {
+  const r = respuestaDe(f.marca)
+  if (r === 'si') return f.item.siHacer ?? ''
+  if (r === 'no') return f.marca.nota || f.item.noHacer || ''
+  return ''
+}
 
 const soloFecha = iso => {
   const d = new Date(iso)
@@ -53,26 +75,27 @@ const plazasDe = item => (item.plazas ?? []).map(nombreSucursal).join(', ')
 const COLUMNAS = [
   { titulo: 'Caso',        valor: f => f.item.id, ancho: 26 },
   { titulo: 'Tipo',        valor: f => (f.item.bloque === 'codigo' ? 'Código' : 'Nombre'), ancho: 10 },
-  { titulo: 'Qué pasa',    valor: f => f.item.titulo, ancho: 44 },
-  { titulo: 'Detalle',     valor: f => f.item.veredicto, ancho: 70 },
+  { titulo: 'Problema',    valor: f => f.item.titulo, ancho: 44 },
+  { titulo: 'Qué se sabe', valor: f => (f.item.contexto ?? []).join(' · '), ancho: 70 },
   { titulo: 'Plazas',      valor: f => plazasDe(f.item), ancho: 30 },
-  { titulo: 'Propuesta',   valor: f => f.item.accion, ancho: 44 },
-  { titulo: 'Peso',        valor: f => f.item.peso, num: true, ancho: 8 },
-  { titulo: 'Respuesta',   valor: f => comoEstado(f.marca), fuerte: true, ancho: 14,
-    color: f => (!f.marca ? C.tintaTenue : f.marca.estado === 'pendiente' ? C.ambar : C.tinta) },
+  { titulo: 'Pregunta',    valor: f => f.item.pregunta ?? '', ancho: 44 },
+  { titulo: 'Respuesta',   valor: f => comoEstado(f.marca), fuerte: true, ancho: 12,
+    color: f => { const r = respuestaDe(f.marca); return r === 'si' ? C.verde : r === 'no' ? C.tinta : C.tintaTenue } },
+  { titulo: 'Qué hacer',   valor: queHacer, ancho: 56 },
+  { titulo: 'Explicación', valor: f => f.marca?.nota ?? '', ancho: 46 },
   { titulo: 'Quién',       valor: f => quienEs(f.marca?.por), ancho: 16 },
   { titulo: 'Cuándo',      valor: f => soloFecha(f.marca?.fecha), ancho: 12 },
-  { titulo: 'Nota',        valor: f => f.marca?.nota ?? '', ancho: 46 },
+  { titulo: 'Peso',        valor: f => f.item.peso, num: true, ancho: 8 },
 ]
 
-/** Una hoja de resumen: etiqueta, total, contestados, sin contestar. */
+/** Una hoja de resumen: etiqueta, total, sí, no, sin contestar. */
 function hojaResumen(titulo, grupos) {
   return hojaDeTabla([
     { titulo, valor: g => g.etiqueta, fuerte: true, ancho: 30 },
-    { titulo: 'Casos',          valor: g => g.total,        num: true },
-    { titulo: 'En corrección',  valor: g => g.pendientes,   num: true },
-    { titulo: 'No es error',    valor: g => g.ignorados,    num: true },
-    { titulo: 'Sin contestar',  valor: g => g.sinContestar, num: true,
+    { titulo: 'Casos',         valor: g => g.total, num: true },
+    { titulo: 'Sí',            valor: g => g.si,    num: true },
+    { titulo: 'No',            valor: g => g.no,    num: true },
+    { titulo: 'Sin contestar', valor: g => g.sinContestar, num: true,
       color: g => (g.sinContestar > 0 ? C.ambar : C.tinta) },
   ], grupos)
 }
@@ -81,11 +104,12 @@ const agrupar = (filas, clave) => {
   const r = new Map()
   for (const f of filas) {
     for (const etiqueta of [clave(f)].flat().filter(Boolean)) {
-      const g = r.get(etiqueta) ?? { etiqueta, total: 0, pendientes: 0, ignorados: 0, sinContestar: 0 }
+      const g = r.get(etiqueta) ?? { etiqueta, total: 0, si: 0, no: 0, sinContestar: 0 }
       g.total++
-      if (!f.marca) g.sinContestar++
-      else if (f.marca.estado === 'pendiente') g.pendientes++
-      else g.ignorados++
+      const contesto = respuestaDe(f.marca)
+      if (contesto === 'si') g.si++
+      else if (contesto === 'no') g.no++
+      else g.sinContestar++
       r.set(etiqueta, g)
     }
   }
@@ -99,16 +123,22 @@ function portada(filas) {
 
   celda(hoja, 'A1', 'Revisión del catálogo', estiloTitulo, 's')
   celda(hoja, 'A2', hoy(), estiloSubtitulo, 's')
-  celda(hoja, 'A4', `${filas.length} casos detectados · ${contestados} contestados · ${filas.length - contestados} sin contestar`, estiloSeccion, 's')
+  const si = filas.filter(f => respuestaDe(f.marca) === 'si').length
+  const no = filas.filter(f => respuestaDe(f.marca) === 'no').length
+
+  celda(hoja, 'A4', `${filas.length} casos · ${si} con «sí» · ${no} con «no» · ${filas.length - contestados} sin contestar`, estiloSeccion, 's')
   celda(hoja, 'A6',
     'Cada caso sale de comparar el catálogo de las cinco plazas entre sí. No hay nada escrito a mano: '
     + 'si un caso desaparece es porque el dato ya cambió en la caja.', estiloNota, 's')
   celda(hoja, 'A7',
+    'La columna «Qué hacer» es la lista de tareas: en los «sí» es la propuesta que se aceptó, y en los '
+    + '«no» es la explicación que quien contestó tuvo que escribir para poder guardarlo.', estiloNota, 's')
+  celda(hoja, 'A8',
     'Las hojas «Por plaza» y «Por tipo» están para buscar la causa, no para contar: lo que importa no es '
     + 'cuántos casos hay, sino si se concentran en una plaza o en una forma de dar de alta.', estiloNota, 's')
 
   hoja['!cols'] = [{ wch: 120 }]
-  hoja['!ref'] = 'A1:A7'
+  hoja['!ref'] = 'A1:A8'
   return hoja
 }
 
