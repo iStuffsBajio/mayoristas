@@ -29,6 +29,43 @@ const COLOR = /\b(NEGRO|BLANCO|AZUL|ROJO|ROSA|VERDE|MORADO|SALMON|AMARILLO|GRIS|
 // 5G y 4G NO se quitan: distinguen teléfonos de verdad. Quitarlos emparejaba
 // el VIVO V30 LITE 5G con el V30 LITE 4G, que son aparatos distintos y llevan
 // funda distinta. Bodega tiene los dos códigos por separado, precisamente.
+/**
+ * Tonos y acabados: lo que distingue dos versiones del MISMO producto.
+ *
+ * Es la lista de COLOR mas los dos acabados que viven en TIPO -TRANSPARENTE
+ * y CRISTAL-, porque para esto se portan igual: «MOTO G60 TRANSPARENTE TPU»
+ * y «MOTO G60 TPU» son el mismo modelo en dos presentaciones.
+ *
+ * Se escribe aparte a proposito. COLOR y TIPO las usan `claveModelo` y
+ * `tipoDeFunda`, que agrupan TODO el catalogo: meter aqui una palabra de mas
+ * moveria la agrupacion entera sin que fallara nada.
+ */
+const TONO = /\b(NEGRO|BLANCO|AZUL|ROJO|ROSA|VERDE|MORADO|SALMON|AMARILLO|GRIS|LILA|MENTA|BEIGE|CAFE|NARANJA|DORADO|PLATA|TRANSPARENTE|CRISTAL)\b/g
+
+/** Los tonos que lleva un nombre, sin repetir. */
+export const tonosDe = nombre =>
+  [...new Set(String(nombre || '').toUpperCase().match(TONO) ?? [])]
+
+/**
+ * ¿Son el mismo producto en distinto tono?
+ *
+ * Quitando los tonos los nombres tienen que quedar IGUALES. Si ademas cambia
+ * otra palabra no es un tono, es otro producto: «IPHONE 11 MORADO TPU» contra
+ * «IPHONE 11 AZUL TPU» si; contra «IPHONE 11 PRO AZUL TPU» no.
+ *
+ * Y alguno de los dos tiene que llevar tono: sin esa condicion, dos nombres
+ * iguales sin color entrarian como variante de color, que es falso.
+ */
+export function mismoSalvoElTono(a, b) {
+  if (!tonosDe(a).length && !tonosDe(b).length) return false
+  const pelado = s => String(s || '').toUpperCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(TONO, ' ')
+    .replace(/[^A-Z0-9/]+/g, ' ').replace(/\s+/g, ' ').trim()
+  const pa = pelado(a)
+  return !!pa && pa === pelado(b)
+}
+
 const RUIDO = /\b(LTE)\b/g
 
 /**

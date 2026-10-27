@@ -17,7 +17,9 @@ const caso = (id, extra = {}) => ({
 const cola = [
   caso('pat|GALAXY>SAMSUNG'),
   caso('cod|HX7CT', { bloque: 'codigo', titulo: 'Descontinuado', peso: 100, plazas: ['leon', 'ferias'],
-                      siHacer: 'Borrar HX7CT en Leon y Ferias.' }),
+                      siHacer: 'Borrar HX7CT en Leon y Ferias.',
+                      codigos: [{ codigo: 'HX7CT', producto: 'HONOR X7 TPU CASE', piezas: 4,
+                                  plazas: { leon: 3, ferias: 1 }, ultimaVenta: '2025-04-02' }] }),
   caso('nom|X1', { plazas: ['san-luis'] }),
 ]
 
@@ -35,7 +37,7 @@ const tabla = (libro, hoja) => {
 
 test('el libro lleva las cuatro hojas', () => {
   assert.deepEqual(libroDeRevisiones(cola, marcas).SheetNames,
-    ['Resumen', 'Por plaza', 'Por tipo', 'Casos'])
+    ['Resumen', 'Por plaza', 'Por tipo', 'Casos', 'Códigos'])
 })
 
 test('los casos SIN contestar tambien salen', () => {
@@ -127,4 +129,49 @@ test('cada hoja declara un rango valido', () => {
   for (const n of l.SheetNames) {
     assert.match(l.Sheets[n]['!ref'] ?? '', /^[A-Z]+\d+:[A-Z]+\d+$/, `hoja ${n} sin rango`)
   }
+})
+
+test('la hoja de codigos reparte el lote en un renglon por codigo', () => {
+  // La pregunta se contesta una vez; el trabajo se hace codigo a codigo.
+  const lote = caso('lote|varias-plazas', {
+    bloque: 'codigo', titulo: '3 modelos que bodega descontinuo', peso: 9,
+    plazas: ['leon', 'ferias'], siHacer: 'Vender lo que quede de los 3 codigos y darlos de baja.',
+    codigos: [
+      { codigo: 'A1', producto: 'UNO TPU CASE', piezas: 5, plazas: { leon: 5 }, ultimaVenta: '2024-03-04' },
+      { codigo: 'A2', producto: 'DOS TPU CASE', piezas: 3, plazas: { ferias: 3 }, ultimaVenta: null },
+      { codigo: 'A3', producto: 'TRES TPU CASE', piezas: 1, plazas: { leon: 1 }, ultimaVenta: '2023-01-01' },
+    ],
+  })
+  const marca = { 'lote|varias-plazas': { estado: 'si', fecha: '2026-10-26T10:00:00Z', por: 'admin' } }
+  const filas = tabla(libroDeRevisiones([lote], marca), 'Códigos')
+
+  assert.deepEqual(filas.map(f => f['Código']), ['A1', 'A2', 'A3'])
+  // Los tres heredan la respuesta y la instruccion del lote entero.
+  for (const f of filas) {
+    assert.equal(f.Respuesta, 'Sí')
+    assert.match(f['Qué hacer'], /darlos de baja/)
+    assert.equal(f.Caso, 'lote|varias-plazas')
+  }
+  assert.equal(filas[0]['Última venta'], '2024-03-04')
+  assert.equal(filas[1]['Última venta'], '')   // sin venta conocida, no un cero
+  assert.equal(filas[0].Plazas, 'León')
+})
+
+test('en «Casos» el lote sigue siendo UN renglon', () => {
+  // Las dos hojas cuentan cosas distintas a proposito: una las preguntas,
+  // otra el trabajo. Si el lote se duplicara en «Casos», el avance mentiria.
+  const lote = caso('lote|tono', {
+    bloque: 'codigo', plazas: ['leon'],
+    codigos: [{ codigo: 'A1', producto: 'UNO', piezas: 1, plazas: { leon: 1 } },
+              { codigo: 'A2', producto: 'DOS', piezas: 1, plazas: { leon: 1 } }],
+  })
+  const libro = libroDeRevisiones([lote], {})
+  assert.equal(tabla(libro, 'Casos').length, 1)
+  assert.equal(tabla(libro, 'Códigos').length, 2)
+})
+
+test('un patron no tiene codigo y no ensucia la hoja de codigos', () => {
+  // Cambia una palabra en cientos de nombres: no es una tarea por codigo.
+  const filas = tabla(libroDeRevisiones(cola, marcas), 'Códigos')
+  assert.ok(!filas.some(f => f.Caso === 'pat|GALAXY>SAMSUNG'))
 })

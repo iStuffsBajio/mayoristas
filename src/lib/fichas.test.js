@@ -1,7 +1,8 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { MOTIVO } from './anomalias.js'
-import { fichaDeCodigo, fichaDeMuertos, fichaDePatron, fichaDeNombre } from './fichas.js'
+import { fichaDeCodigo, fichaDeLote, fichaDePatron, fichaDeNombre } from './fichas.js'
+import { CLASE } from './lotes.js'
 
 const huerfano = (motivo, extra = {}) => ({
   codigo: 'R165GT', producto: 'REALME 16 5G TPU CASE',
@@ -20,16 +21,29 @@ const patron = {
   ],
 }
 
+/** Un lote de cada clase: las cuatro redacciones tienen que cumplir lo mismo. */
+const lote = clase => ({
+  id: `lote|${clase}`, clase, piezas: 9,
+  porPlaza: { leon: 3, ferias: 2 },
+  plazas: ['leon', 'ferias'],
+  codigos: [
+    { codigo: 'A', producto: 'IPHONE 11 MORADO TPU CASE', piezas: 5, plazas: { leon: 5 },
+      ultimaVenta: '2024-03-04', diasSinVender: 966,
+      cubiertoPor: { codigo: 'I11T', producto: 'IPHONE 11 TPU CASE' } },
+    { codigo: 'B', producto: 'IPHONE 11 SALMON TPU CASE', piezas: 4, plazas: { ferias: 4 },
+      ultimaVenta: null, diasSinVender: null,
+      cubiertoPor: { codigo: 'I11T', producto: 'IPHONE 11 TPU CASE' } },
+    { codigo: 'C', producto: 'IPHONE 11 VERDE TPU CASE', piezas: 0, plazas: {},
+      ultimaVenta: '2023-01-01', diasSinVender: 1394, cubiertoPor: null },
+  ],
+})
+
 const TODAS = () => [
   fichaDeCodigo(huerfano(MOTIVO.DUPLICADO)),
   fichaDeCodigo(huerfano(MOTIVO.SIN_ALTA, { cubiertoPor: null })),
   fichaDeCodigo(huerfano(MOTIVO.DESCONTINUADO, { cubiertoPor: null })),
   fichaDeCodigo(huerfano(MOTIVO.DESCONTINUADO, { cubiertoPor: null, piezas: 0, plazas: {} })),
-  fichaDeMuertos([
-    { codigo: 'A', producto: 'UNO', plazas: { leon: 0 } },
-    { codigo: 'B', producto: 'DOS', plazas: { leon: 0 } },
-    { codigo: 'C', producto: 'TRES', plazas: { ferias: 0 } },
-  ]),
+  ...Object.values(CLASE).map(clase => fichaDeLote(lote(clase))),
   fichaDePatron(patron),
   fichaDePatron({ ...patron, falta: true, a: null, b: 'CASE', gana: 'CASE', pierde: null, alcance: 'codigos' }),
   fichaDeNombre({
@@ -94,4 +108,29 @@ test('el patron cuenta los productos de quien tiene que corregir', () => {
   assert.match(f.siHacer, /192 productos/)   // los de bodega, no los de todas
   assert.match(f.siHacer, /Bodega 192/)      // y dice en cual estan
   assert.equal(f.plazas[0], 'bodega')
+})
+
+test('el lote ensena TODOS sus codigos, uno por uno', () => {
+  // Un «si» que da de baja veinte codigos sin decir cuales no es una
+  // respuesta, es un cheque en blanco.
+  for (const clase of Object.values(CLASE)) {
+    const f = fichaDeLote(lote(clase))
+    assert.equal(f.detalle.length, 3, clase)
+    for (const c of ['A', 'B', 'C']) {
+      assert.ok(f.detalle.some(d => d.startsWith(`${c} `)), `${clase}: falta ${c}`)
+    }
+    assert.equal(f.codigos.length, 3, `${clase}: el reporte no podria repartirlo`)
+  }
+})
+
+test('el detalle del lote dice cuando se vendio cada uno', () => {
+  // Es la prueba de que esta descontinuado: sin fecha, el lote pide fe.
+  const f = fichaDeLote(lote(CLASE.VARIAS))
+  assert.match(f.detalle[0], /marzo de 2024/)
+  assert.match(f.detalle[1], /sin venta conocida/)
+})
+
+test('el lote de color nombra el codigo que bodega si surte', () => {
+  const f = fichaDeLote(lote(CLASE.TONO))
+  assert.match(f.detalle[0], /bodega surte I11T/)
 })

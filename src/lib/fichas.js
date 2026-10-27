@@ -84,32 +84,123 @@ export function fichaDePatron(p) {
   }
 }
 
-/** Los descontinuados sin una sola pieza: la respuesta es la misma para todos. */
-export function fichaDeMuertos(muertos) {
-  const porPlaza = {}
-  for (const h of muertos) {
-    for (const s of Object.keys(h.plazas ?? {})) porPlaza[s] = (porPlaza[s] ?? 0) + 1
-  }
-  const filas = Object.entries(porPlaza).map(([s, n]) => [nombreSucursal(s), String(n)])
+const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+             'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
 
-  return {
-    id: 'cod|muertos',
-    bloque: 'codigo',
-    chip: `${muertos.length} códigos de una vez`,
-    titulo: `${muertos.length} códigos sin existencia y sin de dónde resurtir`,
+/** «agosto de 2025», o «sin venta conocida» cuando no la hay. */
+const cuando = iso => {
+  if (!iso) return 'sin venta conocida'
+  const d = new Date(iso)
+  return Number.isNaN(d.getTime()) ? 'sin venta conocida' : `${MES[d.getMonth()]} de ${d.getFullYear()}`
+}
+
+/** Cuánto hace de la venta más reciente del lote entero. */
+const masRecienteEn = codigos => {
+  const dias = codigos.map(h => h.diasSinVender).filter(d => typeof d === 'number')
+  if (!dias.length) return null
+  return Math.min(...dias)
+}
+
+const meses = d => Math.max(1, Math.round(d / 30))
+
+/**
+ * Las redacciones de cada clase de lote.
+ *
+ * El `sí` tiene que mandar hacer algo concreto sobre TODOS los códigos, y el
+ * `no` tiene que pedir exactamente el dato que impide volver a proponerlo:
+ * un lote mal contestado se vuelve a proponer entero.
+ */
+const REDACCION = {
+  tono: l => ({
+    titulo: `Bodega ya no surte estos ${l.codigos.length} colores`,
+    contexto: [
+      `Los ${l.codigos.length} son un producto que bodega SÍ tiene, en otro color`,
+      'Bodega no tiene ninguno de estos códigos: se quedó sólo con un color',
+      `Quedan ${l.piezas} piezas de colores que no se pueden reponer`,
+    ],
+    pregunta: `¿Bodega dejó de surtir estos ${l.codigos.length} colores?`,
+    siHacer: `Vender lo que quede de los ${l.codigos.length} códigos y darlos de baja; el color que sigue vivo es el de bodega.`,
+    noHacer: 'Alguno de esos colores se sigue manejando, y hay que decir cuál y si bodega tiene que darlo de alta.',
+    noPide: 'Cuáles se siguen manejando y con qué código',
+  }),
+  'sin-existencia': l => ({
+    titulo: `${l.codigos.length} códigos sin existencia y sin de dónde resurtir`,
     contexto: [
       'Bodega no tiene ninguno de estos códigos',
-      'Llevan medio año o más sin un solo movimiento',
       'No queda existencia en ninguna plaza: no hay nada que agotar',
+      'Ocupan sitio en el catálogo y vuelven a salir en cada revisión',
     ],
-    tabla: filas.length ? { cabeceras: ['Plaza', 'Códigos'], filas } : null,
-    detalle: muertos.map(h => `${h.codigo} · ${h.producto}`),
-    plazas: Object.keys(porPlaza),
-    pregunta: `¿Se eliminan los ${muertos.length} códigos del catálogo?`,
-    siHacer: `Borrar los ${muertos.length} códigos en cada plaza donde sigan dados de alta.`,
-    noHacer: 'Entonces alguno se queda, y hay que decir cuál y por qué.',
+    pregunta: `¿Se eliminan los ${l.codigos.length} códigos del catálogo?`,
+    siHacer: `Borrar los ${l.codigos.length} códigos en cada plaza donde sigan dados de alta.`,
+    noHacer: 'Alguno se queda, y hay que decir cuál y por qué.',
     noPide: 'Cuáles se quedan y de dónde se van a resurtir',
-    peso: muertos.length,
+  }),
+  'varias-plazas': l => {
+    const d = masRecienteEn(l.codigos)
+    return {
+      titulo: `${l.codigos.length} modelos que bodega descontinuó`,
+      contexto: [
+        `Los ${l.codigos.length} los tienen dos plazas o más, y bodega ninguno`,
+        d === null
+          ? 'A ninguno se le conoce una venta, descontando los recuentos de inventario'
+          : `Ni el más vivo se ha vendido en ${meses(d)} meses, descontando los recuentos de inventario`,
+        'Que el mismo código esté en varias cajas y no se mueva en ninguna no es un fallo de captura: es una baja en bodega',
+        `Quedan ${l.piezas} piezas paradas`,
+      ],
+      pregunta: `¿Bodega descontinuó estos ${l.codigos.length} modelos?`,
+      siHacer: `Vender lo que quede de los ${l.codigos.length} códigos y darlos de baja en las plazas que los tengan.`,
+      noHacer: 'Alguno se sigue comprando, y entonces bodega tiene que darlo de alta.',
+      noPide: 'Cuáles se siguen comprando y por qué',
+    }
+  },
+  'una-plaza': l => {
+    const d = masRecienteEn(l.codigos)
+    return {
+      titulo: `${l.codigos.length} códigos sueltos en un solo mostrador`,
+      contexto: [
+        'Cada uno está en una sola plaza, y bodega no tiene ninguno',
+        d === null
+          ? 'A ninguno se le conoce una venta, descontando los recuentos de inventario'
+          : `El más reciente lleva ${meses(d)} meses sin venderse`,
+        'Al estar en una sola plaza la prueba es más floja que en los otros lotes: puede ser una baja de bodega o un alta que sólo hizo esa tienda',
+        `Son ${l.piezas} piezas`,
+      ],
+      pregunta: `¿Se dan de baja los ${l.codigos.length} en cuanto se agoten?`,
+      siHacer: `Vender lo que quede y luego borrar los ${l.codigos.length} códigos de la plaza que los tiene.`,
+      noHacer: 'Alguno se queda, y hay que decir cuál y de dónde se resurte.',
+      noPide: 'Cuáles se quedan y de dónde se resurten',
+    }
+  },
+}
+
+/**
+ * Un lote: una pregunta que ordena muchos códigos de golpe.
+ *
+ * Lleva el detalle código a código a propósito. Un «sí» que da de baja veinte
+ * códigos sin enseñar cuáles no es una respuesta, es un cheque en blanco, y
+ * el reporte lo reparte luego como un renglón por código.
+ */
+export function fichaDeLote(lote) {
+  const r = REDACCION[lote.clase](lote)
+  const filas = Object.entries(lote.porPlaza)
+    .sort((a, b) => b[1] - a[1])
+    .map(([s, n]) => [nombreSucursal(s), String(n)])
+
+  return {
+    id: lote.id,
+    bloque: 'codigo',
+    lote: true,
+    chip: `${lote.codigos.length} códigos de una vez`,
+    tabla: filas.length ? { cabeceras: ['Plaza', 'Códigos'], filas } : null,
+    detalle: lote.codigos.map(h => {
+      const piezas = h.piezas > 0 ? `${h.piezas} pz` : 'sin existencia'
+      const bodega = lote.clase === 'tono' && h.cubiertoPor ? ` · bodega surte ${h.cubiertoPor.codigo}` : ''
+      return `${h.codigo} · ${h.producto} · ${piezas} · última venta ${cuando(h.ultimaVenta)}${bodega}`
+    }),
+    plazas: lote.plazas,
+    codigos: lote.codigos,
+    peso: lote.piezas,
+    ...r,
   }
 }
 
@@ -130,6 +221,9 @@ export function fichaDeCodigo(h) {
     plazas: slugs,
     codigo: h.codigo,
     producto: h.producto,
+    // Igual que un lote, pero de uno. Así el reporte reparte todas las fichas
+    // con el mismo código y no necesita saber cuál es de qué clase.
+    codigos: [h],
     peso: h.piezas,
   }
 
@@ -192,6 +286,8 @@ export function fichaDeNombre(n) {
     const [a, b] = n.fuera
     return {
       id: `nom|${n.codigo}`,
+      codigo: n.codigo,
+      codigos: [{ codigo: n.codigo, producto: n.referencia ?? n.fuera?.[0]?.nombre ?? '', piezas: 0 }],
       bloque: 'nombre',
       chip: `${n.codigo} · las dos referencias se contradicen`,
       titulo: 'Bodega y León no le ponen el mismo nombre',
@@ -215,6 +311,8 @@ export function fichaDeNombre(n) {
 
   return {
     id: `nom|${n.codigo}`,
+      codigo: n.codigo,
+      codigos: [{ codigo: n.codigo, producto: n.referencia ?? n.fuera?.[0]?.nombre ?? '', piezas: 0 }],
     bloque: 'nombre',
     chip: `${n.codigo} · el nombre apunta a otro teléfono`,
     titulo: 'El nombre no es sólo otra forma de escribirlo',

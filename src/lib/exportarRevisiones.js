@@ -58,7 +58,11 @@ const queHacer = f => {
   return ''
 }
 
+// El `if (!iso)` no sobra: `new Date(null)` no es una fecha inválida, es el
+// 1 de enero de 1970, así que un código sin venta conocida salía con una fecha
+// de aspecto perfectamente normal en la columna «Última venta».
 const soloFecha = iso => {
+  if (!iso) return ''
   const d = new Date(iso)
   return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10)
 }
@@ -86,6 +90,32 @@ const COLUMNAS = [
   { titulo: 'Quién',       valor: f => quienEs(f.marca?.por), ancho: 16 },
   { titulo: 'Cuándo',      valor: f => soloFecha(f.marca?.fecha), ancho: 12 },
   { titulo: 'Peso',        valor: f => f.item.peso, num: true, ancho: 8 },
+]
+
+/**
+ * Un renglón por CÓDIGO, que es como se trabaja.
+ *
+ * Una ficha puede ser un lote: una pregunta que ordena veinte códigos de
+ * golpe. Eso está bien para contestar y fatal para repartir el trabajo, así
+ * que aquí el lote se abre y cada código sale con su propia línea, llevándose
+ * la respuesta que se dio al lote entero.
+ *
+ * Las fichas de patrón no tienen código —cambian una palabra en cientos de
+ * nombres— y por eso no aparecen en esta hoja; están enteras en «Casos».
+ */
+const porCodigo = filas => filas.flatMap(f =>
+  (f.item.codigos ?? []).map(c => ({ ...f, c })))
+
+const COLUMNAS_CODIGO = [
+  { titulo: 'Código',       valor: f => f.c.codigo, fuerte: true, ancho: 14 },
+  { titulo: 'Producto',     valor: f => f.c.producto ?? '', ancho: 46 },
+  { titulo: 'Piezas',       valor: f => Number(f.c.piezas) || 0, num: true, ancho: 9 },
+  { titulo: 'Plazas',       valor: f => Object.keys(f.c.plazas ?? {}).map(nombreSucursal).join(', '), ancho: 30 },
+  { titulo: 'Última venta', valor: f => soloFecha(f.c.ultimaVenta), ancho: 13 },
+  { titulo: 'Respuesta',    valor: f => comoEstado(f.marca), fuerte: true, ancho: 12,
+    color: f => { const r = respuestaDe(f.marca); return r === 'si' ? C.verde : r === 'no' ? C.tinta : C.tintaTenue } },
+  { titulo: 'Qué hacer',    valor: queHacer, ancho: 60 },
+  { titulo: 'Caso',         valor: f => f.item.id, ancho: 24 },
 ]
 
 /** Una hoja de resumen: etiqueta, total, sí, no, sin contestar. */
@@ -136,9 +166,13 @@ function portada(filas) {
   celda(hoja, 'A8',
     'Las hojas «Por plaza» y «Por tipo» están para buscar la causa, no para contar: lo que importa no es '
     + 'cuántos casos hay, sino si se concentran en una plaza o en una forma de dar de alta.', estiloNota, 's')
+  celda(hoja, 'A9',
+    'Un caso puede ser un lote: una pregunta que ordena muchos códigos de golpe. «Casos» lleva las '
+    + 'preguntas; «Códigos» las abre y da un renglón por código, que es como se reparte el trabajo.',
+    estiloNota, 's')
 
   hoja['!cols'] = [{ wch: 120 }]
-  hoja['!ref'] = 'A1:A8'
+  hoja['!ref'] = 'A1:A9'
   return hoja
 }
 
@@ -157,6 +191,7 @@ export function libroDeRevisiones(cola, marcas) {
   XLSX.utils.book_append_sheet(libro, hojaResumen('Plaza', agrupar(filas, f => plazasDe(f.item).split(', '))), nombreHoja('Por plaza'))
   XLSX.utils.book_append_sheet(libro, hojaResumen('Tipo', agrupar(filas, f => f.item.titulo)), nombreHoja('Por tipo'))
   XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLUMNAS, filas), nombreHoja('Casos'))
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLUMNAS_CODIGO, porCodigo(filas)), nombreHoja('Códigos'))
 
   return libro
 }

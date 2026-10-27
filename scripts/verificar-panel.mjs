@@ -133,6 +133,39 @@ function respuesta(url) {
 // la tabla con porcentajes- dejaba de pintarse sin que nada fallara.
 const SIN_BODEGA = ['HX7CT', 'XRN13PT', 'MTST01', 'OPR74GT']
 
+const TIENDAS = ['leon', 'san-luis', 'aguascalientes', 'ferias']
+
+/**
+ * Códigos que sólo tienen las tiendas, para que se dibujen los lotes.
+ *
+ * Un lote es una pregunta que ordena muchos códigos de golpe, y **se deshace
+ * si no junta tres**. Por eso van de tres en tres: con dos, la ficha del lote
+ * no se pinta y la comprobación pasa en verde sin haberla ejecutado, que es
+ * justo el fallo que esta comprobación existe para evitar.
+ *
+ * Cada terna dibuja una clase distinta, y las cuatro se redactan aparte:
+ *   · color   — bodega tiene el I13T; las tiendas, el mismo en tres colores
+ *   · varias  — dos plazas o más lo tienen y nadie lo ha vendido en años
+ *   · una     — queda suelto en un solo mostrador
+ *   · sin existencia — la cuarta sale de SIN_BODEGA, que están en cero
+ *
+ * Ninguno lleva nombre SAMSUNG: estos códigos no están en bodega, y meter uno
+ * movería las cuentas del patrón de escritura, que es otra ficha.
+ */
+const HUERFANOS = [
+  ['I13MOT',  'IPHONE 13 MORADO TPU CASE',   3, '2026-09-10', TIENDAS],
+  ['I13VT',   'IPHONE 13 VERDE TPU CASE',    2, '2026-09-11', TIENDAS],
+  ['I13ST',   'IPHONE 13 SALMON TPU CASE',   1, '2026-09-12', TIENDAS],
+
+  ['HP20LT',  'HUAWEI P20 LITE TPU CASE',    4, '2024-03-02', ['leon', 'ferias']],
+  ['HM20PT',  'HUAWEI MATE 20 PRO TPU CASE', 3, '2024-04-05', ['leon', 'san-luis']],
+  ['OPA12H',  'OPPO A12 HARD CASE',          2, '2024-05-06', ['ferias', 'aguascalientes']],
+
+  ['MTOP30T', 'MOTOROLA ONE P30 TPU CASE',   2, '2024-06-07', ['ferias']],
+  ['HNY91T',  'HUAWEI NOVA Y91 TPU CASE',    1, '2024-07-08', ['ferias']],
+  ['R11PPT',  'REALME 11 PRO PLUS TPU CASE', 1, '2024-08-09', ['ferias']],
+]
+
 function inventarioDe(plaza) {
   // Bodega escribe GALAXY donde las tiendas escriben SAMSUNG. Es el patrón
   // real del catálogo, y la ficha que más renglones ordena de una vez.
@@ -145,10 +178,19 @@ function inventarioDe(plaza) {
     }
   }
   return {
-    productos: productos.map(p => ({
-      ...p,
-      UltimoMov: SIN_BODEGA.includes(p.Codigo) ? '2023-05-02' : '2026-10-18',
-    })),
+    productos: [
+      // Todos con venta reciente a propósito. El HX7CT es el único de
+      // SIN_BODEGA que conserva piezas, y vendiéndose no entra en ningún
+      // lote: se queda como pregunta suelta, que es la otra clase de ficha.
+      // Dándole fecha vieja se lo tragaba el lote y la comprobación dejaba de
+      // pintar una ficha individual sin que nada fallara.
+      ...productos.map(p => ({ ...p, UltimoMov: '2026-10-18' })),
+      ...HUERFANOS
+        .filter(([, , , , donde]) => donde.includes(plaza))
+        .map(([Codigo, Producto, Existencia, UltimoMov]) => ({
+          Codigo, Producto, Existencia, UltimoMov, Precio: 60, Alta: '2024-01-10',
+        })),
+    ],
     generado: GENERADO,
   }
 }
@@ -298,35 +340,44 @@ async function recorrerCola(window, donde) {
   const saltarVivo = () => [...doc.querySelectorAll('.rev-botones button')]
     .find(b => /lo veo despu|siguiente/i.test(b.textContent))
 
+  // Qué clase de ficha se está viendo. Un lote se reconoce por su lista
+  // desplegable de códigos; sin ella la ficha es una pregunta suelta.
+  //
+  // Se apunta aparte porque el total de hallazgos no distingue: si los cuatro
+  // lotes volvieran a ser una pregunta por código el número subiría, no
+  // bajaría, y la alarma no sonaría.
+  const apuntar = () => {
+    if (!doc.querySelector('.rev-detalle summary')) return
+    lotesVistos.add(doc.querySelector('.revisar-ficha h4')?.textContent?.trim() ?? '?')
+  }
+
   while (doc.querySelector('.revisar-ficha')) {
     if (!saltarVivo()) break
     n++
+    apuntar()
     if (!enPie(window, `${donde} · hallazgo ${n}`)) return n
 
-    // En el primero se contesta de verdad: es la unica parte de la cola que
-    // escribe, y el aviso que deja encima de la ficha solo aparece despues.
-    // Se contesta «no», que es el camino que lleva regla.
-    //
-    // Contestar adelanta la cola por su cuenta, así que la ficha que queda a
-    // la vista es otra y `contestarCaso` ya la comprobó: cuenta como una más.
-    // Sin esto el total bajaba de 3 a 2 sin que nada hubiera dejado de
-    // pintarse, y ese número es la alarma de que algo sí dejó de hacerlo.
-    if (n === 1) {
-      if (!await contestarCaso(window, donde)) return n
-      n++
-    }
-
-    // El botón se vuelve a buscar aquí: marcar pendiente repinta la ficha y el
-    // nodo de antes ya no está en el documento. Pulsarlo no hacía nada y el
-    // recorrido se cortaba en el primer hallazgo sin que nada fallara.
+    // El botón se vuelve a buscar aquí: contestar o avanzar repinta la ficha
+    // y el nodo de antes ya no está en el documento. Pulsarlo no hacía nada y
+    // el recorrido se cortaba en el primer hallazgo sin que nada fallara.
     const saltar = saltarVivo()
     if (!saltar) break
     const antes = doc.querySelector('.revisar-cuenta')?.textContent
     clic(window, saltar)
     await nuevaVuelta(window, 3)
-    // El último no avanza: «Saltar» se queda en el mismo sitio a propósito.
+    // El último no avanza: «Lo veo después» se queda en el mismo sitio.
     if (doc.querySelector('.revisar-cuenta')?.textContent === antes) break
   }
+
+  // Contestar va AL FINAL, sobre la ficha que quedó a la vista.
+  //
+  // Es la única parte de la cola que escribe, y contestar reordena: lo
+  // contestado se va al fondo y lo que estaba detrás sube al primer puesto.
+  // Haciéndolo en la primera ficha, esa que subía ya no se volvía a ver, y
+  // así se escaparon dos lotes enteros. El total de hallazgos no se enteró
+  // porque seguían siendo seis fichas; lo que cambió fue CUÁLES.
+  if (n && !await contestarCaso(window, donde)) return n
+
   if (n) porSitio.push(`${donde}: ${n} hallazgos`)
   return n
 }
@@ -394,6 +445,11 @@ const SESIONES = [
 
 let pestanas = 0, secciones = 0, cabeceras = 0, hallazgos = 0
 
+// Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
+// agrupacion sigue viva: sin ella la cola vuelve a ser una pregunta por
+// codigo, que es lo que se vino a arreglar.
+const lotesVistos = new Set()
+
 for (const [nombre, sesion] of SESIONES) {
   const { window, dichos } = await arrancar(sesion)
   const doc = window.document
@@ -458,6 +514,9 @@ for (const [nombre, sesion] of SESIONES) {
 
 console.log(`\nsesiones 3 · pestañas ${pestanas} · secciones de admin ${secciones} · cabeceras pulsadas ${cabeceras} · hallazgos recorridos ${hallazgos}`)
 for (const l of porSitio) console.log('  ' + l)
+console.log(`  lotes dibujados: ${lotesVistos.size}`)
+for (const l of lotesVistos) console.log('    · ' + l)
+if (lotesVistos.size < 4) errores.push(`solo se dibujaron ${lotesVistos.size} lotes de 4: la cola volvio a preguntar codigo por codigo`)
 if (avisos.length) console.log(`avisos de React: ${avisos.length}`)
 
 if (errores.length) {

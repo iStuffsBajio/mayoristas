@@ -150,8 +150,20 @@ cuatro y la columna rota era la octava. Falla si el cuerpo se queda vacío o
 si la consola suelta un error.
 
 Hoy cubre: 3 sesiones · 11 pestañas · 10 secciones de panel · 29 cabeceras ·
-6 hallazgos de la cola de revisión. Si alguno de esos números baja, algo dejó
-de pintarse.
+12 hallazgos de la cola de revisión, **y los 4 lotes**. Si alguno de esos
+números baja, algo dejó de pintarse.
+
+Los lotes se cuentan aparte del total a propósito. Un lote es una pregunta
+que ordena muchos códigos de golpe: si la agrupación se rompiera y la cola
+volviera a preguntar código por código, el total de hallazgos **subiría**, no
+bajaría, y la alarma no sonaría. Por eso `verificar` apunta el título de cada
+lote que dibuja y falla si no son cuatro.
+
+Y contestar va **al final** del recorrido. Contestar reordena la cola —lo
+contestado se va al fondo— así que la ficha que sube al primer puesto ya no
+se vuelve a ver. Haciéndolo en la primera, dos lotes enteros no los miraba
+nadie y el número de hallazgos seguía siendo el mismo: lo que cambiaba era
+CUÁLES.
 
 Tres cosas que hacen falta para que la comprobación sea de verdad:
 
@@ -270,6 +282,20 @@ de…»), nunca como prueba de que algo es reciente.
 
 **`CANTIDAD` es lo vendido.** No restar `CANTIDAD_ANTERIOR`: daba 71 piezas
 por línea de venta.
+
+**`UltimoMov` incluye los recuentos, y un recuento no es una venta.** Guarda
+el último movimiento, y un ajuste de inventario es un movimiento. Medido el
+2026-10-26: el día mediano toca **1 o 2** productos por plaza, pero
+Aguascalientes tiene **208** con fecha 2026-03-11, Ferias **225** con
+2026-01-03 y León **104** con 2025-12-20. Un cuarto del catálogo no se vende
+el mismo día.
+
+Contar esos días como venta rejuvenece lo que lleva años parado, que es justo
+lo que hay que detectar: con ellos dentro, un modelo sin vender desde 2024
+figuraba como vendido este año. `lotes.js` descarta los días que tocan 20
+productos o más **en esa misma plaza** —el umbral se mide, no se copia— y lo
+que queda es `ultimaVentaPorCodigo`. La clasificación de `anomalias.js` NO usa
+esto: cambiarla movería qué códigos se dan por descontinuados.
 
 **Firebird 2.0:** sin `DATEADD`, sin agregados en `GROUP BY`, sin `ORDER BY`
 por número de columna con agregados. `EXTRACT` rellena con espacios, así que

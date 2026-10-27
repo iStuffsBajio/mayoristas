@@ -5,10 +5,11 @@ import { exportarRevisiones } from '../lib/exportarRevisiones'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl } from '../lib/s3'
 import { agruparPorModelo, alternativasDe } from '../lib/variantes'
-import { codigosHuerfanos, MOTIVO } from '../lib/anomalias'
+import { codigosHuerfanos } from '../lib/anomalias'
+import { agruparHuerfanos } from '../lib/lotes'
 import { discrepanciasDeNombre } from '../lib/nombres'
 import { patronesDeEscritura } from '../lib/patrones'
-import { fichaDeCodigo, fichaDeMuertos, fichaDePatron, fichaDeNombre } from '../lib/fichas'
+import { fichaDeCodigo, fichaDeLote, fichaDePatron, fichaDeNombre } from '../lib/fichas'
 
 /**
  * La cola de revisión: un problema a la vez, con una pregunta que se contesta
@@ -154,13 +155,11 @@ export default function RevisarPanel() {
 
     const items = []
 
-    const muertos = huerfanos.filter(h => h.motivo === MOTIVO.DESCONTINUADO && h.piezas === 0)
-    const enBloque = new Set(muertos.length >= 3 ? muertos.map(h => h.codigo) : [])
-
-    for (const h of huerfanos) {
-      if (!enBloque.has(h.codigo)) items.push(fichaDeCodigo(h))
-    }
-    if (enBloque.size) items.push(fichaDeMuertos(muertos))
+    // Lo que se contesta igual va junto. Preguntar código por código sacaba
+    // 112 fichas y la mayoría se respondían con la misma frase a mano.
+    const { lotes, sueltos } = agruparHuerfanos({ huerfanos, inventarios: tiendas })
+    for (const l of lotes) items.push(fichaDeLote(l))
+    for (const h of sueltos) items.push(fichaDeCodigo(h))
 
     for (const p of patrones) items.push(fichaDePatron(p))
 
@@ -177,9 +176,13 @@ export default function RevisarPanel() {
   // lo que no ha mirado nadie es lo que hace falta mirar.
   const cola = useMemo(() => {
     const hecho = x => (marcas[x.id] ? 1 : 0)
+    // Los lotes van delante de las preguntas sueltas: contestar cuatro fichas
+    // deja la cola en la mitad, y lo que queda después son los casos vivos,
+    // que son los que de verdad hay que pensar uno a uno.
+    const esLote = x => (x.lote ? 0 : 1)
     return [...todos].sort((a, b) => hecho(a) - hecho(b)
       || (a.bloque === b.bloque
-        ? b.peso - a.peso
+        ? esLote(a) - esLote(b) || b.peso - a.peso
         : a.bloque === 'codigo' ? -1 : 1))
   }, [todos, marcas])
 
