@@ -32,6 +32,7 @@
 // borrar un código es irreversible y la decisión es del dueño.
 
 import { clavesDe, tipoDeFunda } from './variantes.js'
+import { seProduce } from './produccion.js'
 
 /**
  * 🔒 Días sin movimiento a partir de los cuales un código sin respaldo en
@@ -100,6 +101,15 @@ export function codigosHuerfanos({ inventarios, bodega, grupos, hoy = new Date()
   const out = []
   for (const e of porCodigo.values()) {
     if (enBodega.has(e.codigo.toUpperCase())) continue
+
+    // Lo que bodega fabrica no es un huérfano. Bodega no lo tiene de alta
+    // porque no lo almacena: lo imprime cuando hace falta, así que no hay
+    // nada que resurtir ni nada que dar de baja.
+    //
+    // Sin esto, el Stiker Pequeño salía en la lista de «sin existencia en
+    // ninguna: bórrense», que es justo la cosa falsa contra la que se escribió
+    // `produccion.js`. Un sticker en cero no es un agotado ni un muerto.
+    if (seProduce(e.codigo, e.producto)) continue
 
     const piezas = Object.values(e.plazas).reduce((a, b) => a + b, 0)
     const sinMover = dias(e.ultimo, hoy)

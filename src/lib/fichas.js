@@ -5,7 +5,7 @@
 // aplicar la propuesta. Si la pregunta se pudiera contestar con «depende», la
 // ficha esta mal escrita, y eso no lo detecta ningun compilador.
 
-import { nombreSucursal } from './sucursales.js'
+import { nombreSucursal, SUCURSALES } from './sucursales.js'
 import { MOTIVO } from './anomalias.js'
 
 const pct = (n, total) => (total > 0 ? Math.round((n / total) * 100) : 0)
@@ -155,6 +155,24 @@ const REDACCION = {
   },
   'una-plaza': l => {
     const d = masRecienteEn(l.codigos)
+
+    // Si casi todos son de una plaza estacional, hay que decirlo. Ferias
+    // cierra ocho meses al año, así que «lleva meses sin venderse» ahí no
+    // prueba lo mismo que en una tienda abierta todo el año: parte de esos
+    // meses la caseta estaba cerrada.
+    const estacionales = SUCURSALES.filter(s => s.estacional).map(s => s.slug)
+    // `altaEn` lo pone `lotes.js`; aqui se cae a las plazas con existencia por
+    // si llega una ficha armada a mano. Sin el respaldo, un lote sin ese campo
+    // tumbaba la pantalla entera en vez de salir sin el aviso.
+    const dondeEsta = h => h.altaEn ?? Object.keys(h.plazas ?? {})
+    const deEstacional = l.codigos.filter(h => {
+      const d = dondeEsta(h)
+      return d.length > 0 && d.every(s => estacionales.includes(s))
+    })
+    const aviso = deEstacional.length >= l.codigos.length / 2
+      ? `${deEstacional.length} de los ${l.codigos.length} están sólo en ${nombresDe([...new Set(deEstacional.flatMap(dondeEsta))])}, que cierra ocho meses al año: ahí llevar meses sin venderse prueba menos`
+      : null
+
     return {
       titulo: `${l.codigos.length} códigos sueltos en un solo mostrador`,
       contexto: [
@@ -163,6 +181,7 @@ const REDACCION = {
           ? 'A ninguno se le conoce una venta, descontando los recuentos de inventario'
           : `El más reciente lleva ${meses(d)} meses sin venderse`,
         'Al estar en una sola plaza la prueba es más floja que en los otros lotes: puede ser una baja de bodega o un alta que sólo hizo esa tienda',
+        ...(aviso ? [aviso] : []),
         `Son ${l.piezas} piezas`,
       ],
       pregunta: `¿Se dan de baja los ${l.codigos.length} en cuanto se agoten?`,

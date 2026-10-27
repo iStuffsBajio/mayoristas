@@ -27,13 +27,13 @@ const lote = clase => ({
   porPlaza: { leon: 3, ferias: 2 },
   plazas: ['leon', 'ferias'],
   codigos: [
-    { codigo: 'A', producto: 'IPHONE 11 MORADO TPU CASE', piezas: 5, plazas: { leon: 5 },
+    { codigo: 'A', producto: 'IPHONE 11 MORADO TPU CASE', piezas: 5, plazas: { leon: 5 }, altaEn: ['leon'],
       ultimaVenta: '2024-03-04', diasSinVender: 966,
       cubiertoPor: { codigo: 'I11T', producto: 'IPHONE 11 TPU CASE' } },
-    { codigo: 'B', producto: 'IPHONE 11 SALMON TPU CASE', piezas: 4, plazas: { ferias: 4 },
+    { codigo: 'B', producto: 'IPHONE 11 SALMON TPU CASE', piezas: 4, plazas: { ferias: 4 }, altaEn: ['ferias'],
       ultimaVenta: null, diasSinVender: null,
       cubiertoPor: { codigo: 'I11T', producto: 'IPHONE 11 TPU CASE' } },
-    { codigo: 'C', producto: 'IPHONE 11 VERDE TPU CASE', piezas: 0, plazas: {},
+    { codigo: 'C', producto: 'IPHONE 11 VERDE TPU CASE', piezas: 0, plazas: {}, altaEn: ['ferias'],
       ultimaVenta: '2023-01-01', diasSinVender: 1394, cubiertoPor: null },
   ],
 })

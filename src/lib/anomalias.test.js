@@ -113,3 +113,20 @@ test('nada revienta sin datos', () => {
   assert.deepEqual(codigosHuerfanos({}), [])
   assert.equal(resumirHuerfanos(null).total, 0)
 })
+
+test('lo que bodega fabrica no es un huerfano', () => {
+  // Bodega no tiene el Stiker Pequeno de alta porque no lo almacena: lo
+  // imprime cuando hace falta. Sin esta regla salia en la lista de «sin
+  // existencia en ninguna: borrense», que es la cosa falsa contra la que se
+  // escribio produccion.js. Un sticker en cero no es un agotado ni un muerto.
+  const inventarios = {
+    leon: { productos: [
+      { Codigo: 'SP', Producto: 'Stiker Pequeño', Existencia: 0, UltimoMov: '2023-01-01' },
+      { Codigo: 'MTST01', Producto: 'STIKER MARIPOSAS', Existencia: 0, UltimoMov: '2023-01-01' },
+      { Codigo: 'HP10LT', Producto: 'HUAWEI P10 LITE TPU CASE', Existencia: 0, UltimoMov: '2023-01-01' },
+    ] },
+  }
+  const bodega = { productos: [{ Codigo: 'I13T', Producto: 'IPHONE 13 TPU CASE', Existencia: 5 }] }
+  const filas = codigosHuerfanos({ inventarios, bodega, grupos: [], hoy: new Date('2026-10-26') })
+  assert.deepEqual(filas.map(f => f.codigo), ['HP10LT'])
+})

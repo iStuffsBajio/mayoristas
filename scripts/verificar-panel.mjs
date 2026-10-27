@@ -125,8 +125,12 @@ function respuesta(url) {
  * ejecutaban nunca. La sección pasaba por verde sin haber comprobado nada.
  */
 // Los que bodega no tiene. HX7CT conserva piezas, así que se pregunta solo;
-// los otros tres están en cero y se preguntan en bloque, que es otra ficha
+// los demás están en cero y se preguntan en bloque, que es otra ficha
 // distinta -con su lista desplegable- y si no hay tres no se dibuja nunca.
+//
+// El MTST01 está aquí para que NO salga: es un sticker, y lo que bodega
+// fabrica no es un huérfano. Si alguien quitara esa regla, este código
+// aparecería en la lista de «bórrense» y los lotes pasarían a ser otros.
 //
 // Ninguno puede ser de los SAMSUNG: quitarle uno a bodega dejaba el patrón de
 // escritura en dos códigos, por debajo del mínimo, y esa tercera ficha -la de
@@ -162,6 +166,10 @@ const HUERFANOS = [
   ['OPA12H',  'OPPO A12 HARD CASE',          2, '2024-05-06', ['ferias', 'aguascalientes']],
 
   ['MTOP30T', 'MOTOROLA ONE P30 TPU CASE',   2, '2024-06-07', ['ferias']],
+
+  // En cero en todas: con los dos de SIN_BODEGA que están a cero hacen las
+  // tres que el lote necesita para dibujarse.
+  ['LGQ6T',   'LG Q6 TPU CASE',              0, '2023-02-02', TIENDAS],
   ['HNY91T',  'HUAWEI NOVA Y91 TPU CASE',    1, '2024-07-08', ['ferias']],
   ['R11PPT',  'REALME 11 PRO PLUS TPU CASE', 1, '2024-08-09', ['ferias']],
 ]
