@@ -1025,7 +1025,8 @@
      es la única forma de tener un borde con degradado sin añadir un elemento
      que no pinta nada. */
   .pestana.activa,
-  .chip-plaza.activa {
+  .chip-plaza.activa,
+  .menu-seccion.activa {
     background:
       linear-gradient(var(--bg), var(--bg)) padding-box,
       var(--degradado-letra) border-box;
@@ -1045,6 +1046,41 @@
   /* Sin recorte a la letra el texto sería invisible: hay que devolverle un
      color sólido. Pasa en navegadores viejos y en el modo de alto contraste,
      donde además el sistema manda sobre cualquier color nuestro. */
+  /* El menú del panel: el mismo botón, más pequeño, porque es un cambio de
+     vista dentro de una pantalla que ya está llena de tablas. */
+  .menu-seccion {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 6px 12px;
+    border: 1.5px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background 180ms ease, transform 140ms var(--salida);
+  }
+  .menu-seccion:active { transform: scale(0.97); }
+  .menu-seccion-icono { font-size: 13px; line-height: 1; }
+
+  /* Los márgenes automáticos centran la barra cuando cabe entera y se
+     anulan solos cuando no: así nunca queda una sección fuera de alcance. */
+  .admin-menu-barra > :first-child { margin-inline-start: auto; }
+  .admin-menu-barra > :last-child  { margin-inline-end: auto; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .menu-seccion:hover:not(.activa) {
+      background:
+        linear-gradient(var(--bg), var(--bg)) padding-box,
+        linear-gradient(rgba(13, 17, 20, 0.16), rgba(13, 17, 20, 0.16)) border-box;
+    }
+  }
+
   @supports not ((-webkit-background-clip: text) or (background-clip: text)) {
     .pestana-texto,
     .chip-plaza-texto { color: var(--magenta); }
@@ -1053,7 +1089,8 @@
     .pestana-texto,
     .chip-plaza-texto { background-image: none; color: CanvasText; }
     .pestana.activa,
-    .chip-plaza.activa { border-color: Highlight; }
+    .chip-plaza.activa,
+    .menu-seccion.activa { border-color: Highlight; }
   }
 }
 

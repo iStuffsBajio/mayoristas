@@ -189,6 +189,17 @@ de los tres puntos de la sección de oficios no los leyó nadie.
 Se observa `[data-entra]:not(.dentro)` y se vuelve a observar siempre.
 Observar dos veces el mismo nodo no cuesta nada.
 
+### Una barra centrada que desborda esconde su principio
+
+`justify-content: center` con `overflow-x: auto` recorta por los dos lados, y
+a la parte de la IZQUIERDA no se llega ni arrastrando: `scrollLeft` no puede
+ser negativo. En el menú del panel desaparecieron **Dashboard y Ventas** -las
+dos primeras- y la sección parecía borrada. Con la barra de desplazamiento
+escondida, además, nada indicaba que hubiera más.
+
+Se centra con **márgenes automáticos** en el primer y el último hijo: centra
+cuando cabe todo y se anula solo cuando no.
+
 ### `--window-size` de Chrome NO fija el viewport
 
 Pidiendo 390 el documento salía de **512** y la captura recortaba 390 de esos

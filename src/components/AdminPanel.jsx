@@ -413,29 +413,20 @@ const SECCIONES = [
   { id: 'config',      icono: '🎨', titulo: 'Diseño',       sub: 'Textos, colores y contacto' },
 ]
 
-// Una pestaña de texto, igual que las de la barra de arriba. Antes eran
-// tarjetas en una columna a la izquierda: pegadas al desplazarse y con el
-// fondo transparente, la tabla pasaba por debajo y los textos se encimaban.
-// Ponerles fondo arregló el encimado pero seguían pesando demasiado para lo
-// que son, que es un cambio de vista. Así pesan lo que deben.
+// El mismo botón que las pestañas de arriba: letra en degradado y, en la
+// abierta, el trazo de colores. Antes era magenta plano con un subrayado, de
+// cuando la página tenía otro diseño; el panel se quedó atrás.
+//
+// El icono va en su propio <span> y NO lleva la clase del degradado: ese
+// recorte al texto deja el color en transparente, y un emoji transparente es
+// un hueco.
 export function BotonSeccion({ s, activa, onClick }) {
   return (
     <button type="button" onClick={onClick}
-      className="flex items-center gap-1.5 whitespace-nowrap"
-      style={{
-        background: 'none', border: 'none', cursor: 'pointer',
-        padding: '9px 13px', fontSize: 12.5,
-        fontWeight: activa ? 600 : 400,
-        color: activa ? '#C4156F' : 'rgba(16,22,25,0.58)',
-        flexShrink: 0, transition: 'color .15s',
-        // Un subrayado fino en vez de una caja: marca cuál está sin añadir
-        // otro recuadro a una pantalla que ya está llena de tablas.
-        boxShadow: activa ? 'inset 0 -2px 0 #C4156F' : 'none',
-      }}
-      onMouseEnter={e => { if (!activa) e.currentTarget.style.color = '#101619' }}
-      onMouseLeave={e => { if (!activa) e.currentTarget.style.color = 'rgba(16,22,25,0.58)' }}>
-      <span style={{ fontSize: 13 }}>{s.icono}</span>
-      <span>{s.titulo}</span>
+      className={'menu-seccion' + (activa ? ' activa' : '')}
+      aria-current={activa ? 'page' : undefined}>
+      <span className="menu-seccion-icono">{s.icono}</span>
+      <span className="chip-plaza-texto">{s.titulo}</span>
     </button>
   )
 }
@@ -485,7 +476,13 @@ export default function AdminPanel() {
         backdropFilter: 'saturate(180%) blur(14px)',
         WebkitBackdropFilter: 'saturate(180%) blur(14px)',
       }}>
-        <nav className="admin-menu-barra flex gap-0.5 justify-center overflow-x-auto"
+        {/* Sin `justify-center`: centrado y con desbordamiento, el navegador
+            recorta por los dos lados y a la parte de la IZQUIERDA no se llega
+            ni arrastrando -desaparecían Dashboard y Ventas, que son las dos
+            primeras, y nadie encontraba la sección-. El centrado se hace con
+            márgenes automáticos en el CSS: centra cuando caben y deja llegar a
+            las dos puntas cuando no. */}
+        <nav className="admin-menu-barra flex gap-1 overflow-x-auto"
              style={{ scrollbarWidth: 'none' }}>
           {SECCIONES.map(s => (
             <BotonSeccion key={s.id} s={s} activa={seccion === s.id} onClick={() => irA(s.id)} />

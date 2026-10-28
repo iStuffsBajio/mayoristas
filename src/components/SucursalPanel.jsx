@@ -52,7 +52,13 @@ export default function SucursalPanel() {
         backdropFilter: 'saturate(180%) blur(14px)',
         WebkitBackdropFilter: 'saturate(180%) blur(14px)',
       }}>
-        <nav className="admin-menu-barra flex gap-0.5 justify-center overflow-x-auto"
+        {/* Sin `justify-center`: centrado y con desbordamiento, el navegador
+            recorta por los dos lados y a la parte de la IZQUIERDA no se llega
+            ni arrastrando -desaparecían Dashboard y Ventas, que son las dos
+            primeras, y nadie encontraba la sección-. El centrado se hace con
+            márgenes automáticos en el CSS: centra cuando caben y deja llegar a
+            las dos puntas cuando no. */}
+        <nav className="admin-menu-barra flex gap-1 overflow-x-auto"
              style={{ scrollbarWidth: 'none' }}>
           {SECCIONES.map(s => (
             <BotonSeccion key={s.id} s={s} activa={seccion === s.id} onClick={() => setSeccion(s.id)} />
