@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
+import { telefonoWhatsApp } from '../lib/sucursales'
+
+/** El número de la casa, para quien todavía no sabe a qué tienda escribirle. */
+const WHATSAPP_GENERAL = '5213315381571'
 
 /**
  * Lo que hace la casa, en el plano repartido: plato cuadrado a la izquierda,
@@ -16,45 +20,58 @@ const OFICIOS = [
     id: 'inventario',
     pestana: 'Consultar',
     titulo: 'Lo que hay, hoy',
-    texto: 'Las existencias de cada tienda se publican cuatro veces al día desde la caja. No es un catálogo: es lo que puedes prometer.',
-    accion: 'Ver existencias',
+    texto: 'Cada tienda publica lo que tiene en caja cuando hace su respaldo, al cerrar. No es un catálogo: es lo que de verdad había, con la fecha a la vista para que sepas qué tan fresco es.',
+    accion: 'Buscar mi modelo',
     tab: 'inventario',
-    ancla: 'tabla-inventario',
-    pieza: 'I13T',
+    ancla: 'busca-modelo',
+    pieza: 'I17PMT',
     puntos: [
-      ['Cuatro veces al día', 'La caja de cada tienda se respalda y se publica sola, sin que nadie teclee nada.'],
-      ['Las tres tiendas y la bodega', 'En la misma tabla. Si una no tiene, se ve quién sí.'],
-      ['Se busca por modelo', 'Escribe «a16» y salen todos, de la marca que sean y con las piezas que haya.'],
+      ['Las tres tiendas', 'Si la tuya no tiene, se ve en el acto cuál sí.'],
     ],
   },
   {
-    id: 'personaliza',
-    pestana: 'Personalizar',
-    titulo: 'Tu diseño, impreso aquí',
-    texto: 'Eliges los modelos, subes la imagen de cada uno y el pedido llega a la sucursal. La impresión es nuestra, no se espera a nadie.',
-    accion: 'Armar mi pedido',
-    tab: 'personaliza',
-    pieza: 'SGA16T',
+    // Esto no está inventado: son las reglas que ya viven en la Guía del
+    // Mayorista, la misma que se manda impresa. Si cambian ahí, cambian aquí;
+    // no puede haber dos versiones del reglamento rodando.
+    id: 'reglamento',
+    pestana: 'Reglamento',
+    titulo: 'Cómo se pide, para que salga',
+    texto: 'Un pedido que llega completo entra directo a producción como el siguiente en elaborarse. Al que le falta algo se queda esperando a que alguien pregunte.',
+    accion: 'Leer el reglamento completo',
+    href: '/guia.html',
+    pieza: 'SGA56T',
     puntos: [
-      ['La impresión es nuestra', 'No se manda a maquilar: entra y sale de la misma bodega.'],
-      ['Un diseño por modelo', 'Cada funda lleva el suyo. El pedido no se amarra a una sola imagen.'],
-      ['Llega a tu sucursal', 'Se recoge donde ya compras, sin paquetería de por medio.'],
+      ['La sucursal correcta', 'Revísala dos veces. Un pedido en la tienda equivocada llega a donde no está tu mercancía ni te conocen: es la causa número uno de retraso.'],
+      ['Una foto por modelo', 'Cada funda lleva la suya, cargada en el modelo que le toca. Una sola imagen para todo el pedido lo detiene.'],
+      ['Descripción concreta', '«Fondo negro, nombre Valeria en dorado». Lo que no está escrito hay que preguntarlo, y preguntar tarda.'],
+      ['Cantidad exacta', 'Nada de «unas cuantas». Y si corre prisa, el día va escrito en las notas.'],
     ],
   },
   {
-    id: 'stikers',
-    pestana: 'Stickers',
-    titulo: 'Se imprimen al momento',
-    texto: 'Manda el diseño y la medida. Los stickers no se piden a proveedor ni se almacenan: salen de nuestra propia máquina.',
-    accion: 'Pedir stickers',
-    tab: 'stikers',
+    id: 'guia',
+    pestana: 'Guía de pedidos',
+    titulo: 'Tu pedido en cuatro toques',
+    texto: 'Sin llamadas y sin esperar a que alguien conteste para preguntarte qué querías. Se arma aquí y se abre WhatsApp solo, con todo dentro.',
+    accion: 'Abrir la guía',
+    href: '/guia.html',
     pieza: 'MTG24T',
     puntos: [
-      ['No hay existencia que agotar', 'Se imprimen contra el pedido; un sticker en cero no es un faltante.'],
-      ['La medida la pones tú', 'Manda el diseño y el tamaño; se corta a eso.'],
-      ['Mismo día en bodega', 'Si entra temprano, sale temprano.'],
+      ['1 · Tu sucursal', 'La que te surte. Revísala dos veces antes de seguir.'],
+      ['2 · Los modelos', 'Los que necesites, cada uno con su cantidad.'],
+      ['3 · Foto y nota', 'Una imagen y una descripción por modelo.'],
+      ['4 · Tu nombre y enviar', 'Se abre WhatsApp solo con el pedido armado.'],
     ],
   },
+]
+
+/**
+ * Lo que el color de las existencias te deja prometer. Sale de la guía, y es
+ * la regla que evita la llamada de «me dijiste que había».
+ */
+const SEMAFORO = [
+  ['10 o más',  'Véndelo. Hay de sobra.',      '#16a34a'],
+  ['4 a 9',     'Confirma si son varias.',     '#d97706'],
+  ['3 o menos', 'Pregunta antes de dar fecha.', '#D51A7A'],
 ]
 
 const PLAZAS = [
@@ -66,6 +83,7 @@ const PLAZAS = [
 export default function Oficios({ onIr }) {
   const [activo, setActivo] = useState(OFICIOS[0].id)
   const [tira, setTira]     = useState([])
+  const [archivos, setArchivos] = useState({})
 
   // Una franja con fundas de verdad del catálogo. Si el índice no carga, la
   // franja simplemente no aparece: nada queda a medias.
@@ -76,7 +94,15 @@ export default function Oficios({ onIr }) {
       .then(j => {
         if (!vivo) return
         const sinMicas = (j.mockups ?? []).filter(m => !m.vacio && !/MICA|HIDROGEL|STIKER/i.test(m.nombre))
-        setTira(sinMicas.slice(0, 14))
+        // Sólo fotografías. La tira va ordenada por venta y los más vendidos
+        // son justo los que todavía salen del PSD viejo: encabezaban el
+        // escaparate cuatro dibujos de línea entre diez fotos, y lo que se
+        // veía era la mezcla, no el catálogo.
+        const conFoto = sinMicas.filter(m => String(m.fuente ?? '').startsWith('mascaras'))
+        setTira((conFoto.length >= 14 ? conFoto : sinMicas).slice(0, 14))
+        // Qué archivo le toca a cada código. El índice es quien lo sabe: una
+        // foto sirve a todos los colores del mismo teléfono.
+        setArchivos(Object.fromEntries((j.mockups ?? []).map(m => [m.codigo, m.archivo])))
       })
       .catch(() => {})
     return () => { vivo = false }
@@ -89,11 +115,16 @@ export default function Oficios({ onIr }) {
       {/* ── Lo que hace la casa ──────────────────────────────────────── */}
       <section className="oficios" aria-labelledby="titulo-oficios">
         <div className="oficios-plato">
+          {/* La llave es el ARCHIVO y `onLoad` devuelve la visibilidad: en el
+              primer dibujo todavía no hay índice, la funda se pide por código,
+              eso da 404 y `onError` la esconde a mano. Sin llave nueva React
+              reusaba el nodo y la foto buena cargaba invisible. */}
           <img
-            key={oficio.pieza}
-            src={`${PIEZA}/${oficio.pieza}.png`}
+            key={archivos[oficio.pieza] ?? oficio.pieza}
+            src={`${PIEZA}/${archivos[oficio.pieza] ?? `${oficio.pieza}.png`}`}
             alt={`Funda del catálogo, modelo ${oficio.pieza}`}
             width="900" height="1880" loading="lazy"
+            onLoad={e => { e.currentTarget.style.visibility = 'visible' }}
             onError={e => { e.currentTarget.style.visibility = 'hidden' }}
           />
         </div>
@@ -127,13 +158,34 @@ export default function Oficios({ onIr }) {
             </dl>
           </div>
 
+          {/* El semáforo sólo sale en el reglamento: es la regla que evita
+              la llamada de «me dijiste que había». */}
+          {oficio.id === 'reglamento' && (
+            <ul className="oficios-semaforo">
+              {SEMAFORO.map(([cuantas, que, color]) => (
+                <li key={cuantas}>
+                  <span className="punto" style={{ background: color }} />
+                  <strong>{cuantas}</strong>
+                  <span>{que}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+
           <div className="oficios-celdas">
-            <button type="button" className="celda celda-tinta"
-                    onClick={() => onIr?.(oficio.tab, oficio.ancla)}>
-              {oficio.accion}
-            </button>
-            <a className="celda celda-tono" href="/guia.html">
-              Leer la guía
+            {/* El texto va en un <span>: el degradado de la letra se recorta
+                al texto y no cabe en la misma caja que el relleno del botón. */}
+            {oficio.href
+              ? <a className="celda celda-tinta" href={oficio.href}>
+                  <span className="chip-plaza-texto">{oficio.accion}</span>
+                </a>
+              : <button type="button" className="celda celda-tinta"
+                        onClick={() => onIr?.(oficio.tab, oficio.ancla)}>
+                  <span className="chip-plaza-texto">{oficio.accion}</span>
+                </button>}
+            <a className="celda celda-tono" href={'https://wa.me/' + WHATSAPP_GENERAL}
+               target="_blank" rel="noreferrer">
+              Escribirnos
             </a>
           </div>
         </div>
@@ -143,8 +195,17 @@ export default function Oficios({ onIr }) {
       {tira.length > 0 && (
         <section className="franja" aria-labelledby="titulo-franja">
           <h2 id="titulo-franja" className="rotulo franja-titulo" data-entra>
-            736 modelos
+            736 modelos<br /><em>en un solo proveedor</em>
           </h2>
+          {/* Para quien todavía no nos compra. El argumento no es el tamaño
+              del catálogo: es que no tiene que repartir el pedido entre tres
+              proveedores ni quedarse con lo que nadie le pide. */}
+          <p className="franja-entrada" data-entra style={{ '--retraso': '60ms' }}>
+            Ninguna tienda llena su mostrador con 736 modelos, y no hace falta: aquí está
+            el catálogo entero —de la generación que acaba de salir a la que todavía se
+            pide— y lo ves con existencias antes de pedirlo. Un pedido, una recogida, una
+            persona del otro lado.
+          </p>
           <div className="franja-tira">
             {tira.map((m, i) => (
               <figure key={m.codigo} data-entra style={{ '--retraso': `${i * 35}ms` }}>
@@ -155,6 +216,23 @@ export default function Oficios({ onIr }) {
               </figure>
             ))}
           </div>
+
+          {/* Pedir es escribirle a una persona, no llenar un formulario: cada
+              botón abre la tienda que surte a quien lee, con el mensaje ya
+              empezado. */}
+          <div className="franja-contactos">
+            <p className="franja-pregunta">¿Precios de mayoreo? Escríbele a tu tienda</p>
+            <div className="franja-botones">
+              {PLAZAS.map(p => (
+                <a key={p.nombre} className="celda celda-tinta"
+                   href={'https://wa.me/' + telefonoWhatsApp(p.tel) + '?text=' + encodeURIComponent(
+                     'Hola, soy mayorista y quiero precios. Me queda cerca ' + p.nombre + '.')}
+                   target="_blank" rel="noreferrer">
+                  <span className="chip-plaza-texto">{p.nombre}</span>
+                </a>
+              ))}
+            </div>
+          </div>
         </section>
       )}
 
@@ -163,7 +241,7 @@ export default function Oficios({ onIr }) {
         <h2 id="titulo-cifras" className="rotulo cifras-titulo" data-entra>La casa en números</h2>
         <dl className="cifras-lista">
           {[
-            ['Cuatro', 'veces al día se publica el inventario'],
+            ['Al cierre', 'de cada tienda se publica su inventario'],
             ['736', 'modelos distintos en una sola tienda'],
             ['Un millón', 'de fundas personalizadas impresas aquí'],
             ['Tres', 'tiendas en el Bajío, más la bodega'],

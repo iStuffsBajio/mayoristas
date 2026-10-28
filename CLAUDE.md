@@ -134,6 +134,24 @@ ningún componente, que es exactamente por lo que se rompía. Los dos
 inventarios pasan por ahí. Está fijada con pruebas en `buscar.test.js`:
 si alguien vuelve a atarla al filtro, `npm test` falla.
 
+### En ventas la trampa es la misma, con dos pastillas
+
+La barra de búsqueda por código de la sección de ventas **no mira la plaza ni
+el rango** que estén puestos. La ficha se arma siempre con todas las plazas y
+con el archivo por mes completo, porque desde «San Luis · 7 días» un código
+que sólo se movió en León, o que vendió el mes pasado y este no, daría cero
+teniendo el dato a la vista. El rango decide qué gráfica se dibuja; nunca si
+el modelo aparece.
+
+Y un código que existe y no se movió **no es «no encontrado»**: es «no salió
+ni una pieza», que es un dato, y de los que más duelen. Se dicen distinto a
+propósito, y cuando de verdad no hay nada se explica dónde sí está —el
+archivo de movimiento sólo tiene los códigos que han bajado de existencia
+alguna vez, no todo el catálogo—.
+
+La regla vive en **`src/lib/buscarVentas.js`**, fuera del componente por lo
+mismo que la otra, y está fijada en `buscarVentas.test.js`.
+
 ---
 
 ## ⚠️ VERIFICAR — Trampas que el compilador no ve
@@ -146,6 +164,39 @@ llamara con `null` y **la página entera quedaba en blanco**.
 
 Por eso `useOrdenTabla` guarda una **clave de texto** y la función va aparte.
 No volver a guardar funciones en estado.
+
+### Una imagen escondida a mano se queda escondida
+
+`onError` que hace `style.visibility = 'hidden'` deja el estilo puesto en el
+nodo. Si la llave de React no cambia, el nodo se reusa: la imagen buena carga,
+`complete` es `true`, `naturalWidth` trae píxeles… y no se ve nada. Pasó dos
+veces el mismo día —la funda de la portada y la de la sección de oficios—
+porque en el primer dibujo todavía no hay índice, se pide por código y eso da
+404.
+
+La llave va por **archivo**, no por código, y siempre hay un `onLoad` que
+devuelve la visibilidad.
+
+### Un nodo marcado «visto» no se vuelve a mirar nunca
+
+`entradas.js` marcaba cada `[data-entra]` con `dataset.visto` la primera vez
+que lo observaba. Al reemplazarse el observador —al cambiar de pestaña, o en
+desarrollo, donde React monta, desmonta y vuelve a montar— el viejo se
+desconectaba y el nuevo no miraba nada, porque todo estaba «visto». Lo que no
+hubiera entrado en pantalla se quedaba en **opacidad cero para siempre**: dos
+de los tres puntos de la sección de oficios no los leyó nadie.
+
+Se observa `[data-entra]:not(.dentro)` y se vuelve a observar siempre.
+Observar dos veces el mismo nodo no cuesta nada.
+
+### `--window-size` de Chrome NO fija el viewport
+
+Pidiendo 390 el documento salía de **512** y la captura recortaba 390 de esos
+512: todo lo que se juzgó así estaba mal medido, y un desbordamiento real
+pasó por bueno. Para mirar de verdad hay que fijar
+`Emulation.setDeviceMetricsOverride` por el protocolo de Chrome. Y por debajo
+de unos 320px —un panel de vista previa estrecho, no un teléfono— cualquier
+texto parte por palabras: eso no es un fallo del diseño.
 
 ### Un import que falta compila igual
 
@@ -175,6 +226,11 @@ si la consola suelta un error.
 Hoy cubre: 3 sesiones · 11 pestañas · 10 secciones de panel · 29 cabeceras ·
 12 hallazgos de la cola de revisión, **y los 4 lotes**. Si alguno de esos
 números baja, algo dejó de pintarse.
+
+También busca un código en la sección de ventas y comprueba que la **ficha se
+dibuje** —con su renglón por plaza— y que un código inexistente lo diga en vez
+de dejar el hueco en blanco, que se ve igual que un fallo. La regla en sí no se
+comprueba aquí: eso es cosa de `buscarVentas.test.js`.
 
 También comprueba que la cola va **en orden**: cada ficha lleva su sitio en
 `data-paso` y el recorrido falla si uno sube detrás de otro más bajo. Es la
@@ -217,6 +273,72 @@ página servida.
 La sesión va en `sessionStorage` bajo `istuffs_session`, con forma
 `{ isAdmin, branch, token }`. Para escribir en un campo controlado por React
 hace falta `input._valueTracker.setValue('')` antes, o el cambio no llega.
+
+---
+
+## 🔒 CONFIRMAR — La portada del mayorista
+
+Tres decisiones de negocio disfrazadas de interfaz. Ninguna se cambia sin
+preguntar.
+
+**«Todas» no se le enseña a un mayorista.** Sumar las tres tiendas manda a
+alguien a la suya a por once piezas que están repartidas. La consulta sale
+bien y el viaje sale mal, y la culpa es de la pantalla. Sin tienda elegida no
+se enseña **ningún** número —tampoco un cero, que diría «no hay»—; el
+consolidado queda sólo para quien tiene panel. La plaza elegida se recuerda en
+`localStorage` bajo `istuffs_plaza`: quien consulta diez veces al día la elige
+una vez.
+
+**El inventario NO se publica cuatro veces al día.** Esa es la frecuencia con
+la que corre la sincronización; si una tienda no cerró, no hay respaldo nuevo
+y se vuelve a publicar lo de ayer. Por eso la portada enseña la fecha del
+respaldo —`respaldo.fecha` del inventario, no `generado`— y avisa en ámbar a
+partir de dos días. Con «Todas» puesto enseña el corte **más viejo** de las
+tres: un consolidado vale lo que valga su dato más rancio. Decir «cuatro veces
+al día» en cualquier texto de la página es mentir.
+
+**Buscar vive del INVENTARIO, no del índice de fotos.** La lista de la que
+sale el buscador son los productos dados de alta; la fotografía es un adorno
+que se añade cuando existe. Al revés —que fue como nació— buscar «S26»
+devolvía un solo renglón de los cuatro que hay: un modelo que no sale es un
+modelo que no hay, y la página estaba escondiendo mercancía. Vive en
+`src/lib/mockups.js`, con pruebas.
+
+---
+
+## ⚠️ VERIFICAR — Las fotos de producto, y por qué un emparejado falso es peor que ninguno
+
+Las fotografías de las fundas viven en Dropbox —`MASCARAS 2027/MOKUPS`— y las
+trae `node scripts/mockups/importar-mascaras.mjs`. Cuatro reglas que costaron
+sangre:
+
+**La marca manda sobre el parecido.** Emparejando por el nombre sin la marca,
+el IPHONE 13 se llevó la foto del **Redmi 13**, el 11 la del **Xiaomi 11** y el
+12 la del **Realme 12+**. Si los dos lados dicen de qué marca son y no
+coinciden, no hay emparejado.
+
+**Ni por contención.** El segundo intento aceptaba que una clave estuviera
+dentro de la otra: el **IPHONE 6 PLUS** se llevó la del iPhone **16** Plus,
+porque «6PLUS» está dentro de «16PLUS». Daba 40 emparejados y casi todos eran
+mentira. Se eliminó entero. Una foto equivocada es peor que ninguna: enseña
+con toda seguridad la funda que no es y nadie la revisa, porque la página se
+ve perfecta.
+
+**4G y 5G no son el mismo teléfono.** `clave()` —la de los PSD— los borra como
+ruido, y con eso el REDMI NOTE 13 PRO 5G se llevaba la funda del 4G.
+
+**Una imagen por FOTOGRAFÍA, no por código.** Los colores y acabados del mismo
+teléfono son códigos distintos y comparten foto: un archivo por código ponía
+`public/` en medio giga. El índice reparte. Y van en **WebP**: la misma foto
+pesa 159 KB en PNG y 21 KB en WebP, con transparencia igual.
+
+Cuando no hay foto del modelo exacto se presta la del pariente de la misma
+gama y **se dice en pantalla** —«Foto de referencia: es del GALAXY S26»—.
+Enseñarla callando sería enseñar algo que no es.
+
+Hoy: **294 fotografías** cubren 821 códigos. Quedan **14 con el mockup viejo
+del PSD**, encabezados por el iPhone 13, el 11 y el 12 —los tres más vendidos
+de la casa, 1 177 piezas— porque de esos no hay fotografía en la carpeta.
 
 ---
 

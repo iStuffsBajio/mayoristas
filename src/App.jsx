@@ -6,7 +6,6 @@ import { useAuth } from './context/AuthContext'
 import Navbar, { ALTO_BARRA, ALTO_TABS } from './components/Navbar'
 import Escenario from './components/Escenario'
 import Oficios from './components/Oficios'
-import InventarioSemanal from './components/InventarioSemanal'
 import Personalizer from './components/Personalizer'
 import PedidosStikers from './components/PedidosStikers'
 import AdminPanel from './components/AdminPanel'
@@ -16,10 +15,14 @@ import LoginModal from './components/LoginModal'
 
 // ── Pestaña ──────────────────────────────────────────────────────────────────
 //
-// Plana a propósito. La versión anterior era una píldora con degradado de
-// marca, relieve y un emoji delante; se veía como un botón de otra década y
-// peleaba con el resto de la página. Aquí el estado activo se dice con una
-// sola cosa -tinta llena y una barra debajo- y lo demás es texto.
+// La letra lleva el degradado del logotipo impreso -naranja, magenta, morado,
+// azul y cian- y el botón no se rellena de color: la que está abierta se dice
+// con un trazo, no con un fondo. Antes la activa era una píldora de color
+// sólido con la letra en blanco, y el degradado de la marca sólo aparecía en
+// el titular.
+//
+// El texto va en su propio <span> porque hacen falta los dos fondos a la vez:
+// uno recortado a la letra y otro al borde. En el mismo elemento no caben.
 //
 // El hundido al presionar (scale .97) se queda: es lo que hace que una cosa
 // se sienta pulsada, y cuesta nada.
@@ -29,7 +32,7 @@ function Pestana({ tab, activa, onClick }) {
     <button type="button" onClick={onClick}
             className={'pestana' + (activa ? ' activa' : '')}
             aria-current={activa ? 'page' : undefined}>
-      {tab.label}
+      <span className="pestana-texto">{tab.label}</span>
     </button>
   )
 }
@@ -43,9 +46,9 @@ function TabBar({ active, onChange }) {
   const { tabs } = config
 
   const visibles = [
-    tabs.inventario?.visible !== false && { id: 'inventario', label: tabs.inventario?.label || 'Inventario' },
-    tabs.personaliza?.visible !== false && { id: 'personaliza', label: tabs.personaliza?.label || 'Diseña tu funda' },
-    tabs.stikers?.visible     !== false && { id: 'stikers',     label: tabs.stikers?.label     || 'Stickers' },
+    tabs.inventario?.visible !== false && { id: 'inventario', label: tabs.inventario?.label || 'Mayorista · Consulta' },
+    tabs.personaliza?.visible !== false && { id: 'personaliza', label: tabs.personaliza?.label || 'Cliente · Diseña tu funda' },
+    tabs.stikers?.visible     !== false && { id: 'stikers',     label: tabs.stikers?.label     || 'Cliente · Stickers' },
     isAdmin && { id: 'admin', label: 'Panel Admin' },
     esSucursal && { id: 'sucursal', label: 'Mi panel' },
   ].filter(Boolean)
@@ -105,11 +108,19 @@ function AppContent() {
 
       <TabBar active={safeTab} onChange={setActiveTab} />
       <main>
+        {/* La tabla «Inventario de la semana» vivía aquí abajo y se quitó:
+            preguntaba lo mismo que la portada -plaza y modelo- y la portada
+            ya contesta con la foto, la plaza y las piezas. El componente
+            sigue en el repositorio; volver a ponerlo es esta línea.
+
+            Con él se fue el botón de cargar el Excel a mano, que era de las
+            sucursales y no de los mayoristas. Hoy el inventario se publica
+            solo cuatro veces al día; si hace falta la carga manual, su sitio
+            es «Mi panel», no la página pública. */}
         {safeTab === 'inventario' && (
           <>
             <Escenario onIr={irA} />
             <Oficios onIr={irA} />
-            <InventarioSemanal onLoginClick={() => setShowLogin(true)} />
           </>
         )}
         {safeTab === 'personaliza' && <Personalizer />}

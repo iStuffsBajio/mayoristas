@@ -1,26 +1,29 @@
 {
-  "generado": "2026-10-19T17:46:46.619Z",
-  "total": 83,
+  "generado": "2026-10-28T15:43:00.893Z",
+  "total": 835,
   "mockups": [
     {
       "codigo": "I13T",
       "nombre": "IPHONE 13 TPU CASE",
       "archivo": "I13T.png",
       "origen": "IPHONE 13-12 PRO MAX 3 EN 1",
-      "piezas": 468
+      "piezas": 468,
+      "fuente": "psd"
     },
     {
       "codigo": "I11T",
       "nombre": "IPHONE 11 TPU CASE",
       "archivo": "I11T.png",
       "origen": "IPHONE 11 3 EN 1",
-      "piezas": 402
+      "piezas": 402,
+      "fuente": "psd"
     },
     {
       "codigo": "I143",
       "nombre": "IPHONE 14/13/15 3 IN 1",
-      "archivo": "I143.png",
-      "origen": "IPHONE 13-14-15 3 EN 1",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
       "piezas": 356
     },
     {
@@ -28,223 +31,287 @@
       "nombre": "IPHONE 12 6.1 TPU CASE",
       "archivo": "I12T.png",
       "origen": "IPHONE 12 3 EN 1",
-      "piezas": 295
+      "piezas": 295,
+      "fuente": "psd"
     },
     {
       "codigo": "MTG24T",
       "nombre": "MOTO G24/G04/G04S/E14 TPU CASE",
-      "archivo": "MTG24T.png",
-      "origen": "MOTO G04-G24-G24POWER-E14",
-      "piezas": 273
+      "archivo": "moto-g24.webp",
+      "origen": "Moto G24",
+      "fuente": "mascaras",
+      "piezas": 281
     },
     {
       "codigo": "SGA16T",
-      "nombre": "SAMSUNG A16 TPU CASE",
-      "archivo": "SGA16T.png",
-      "origen": "SAMSUNG A16",
+      "nombre": "GALAXY A16 TPU CASE",
+      "archivo": "galaxy-a16.webp",
+      "origen": "Galaxy A16",
+      "fuente": "mascaras",
       "piezas": 271
     },
     {
       "codigo": "I14T",
       "nombre": "IPHONE 14 TPU CASE",
-      "archivo": "I14T.png",
-      "origen": "IPHONE 13-14-15 3 EN 1",
-      "piezas": 246
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 248
+    },
+    {
+      "codigo": "I17PMT",
+      "nombre": "IPHONE 17 PRO MAX TPU CASE",
+      "archivo": "iphone-17-pro-max.webp",
+      "origen": "iPhone 17 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 237
     },
     {
       "codigo": "SGA56T",
-      "nombre": "SAMSUNG A56 TPU CASE",
-      "archivo": "SGA56T.png",
-      "origen": "SAMSUNG A56",
-      "piezas": 226
+      "nombre": "GALAXY A56 TPU CASE",
+      "archivo": "galaxy-a56.webp",
+      "origen": "Galaxy A56",
+      "fuente": "mascaras",
+      "piezas": 230
     },
     {
       "codigo": "I15T",
       "nombre": "IPHONE 15 TPU CASE",
-      "archivo": "I15T.png",
-      "origen": "IPHONE 13-14-15 3 EN 1",
-      "piezas": 219
+      "archivo": "iphone-15.webp",
+      "origen": "iPhone 15",
+      "fuente": "mascaras",
+      "piezas": 225
     },
     {
       "codigo": "I15PMT",
       "nombre": "IPHONE 15 PRO MAX TPU CASE",
-      "archivo": "I15PMT.png",
-      "origen": "IPHONE 15 PRO MAX 3 EN 1",
-      "piezas": 206
+      "archivo": "iphone-15-pro-max.webp",
+      "origen": "iPhone 15 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 212
     },
     {
       "codigo": "I16PMT",
       "nombre": "IPHONE 16 PRO MAX TPU CASE",
-      "archivo": "I16PMT.png",
-      "origen": "IPHONE 16 PRO MAX 3 EN 1",
-      "piezas": 197
+      "archivo": "iphone-16-pro-max.webp",
+      "origen": "iPhone 16 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 204
     },
     {
       "codigo": "SGA06T",
-      "nombre": "SAMSUNG A06 TPU CASE",
-      "archivo": "SGA06T.png",
-      "origen": "SAMSUNG A06",
-      "piezas": 191
+      "nombre": "GALAXY A06 TPU CASE",
+      "archivo": "galaxy-a06.webp",
+      "origen": "Galaxy A06",
+      "fuente": "mascaras",
+      "piezas": 195
     },
     {
       "codigo": "OPR74GT",
       "nombre": "OPPO RENO 7 4G TPU CASE",
-      "archivo": "OPR74GT.png",
-      "origen": "OPPO RENO 7 4G",
-      "piezas": 184
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 191
+    },
+    {
+      "codigo": "I17PM3",
+      "nombre": "IPHONE 17 PRO MAX 3 IN 1",
+      "archivo": "iphone-17-pro-max.webp",
+      "origen": "iPhone 17 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 169
     },
     {
       "codigo": "SGA55T",
-      "nombre": "SAMSUNG A55 5G TPU CASE",
-      "archivo": "SGA55T.png",
-      "origen": "SAMSUNG A55",
-      "piezas": 165
+      "nombre": "GALAXY A55 5G TPU CASE",
+      "archivo": "galaxy-a55.webp",
+      "origen": "Galaxy A55",
+      "fuente": "mascaras",
+      "piezas": 166
+    },
+    {
+      "codigo": "SGA07T",
+      "nombre": "GALAXY A07 TPU CASE",
+      "archivo": "galaxy-a07.webp",
+      "origen": "Galaxy A07",
+      "fuente": "mascaras",
+      "piezas": 166
     },
     {
       "codigo": "OPA40T",
       "nombre": "OPPO A40/A60 TPU CASE",
-      "archivo": "OPA40T.png",
-      "origen": "OPPO A40-A60",
-      "piezas": 158
-    },
-    {
-      "codigo": "I14PMT",
-      "nombre": "IPHONE 14 PRO MAX TPU CASE",
-      "archivo": "I14PMT.png",
-      "origen": "IPHONE 14 PRO MAX 3 EN 1",
-      "piezas": 155
+      "archivo": "oppo-a40.webp",
+      "origen": "OPPO A40",
+      "fuente": "mascaras",
+      "piezas": 163
     },
     {
       "codigo": "I16T",
       "nombre": "IPHONE 16 TPU CASE",
-      "archivo": "I16T.png",
-      "origen": "IPHONE 16 3 EN 1",
-      "piezas": 155
+      "archivo": "iphone-16.webp",
+      "origen": "iPhone 16",
+      "fuente": "mascaras",
+      "piezas": 162
     },
     {
       "codigo": "SGA15T",
-      "nombre": "SAMSUNG A15 TPU CASE",
-      "archivo": "SGA15T.png",
-      "origen": "SAMSUNG A15",
-      "piezas": 155
+      "nombre": "GALAXY A15 TPU CASE",
+      "archivo": "galaxy-a15.webp",
+      "origen": "Galaxy A15",
+      "fuente": "mascaras",
+      "piezas": 160
+    },
+    {
+      "codigo": "I14PMT",
+      "nombre": "IPHONE 14 PRO MAX TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 157
     },
     {
       "codigo": "SGA54T",
-      "nombre": "SAMSUNG A54 TPU CASE",
-      "archivo": "SGA54T.png",
-      "origen": "SAMSUNG A54",
-      "piezas": 147
+      "nombre": "GALAXY A54 TPU CASE",
+      "archivo": "galaxy-a54.webp",
+      "origen": "Galaxy A54",
+      "fuente": "mascaras",
+      "piezas": 148
     },
     {
       "codigo": "I113",
       "nombre": "IPHONE 11 3 IN 1",
       "archivo": "I113.png",
       "origen": "IPHONE 11 3 EN 1",
-      "piezas": 141
+      "piezas": 141,
+      "fuente": "psd"
     },
     {
       "codigo": "SGA14T",
-      "nombre": "SAMSUNG A14 TPU CASE",
-      "archivo": "SGA14T.png",
-      "origen": "SAMSUNG A14",
-      "piezas": 139
+      "nombre": "GALAXY A14 TPU CASE",
+      "archivo": "galaxy-a14.webp",
+      "origen": "Galaxy A14",
+      "fuente": "mascaras",
+      "piezas": 141
+    },
+    {
+      "codigo": "SGA17T",
+      "nombre": "GALAXY A17 TPU CASE",
+      "archivo": "galaxy-a17.webp",
+      "origen": "Galaxy A17",
+      "fuente": "mascaras",
+      "piezas": 140
     },
     {
       "codigo": "I16PM3",
       "nombre": "IPHONE 16 PRO MAX 3 IN 1",
-      "archivo": "I16PM3.png",
-      "origen": "IPHONE 16 PRO MAX 3 EN 1",
+      "archivo": "iphone-16-pro-max.webp",
+      "origen": "iPhone 16 Pro Max",
+      "fuente": "mascaras",
       "piezas": 136
     },
     {
       "codigo": "OPA58T",
       "nombre": "OPPO A58 TPU CASE",
-      "archivo": "OPA58T.png",
-      "origen": "OPPO A58",
-      "piezas": 130
-    },
-    {
-      "codigo": "SGA17T",
-      "nombre": "GALAXY A17/A26/A27 TPU CASE",
-      "archivo": "SGA17T.png",
-      "origen": "SAMSUNG A26-A17-A27",
-      "piezas": 128
+      "archivo": "oppo-a58-5g.webp",
+      "origen": "OPPO A58 5G",
+      "fuente": "mascaras",
+      "piezas": 133
     },
     {
       "codigo": "I15PM3",
       "nombre": "IPHONE 15 PRO MAX 3 IN 1",
-      "archivo": "I15PM3.png",
-      "origen": "IPHONE 15 PRO MAX 3 EN 1",
-      "piezas": 127
+      "archivo": "iphone-15-pro-max.webp",
+      "origen": "iPhone 15 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 128
     },
     {
       "codigo": "I13PMT",
       "nombre": "IPHONE 13 PRO MAX TPU CASE",
       "archivo": "I13PMT.png",
       "origen": "IPHONE 13 PRO MAX",
-      "piezas": 126
-    },
-    {
-      "codigo": "MTG15T",
-      "nombre": "MOTO G15 TPU CASE",
-      "archivo": "MTG15T.png",
-      "origen": "MOTO G15-G17",
-      "piezas": 121
+      "piezas": 126,
+      "fuente": "psd"
     },
     {
       "codigo": "OPA38T",
       "nombre": "OPPO A38/A18 TPU CASE",
-      "archivo": "OPA38T.png",
-      "origen": "OPPO A38-A18",
-      "piezas": 121
+      "archivo": "oppo-a38.webp",
+      "origen": "OPPO A38",
+      "fuente": "mascaras",
+      "piezas": 125
+    },
+    {
+      "codigo": "MTG15T",
+      "nombre": "MOTO G15 TPU CASE",
+      "archivo": "moto-g15.webp",
+      "origen": "Moto G15",
+      "fuente": "mascaras",
+      "piezas": 124
+    },
+    {
+      "codigo": "OPR14FT",
+      "nombre": "OPPO RENO 14F TPU CASE",
+      "archivo": "oppo-reno14-f.webp",
+      "origen": "OPPO Reno14 F",
+      "fuente": "mascaras",
+      "piezas": 123
     },
     {
       "codigo": "OPR12FT",
       "nombre": "OPPO RENO 12F TPU CASE",
-      "archivo": "OPR12FT.png",
-      "origen": "OPPO RENO 12F",
-      "piezas": 121
-    },
-    {
-      "codigo": "OPR13FT",
-      "nombre": "OPPO RENO 13F TPU CASE",
-      "archivo": "OPR13FT.png",
-      "origen": "OPPO RENO 13F",
-      "piezas": 116
+      "archivo": "oppo-reno12-f.webp",
+      "origen": "OPPO Reno12 F",
+      "fuente": "mascaras",
+      "piezas": 122
     },
     {
       "codigo": "I15PLT",
       "nombre": "IPHONE 15 PLUS/14 PLUS TPU CASE",
-      "archivo": "I15PLT.png",
-      "origen": "IPHONE 14-15 PLUS 3 EN 1",
-      "piezas": 115
+      "archivo": "iphone-15-plus.webp",
+      "origen": "iPhone 15 Plus",
+      "fuente": "mascaras",
+      "piezas": 120
     },
     {
-      "codigo": "OPA57T",
-      "nombre": "OPPO A57 / A77 TPU CASE",
-      "archivo": "OPA57T.png",
-      "origen": "OPPO A57-A77",
-      "piezas": 109
+      "codigo": "OPR13FT",
+      "nombre": "OPPO RENO 13F TPU CASE",
+      "archivo": "oppo-reno13-f.webp",
+      "origen": "OPPO Reno13 F",
+      "fuente": "mascaras",
+      "piezas": 119
     },
     {
       "codigo": "MTG05T",
       "nombre": "MOTO G05/E15 TPU CASE",
-      "archivo": "MTG05T.png",
-      "origen": "MOTO G05-E15",
-      "piezas": 108
+      "archivo": "moto-g05.webp",
+      "origen": "Moto G05",
+      "fuente": "mascaras",
+      "piezas": 113
     },
     {
       "codigo": "OPR11T",
       "nombre": "OPPO RENO 11 5G TPU CASE",
-      "archivo": "OPR11T.png",
-      "origen": "OPPO RENO 11",
-      "piezas": 107
+      "archivo": "oppo-reno11.webp",
+      "origen": "OPPO Reno11",
+      "fuente": "mascaras",
+      "piezas": 113
+    },
+    {
+      "codigo": "OPA57T",
+      "nombre": "OPPO A57 / A77 TPU CASE",
+      "archivo": "oppo-a57.webp",
+      "origen": "OPPO A57",
+      "fuente": "mascaras",
+      "piezas": 109
     },
     {
       "codigo": "HM7LT",
-      "nombre": "HONOR MAGIC 7 LITE TPU CASE/ X9C",
-      "archivo": "HM7LT.png",
-      "origen": "HONOR MAGIC 7 LITE",
+      "nombre": "HONOR MAGIC 7 LITE/X9C TPU CASE",
+      "archivo": "honor-magic7-lite.webp",
+      "origen": "Honor Magic7 Lite",
+      "fuente": "mascaras",
       "piezas": 106
     },
     {
@@ -252,48 +319,71 @@
       "nombre": "IPHONE 12 3 IN 1",
       "archivo": "I123.png",
       "origen": "IPHONE 12 3 EN 1",
+      "piezas": 104,
+      "fuente": "psd"
+    },
+    {
+      "codigo": "SGS25UT",
+      "nombre": "GALAXY S25 ULTRA TPU CASE",
+      "archivo": "galaxy-s25-ultra.webp",
+      "origen": "Galaxy S25 Ultra",
+      "fuente": "mascaras",
       "piezas": 104
+    },
+    {
+      "codigo": "SGS24UT",
+      "nombre": "GALAXY S24 ULTRA TPU CASE",
+      "archivo": "galaxy-s24-ultra.webp",
+      "origen": "Galaxy S24 Ultra",
+      "fuente": "mascaras",
+      "piezas": 103
+    },
+    {
+      "codigo": "OPR10T",
+      "nombre": "OPPO RENO 10/RENO 10 PRO TPU CASE",
+      "archivo": "oppo-reno10.webp",
+      "origen": "OPPO Reno10",
+      "fuente": "mascaras",
+      "piezas": 103
+    },
+    {
+      "codigo": "OPA5PT",
+      "nombre": "OPPO A5 PRO TPU CASE",
+      "archivo": "oppo-a5-pro.webp",
+      "origen": "OPPO A5 Pro",
+      "fuente": "mascaras",
+      "piezas": 102
     },
     {
       "codigo": "I13PM3",
       "nombre": "IPHONE 13 PRO MAX/12 PRO MAX 3 IN 1",
       "archivo": "I13PM3.png",
       "origen": "IPHONE 13 PRO MAX",
-      "piezas": 101
+      "piezas": 101,
+      "fuente": "psd"
     },
     {
       "codigo": "SGA35T",
-      "nombre": "SAMSUNG A35 TPU CASE",
-      "archivo": "SGA35T.png",
-      "origen": "SAMSUNG A35",
+      "nombre": "GALAXY A35 TPU CASE",
+      "archivo": "galaxy-a35.webp",
+      "origen": "Galaxy A35",
+      "fuente": "mascaras",
       "piezas": 101
     },
     {
-      "codigo": "SGS24UT",
-      "nombre": "SAMSUNG S24 ULTRA TPU CASE",
-      "archivo": "SGS24UT.png",
-      "origen": "SAMSUNG S24 ULTRA",
+      "codigo": "MTED50FT",
+      "nombre": "MOTO EDGE 50 FUSION TPU CASE",
+      "archivo": "moto-edge-50-fusion.webp",
+      "origen": "Moto Edge 50 Fusion",
+      "fuente": "mascaras",
       "piezas": 101
-    },
-    {
-      "codigo": "OPA5PT",
-      "nombre": "OPPO A5 PRO TPU CASE",
-      "archivo": "OPA5PT.png",
-      "origen": "OPPO A5 PRO",
-      "piezas": 100
     },
     {
       "codigo": "I15PT",
       "nombre": "IPHONE 15 PRO TPU CASE",
-      "archivo": "I15PT.png",
-      "origen": "IPHONE 15 PRO",
-      "piezas": 99
-    },
-    {
-      "codigo": "OPR10T",
-      "nombre": "OPPO RENO 10/RENO 10 PRO TPU CASE",
-      "archivo": "OPR10T.png",
-      "origen": "OPPO RENO 10 5G-RENO 10 PRO",
+      "archivo": "iphone-15-pro.webp",
+      "origen": "iPhone 15 Pro",
+      "fuente": "mascaras",
       "piezas": 99
     },
     {
@@ -301,113 +391,143 @@
       "nombre": "IPHONE 13 PRO TPU CASE",
       "archivo": "I13PT.png",
       "origen": "IPHONE 13 PRO",
-      "piezas": 98
-    },
-    {
-      "codigo": "MTED50FT",
-      "nombre": "MOTO EDGE 50 FUSION TPU CASE",
-      "archivo": "MTED50FT.png",
-      "origen": "MOTO EDGE 50 FUSION",
-      "piezas": 96
+      "piezas": 98,
+      "fuente": "psd"
     },
     {
       "codigo": "SGA36T",
-      "nombre": "SAMSUNG A36 TPU CASE",
-      "archivo": "SGA36T.png",
-      "origen": "SAMSUNG A36",
-      "piezas": 94
+      "nombre": "GALAXY A36 TPU CASE",
+      "archivo": "galaxy-a36.webp",
+      "origen": "Galaxy A36",
+      "fuente": "mascaras",
+      "piezas": 97
     },
     {
-      "codigo": "SGA34T",
-      "nombre": "SAMSUNG A34 TPU CASE",
-      "archivo": "SGA34T.png",
-      "origen": "SAMSUNG A34",
-      "piezas": 93
+      "codigo": "SGA26T",
+      "nombre": "GALAXY A26 TPU CASE",
+      "archivo": "galaxy-a26.webp",
+      "origen": "Galaxy A26",
+      "fuente": "mascaras",
+      "piezas": 96
     },
     {
-      "codigo": "SGS24U3",
-      "nombre": "SAMSUNG S24 ULTRA 3 IN 1",
-      "archivo": "SGS24U3.png",
-      "origen": "SAMSUNG S24 ULTRA",
-      "piezas": 91
+      "codigo": "SGS25U3",
+      "nombre": "GALAXY S25 ULTRA 3 IN 1",
+      "archivo": "galaxy-s25-ultra.webp",
+      "origen": "Galaxy S25 Ultra",
+      "fuente": "mascaras",
+      "piezas": 96
     },
     {
       "codigo": "XRA5T",
       "nombre": "XIAOMI REDMI A5/POCCO C71 TPU CASE",
-      "archivo": "XRA5T.png",
-      "origen": "XIAOMI REDMI A5-POCO C71",
+      "archivo": "redmi-a5.webp",
+      "origen": "Redmi A5",
+      "fuente": "mascaras",
+      "piezas": 95
+    },
+    {
+      "codigo": "SGA34T",
+      "nombre": "GALAXY A34 TPU CASE",
+      "archivo": "galaxy-a34.webp",
+      "origen": "Galaxy A34",
+      "fuente": "mascaras",
+      "piezas": 93
+    },
+    {
+      "codigo": "SGS24U3",
+      "nombre": "GALAXY S24 ULTRA 3 IN 1",
+      "archivo": "galaxy-s24-ultra.webp",
+      "origen": "Galaxy S24 Ultra",
+      "fuente": "mascaras",
       "piezas": 91
     },
     {
       "codigo": "MTG54T",
       "nombre": "MOTO G54/G55 TPU CASE",
-      "archivo": "MTG54T.png",
-      "origen": "MOTO G54-G55",
-      "piezas": 88
-    },
-    {
-      "codigo": "SGA26T",
-      "nombre": "SAMSUNG A26 TPU CASE",
-      "archivo": "SGA26T.png",
-      "origen": "SAMSUNG A26-A17-A27",
-      "piezas": 88
+      "archivo": "moto-g54.webp",
+      "origen": "Moto G54",
+      "fuente": "mascaras",
+      "piezas": 91
     },
     {
       "codigo": "XRN10T",
       "nombre": "XIAOMI NOTE 10/NOTE 10S/POCCO M5S TPU CASE",
-      "archivo": "XRN10T.png",
-      "origen": "POCO M3 PRO-NOTE 10 5G",
-      "piezas": 88
+      "archivo": "redmi-note-10-5g.webp",
+      "origen": "Redmi Note 10 5G",
+      "fuente": "mascaras",
+      "piezas": 91
     },
     {
       "codigo": "SGA05T",
-      "nombre": "SAMSUNG A05 TPU CASE",
-      "archivo": "SGA05T.png",
-      "origen": "SAMSUNG A05",
-      "piezas": 87
+      "nombre": "GALAXY A05 TPU CASE",
+      "archivo": "galaxy-a05.webp",
+      "origen": "Galaxy A05",
+      "fuente": "mascaras",
+      "piezas": 88
     },
     {
       "codigo": "XRN13PT",
-      "nombre": "XIAOMI NOTE 13 PRO 4G/POCCO M6 PRO TPU CASE",
-      "archivo": "XRN13PT.png",
-      "origen": "XIAOMI REDMI NOTE 13 PRO 4G-POCO M6 PRO 4G",
-      "piezas": 87,
-      "vacio": true
+      "nombre": "XIAOMI NOTE 13 PRO 4G/POCCO M6 PRO 4G TPU CASE",
+      "archivo": "redmi-note-13-pro-4g.webp",
+      "origen": "Redmi Note 13 Pro 4G",
+      "fuente": "mascaras",
+      "piezas": 87
+    },
+    {
+      "codigo": "MTED60T",
+      "nombre": "MOTO EDGE 60/EDGE 60 FUSION TPU CASE",
+      "archivo": "moto-edge-60-fusion.webp",
+      "origen": "Moto Edge 60 Fusion",
+      "fuente": "mascaras",
+      "piezas": 86
     },
     {
       "codigo": "HX7CT",
       "nombre": "HONOR X7C TPU CASE",
-      "archivo": "HX7CT.png",
-      "origen": "HONOR X7C",
-      "piezas": 85,
-      "vacio": true
+      "archivo": "honor-x7c.webp",
+      "origen": "Honor X7c",
+      "fuente": "mascaras",
+      "piezas": 85
     },
     {
       "codigo": "I14PT",
       "nombre": "IPHONE 14 PRO TPU CASE",
-      "archivo": "I14PT.png",
-      "origen": "IPHONE 14 PRO",
-      "piezas": 77
-    },
-    {
-      "codigo": "I163",
-      "nombre": "IPHONE 16 3 IN 1",
-      "archivo": "I163.png",
-      "origen": "IPHONE 16 3 EN 1",
-      "piezas": 77
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 79
     },
     {
       "codigo": "MTG06T",
       "nombre": "MOTO G06 TPU CASE",
-      "archivo": "MTG06T.png",
-      "origen": "MOTO G06",
-      "piezas": 74
+      "archivo": "moto-g06.webp",
+      "origen": "Moto G06",
+      "fuente": "mascaras",
+      "piezas": 78
+    },
+    {
+      "codigo": "I163",
+      "nombre": "IPHONE 16 3 IN 1",
+      "archivo": "iphone-16.webp",
+      "origen": "iPhone 16",
+      "fuente": "mascaras",
+      "piezas": 77
+    },
+    {
+      "codigo": "I17T",
+      "nombre": "IPHONE 17 TPU CASE",
+      "archivo": "iphone-17.webp",
+      "origen": "iPhone 17",
+      "fuente": "mascaras",
+      "piezas": 77
     },
     {
       "codigo": "MTG30T",
       "nombre": "MOTO G30/G20 TPU CASE",
-      "archivo": "MTG30T.png",
-      "origen": "MOTO G30-G20-G10",
+      "archivo": "moto-g30.webp",
+      "origen": "Moto G30",
+      "fuente": "mascaras",
       "piezas": 74
     },
     {
@@ -415,34 +535,39 @@
       "nombre": "ZTE AXON 50 LITE/BLADE V50 SMART 3 IN 1",
       "archivo": "ZA50L3.png",
       "origen": "ZTE AXON 50 LITE",
-      "piezas": 74
+      "piezas": 74,
+      "fuente": "psd"
     },
     {
       "codigo": "I12PMT",
       "nombre": "IPHONE 12 PRO MAX 6.7 TPU CASE",
       "archivo": "I12PMT.png",
       "origen": "IPHONE 12 PRO MAX",
-      "piezas": 73
+      "piezas": 73,
+      "fuente": "psd"
     },
     {
       "codigo": "HX6AT",
       "nombre": "HONOR X6A/X6A PLUS TPU CASE",
-      "archivo": "HX6AT.png",
-      "origen": "HONOR X6A-X6A PLUS",
+      "archivo": "honor-x6a.webp",
+      "origen": "Honor X6a",
+      "fuente": "mascaras",
       "piezas": 71
     },
     {
       "codigo": "I14PM3",
       "nombre": "IPHONE 14 PRO MAX 3 IN 1",
-      "archivo": "I14PM3.png",
-      "origen": "IPHONE 14 PRO MAX 3 EN 1",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
       "piezas": 71
     },
     {
       "codigo": "OPA5T",
       "nombre": "OPPO A5 TPU CASE",
-      "archivo": "OPA5T.png",
-      "origen": "XIAOMI REDMI A5-POCO C71",
+      "archivo": "oppo-a5.webp",
+      "origen": "OPPO A5",
+      "fuente": "mascaras",
       "piezas": 71
     },
     {
@@ -450,140 +575,6112 @@
       "nombre": "IPHONE 11 TPU CASE",
       "archivo": "I11T-WiHRPYpaKVFJXXD.png",
       "origen": "IPHONE 11 3 EN 1",
-      "piezas": 71
+      "piezas": 71,
+      "fuente": "psd"
     },
     {
       "codigo": "I13",
       "nombre": "IPHONE 13 HARD CASE",
       "archivo": "I13.png",
       "origen": "IPHONE 13-12 PRO MAX 3 EN 1",
-      "piezas": 70
+      "piezas": 70,
+      "fuente": "psd"
     },
     {
       "codigo": "MTG53T",
       "nombre": "MOTO G53/G13/G23 TPU CASE",
-      "archivo": "MTG53T.png",
-      "origen": "MOTO G53",
+      "archivo": "moto-g53.webp",
+      "origen": "Moto G53",
+      "fuente": "mascaras",
+      "piezas": 70
+    },
+    {
+      "codigo": "XRN11T",
+      "nombre": "XIAOMI NOTE 11/NOTE 11S TPU CASE",
+      "archivo": "redmi-note-11.webp",
+      "origen": "Redmi Note 11",
+      "fuente": "mascaras",
       "piezas": 70
     },
     {
       "codigo": "I16PT",
       "nombre": "IPHONE 16 PRO TPU CASE",
-      "archivo": "I16PT.png",
-      "origen": "IPHONE 16 PRO 3 EN 1",
+      "archivo": "iphone-16-pro.webp",
+      "origen": "iPhone 16 Pro",
+      "fuente": "mascaras",
       "piezas": 69
-    },
-    {
-      "codigo": "XRN11T",
-      "nombre": "XIAOMI NOTE 11/NOTE 11S TPU CASE",
-      "archivo": "XRN11T.png",
-      "origen": "XIAOMI REDMI NOTE 11-11S",
-      "piezas": 69
-    },
-    {
-      "codigo": "SA324GT",
-      "nombre": "SAMSUNG A32 4G TPU CASE",
-      "archivo": "SA324GT.png",
-      "origen": "SAMSUNG A32 4G",
-      "piezas": 67
     },
     {
       "codigo": "SGS23UT",
-      "nombre": "SAMSUNG S23 ULTRA TPU CASE",
-      "archivo": "SGS23UT.png",
-      "origen": "SAMSUNG S23 ULTRA",
-      "piezas": 66
+      "nombre": "GALAXY S23 ULTRA TPU CASE",
+      "archivo": "galaxy-s23-ultra.webp",
+      "origen": "Galaxy S23 Ultra",
+      "fuente": "mascaras",
+      "piezas": 69
+    },
+    {
+      "codigo": "HX6CT",
+      "nombre": "HONOR X6C TPU CASE",
+      "archivo": "honor-x6c.webp",
+      "origen": "Honor X6c",
+      "fuente": "mascaras",
+      "piezas": 69
     },
     {
       "codigo": "XR13CT",
       "nombre": "XIAOMI REDMI 13C/POCCO C65 TPU CASE",
-      "archivo": "XR13CT.png",
-      "origen": "XIAOMI REDMI 13C- POCO C65",
-      "piezas": 66
+      "archivo": "redmi-13c.webp",
+      "origen": "Redmi 13C",
+      "fuente": "mascaras",
+      "piezas": 68
     },
     {
-      "codigo": "SGS23U3",
-      "nombre": "SAMSUNG S23 ULTRA 3 IN 1",
-      "archivo": "SGS23U3.png",
-      "origen": "SAMSUNG S23 ULTRA",
-      "piezas": 65
+      "codigo": "SA324GT",
+      "nombre": "GALAXY A32 4G TPU CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 67
     },
     {
       "codigo": "XRN13T",
       "nombre": "XIAOMI NOTE 13 TPU CASE",
-      "archivo": "XRN13T.png",
-      "origen": "XIAOMI REDMI NOTE 13 4G",
+      "archivo": "redmi-note-13-4g.webp",
+      "origen": "Redmi Note 13 4G",
+      "fuente": "mascaras",
+      "piezas": 67
+    },
+    {
+      "codigo": "SGS23U3",
+      "nombre": "GALAXY S23 ULTRA 3 IN 1",
+      "archivo": "galaxy-s23-ultra.webp",
+      "origen": "Galaxy S23 Ultra",
+      "fuente": "mascaras",
+      "piezas": 66
+    },
+    {
+      "codigo": "HM6LT",
+      "nombre": "HONOR MAGIC 6 LITE/HONOR X9B TPU CASE",
+      "archivo": "honor-magic6-lite.webp",
+      "origen": "Honor Magic6 Lite",
+      "fuente": "mascaras",
       "piezas": 65
+    },
+    {
+      "codigo": "HX6T",
+      "nombre": "HONOR X6/X6S TPU CASE",
+      "archivo": "honor-x6.webp",
+      "origen": "Honor X6",
+      "fuente": "mascaras",
+      "piezas": 64
+    },
+    {
+      "codigo": "I17PT",
+      "nombre": "IPHONE 17 PRO TPU CASE",
+      "archivo": "iphone-17-pro.webp",
+      "origen": "iPhone 17 Pro",
+      "fuente": "mascaras",
+      "piezas": 64
     },
     {
       "codigo": "IXRT",
       "nombre": "IPHONE XR TPU CASE",
       "archivo": "IXRT.png",
       "origen": "IPHONE XR",
-      "piezas": 63
+      "piezas": 63,
+      "fuente": "psd"
     },
     {
       "codigo": "XR14CT",
       "nombre": "XIAOMI REDMI 14C/POCCO C75 TPU CASE",
-      "archivo": "XR14CT.png",
-      "origen": "XIAOMI REDMI 14C-POCO C75",
+      "archivo": "redmi-14c.webp",
+      "origen": "Redmi 14C",
+      "fuente": "mascaras",
       "piezas": 63
-    },
-    {
-      "codigo": "HM6LT",
-      "nombre": "HONOR MAGIC 6 LITE/HONOR X9B TPU CASE",
-      "archivo": "HM6LT.png",
-      "origen": "HONOR MAGIC 6 LITE-HONOR X9B",
-      "piezas": 62
     },
     {
       "codigo": "OPA17T",
       "nombre": "OPPO A17 TPU CASE",
-      "archivo": "OPA17T.png",
+      "archivo": "oppo-a17.webp",
       "origen": "OPPO A17",
-      "piezas": 62
+      "fuente": "mascaras",
+      "piezas": 63
     },
     {
       "codigo": "HX8AT",
       "nombre": "HONOR X8A TPU CASE",
-      "archivo": "HX8AT.png",
-      "origen": "HONOR X8A",
-      "piezas": 61
+      "archivo": "honor-x8a.webp",
+      "origen": "Honor X8a",
+      "fuente": "mascaras",
+      "piezas": 62
     },
     {
       "codigo": "HX8BT",
       "nombre": "HONOR X8B TPU CASE",
-      "archivo": "HX8BT.png",
-      "origen": "HONOR X8B",
+      "archivo": "honor-x8b.webp",
+      "origen": "Honor X8b",
+      "fuente": "mascaras",
       "piezas": 61
     },
     {
       "codigo": "OPA78T",
       "nombre": "OPPO A78 TPU CASE",
-      "archivo": "OPA78T.png",
-      "origen": "OPPO A78",
-      "piezas": 60
+      "archivo": "oppo-a78-5g.webp",
+      "origen": "OPPO A78 5G",
+      "fuente": "mascaras",
+      "piezas": 61
+    },
+    {
+      "codigo": "SGA05ST",
+      "nombre": "GALAXY A05S TPU CASE",
+      "archivo": "galaxy-a05s.webp",
+      "origen": "Galaxy A05s",
+      "fuente": "mascaras",
+      "piezas": 61
+    },
+    {
+      "codigo": "XRN14T",
+      "nombre": "XIAOMI NOTE 14 4G TPU CASE",
+      "archivo": "redmi-note-14-4g.webp",
+      "origen": "Redmi Note 14 4G",
+      "fuente": "mascaras",
+      "piezas": 61
     },
     {
       "codigo": "SGA04T",
       "nombre": "SAMSUNG A04 TPU CASE",
       "archivo": "SGA04T.png",
       "origen": "SAMSUNG A04",
-      "piezas": 60
+      "piezas": 60,
+      "fuente": "psd"
     },
     {
-      "codigo": "SGA05ST",
-      "nombre": "SAMSUNG A05S TPU CASE",
-      "archivo": "SGA05ST.png",
-      "origen": "SAMSUNG A05S",
-      "piezas": 60
+      "codigo": "MTG52T",
+      "nombre": "MOTO G52/G82 TPU CASE",
+      "archivo": "moto-g52.webp",
+      "origen": "Moto G52",
+      "fuente": "mascaras",
+      "piezas": 59
     },
     {
-      "codigo": "XRN14T",
-      "nombre": "XIAOMI NOTE 14 4G TPU CASE",
-      "archivo": "XRN14T.png",
-      "origen": "XIAOMI REDMI NOTE 14",
-      "piezas": 60
+      "codigo": "SA52T",
+      "nombre": "GALAXY A52/A52S TPU CASE",
+      "archivo": "galaxy-a52.webp",
+      "origen": "Galaxy A52",
+      "fuente": "mascaras",
+      "piezas": 57
+    },
+    {
+      "codigo": "OPR125GT",
+      "nombre": "OPPO RENO 12 5G TPU CASE",
+      "archivo": "oppo-reno12-5g.webp",
+      "origen": "OPPO Reno12 5G",
+      "fuente": "mascaras",
+      "piezas": 57
+    },
+    {
+      "codigo": "SGA57T",
+      "nombre": "GALAXY A57 TPU CASE",
+      "archivo": "galaxy-a57.webp",
+      "origen": "Galaxy A57",
+      "fuente": "mascaras",
+      "piezas": 55
+    },
+    {
+      "codigo": "I14P3",
+      "nombre": "IPHONE 14 PRO 3 IN 1",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 55
+    },
+    {
+      "codigo": "XR13T",
+      "nombre": "XIAOMI REDMI 13 TPU CASE",
+      "archivo": "redmi-13.webp",
+      "origen": "Redmi 13",
+      "fuente": "mascaras",
+      "piezas": 55
+    },
+    {
+      "codigo": "HX6BT",
+      "nombre": "HONOR X6B/X6B PLUS TPU CASE",
+      "archivo": "honor-x6b.webp",
+      "origen": "Honor X6b",
+      "fuente": "mascaras",
+      "piezas": 53
+    },
+    {
+      "codigo": "SGA12T",
+      "nombre": "GALAXY A12 TPU CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 52
+    },
+    {
+      "codigo": "H400T",
+      "nombre": "HONOR 400 TPU CASE",
+      "archivo": "honor-400.webp",
+      "origen": "Honor 400",
+      "fuente": "mascaras",
+      "piezas": 52
+    },
+    {
+      "codigo": "MTG84T",
+      "nombre": "MOTO G84 TPU CASE",
+      "archivo": "moto-g84.webp",
+      "origen": "Moto G84",
+      "fuente": "mascaras",
+      "piezas": 52
+    },
+    {
+      "codigo": "XRN14PT",
+      "nombre": "XIAOMI NOTE 14 PRO 4G TPU CASE",
+      "archivo": "redmi-note-14-pro.webp",
+      "origen": "Redmi Note 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 52
+    },
+    {
+      "codigo": "HX5CT",
+      "nombre": "HONOR X5C/X5C PLUS TPU CASE",
+      "archivo": "honor-x5c.webp",
+      "origen": "Honor X5c",
+      "fuente": "mascaras",
+      "piezas": 51
+    },
+    {
+      "codigo": "MTG60T",
+      "nombre": "MOTO G60 TPU CASE",
+      "archivo": "moto-g60.webp",
+      "origen": "Moto G60",
+      "fuente": "mascaras",
+      "piezas": 51
+    },
+    {
+      "codigo": "SGA553",
+      "nombre": "GALAXY A55/A35 3 IN 1",
+      "archivo": "galaxy-a55.webp",
+      "origen": "Galaxy A55",
+      "fuente": "mascaras",
+      "piezas": 50
+    },
+    {
+      "codigo": "HM5LT",
+      "nombre": "HONOR MAGIC 5 LITE/HONOR X9A TPU CASE",
+      "archivo": "honor-magic5-lite.webp",
+      "origen": "Honor Magic5 Lite",
+      "fuente": "mascaras",
+      "piezas": 50
+    },
+    {
+      "codigo": "MTG243",
+      "nombre": "MOTO G24 3 IN 1",
+      "archivo": "moto-g24.webp",
+      "origen": "Moto G24",
+      "fuente": "mascaras",
+      "piezas": 48
+    },
+    {
+      "codigo": "OPA54T",
+      "nombre": "OPPO A54 TPU CASE",
+      "archivo": "oppo-a54.webp",
+      "origen": "OPPO A54",
+      "fuente": "mascaras",
+      "piezas": 48
+    },
+    {
+      "codigo": "H200T",
+      "nombre": "HONOR 200 TPU CASE",
+      "archivo": "honor-200.webp",
+      "origen": "Honor 200",
+      "fuente": "mascaras",
+      "piezas": 47
+    },
+    {
+      "codigo": "SGA134GT",
+      "nombre": "GALAXY A13 4G TPU CASE",
+      "archivo": "galaxy-a13.webp",
+      "origen": "Galaxy A13",
+      "fuente": "mascaras",
+      "piezas": 46
+    },
+    {
+      "codigo": "MTED40NT",
+      "nombre": "MOTO EDGE 40 NEO TPU CASE",
+      "archivo": "moto-edge-40-neo.webp",
+      "origen": "Moto Edge 40 Neo",
+      "fuente": "mascaras",
+      "piezas": 46
+    },
+    {
+      "codigo": "OPRC53T",
+      "nombre": "OPPO REALME C53/NOTE 50 TPU CASE",
+      "archivo": "realme-c53.webp",
+      "origen": "Realme C53",
+      "fuente": "mascaras",
+      "piezas": 46
+    },
+    {
+      "codigo": "SGS22UT",
+      "nombre": "GALAXY S22 ULTRA TPU CASE",
+      "archivo": "galaxy-s22-ultra.webp",
+      "origen": "Galaxy S22 Ultra",
+      "fuente": "mascaras",
+      "piezas": 45
+    },
+    {
+      "codigo": "SGS24FET",
+      "nombre": "GALAXY S24 FE TPU CASE",
+      "archivo": "galaxy-s24-fe.webp",
+      "origen": "Galaxy S24 FE",
+      "fuente": "mascaras",
+      "piezas": 45
+    },
+    {
+      "codigo": "HX7BT",
+      "nombre": "HONOR X7B TPU CASE",
+      "archivo": "honor-x7b.webp",
+      "origen": "Honor X7b",
+      "fuente": "mascaras",
+      "piezas": 45
+    },
+    {
+      "codigo": "MTE20T",
+      "nombre": "MOTO E20 TPU CASE",
+      "archivo": "moto-e20.webp",
+      "origen": "Moto E20",
+      "fuente": "mascaras",
+      "piezas": 45
+    },
+    {
+      "codigo": "OPR14T",
+      "nombre": "OPPO RENO 14 TPU CASE",
+      "archivo": "oppo-reno14.webp",
+      "origen": "OPPO Reno14",
+      "fuente": "mascaras",
+      "piezas": 45
+    },
+    {
+      "codigo": "XR15CT",
+      "nombre": "XIAOMI REDMI 15C TPU CASE",
+      "archivo": "redmi-15c.webp",
+      "origen": "Redmi 15C",
+      "fuente": "mascaras",
+      "piezas": 45
+    },
+    {
+      "codigo": "MTG505GT",
+      "nombre": "MOTO G50 5G TPU CASE",
+      "archivo": "moto-g50-5g.webp",
+      "origen": "Moto G50 5G",
+      "fuente": "mascaras",
+      "piezas": 44
+    },
+    {
+      "codigo": "SGS22T",
+      "nombre": "GALAXY S22 TPU CASE",
+      "archivo": "galaxy-s22.webp",
+      "origen": "Galaxy S22+",
+      "fuente": "mascaras",
+      "piezas": 43
+    },
+    {
+      "codigo": "MTG14T",
+      "nombre": "MOTO G14 TPU CASE",
+      "archivo": "moto-g14.webp",
+      "origen": "Moto G14",
+      "fuente": "mascaras",
+      "piezas": 43
+    },
+    {
+      "codigo": "SA535GT",
+      "nombre": "GALAXY A53 5G TPU CASE",
+      "archivo": "galaxy-a53-5g.webp",
+      "origen": "Galaxy A53 5G",
+      "fuente": "mascaras",
+      "piezas": 42
+    },
+    {
+      "codigo": "HX7AT",
+      "nombre": "HONOR X7A TPU CASE",
+      "archivo": "honor-x7a.webp",
+      "origen": "Honor X7a",
+      "fuente": "mascaras",
+      "piezas": 42
+    },
+    {
+      "codigo": "MTG35T",
+      "nombre": "MOTO G35 TPU CASE",
+      "archivo": "moto-g35.webp",
+      "origen": "Moto G35",
+      "fuente": "mascaras",
+      "piezas": 42
+    },
+    {
+      "codigo": "OPR6LT",
+      "nombre": "OPPO RENO 6 LITE TPU CASE",
+      "archivo": "oppo-reno6-lite.webp",
+      "origen": "OPPO Reno6 Lite",
+      "fuente": "mascaras",
+      "piezas": 42
+    },
+    {
+      "codigo": "OPR5LT",
+      "nombre": "OPPO RENO 5 LITE TPU CASE",
+      "archivo": "oppo-reno5-lite.webp",
+      "origen": "OPPO Reno5 Lite",
+      "fuente": "mascaras",
+      "piezas": 40
+    },
+    {
+      "codigo": "I16ET",
+      "nombre": "IPHONE 16E TPU CASE",
+      "archivo": "iphone-16e.webp",
+      "origen": "iPhone 16e",
+      "fuente": "mascaras",
+      "piezas": 39
+    },
+    {
+      "codigo": "MTG22T",
+      "nombre": "MOTO G22 TPU CASE",
+      "archivo": "moto-g22.webp",
+      "origen": "Moto G22",
+      "fuente": "mascaras",
+      "piezas": 39
+    },
+    {
+      "codigo": "MTG34T",
+      "nombre": "MOTO G34 TPU CASE",
+      "archivo": "moto-g34.webp",
+      "origen": "Moto G34",
+      "fuente": "mascaras",
+      "piezas": 39
+    },
+    {
+      "codigo": "XRN12ST",
+      "nombre": "XIAOMI NOTE 12S TPU CASE",
+      "archivo": "redmi-note-12s.webp",
+      "origen": "Redmi Note 12S",
+      "fuente": "mascaras",
+      "piezas": 39
+    },
+    {
+      "codigo": "HX8T",
+      "nombre": "HONOR X8 TPU CASE",
+      "archivo": "honor-x8.webp",
+      "origen": "Honor X8",
+      "fuente": "mascaras",
+      "piezas": 38
+    },
+    {
+      "codigo": "I16PM",
+      "nombre": "IPHONE 16 PRO MAX HARD CASE",
+      "archivo": "iphone-16-pro-max.webp",
+      "origen": "iPhone 16 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 38
+    },
+    {
+      "codigo": "MTE22IT",
+      "nombre": "MOTO E22i/E22 TPU CASE",
+      "archivo": "moto-e22i.webp",
+      "origen": "Moto E22i",
+      "fuente": "mascaras",
+      "piezas": 38
+    },
+    {
+      "codigo": "XR12T",
+      "nombre": "XIAOMI REDMI 12 TPU CASE",
+      "archivo": "redmi-12.webp",
+      "origen": "Redmi 12",
+      "fuente": "mascaras",
+      "piezas": 38
+    },
+    {
+      "codigo": "XRA3T",
+      "nombre": "XIAOMI REDMI A3 TPU CASE",
+      "archivo": "redmi-a3.webp",
+      "origen": "Redmi A3",
+      "fuente": "mascaras",
+      "piezas": 38
+    },
+    {
+      "codigo": "I143IN1-EPryekphsYpQ",
+      "nombre": "IPHONE 14/13/15 3 IN 1",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 38
+    },
+    {
+      "codigo": "HM8LT",
+      "nombre": "HONOR MAGIC 8 LITE/X9D TPU CASE",
+      "archivo": "honor-magic8-lite.webp",
+      "origen": "Honor Magic8 Lite",
+      "fuente": "mascaras",
+      "piezas": 37
+    },
+    {
+      "codigo": "I16P3",
+      "nombre": "IPHONE 16 PRO 3 IN 1",
+      "archivo": "iphone-16-pro.webp",
+      "origen": "iPhone 16 Pro",
+      "fuente": "mascaras",
+      "piezas": 37
+    },
+    {
+      "codigo": "OPA6XT",
+      "nombre": "OPPO A6X TPU CASE",
+      "archivo": "oppo-a6x.webp",
+      "origen": "OPPO A6x",
+      "fuente": "mascaras",
+      "piezas": 37
+    },
+    {
+      "codigo": "OPA80T",
+      "nombre": "OPPO A80 TPU CASE",
+      "archivo": "oppo-a80.webp",
+      "origen": "OPPO A80",
+      "fuente": "mascaras",
+      "piezas": 37
+    },
+    {
+      "codigo": "VY04T",
+      "nombre": "VIVO Y04 4G/Y29S 5G TPU CASE",
+      "archivo": "vivo-y04.webp",
+      "origen": "Vivo Y04",
+      "fuente": "mascaras",
+      "piezas": 37
+    },
+    {
+      "codigo": "SA23T",
+      "nombre": "GALAXY A23 TPU CASE",
+      "archivo": "galaxy-a23.webp",
+      "origen": "Galaxy A23",
+      "fuente": "mascaras",
+      "piezas": 36
+    },
+    {
+      "codigo": "SGS23FET",
+      "nombre": "GALAXY S23 FE TPU CASE",
+      "archivo": "galaxy-s23-fe.webp",
+      "origen": "Galaxy S23 FE",
+      "fuente": "mascaras",
+      "piezas": 36
+    },
+    {
+      "codigo": "HY9ST",
+      "nombre": "HUAWEI Y9S TPU CASE",
+      "archivo": "huawei-y9s.webp",
+      "origen": "Huawei Y9s",
+      "fuente": "mascaras",
+      "piezas": 36
+    },
+    {
+      "codigo": "MTG85T",
+      "nombre": "MOTO G85 TPU CASE",
+      "archivo": "moto-g85.webp",
+      "origen": "Moto G85",
+      "fuente": "mascaras",
+      "piezas": 36
+    },
+    {
+      "codigo": "SGA54",
+      "nombre": "GALAXY A54 HARD CASE",
+      "archivo": "galaxy-a54.webp",
+      "origen": "Galaxy A54",
+      "fuente": "mascaras",
+      "piezas": 35
+    },
+    {
+      "codigo": "I17P3",
+      "nombre": "IPHONE 17 PRO 3 IN 1",
+      "archivo": "iphone-17-pro.webp",
+      "origen": "iPhone 17 Pro",
+      "fuente": "mascaras",
+      "piezas": 35
+    },
+    {
+      "codigo": "VY18T",
+      "nombre": "VIVO Y18/Y03 TPU CASE",
+      "archivo": "vivo-y18.webp",
+      "origen": "Vivo Y18",
+      "fuente": "mascaras",
+      "piezas": 35
+    },
+    {
+      "codigo": "SA335GT",
+      "nombre": "GALAXY A33 5G TPU CASE",
+      "archivo": "galaxy-a33-5g.webp",
+      "origen": "Galaxy A33 5G",
+      "fuente": "mascaras",
+      "piezas": 34
+    },
+    {
+      "codigo": "SGS20FET",
+      "nombre": "GALAXY S20 FE TPU CASE",
+      "archivo": "galaxy-s20-fe.webp",
+      "origen": "Galaxy S20 FE",
+      "fuente": "mascaras",
+      "piezas": 34
+    },
+    {
+      "codigo": "HY9AT",
+      "nombre": "HUAWEI Y9A TPU CASE",
+      "archivo": "huawei-y9a.webp",
+      "origen": "Huawei Y9a",
+      "fuente": "mascaras",
+      "piezas": 34
+    },
+    {
+      "codigo": "I15P3",
+      "nombre": "IPHONE 15 PRO 3 IN 1",
+      "archivo": "iphone-15-pro.webp",
+      "origen": "iPhone 15 Pro",
+      "fuente": "mascaras",
+      "piezas": 34
+    },
+    {
+      "codigo": "SGS23T",
+      "nombre": "GALAXY S23 TPU CASE",
+      "archivo": "galaxy-s23.webp",
+      "origen": "Galaxy S23+",
+      "fuente": "mascaras",
+      "piezas": 33
+    },
+    {
+      "codigo": "I16PLT",
+      "nombre": "IPHONE 16 PLUS TPU CASE",
+      "archivo": "iphone-16-plus.webp",
+      "origen": "iPhone 16 Plus",
+      "fuente": "mascaras",
+      "piezas": 33
+    },
+    {
+      "codigo": "OPA79T",
+      "nombre": "OPPO A79 TPU CASE",
+      "archivo": "oppo-a79.webp",
+      "origen": "OPPO A79",
+      "fuente": "mascaras",
+      "piezas": 33
+    },
+    {
+      "codigo": "SGA21ST",
+      "nombre": "GALAXY A21S TPU CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 32
+    },
+    {
+      "codigo": "H400LT",
+      "nombre": "HONOR 400 LITE TPU CASE",
+      "archivo": "honor-400-lite.webp",
+      "origen": "Honor 400 Lite",
+      "fuente": "mascaras",
+      "piezas": 32
+    },
+    {
+      "codigo": "I15PL3",
+      "nombre": "IPHONE 15 PLUS/14 PLUS 3 IN 1",
+      "archivo": "iphone-15-plus.webp",
+      "origen": "iPhone 15 Plus",
+      "fuente": "mascaras",
+      "piezas": 32
+    },
+    {
+      "codigo": "VY36T",
+      "nombre": "VIVO Y36 TPU CASE",
+      "archivo": "vivo-y36.webp",
+      "origen": "Vivo Y36",
+      "fuente": "mascaras",
+      "piezas": 32
+    },
+    {
+      "codigo": "XN124GT",
+      "nombre": "XIAOMI NOTE 12 4G TPU CASE",
+      "archivo": "redmi-note-12-4g.webp",
+      "origen": "Redmi Note 12 4G",
+      "fuente": "mascaras",
+      "piezas": 32
+    },
+    {
+      "codigo": "I14PM3N1-ieEggLOdkJH",
+      "nombre": "IPHONE 14 PRO MAX 3 IN 1",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 32
+    },
+    {
+      "codigo": "OPA16T",
+      "nombre": "OPPO A16 TPU CASE",
+      "archivo": "oppo-a16.webp",
+      "origen": "OPPO A16",
+      "fuente": "mascaras",
+      "piezas": 31
+    },
+    {
+      "codigo": "MTG71T",
+      "nombre": "MOTO G71 TPU CASE",
+      "archivo": "moto-g71.webp",
+      "origen": "Moto G71",
+      "fuente": "mascaras",
+      "piezas": 30
+    },
+    {
+      "codigo": "I14PMT-NKWONQnWTUSOw",
+      "nombre": "IPHONE 14 PRO MAX TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 30
+    },
+    {
+      "codigo": "I14PM",
+      "nombre": "IPHONE 14 PRO MAX HARD CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 29
+    },
+    {
+      "codigo": "I15",
+      "nombre": "IPHONE 15 HARD CASE",
+      "archivo": "iphone-15.webp",
+      "origen": "iPhone 15",
+      "fuente": "mascaras",
+      "piezas": 29
+    },
+    {
+      "codigo": "I173",
+      "nombre": "IPHONE 17 3 IN 1",
+      "archivo": "iphone-17.webp",
+      "origen": "iPhone 17",
+      "fuente": "mascaras",
+      "piezas": 29
+    },
+    {
+      "codigo": "XN13P5GT",
+      "nombre": "XIAOMI NOTE 13 PRO 5G/POCCO X6 5G TPU CASE",
+      "archivo": "redmi-note-13-pro-4g.webp",
+      "origen": "Redmi Note 13 Pro 4G",
+      "fuente": "mascaras",
+      "piezas": 29
+    },
+    {
+      "codigo": "OPR74GT-gvWJBIYguNfd",
+      "nombre": "OPPO RENO 7 4G TPU CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 29
+    },
+    {
+      "codigo": "HX5PT",
+      "nombre": "HONOR X5 PLUS TPU CASE",
+      "archivo": "honor-x5-plus.webp",
+      "origen": "Honor X5 Plus",
+      "fuente": "mascaras",
+      "piezas": 28
+    },
+    {
+      "codigo": "MTED50NT",
+      "nombre": "MOTO EDGE 50 NEO TPU CASE",
+      "archivo": "moto-edge-50-neo.webp",
+      "origen": "Moto Edge 50 Neo",
+      "fuente": "mascaras",
+      "piezas": 28
+    },
+    {
+      "codigo": "OPA53T",
+      "nombre": "OPPO A53 TPU CASE",
+      "archivo": "oppo-a53.webp",
+      "origen": "OPPO A53",
+      "fuente": "mascaras",
+      "piezas": 28
+    },
+    {
+      "codigo": "SGS21UT",
+      "nombre": "GALAXY S21 ULTRA TPU CASE",
+      "archivo": "galaxy-s21-ultra.webp",
+      "origen": "Galaxy S21 Ultra",
+      "fuente": "mascaras",
+      "piezas": 27
+    },
+    {
+      "codigo": "HX7T",
+      "nombre": "HONOR X7 TPU CASE",
+      "archivo": "honor-x7.webp",
+      "origen": "Honor X7",
+      "fuente": "mascaras",
+      "piezas": 27
+    },
+    {
+      "codigo": "MTG42T",
+      "nombre": "MOTO G42 TPU CASE",
+      "archivo": "moto-g42.webp",
+      "origen": "Moto G42",
+      "fuente": "mascaras",
+      "piezas": 27
+    },
+    {
+      "codigo": "I15PM3N1-OSZUdWqEJyX",
+      "nombre": "IPHONE 15 PRO MAX 3 IN 1",
+      "archivo": "iphone-15-pro-max.webp",
+      "origen": "iPhone 15 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 27
+    },
+    {
+      "codigo": "SGA54T-CtsmxbjjvWtRt",
+      "nombre": "GALAXY A54 TPU CASE",
+      "archivo": "galaxy-a54.webp",
+      "origen": "Galaxy A54",
+      "fuente": "mascaras",
+      "piezas": 27
+    },
+    {
+      "codigo": "SGA225GT",
+      "nombre": "GALAXY A22 5G TPU CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 26
+    },
+    {
+      "codigo": "HX8CT",
+      "nombre": "HONOR X8C TPU CASE",
+      "archivo": "honor-x8c.webp",
+      "origen": "Honor X8c",
+      "fuente": "mascaras",
+      "piezas": 26
+    },
+    {
+      "codigo": "MTE32T",
+      "nombre": "MOTO E32 TPU CASE",
+      "archivo": "moto-e32.webp",
+      "origen": "Moto E32",
+      "fuente": "mascaras",
+      "piezas": 26
+    },
+    {
+      "codigo": "MTG515GT",
+      "nombre": "MOTO G51 5G TPU CASE",
+      "archivo": "moto-g51-5g.webp",
+      "origen": "Moto G51 5G",
+      "fuente": "mascaras",
+      "piezas": 26
+    },
+    {
+      "codigo": "MTG60ST",
+      "nombre": "MOTO G60S TPU CASE",
+      "archivo": "moto-g60s.webp",
+      "origen": "Moto G60s",
+      "fuente": "mascaras",
+      "piezas": 26
+    },
+    {
+      "codigo": "OPR13T",
+      "nombre": "OPPO RENO 13 TPU CASE",
+      "archivo": "oppo-reno13.webp",
+      "origen": "OPPO Reno13",
+      "fuente": "mascaras",
+      "piezas": 26
+    },
+    {
+      "codigo": "VY19ST",
+      "nombre": "VIVO Y19S TPU CASE",
+      "archivo": "vivo-y19s.webp",
+      "origen": "Vivo Y19s",
+      "fuente": "mascaras",
+      "piezas": 26
+    },
+    {
+      "codigo": "SGA353",
+      "nombre": "SAMSUNG A35 3 IN 1",
+      "archivo": "galaxy-a35.webp",
+      "origen": "Galaxy A35",
+      "fuente": "mascaras",
+      "piezas": 26
+    },
+    {
+      "codigo": "SGA153",
+      "nombre": "GALAXY A15 3 IN 1",
+      "archivo": "galaxy-a15.webp",
+      "origen": "Galaxy A15",
+      "fuente": "mascaras",
+      "piezas": 25
+    },
+    {
+      "codigo": "SGA22T",
+      "nombre": "GALAXY A22 TPU CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 25
+    },
+    {
+      "codigo": "SGA563",
+      "nombre": "GALAXY A56/A36/A37 3 IN 1",
+      "archivo": "galaxy-a56.webp",
+      "origen": "Galaxy A56",
+      "fuente": "mascaras",
+      "piezas": 25
+    },
+    {
+      "codigo": "I16",
+      "nombre": "IPHONE 16 HARD CASE",
+      "archivo": "iphone-16.webp",
+      "origen": "iPhone 16",
+      "fuente": "mascaras",
+      "piezas": 25
+    },
+    {
+      "codigo": "MTE13T",
+      "nombre": "MOTO E13 TPU CASE",
+      "archivo": "moto-e13.webp",
+      "origen": "Moto E13",
+      "fuente": "mascaras",
+      "piezas": 25
+    },
+    {
+      "codigo": "XR10CT",
+      "nombre": "XIAOMI REDMI 10C/POCCO C40 TPU CASE",
+      "archivo": "redmi-10c.webp",
+      "origen": "Redmi 10C",
+      "fuente": "mascaras-blanco",
+      "piezas": 25
+    },
+    {
+      "codigo": "SGZF6T",
+      "nombre": "GALAXY Z FLIP 6 TPU CASE",
+      "archivo": "galaxy-z-flip6.webp",
+      "origen": "Galaxy Z Flip6",
+      "fuente": "mascaras",
+      "piezas": 24
+    },
+    {
+      "codigo": "HX7DT",
+      "nombre": "HONOR X7D/400 SMART TPU CASE",
+      "archivo": "honor-x7d.webp",
+      "origen": "Honor X7d",
+      "fuente": "mascaras",
+      "piezas": 24
+    },
+    {
+      "codigo": "I15PM",
+      "nombre": "IPHONE 15 PRO MAX HARD CASE",
+      "archivo": "iphone-15-pro-max.webp",
+      "origen": "iPhone 15 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 24
+    },
+    {
+      "codigo": "MTE20LT",
+      "nombre": "MOTO EDGE 20 LITE TPU CASE",
+      "archivo": "moto-edge-20-lite.webp",
+      "origen": "Moto Edge 20 Lite",
+      "fuente": "mascaras",
+      "piezas": 24
+    },
+    {
+      "codigo": "VV50L5GT",
+      "nombre": "VIVO V50 LITE 5G TPU CASE",
+      "archivo": "vivo-v50-lite.webp",
+      "origen": "Vivo V50 Lite",
+      "fuente": "mascaras",
+      "piezas": 24
+    },
+    {
+      "codigo": "VY22T",
+      "nombre": "VIVO Y22/Y22S TPU CASE",
+      "archivo": "vivo-y22s.webp",
+      "origen": "Vivo Y22s",
+      "fuente": "mascaras",
+      "piezas": 24
+    },
+    {
+      "codigo": "XN11PT",
+      "nombre": "XIAOMI REDMI NOTE 11 PRO TPU CASE",
+      "archivo": "redmi-note-11-pro.webp",
+      "origen": "Redmi Note 11 Pro",
+      "fuente": "mascaras",
+      "piezas": 24
+    },
+    {
+      "codigo": "OPA57T-xbuYVlAXlxeqe",
+      "nombre": "OPPO A57 / A77 TPU CASE",
+      "archivo": "oppo-a57.webp",
+      "origen": "OPPO A57",
+      "fuente": "mascaras",
+      "piezas": 24
+    },
+    {
+      "codigo": "SA52T-VgSXxOxGlXVsrg",
+      "nombre": "GALAXY A52/A52S TPU CASE",
+      "archivo": "galaxy-a52.webp",
+      "origen": "Galaxy A52",
+      "fuente": "mascaras",
+      "piezas": 24
+    },
+    {
+      "codigo": "SGS21FET",
+      "nombre": "GALAXY S21 FE TPU CASE",
+      "archivo": "galaxy-s21-fe.webp",
+      "origen": "Galaxy S21 FE",
+      "fuente": "mascaras",
+      "piezas": 23
+    },
+    {
+      "codigo": "MTG86T",
+      "nombre": "MOTO G86 TPU CASE",
+      "archivo": "moto-g86.webp",
+      "origen": "Moto G86",
+      "fuente": "mascaras",
+      "piezas": 23
+    },
+    {
+      "codigo": "VV30L4GT",
+      "nombre": "VIVO V30 LITE 4G TPU CASE",
+      "archivo": "vivo-v30-lite-4g.webp",
+      "origen": "Vivo V30 Lite 4G",
+      "fuente": "mascaras",
+      "piezas": 23
+    },
+    {
+      "codigo": "XR12CT",
+      "nombre": "XIAOMI REDMI 12C TPU CASE",
+      "archivo": "redmi-12c.webp",
+      "origen": "Redmi 12C",
+      "fuente": "mascaras",
+      "piezas": 23
+    },
+    {
+      "codigo": "SGA14T-iJoDcqIoBrvDi",
+      "nombre": "GALAXY A14 TPU CASE",
+      "archivo": "galaxy-a14.webp",
+      "origen": "Galaxy A14",
+      "fuente": "mascaras",
+      "piezas": 23
+    },
+    {
+      "codigo": "I15P",
+      "nombre": "IPHONE 15 PRO HARD CASE",
+      "archivo": "iphone-15-pro.webp",
+      "origen": "iPhone 15 Pro",
+      "fuente": "mascaras",
+      "piezas": 22
+    },
+    {
+      "codigo": "VY20T",
+      "nombre": "VIVO Y20/Y11S TPU CASE",
+      "archivo": "vivo-y20.webp",
+      "origen": "Vivo Y20",
+      "fuente": "mascaras",
+      "piezas": 22
+    },
+    {
+      "codigo": "SGS25T",
+      "nombre": "GALAXY S25 TPU CASE",
+      "archivo": "galaxy-s25.webp",
+      "origen": "Galaxy S25+",
+      "fuente": "mascaras",
+      "piezas": 21
+    },
+    {
+      "codigo": "SZF6T",
+      "nombre": "GALAXY Z FOLD 6 TPU CASE",
+      "archivo": "galaxy-z-fold6.webp",
+      "origen": "Galaxy Z Fold6",
+      "fuente": "mascaras",
+      "piezas": 21
+    },
+    {
+      "codigo": "HX5BT",
+      "nombre": "HONOR X5B/X5B PLUS TPU CASE",
+      "archivo": "honor-x5b.webp",
+      "origen": "Honor X5b",
+      "fuente": "mascaras",
+      "piezas": 21
+    },
+    {
+      "codigo": "I16P",
+      "nombre": "IPHONE 16 PRO HARD CASE",
+      "archivo": "iphone-16-pro.webp",
+      "origen": "iPhone 16 Pro",
+      "fuente": "mascaras",
+      "piezas": 21
+    },
+    {
+      "codigo": "MTED70T",
+      "nombre": "MOTO EDGE 70 TPU CASE",
+      "archivo": "moto-edge-70.webp",
+      "origen": "Moto Edge 70",
+      "fuente": "mascaras",
+      "piezas": 21
+    },
+    {
+      "codigo": "OPRN60T",
+      "nombre": "OPPO REALME NOTE 60 TPU CASE",
+      "archivo": "realme-note-60.webp",
+      "origen": "Realme Note 60",
+      "fuente": "mascaras",
+      "piezas": 21
+    },
+    {
+      "codigo": "XPX5PT",
+      "nombre": "XIAOMI POCCO X5 PRO/NOTE 12 PRO 5G TPU CASE",
+      "archivo": "poco-x5-pro.webp",
+      "origen": "Poco X5 Pro",
+      "fuente": "mascaras",
+      "piezas": 21
+    },
+    {
+      "codigo": "XPX6PT",
+      "nombre": "XIAOMI POCCO X6 PRO TPU CASE",
+      "archivo": "poco-x6-pro.webp",
+      "origen": "Poco X6 Pro",
+      "fuente": "mascaras",
+      "piezas": 21
+    },
+    {
+      "codigo": "XR9AT",
+      "nombre": "XIAOMI REDMI 9A TPU CASE",
+      "archivo": "redmi-9a.webp",
+      "origen": "Redmi 9A",
+      "fuente": "mascaras",
+      "piezas": 21
+    },
+    {
+      "codigo": "SGS21T",
+      "nombre": "GALAXY S21 TPU CASE",
+      "archivo": "galaxy-s21.webp",
+      "origen": "Galaxy S21",
+      "fuente": "mascaras",
+      "piezas": 20
+    },
+    {
+      "codigo": "H70T",
+      "nombre": "HONOR 70 TPU CASE",
+      "archivo": "honor-70.webp",
+      "origen": "Honor 70",
+      "fuente": "mascaras",
+      "piezas": 20
+    },
+    {
+      "codigo": "H90LT",
+      "nombre": "HONOR 90 LITE TPU CASE",
+      "archivo": "honor-90-lite.webp",
+      "origen": "Honor 90 Lite",
+      "fuente": "mascaras",
+      "piezas": 20
+    },
+    {
+      "codigo": "H90T",
+      "nombre": "HONOR 90 TPU CASE",
+      "archivo": "honor-90.webp",
+      "origen": "Honor 90",
+      "fuente": "mascaras",
+      "piezas": 20
+    },
+    {
+      "codigo": "MTED50T",
+      "nombre": "MOTO EDGE 50 TPU CASE",
+      "archivo": "moto-edge-50.webp",
+      "origen": "Moto Edge 50",
+      "fuente": "mascaras",
+      "piezas": 20
+    },
+    {
+      "codigo": "MTG32T",
+      "nombre": "MOTO G32 TPU CASE",
+      "archivo": "moto-g32.webp",
+      "origen": "Moto G32",
+      "fuente": "mascaras",
+      "piezas": 20
+    },
+    {
+      "codigo": "OPRC63T",
+      "nombre": "OPPO REALME C63/C61 TPU CASE",
+      "archivo": "realme-c63.webp",
+      "origen": "Realme C63",
+      "fuente": "mascaras",
+      "piezas": 20
+    },
+    {
+      "codigo": "I14",
+      "nombre": "IPHONE 14 HARD CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 19
+    },
+    {
+      "codigo": "MTED40T",
+      "nombre": "MOTO EDGE 40 TPU CASE",
+      "archivo": "moto-edge-40.webp",
+      "origen": "Moto Edge 40",
+      "fuente": "mascaras",
+      "piezas": 19
+    },
+    {
+      "codigo": "OPRC67T",
+      "nombre": "OPPO REALME C67 TPU CASE",
+      "archivo": "realme-c67.webp",
+      "origen": "Realme C67",
+      "fuente": "mascaras",
+      "piezas": 19
+    },
+    {
+      "codigo": "OPRC75T",
+      "nombre": "OPPO REALME C75 TPU CASE",
+      "archivo": "realme-c75.webp",
+      "origen": "Realme C75",
+      "fuente": "mascaras",
+      "piezas": 19
+    },
+    {
+      "codigo": "XN9T",
+      "nombre": "XIAOMI NOTE 9 TPU CASE",
+      "archivo": "redmi-note-9.webp",
+      "origen": "Redmi Note 9",
+      "fuente": "mascaras",
+      "piezas": 19
+    },
+    {
+      "codigo": "SGA37T",
+      "nombre": "GALAXY A37 TPU CASE",
+      "archivo": "galaxy-a37.webp",
+      "origen": "Galaxy A37",
+      "fuente": "mascaras",
+      "piezas": 18
+    },
+    {
+      "codigo": "SGS24T",
+      "nombre": "GALAXY S24 TPU CASE",
+      "archivo": "galaxy-s24.webp",
+      "origen": "Galaxy S24+",
+      "fuente": "mascaras",
+      "piezas": 18
+    },
+    {
+      "codigo": "SGS25FET",
+      "nombre": "GALAXY S25 FE TPU CASE",
+      "archivo": "galaxy-s25-fe.webp",
+      "origen": "Galaxy S25 FE",
+      "fuente": "mascaras",
+      "piezas": 18
+    },
+    {
+      "codigo": "MTG31T",
+      "nombre": "MOTO G31 TPU CASE",
+      "archivo": "moto-g31.webp",
+      "origen": "Moto G31",
+      "fuente": "mascaras",
+      "piezas": 18
+    },
+    {
+      "codigo": "VY33T",
+      "nombre": "VIVO Y33/Y53S/Y51(2020) TPU CASE",
+      "archivo": "vivo-y33.webp",
+      "origen": "Vivo Y33",
+      "fuente": "mascaras",
+      "piezas": 18
+    },
+    {
+      "codigo": "XRN15P5GT",
+      "nombre": "XIAOMI NOTE 15 PRO 5G TPU CASE",
+      "archivo": "redmi-note-15-pro-5g.webp",
+      "origen": "Redmi Note 15 Pro 5G",
+      "fuente": "mascaras",
+      "piezas": 18
+    },
+    {
+      "codigo": "SZF5T",
+      "nombre": "GALAXY Z FOLD 5 TPU CASE",
+      "archivo": "galaxy-z-fold5.webp",
+      "origen": "Galaxy Z Fold5",
+      "fuente": "mascaras",
+      "piezas": 17
+    },
+    {
+      "codigo": "I16E3",
+      "nombre": "IPHONE 16E 3 IN 1",
+      "archivo": "iphone-16e.webp",
+      "origen": "iPhone 16e",
+      "fuente": "mascaras",
+      "piezas": 17
+    },
+    {
+      "codigo": "MTED20T",
+      "nombre": "MOTO EDGE 20 TPU CASE",
+      "archivo": "moto-edge-20.webp",
+      "origen": "Moto Edge 20",
+      "fuente": "mascaras",
+      "piezas": 17
+    },
+    {
+      "codigo": "OPA15T",
+      "nombre": "OPPO A15 TPU CASE",
+      "archivo": "oppo-a15.webp",
+      "origen": "OPPO A15",
+      "fuente": "mascaras",
+      "piezas": 17
+    },
+    {
+      "codigo": "XR9CT",
+      "nombre": "XIAOMI REDMI 9C/10A TPU CASE",
+      "archivo": "redmi-9c.webp",
+      "origen": "Redmi 9C",
+      "fuente": "mascaras",
+      "piezas": 17
+    },
+    {
+      "codigo": "I14PT-wRWCqTJKSVqHYz",
+      "nombre": "IPHONE 14 PRO TPU CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 17
+    },
+    {
+      "codigo": "I14T-UdIlkEywscvDgQd",
+      "nombre": "IPHONE 14 TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 17
+    },
+    {
+      "codigo": "OPA17T-yxvgLeIPVNDlL",
+      "nombre": "OPPO A17 TPU CASE",
+      "archivo": "oppo-a17.webp",
+      "origen": "OPPO A17",
+      "fuente": "mascaras",
+      "piezas": 17
+    },
+    {
+      "codigo": "XRN11T-znuYUkUqNBOMV",
+      "nombre": "XIAOMI NOTE 11/NOTE 11S TPU CASE",
+      "archivo": "redmi-note-11.webp",
+      "origen": "Redmi Note 11",
+      "fuente": "mascaras",
+      "piezas": 17
+    },
+    {
+      "codigo": "SGA50T",
+      "nombre": "GALAXY A50/A30S TPU CASE",
+      "archivo": "galaxy-a50.webp",
+      "origen": "Galaxy A50",
+      "fuente": "mascaras",
+      "piezas": 16
+    },
+    {
+      "codigo": "MTED60PT",
+      "nombre": "MOTO EDGE 60 PRO TPU CASE",
+      "archivo": "moto-edge-60-pro-5g.webp",
+      "origen": "Moto Edge 60 Pro 5G",
+      "fuente": "mascaras",
+      "piezas": 16
+    },
+    {
+      "codigo": "MTG72T",
+      "nombre": "MOTO G72 TPU CASE",
+      "archivo": "moto-g72.webp",
+      "origen": "Moto G72",
+      "fuente": "mascaras",
+      "piezas": 16
+    },
+    {
+      "codigo": "XR15T",
+      "nombre": "XIAOMI REDMI 15 TPU CASE",
+      "archivo": "redmi-15.webp",
+      "origen": "Redmi 15",
+      "fuente": "mascaras",
+      "piezas": 16
+    },
+    {
+      "codigo": "HN9SET",
+      "nombre": "HUAWEI NOVA 9SE TPU CASE",
+      "archivo": "huawei-nova-9-se.webp",
+      "origen": "Huawei nova 9 SE",
+      "fuente": "mascaras",
+      "piezas": 15
+    },
+    {
+      "codigo": "XRA1T",
+      "nombre": "XIAOMI A1/A2 TPU CASE",
+      "archivo": "redmi-a1.webp",
+      "origen": "Redmi A1",
+      "fuente": "mascaras",
+      "piezas": 15
+    },
+    {
+      "codigo": "XPX4PT",
+      "nombre": "XIAOMI POCCO X4 PRO TPU CASE",
+      "archivo": "poco-x4-pro.webp",
+      "origen": "Poco X4 Pro",
+      "fuente": "mascaras",
+      "piezas": 15
+    },
+    {
+      "codigo": "MTG13T",
+      "nombre": "MOTO G13/G23 TPU CASE",
+      "archivo": "moto-g13.webp",
+      "origen": "Moto G13",
+      "fuente": "mascaras",
+      "piezas": 15
+    },
+    {
+      "codigo": "SA324GT-jxQzEkopDyDA",
+      "nombre": "GALAXY A32 4G TPU CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 15
+    },
+    {
+      "codigo": "OPR74GT-fsjrWNQPzIAp",
+      "nombre": "OPPO RENO 7 4G TPU CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 15
+    },
+    {
+      "codigo": "SGZF5T",
+      "nombre": "GALAXY Z FLIP 5 TPU CASE",
+      "archivo": "galaxy-z-flip5.webp",
+      "origen": "Galaxy Z Flip5",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "I14P",
+      "nombre": "IPHONE 14 PRO HARD CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "I16PL",
+      "nombre": "IPHONE 16 PLUS HARD CASE",
+      "archivo": "iphone-16-plus.webp",
+      "origen": "iPhone 16 Plus",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "MTG41T",
+      "nombre": "MOTO G41 TPU CASE",
+      "archivo": "moto-g41.webp",
+      "origen": "Moto G41",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "VY17ST",
+      "nombre": "VIVO Y17S TPU CASE",
+      "archivo": "vivo-y17s.webp",
+      "origen": "Vivo Y17s",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "XN9ST",
+      "nombre": "XIAOMI NOTE 9S/NOTE 9 PRO TPU CASE",
+      "archivo": "redmi-note-9s.webp",
+      "origen": "Redmi Note 9S",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "OPR5LT-sTUfPRpceWRmH",
+      "nombre": "OPPO RENO 5 LITE TPU CASE",
+      "archivo": "oppo-reno5-lite.webp",
+      "origen": "OPPO Reno5 Lite",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "SA52T-bioZrbCxBhyVgk",
+      "nombre": "GALAXY A52 TPU CASE",
+      "archivo": "galaxy-a52.webp",
+      "origen": "Galaxy A52",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "I15PMT-QgtkbXVLOXssV",
+      "nombre": "IPHONE 15 PRO MAX TPU CASE",
+      "archivo": "iphone-15-pro-max.webp",
+      "origen": "iPhone 15 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "I15PT-eiXTgIeXqVwbmk",
+      "nombre": "IPHONE 15 PRO TPU CASE",
+      "archivo": "iphone-15-pro.webp",
+      "origen": "iPhone 15 Pro",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "MTG52T-VzkoHNPjZzfYS",
+      "nombre": "MOTO G52 TPU CASE",
+      "archivo": "moto-g52.webp",
+      "origen": "Moto G52",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "MTG84T-EcqGWpCMgySFG",
+      "nombre": "MOTO G84 TPU CASE",
+      "archivo": "moto-g84.webp",
+      "origen": "Moto G84",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "OPR10T-nOXlClKbcioxY",
+      "nombre": "OPPO RENO 10 TPU CASE",
+      "archivo": "oppo-reno10.webp",
+      "origen": "OPPO Reno10",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "SA535GT-NNzOmapuiVtJ",
+      "nombre": "GALAXY A53 5G TPU CASE",
+      "archivo": "galaxy-a53-5g.webp",
+      "origen": "Galaxy A53 5G",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "SGS23U3N1-mVvGHBloxt",
+      "nombre": "GALAXY S23 ULTRA 3 IN 1",
+      "archivo": "galaxy-s23-ultra.webp",
+      "origen": "Galaxy S23 Ultra",
+      "fuente": "mascaras",
+      "piezas": 14
+    },
+    {
+      "codigo": "HY94T",
+      "nombre": "HUAWEI Y9 2019 TPU CASE",
+      "archivo": "huawei-y9-2019.webp",
+      "origen": "Huawei Y9 2019",
+      "fuente": "mascaras",
+      "piezas": 13
+    },
+    {
+      "codigo": "MTED50PT",
+      "nombre": "MOTO EDGE 50 PRO TPU CASE",
+      "archivo": "moto-edge-50-pro.webp",
+      "origen": "Moto Edge 50 Pro",
+      "fuente": "mascaras",
+      "piezas": 13
+    },
+    {
+      "codigo": "VY28T",
+      "nombre": "VIVO Y28 TPU CASE",
+      "archivo": "vivo-y28.webp",
+      "origen": "Vivo Y28",
+      "fuente": "mascaras",
+      "piezas": 13
+    },
+    {
+      "codigo": "XRN135GT",
+      "nombre": "XIAOMI NOTE 13 5G TPU CASE",
+      "archivo": "redmi-note-13-4g.webp",
+      "origen": "Redmi Note 13 4G",
+      "fuente": "mascaras",
+      "piezas": 13
+    },
+    {
+      "codigo": "XPX7PT",
+      "nombre": "XIAOMI POCCO X7 PRO TPU CASE",
+      "archivo": "poco-x7-pro.webp",
+      "origen": "Poco X7 Pro",
+      "fuente": "mascaras",
+      "piezas": 13
+    },
+    {
+      "codigo": "SA52T-oyJaxkQwqExxEH",
+      "nombre": "GALAXY A52/A52S TPU CASE",
+      "archivo": "galaxy-a52.webp",
+      "origen": "Galaxy A52",
+      "fuente": "mascaras",
+      "piezas": 13
+    },
+    {
+      "codigo": "SGA34T-DBvHpDHKDSmto",
+      "nombre": "GALAXY A34 TPU CASE",
+      "archivo": "galaxy-a34.webp",
+      "origen": "Galaxy A34",
+      "fuente": "mascaras",
+      "piezas": 13
+    },
+    {
+      "codigo": "XR9AT-TROSiLtDKAQzzD",
+      "nombre": "XIAOMI REDMI 9A TPU CASE",
+      "archivo": "redmi-9a.webp",
+      "origen": "Redmi 9A",
+      "fuente": "mascaras",
+      "piezas": 13
+    },
+    {
+      "codigo": "H50T",
+      "nombre": "HONOR 50/NOVA 9 TPU CASE",
+      "archivo": "honor-50.webp",
+      "origen": "Honor 50",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "I15PL",
+      "nombre": "IPHONE 15 PLUS/14 PLUS HARD CASE",
+      "archivo": "iphone-15-plus.webp",
+      "origen": "iPhone 15 Plus",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "MTRZ50T",
+      "nombre": "MOTO RAZR 50 TPU CASE",
+      "archivo": "motorola-razr-50.webp",
+      "origen": "Motorola Razr 50",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "OPRC55T",
+      "nombre": "OPPO REALME C55 TPU CASE",
+      "archivo": "realme-c55.webp",
+      "origen": "Realme C55",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "I14MT",
+      "nombre": "IPHONE 14 MORADO TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "MTG505GT-aZjojFEBAyz",
+      "nombre": "MOTOROLA G50 5G TPU CASE",
+      "archivo": "moto-g50-5g.webp",
+      "origen": "Moto G50 5G",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "XN11T-WOofuCTuhDXzLS",
+      "nombre": "XIAOMI NOTE 11 TPU CASE",
+      "archivo": "redmi-note-11.webp",
+      "origen": "Redmi Note 11",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "HX7AT-uardMzSobweCxY",
+      "nombre": "HONOR X7A TPU CASE",
+      "archivo": "honor-x7a.webp",
+      "origen": "Honor X7a",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "I14PLT-RphFpfLboioEO",
+      "nombre": "IPHONE 14 PLUS TPU CASE",
+      "archivo": "iphone-14-plus.webp",
+      "origen": "iPhone 14 Plus",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "MTE13T-jckBFXQrXXcRs",
+      "nombre": "MOTO E13 TPU CASE",
+      "archivo": "moto-e13.webp",
+      "origen": "Moto E13",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "MTED40NT-UYqvmOelmqG",
+      "nombre": "MOTO EDGE 40 NEO TPU CASE",
+      "archivo": "moto-edge-40-neo.webp",
+      "origen": "Moto Edge 40 Neo",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "SGA134GT-QDJNRPmskXF",
+      "nombre": "GALAXY A13 4G TPU CASE",
+      "archivo": "galaxy-a13.webp",
+      "origen": "Galaxy A13",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "XRN10T-KKFbGQepsKrdV",
+      "nombre": "XIAOMI NOTE 10/NOTE 10S TPU CASE",
+      "archivo": "redmi-note-10-5g.webp",
+      "origen": "Redmi Note 10 5G",
+      "fuente": "mascaras",
+      "piezas": 12
+    },
+    {
+      "codigo": "SGA04ST",
+      "nombre": "GALAXY A04S / A13 5G TPU CASE",
+      "archivo": "galaxy-a04s.webp",
+      "origen": "Galaxy A04s",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "SGA11T",
+      "nombre": "GALAXY A11 TPU CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "SZF4T",
+      "nombre": "GALAXY Z FOLD 4 TPU CASE",
+      "archivo": "galaxy-z-fold4.webp",
+      "origen": "Galaxy Z Fold4",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "MTED70FT",
+      "nombre": "MOTO EDGE 70 FUSION TPU CASE",
+      "archivo": "moto-edge-70-fusion.webp",
+      "origen": "Moto Edge 70 Fusion",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "VV214GT",
+      "nombre": "VIVO V21 4G TPU CASE",
+      "archivo": "vivo-v21.webp",
+      "origen": "Vivo V21",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "VY15ST",
+      "nombre": "VIVO Y15S/Y01 TPU CASE",
+      "archivo": "vivo-y15s.webp",
+      "origen": "Vivo Y15s",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "XPF65GT",
+      "nombre": "XIAOMI POCCO F6 5G TPU CASE",
+      "archivo": "poco-f6-5g.webp",
+      "origen": "Poco F6 5G",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "XR14TT",
+      "nombre": "XIAOMI REDMI 14T TPU CASE",
+      "archivo": "redmi-14t.webp",
+      "origen": "Redmi 14T",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "OPA16T-mylCFPncMhvUV",
+      "nombre": "OPPO A16 TPU CASE",
+      "archivo": "oppo-a16.webp",
+      "origen": "OPPO A16",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "SA535GT-GBqBxfLUvvoT",
+      "nombre": "GALAXY A53 5G TPU CASE",
+      "archivo": "galaxy-a53-5g.webp",
+      "origen": "Galaxy A53 5G",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "SGA12T-KRNmeHFTmGNoz",
+      "nombre": "GALAXY A12 TPU CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "SA324GT-mJuTXQQnZCiJ",
+      "nombre": "GALAXY A32 4G TPU CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "HX6T-BgFjnOrHFCNAYAU",
+      "nombre": "HONOR X6 TPU CASE",
+      "archivo": "honor-x6.webp",
+      "origen": "Honor X6",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "MTG505GT-XqVgsKhOcIF",
+      "nombre": "MOTO G50 5G TPU CASE",
+      "archivo": "moto-g50-5g.webp",
+      "origen": "Moto G50 5G",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "MTG60T-qNDPSVbYGbvjv",
+      "nombre": "MOTO G60 TPU CASE",
+      "archivo": "moto-g60.webp",
+      "origen": "Moto G60",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "SGS21FET-WGiLRHHpCHU",
+      "nombre": "GALAXY S21 FE TPU CASE",
+      "archivo": "galaxy-s21-fe.webp",
+      "origen": "Galaxy S21 FE",
+      "fuente": "mascaras",
+      "piezas": 11
+    },
+    {
+      "codigo": "SGA10T",
+      "nombre": "GALAXY A10 TPU CASE",
+      "archivo": "galaxy-a10.webp",
+      "origen": "Galaxy A10",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "SGS20UT",
+      "nombre": "GALAXY S20 ULTRA TPU CASE",
+      "archivo": "galaxy-s20-ultra.webp",
+      "origen": "Galaxy S20 Ultra",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "SGZF7T",
+      "nombre": "GALAXY Z FLIP 7 TPU CASE",
+      "archivo": "galaxy-z-flip7.webp",
+      "origen": "Galaxy Z Flip7",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "GZF7T",
+      "nombre": "GALAXY Z FOLD 7 TPU CASE",
+      "archivo": "galaxy-z-fold7.webp",
+      "origen": "Galaxy Z Fold7",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "MTE30FT",
+      "nombre": "MOTO EDGE 30 FUSION TPU CASE",
+      "archivo": "moto-edge-30-fusion.webp",
+      "origen": "Moto Edge 30 Fusion",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "OPA52T",
+      "nombre": "OPPO A52/A72/A92 TPU CASE",
+      "archivo": "oppo-a52.webp",
+      "origen": "OPPO A52",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "OPA60T",
+      "nombre": "OPPO A60 TPU CASE",
+      "archivo": "oppo-a60-5g.webp",
+      "origen": "OPPO A60 5G",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "OPFX9PT",
+      "nombre": "OPPO FIND X9 PRO TPU CASE",
+      "archivo": "oppo-find-x9-pro.webp",
+      "origen": "OPPO Find X9 Pro",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "XRN103",
+      "nombre": "XIAOMI NOTE 10 3 IN 1",
+      "archivo": "redmi-note-10-5g.webp",
+      "origen": "Redmi Note 10 5G",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "XPX3T",
+      "nombre": "XIAOMI POCCO X3/X3 PRO TPU CASE",
+      "archivo": "poco-x3.webp",
+      "origen": "Poco X3",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "XRA7PT",
+      "nombre": "XIAOMI REDMI A7 PRO TPU CASE",
+      "archivo": "redmi-a7-pro.webp",
+      "origen": "Redmi A7 Pro",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "OPR6LT-LsWWFtoCyIbyr",
+      "nombre": "OPPO RENO 6 LITE TPU CASE",
+      "archivo": "oppo-reno6-lite.webp",
+      "origen": "OPPO Reno6 Lite",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "XRN10T-SSAZiUmJTCjne",
+      "nombre": "XIAOMI REDMI NOTE 10 TPU CASE",
+      "archivo": "redmi-note-10-5g.webp",
+      "origen": "Redmi Note 10 5G",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "I14T-KIBpiuVxSswuFhj",
+      "nombre": "IPHONE 14 TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "SGS22UT-XKRknxqLuoeZ",
+      "nombre": "GALAXY S22 ULTRA TPU CASE",
+      "archivo": "galaxy-s22-ultra.webp",
+      "origen": "Galaxy S22 Ultra",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "I14PL-PTvYYrLqBUTLjL",
+      "nombre": "IPHONE 14 PLUS HARD CASE",
+      "archivo": "iphone-14-plus.webp",
+      "origen": "iPhone 14 Plus",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "I14P3N1-bicctOhGuyhl",
+      "nombre": "IPHONE 14 PRO 3 IN 1",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "MTE22IT-hQbVlrjMOxEd",
+      "nombre": "MOTO E22I TPU CASE",
+      "archivo": "moto-e22i.webp",
+      "origen": "Moto E22i",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "OPA16T-eaWlQVjimAlgo",
+      "nombre": "OPPO A16 TPU CASE",
+      "archivo": "oppo-a16.webp",
+      "origen": "OPPO A16",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "SGS20FET-TFhZNitOZRH",
+      "nombre": "GALAXY S20 FE TPU CASE",
+      "archivo": "galaxy-s20-fe.webp",
+      "origen": "Galaxy S20 FE",
+      "fuente": "mascaras",
+      "piezas": 10
+    },
+    {
+      "codigo": "SGA225G",
+      "nombre": "GALAXY A22 5G HARD CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "SGA30T",
+      "nombre": "GALAXY A30/A20 TPU CASE",
+      "archivo": "galaxy-a30.webp",
+      "origen": "Galaxy A30",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "SA324G",
+      "nombre": "GALAXY A32 4G HARD CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "SA51T",
+      "nombre": "GALAXY A51 TPU CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "SGS243",
+      "nombre": "GALAXY S24/S25 3 IN 1",
+      "archivo": "galaxy-s24.webp",
+      "origen": "Galaxy S24+",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "HY9S",
+      "nombre": "HUAWEI Y9S HARD CASE",
+      "archivo": "huawei-y9s.webp",
+      "origen": "Huawei Y9s",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "OPR14PT",
+      "nombre": "OPPO REALME 14 PRO TPU CASE",
+      "archivo": "realme-14-pro.webp",
+      "origen": "Realme 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "OPRN70T",
+      "nombre": "OPPO REALME NOTE 70 TPU CASE",
+      "archivo": "realme-note-70.webp",
+      "origen": "Realme Note 70",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "XRN13PPT",
+      "nombre": "XIAOMI NOTE 13 PRO PLUS TPU CASE",
+      "archivo": "redmi-note-13-pro-plus.webp",
+      "origen": "Redmi Note 13 Pro Plus",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "VV30LT",
+      "nombre": "VIVO V30 LITE 5G TPU CASE",
+      "archivo": "vivo-v30-lite-4g.webp",
+      "origen": "Vivo V30 Lite 4G",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "I14PMT-lOvgLkaitxaSy",
+      "nombre": "IPHONE 14 PRO MAX TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "MTG30T-TKTLPTGwSrmNz",
+      "nombre": "MOTO G30 TPU CASE",
+      "archivo": "moto-g30.webp",
+      "origen": "Moto G30",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "MTG60T-qEvOuimVcshCl",
+      "nombre": "MOTO G60 TPU CASE",
+      "archivo": "moto-g60.webp",
+      "origen": "Moto G60",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "OPA15T-pwAbeVhehcAZO",
+      "nombre": "OPPO A15 TPU CASE",
+      "archivo": "oppo-a15.webp",
+      "origen": "OPPO A15",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "OPA53T-FMGXGmBgFLHfw",
+      "nombre": "OPPO A53 TPU CASE",
+      "archivo": "oppo-a53.webp",
+      "origen": "OPPO A53",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "SA21ST-ESmZEryLFotVH",
+      "nombre": "GALAXY A21S TPU CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "SGA134GT-yKHmsZDnDbr",
+      "nombre": "GALAXY A13 4G TPU CASE",
+      "archivo": "galaxy-a13.webp",
+      "origen": "Galaxy A13",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "I14PT-yzfVCvUJaMuePv",
+      "nombre": "IPHONE 14 PRO TPU CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "HX8AT-XpfQmuaXbjlbxo",
+      "nombre": "HONOR X8A TPU CASE",
+      "archivo": "honor-x8a.webp",
+      "origen": "Honor X8a",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "MTG13T-STlauRLAMHXTQ",
+      "nombre": "MOTO G13/G23 TPU CASE",
+      "archivo": "moto-g13.webp",
+      "origen": "Moto G13",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "MTG30T-IlHOpjRIelrVy",
+      "nombre": "MOTO G30/G20 TPU CASE",
+      "archivo": "moto-g30.webp",
+      "origen": "Moto G30",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "SA335GT-NmasYdqEGZeM",
+      "nombre": "GALAXY A33 5G TPU CASE",
+      "archivo": "galaxy-a33-5g.webp",
+      "origen": "Galaxy A33 5G",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "SGS23UT-cJuRvvfaflfx",
+      "nombre": "GALAXY S23 ULTRA TPU CASE",
+      "archivo": "galaxy-s23-ultra.webp",
+      "origen": "Galaxy S23 Ultra",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "OPR74GT-xeuTtPgbrnwJ",
+      "nombre": "OPPO RENO 7 4G TPU CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 9
+    },
+    {
+      "codigo": "SA51",
+      "nombre": "GALAXY A51 HARD CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "SGS25ET",
+      "nombre": "GALAXY S25 EDGE TPU CASE",
+      "archivo": "galaxy-s25-edge.webp",
+      "origen": "Galaxy S25 Edge",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "SGS26T",
+      "nombre": "GALAXY S26 TPU CASE",
+      "archivo": "galaxy-s26.webp",
+      "origen": "Galaxy S26+",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "HP80T",
+      "nombre": "HUAWEI PURA 80 TPU CASE",
+      "archivo": "huawei-pura-80.webp",
+      "origen": "Huawei Pura 80",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "MTE40T",
+      "nombre": "MOTO E40 TPU CASE",
+      "archivo": "moto-e40.webp",
+      "origen": "Moto E40",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "OPA54",
+      "nombre": "OPPO A54 HARD CASE",
+      "archivo": "oppo-a54.webp",
+      "origen": "OPPO A54",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "XRN12PPT",
+      "nombre": "XIAOMI NOTE 12 PRO PLUS TPU CASE",
+      "archivo": "redmi-note-12-pro-plus.webp",
+      "origen": "Redmi Note 12 Pro Plus",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "XPF7T",
+      "nombre": "XIAOMI POCCO F7 TPU CASE",
+      "archivo": "poco-f7.webp",
+      "origen": "Poco F7",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "HY9ST-NLwhmqAuVWbQeU",
+      "nombre": "HUAWEI Y9S TPU CASE",
+      "archivo": "huawei-y9s.webp",
+      "origen": "Huawei Y9s",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "I14T-PfUEBtdMhTXRhKo",
+      "nombre": "IPHONE 14 TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "SA50T-YsiGInUAVoAWWj",
+      "nombre": "GALAXY A50 TPU CASE",
+      "archivo": "galaxy-a50.webp",
+      "origen": "Galaxy A50",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "XN9T-MBwzwrbZVFEuIEC",
+      "nombre": "XIAOMI NOTE 9 TPU CASE",
+      "archivo": "redmi-note-9.webp",
+      "origen": "Redmi Note 9",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "XPX3T-bcVUyaibqcarEv",
+      "nombre": "XIAOMI POCO X3 TPU CASE",
+      "archivo": "poco-x3.webp",
+      "origen": "Poco X3",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "XR9AT-SdQEXPzGXLCypn",
+      "nombre": "XIAOMI REDMI 9A TPU CASE",
+      "archivo": "redmi-9a.webp",
+      "origen": "Redmi 9A",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "SA535GT-QwWnITTsayhF",
+      "nombre": "GALAXY A53 5G TPU CASE",
+      "archivo": "galaxy-a53-5g.webp",
+      "origen": "Galaxy A53 5G",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "MTG52T-RHUUsKhoWmFxp",
+      "nombre": "MOTO G52 TPU CASE",
+      "archivo": "moto-g52.webp",
+      "origen": "Moto G52",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "SA52-acKSKRBLGvjaAoM",
+      "nombre": "GALAXY A52/A52S HARD CASE",
+      "archivo": "galaxy-a52.webp",
+      "origen": "Galaxy A52",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "HM5LT-HYQAAukVfjGEDo",
+      "nombre": "HONOR MAGIC 5 LITE TPU CASE",
+      "archivo": "honor-magic5-lite.webp",
+      "origen": "Honor Magic5 Lite",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "MTE20T-PMHKGMwQUUcrP",
+      "nombre": "MOTO E20 TPU CASE",
+      "archivo": "moto-e20.webp",
+      "origen": "Moto E20",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "OPA15T-mHbUfiEYFKHqX",
+      "nombre": "OPPO A15 TPU CASE",
+      "archivo": "oppo-a15.webp",
+      "origen": "OPPO A15",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "OPA53T-QtaTBdgMDdkfk",
+      "nombre": "OPPO A53 TPU CASE",
+      "archivo": "oppo-a53.webp",
+      "origen": "OPPO A53",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "OPR6LT-otayduowkoUxQ",
+      "nombre": "OPPO RENO 6 LITE TPU CASE",
+      "archivo": "oppo-reno6-lite.webp",
+      "origen": "OPPO Reno6 Lite",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "I14T-RWkUSbowLZfYHEy",
+      "nombre": "IPHONE 14 TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "OPR10T-oquVVnFhyZteH",
+      "nombre": "OPPO RENO 10 TPU CASE",
+      "archivo": "oppo-reno10.webp",
+      "origen": "OPPO Reno10",
+      "fuente": "mascaras",
+      "piezas": 8
+    },
+    {
+      "codigo": "H400PT",
+      "nombre": "HONOR 400 PRO TPU CASE",
+      "archivo": "honor-400-pro.webp",
+      "origen": "Honor 400 Pro",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "I14PMMT",
+      "nombre": "IPHONE 14 PRO MAX MORADO TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "OPA6T",
+      "nombre": "OPPO A6/A6 PRO TPU",
+      "archivo": "oppo-a6.webp",
+      "origen": "OPPO A6",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "VV30L5GT",
+      "nombre": "VIVO V30 LITE 5G TPU CASE",
+      "archivo": "vivo-v30-lite-4g.webp",
+      "origen": "Vivo V30 Lite 4G",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "XPX3GTT",
+      "nombre": "XIAOMI POCO X3 GT TPU CASE",
+      "archivo": "poco-x3-gt.webp",
+      "origen": "Poco X3 GT",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "XPX3",
+      "nombre": "XIAOMI POCO X3/X3 PRO HARD CASE",
+      "archivo": "poco-x3.webp",
+      "origen": "Poco X3",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "MTE70FT",
+      "nombre": "MOTO EDGE 70 FUSION TPU CASE",
+      "archivo": "moto-edge-70-fusion.webp",
+      "origen": "Moto Edge 70 Fusion",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "HX8T-cztnOOiztGVNbFt",
+      "nombre": "HONOR X8 TPU CASE",
+      "archivo": "honor-x8.webp",
+      "origen": "Honor X8",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "MTE20T-tFEozZBDtTQwk",
+      "nombre": "MOTO E20 TPU CASE",
+      "archivo": "moto-e20.webp",
+      "origen": "Moto E20",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "OPR74GT-xvXGdDhaVdWj",
+      "nombre": "OPPO RENO 7 4G TPU CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "SGS21FET-ObEqRvKvcCy",
+      "nombre": "GALAXY S21 FE TPU CASE",
+      "archivo": "galaxy-s21-fe.webp",
+      "origen": "Galaxy S21 FE",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "SGS21UT-pGgqbxhFADIq",
+      "nombre": "GALAXY S21 ULTRA TPU CASE",
+      "archivo": "galaxy-s21-ultra.webp",
+      "origen": "Galaxy S21 Ultra",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "MTG60T-xjZPqujfovHPn",
+      "nombre": "MOTO G60 TPU CASE",
+      "archivo": "moto-g60.webp",
+      "origen": "Moto G60",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "OPA17T-kBvdXLsoJCEab",
+      "nombre": "OPPO A17 TPU CASE",
+      "archivo": "oppo-a17.webp",
+      "origen": "OPPO A17",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "OPA57T-ufoyCGpOvAkLm",
+      "nombre": "OPPO A57 / A77 TPU CASE",
+      "archivo": "oppo-a57.webp",
+      "origen": "OPPO A57",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "SGA22T-PpcdMZIkDozqg",
+      "nombre": "GALAXY A22 TPU CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "VY33T-EoHiNdtClHHmWL",
+      "nombre": "VIVO Y33/Y53S TPU CASE",
+      "archivo": "vivo-y33.webp",
+      "origen": "Vivo Y33",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "XRN11T-xhXLppHCJgkln",
+      "nombre": "XIAOMI NOTE 11/NOTE 11S TPU CASE",
+      "archivo": "redmi-note-11.webp",
+      "origen": "Redmi Note 11",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "HX8T-rKpCScKicVkmnMV",
+      "nombre": "HONOR X8 TPU CASE",
+      "archivo": "honor-x8.webp",
+      "origen": "Honor X8",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "MTG31T-PCWgcaplRvlLg",
+      "nombre": "MOTO G31 TPU CASE",
+      "archivo": "moto-g31.webp",
+      "origen": "Moto G31",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "MTG32T-kIiTixRDOfGEq",
+      "nombre": "MOTO G32 TPU CASE",
+      "archivo": "moto-g32.webp",
+      "origen": "Moto G32",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "MTG42T-lJZcEatVLglOf",
+      "nombre": "MOTO G42 TPU CASE",
+      "archivo": "moto-g42.webp",
+      "origen": "Moto G42",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "MTG53T-BZCkWhSuInslI",
+      "nombre": "MOTO G53 TPU CASE",
+      "archivo": "moto-g53.webp",
+      "origen": "Moto G53",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "OPA78T-ApfQVWiOaKeiF",
+      "nombre": "OPPO A78 TPU CASE",
+      "archivo": "oppo-a78-5g.webp",
+      "origen": "OPPO A78 5G",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "SA324GT-TIqPQrnrhIIq",
+      "nombre": "GALAXY A32 4G TPU CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "SGA12T-CSVxzSzNeHVFu",
+      "nombre": "GALAXY A12 TPU CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "SGA30T-bVRYmzdSBFMMh",
+      "nombre": "GALAXY A30/A20 TPU CASE",
+      "archivo": "galaxy-a30.webp",
+      "origen": "Galaxy A30",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "XN9ST-rqpzxgSytGnvcU",
+      "nombre": "XIAOMI NOTE 9S/NOTE 9 PRO TPU CASE",
+      "archivo": "redmi-note-9s.webp",
+      "origen": "Redmi Note 9S",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "XPX5PT-oPYikspNwdYNz",
+      "nombre": "XIAOMI POCCO X5 PRO TPU CASE",
+      "archivo": "poco-x5-pro.webp",
+      "origen": "Poco X5 Pro",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "XRN12ST-dOptokyFMElP",
+      "nombre": "XIAOMI REDMI NOTE 12S TPU CASE",
+      "archivo": "redmi-note-12s.webp",
+      "origen": "Redmi Note 12S",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "SGA54T-qVnQjDgLTcbAq",
+      "nombre": "GALAXY A54 TPU CASE",
+      "archivo": "galaxy-a54.webp",
+      "origen": "Galaxy A54",
+      "fuente": "mascaras",
+      "piezas": 7
+    },
+    {
+      "codigo": "SA32T",
+      "nombre": "GALAXY A32 5G/A23 TPU CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "SGA573",
+      "nombre": "GALAXY A57 3 IN 1",
+      "archivo": "galaxy-a57.webp",
+      "origen": "Galaxy A57",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HM6PT",
+      "nombre": "HONOR MAGIC 6 PRO TPU CASE",
+      "archivo": "honor-magic6-pro.webp",
+      "origen": "Honor Magic6 Pro",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HM7PT",
+      "nombre": "HONOR MAGIC 7 PRO TPU CASE",
+      "archivo": "honor-magic7-pro.webp",
+      "origen": "Honor Magic7 Pro",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HX5T",
+      "nombre": "HONOR X5 TPU CASE",
+      "archivo": "honor-x5.webp",
+      "origen": "Honor X5",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HY94",
+      "nombre": "HUAWEI Y9 2019 HARD CASE",
+      "archivo": "huawei-y9-2019.webp",
+      "origen": "Huawei Y9 2019",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "MTED20PT",
+      "nombre": "MOTO EDGE 20 PRO TPU CASE",
+      "archivo": "moto-edge-20-pro.webp",
+      "origen": "Moto Edge 20 Pro",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "OPR75GT",
+      "nombre": "OPPO RENO 7 5G TPU CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "VY29T",
+      "nombre": "VIVO Y29 TPU CASE",
+      "archivo": "vivo-y29.webp",
+      "origen": "Vivo Y29",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "XA3T",
+      "nombre": "XIAOMI MI A3 TPU CASE",
+      "archivo": "xiaomi-mi-a3.webp",
+      "origen": "Xiaomi Mi A3",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HN5T",
+      "nombre": "HUAWEI NOVA 5T HARD CASE",
+      "archivo": "huawei-nova-5t.webp",
+      "origen": "Huawei nova 5T",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "OPR74G",
+      "nombre": "OPPO RENO 7 4G HARD CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "SGA13",
+      "nombre": "SAMSUNG A13 4G HARD CASE",
+      "archivo": "galaxy-a13.webp",
+      "origen": "Galaxy A13",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HX7T-jTJNFSsCIJeoXms",
+      "nombre": "HONOR X7 TPU CASE",
+      "archivo": "honor-x7.webp",
+      "origen": "Honor X7",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "I14PT-LaHfhlhuTCyeaj",
+      "nombre": "IPHONE 14 PRO TPU CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "OPA54T-ygocwKUAkDIEl",
+      "nombre": "OPPO A54 TPU CASE",
+      "archivo": "oppo-a54.webp",
+      "origen": "OPPO A54",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "SGA11T-aAcymuJjROhRA",
+      "nombre": "GALAXY A11 TPU CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "SGS22UT-XqqOXaxbPTCV",
+      "nombre": "GALAXY S22 ULTRA TPU CASE",
+      "archivo": "galaxy-s22-ultra.webp",
+      "origen": "Galaxy S22 Ultra",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HX8T-KkuiMCfwrmtMaLk",
+      "nombre": "HONOR X8 TPU CASE",
+      "archivo": "honor-x8.webp",
+      "origen": "Honor X8",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HY9AT-szdUDsRmCMPAyG",
+      "nombre": "HUAWEI Y9A TPU CASE",
+      "archivo": "huawei-y9a.webp",
+      "origen": "Huawei Y9a",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HY9ST-yhlKBVbBqcaZpW",
+      "nombre": "HUAWEI Y9S TPU CASE",
+      "archivo": "huawei-y9s.webp",
+      "origen": "Huawei Y9s",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "I14PMT-dYPsOmjkDEWBh",
+      "nombre": "IPHONE 14 PRO MAX TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "MTG30T-vJfKuzxHoNmPu",
+      "nombre": "MOTO G30/G20 TPU CASE",
+      "archivo": "moto-g30.webp",
+      "origen": "Moto G30",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "OPA54T-JlDxGCYeQUPQv",
+      "nombre": "OPPO A54 TPU CASE",
+      "archivo": "oppo-a54.webp",
+      "origen": "OPPO A54",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "SA23T-SmAfciqponkrvC",
+      "nombre": "GALAXY A23 TPU CASE",
+      "archivo": "galaxy-a23.webp",
+      "origen": "Galaxy A23",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "SA324G-SPljpKRXHCieR",
+      "nombre": "GALAXY A32 4G HARD CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "SGA50T-dbggJQuKQWEIO",
+      "nombre": "GALAXY A50/A30S TPU CASE",
+      "archivo": "galaxy-a50.webp",
+      "origen": "Galaxy A50",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "I14PM-wNVdokvgdvQNbe",
+      "nombre": "IPHONE 14 PRO MAX HARD CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "MTG22T-hxinPUNkoaUOn",
+      "nombre": "MOTO G22 TPU CASE",
+      "archivo": "moto-g22.webp",
+      "origen": "Moto G22",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "OPA53T-hGxGYylFofcTE",
+      "nombre": "OPPO A53 TPU CASE",
+      "archivo": "oppo-a53.webp",
+      "origen": "OPPO A53",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HY9ST-JaWptEwbEIQwrE",
+      "nombre": "HUAWEI Y9S TPU CASE",
+      "archivo": "huawei-y9s.webp",
+      "origen": "Huawei Y9s",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "MTE32T-WKwipdBKAoujg",
+      "nombre": "MOTO E32 TPU CASE",
+      "archivo": "moto-e32.webp",
+      "origen": "Moto E32",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "MTG14T-DJfMNKCxBpBxW",
+      "nombre": "MOTO G14 TPU CASE",
+      "archivo": "moto-g14.webp",
+      "origen": "Moto G14",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "MTG515GT-yjTrWXdbqei",
+      "nombre": "MOTO G51 5G TPU CASE",
+      "archivo": "moto-g51-5g.webp",
+      "origen": "Moto G51 5G",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "OPR5LT-DkirlzoUjmteE",
+      "nombre": "OPPO RENO 5 LITE TPU CASE",
+      "archivo": "oppo-reno5-lite.webp",
+      "origen": "OPPO Reno5 Lite",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "SGS22UT-SdZQNEhJsUyI",
+      "nombre": "GALAXY S22 ULTRA TPU CASE",
+      "archivo": "galaxy-s22-ultra.webp",
+      "origen": "Galaxy S22 Ultra",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "XPX3T-BRBnltVswWkXuC",
+      "nombre": "XIAOMI POCCO X3/X3 PRO TPU CASE",
+      "archivo": "poco-x3.webp",
+      "origen": "Poco X3",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "I14PMT-oAGqvnlCCXMFa",
+      "nombre": "IPHONE 14 PRO MAX TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 6
+    },
+    {
+      "codigo": "HX8DT",
+      "nombre": "HONOR X8D TPU CASE",
+      "archivo": "honor-x8d.webp",
+      "origen": "Honor X8d",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "HN10SET",
+      "nombre": "HUAWEI NOVA 10 SE TPU CASE",
+      "archivo": "huawei-nova-10-se.webp",
+      "origen": "Huawei nova 10 SE",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "HN5TT",
+      "nombre": "HUAWEI NOVA 5T TPU CASE",
+      "archivo": "huawei-nova-5t.webp",
+      "origen": "Huawei nova 5T",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "I14MIT",
+      "nombre": "IPHONE 14 MILITAR TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "MTG62T",
+      "nombre": "MOTO G62 TPU CASE",
+      "archivo": "moto-g62.webp",
+      "origen": "Moto G62",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "OPA52",
+      "nombre": "OPPO A52/A72/A92 HARD CASE",
+      "archivo": "oppo-a52.webp",
+      "origen": "OPPO A52",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "OPFX8PT",
+      "nombre": "OPPO FIND X8 PRO TPU CASE",
+      "archivo": "oppo-find-x8-pro.webp",
+      "origen": "OPPO Find X8 Pro",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "OPRC65T",
+      "nombre": "OPPO REALME C65 TPU CASE",
+      "archivo": "realme-c65.webp",
+      "origen": "Realme C65",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "VV60LT",
+      "nombre": "VIVO V60 LITE TPU CASE",
+      "archivo": "vivo-v60-lite.webp",
+      "origen": "Vivo V60 Lite",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "SGA22",
+      "nombre": "SAMSUNG A22 HARD CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "XRN13P5GT",
+      "nombre": "XIAOMI NOTE 13 PRO 5G TPU",
+      "archivo": "redmi-note-13-pro-4g.webp",
+      "origen": "Redmi Note 13 Pro 4G",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "MTED20T-sHWhVspjzzGe",
+      "nombre": "MOTOROLA EDGE 20 TPU CASE",
+      "archivo": "moto-edge-20.webp",
+      "origen": "Moto Edge 20",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "SA225GT-ByDzZEjLwkGL",
+      "nombre": "GALAXY A22 5G TPU CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "SA51T-fbWSbBdJxnoKDO",
+      "nombre": "GALAXY A51 TPU CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "SA52-FrekPlqOUYzFqYH",
+      "nombre": "GALAXY A52 HARD CASE",
+      "archivo": "galaxy-a52.webp",
+      "origen": "Galaxy A52",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "XRN10T-wGVMZfuDpnzyt",
+      "nombre": "XIAOMI NOTE 10/NOTE 10S TPU CASE",
+      "archivo": "redmi-note-10-5g.webp",
+      "origen": "Redmi Note 10 5G",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "HN9SET-AwuYQOApJCDdt",
+      "nombre": "HUAWEI NOVA 9SE TPU CASE",
+      "archivo": "huawei-nova-9-se.webp",
+      "origen": "Huawei nova 9 SE",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "HX7T-rbZuPzkyzsfwHez",
+      "nombre": "HONOR X7 TPU CASE",
+      "archivo": "honor-x7.webp",
+      "origen": "Honor X7",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "SGA11T-dZeUfIOVouEcM",
+      "nombre": "GALAXY A11 TPU CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "XR10CT-OmBfTPCQKpTBV",
+      "nombre": "XIAOMI REDMI 10C TPU CASE",
+      "archivo": "redmi-10c.webp",
+      "origen": "Redmi 10C",
+      "fuente": "mascaras-blanco",
+      "piezas": 5
+    },
+    {
+      "codigo": "I15PM3N1-lkGVkdGSWQj",
+      "nombre": "IPHONE 15 PRO MAX 3 IN 1",
+      "archivo": "iphone-15-pro-max.webp",
+      "origen": "iPhone 15 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "SGA14T-GinvnqSwqkmTZ",
+      "nombre": "GALAXY A14 TPU CASE",
+      "archivo": "galaxy-a14.webp",
+      "origen": "Galaxy A14",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "SGA34T-qhmhDwNDTIZfr",
+      "nombre": "GALAXY A34 TPU CASE",
+      "archivo": "galaxy-a34.webp",
+      "origen": "Galaxy A34",
+      "fuente": "mascaras",
+      "piezas": 5
+    },
+    {
+      "codigo": "SGA10",
+      "nombre": "GALAXY A10 HARD CASE",
+      "archivo": "galaxy-a10.webp",
+      "origen": "Galaxy A10",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "H600T",
+      "nombre": "HONOR 600 TPU CASE",
+      "archivo": "honor-600.webp",
+      "origen": "Honor 600",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTG200T",
+      "nombre": "MOTO G200 TPU CASE",
+      "archivo": "moto-g200.webp",
+      "origen": "Moto G200",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "OPA93T",
+      "nombre": "OPPO A93 TPU CASE",
+      "archivo": "oppo-a93.webp",
+      "origen": "OPPO A93",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "OPR5ZT",
+      "nombre": "OPPO RENO 5 Z TPU CASE",
+      "archivo": "oppo-reno5-z.webp",
+      "origen": "OPPO Reno5 Z",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "XRN105GT",
+      "nombre": "XIAOMI NOTE 10 5G TPU CASE",
+      "archivo": "redmi-note-10-5g.webp",
+      "origen": "Redmi Note 10 5G",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "XPM4PT",
+      "nombre": "XIAOMI POCO M4 PRO 4G TPU CASE",
+      "archivo": "poco-m4-pro.webp",
+      "origen": "Poco M4 Pro",
+      "fuente": "mascaras-blanco",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGA12",
+      "nombre": "SAMSUNG A12 HARD CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGS20FE",
+      "nombre": "SAMSUNG S20 FE HARD CASE",
+      "archivo": "galaxy-s20-fe.webp",
+      "origen": "Galaxy S20 FE",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTED30NT",
+      "nombre": "MOTO EDGE 30 NEO TPU CASE",
+      "archivo": "moto-edge-30-neo.webp",
+      "origen": "Moto Edge 30 Neo",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "HM2LT-sTCZcdksIVQyFy",
+      "nombre": "HUAWEI MATE 20 LITE TPU CASE",
+      "archivo": "huawei-mate-20-lite.webp",
+      "origen": "Huawei Mate 20 Lite",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTED20LT-JoFphfgqoio",
+      "nombre": "MOTOROLA EDGE 20 LITE TPU CASE",
+      "archivo": "moto-edge-20-lite.webp",
+      "origen": "Moto Edge 20 Lite",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTG60TT-rIqJaxNXmuhN",
+      "nombre": "MOTO G60 TRANSPARENTE TPU CASE",
+      "archivo": "moto-g60.webp",
+      "origen": "Moto G60",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "OPA12T-IowKDePZoTxWi",
+      "nombre": "OPPO A12 TPU CASE",
+      "archivo": "oppo-a12.webp",
+      "origen": "OPPO A12",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "OPA17T-NoIcNwoaCvUaH",
+      "nombre": "OPPO A17 TPU CASE",
+      "archivo": "oppo-a17.webp",
+      "origen": "OPPO A17",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SA324G-iEpkmEQZiNTVB",
+      "nombre": "GALAXY A32 4G HARD CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGA23T-akOVjaRndbBdw",
+      "nombre": "GALAXY A23 TPU CASE",
+      "archivo": "galaxy-a23.webp",
+      "origen": "Galaxy A23",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGS20FET-fmooJVeymRR",
+      "nombre": "GALAXY S20 FE TPU CASE",
+      "archivo": "galaxy-s20-fe.webp",
+      "origen": "Galaxy S20 FE",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "XPX3GTT-GTWdtedbmePg",
+      "nombre": "XIAOMI POCO X3 GT TPU CASE",
+      "archivo": "poco-x3-gt.webp",
+      "origen": "Poco X3 GT",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "XRN11PT-lQcjUBOXhhiI",
+      "nombre": "XIAOMI NOTE 11 PRO TPU CASE",
+      "archivo": "redmi-note-11-pro.webp",
+      "origen": "Redmi Note 11 Pro",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGS21T-CjwEMSwAiOVbj",
+      "nombre": "GALAXY S21 TPU CASE",
+      "archivo": "galaxy-s21.webp",
+      "origen": "Galaxy S21",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTE20T-VXvVgTYnCjgJf",
+      "nombre": "MOTO E20 TPU CASE",
+      "archivo": "moto-e20.webp",
+      "origen": "Moto E20",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "OPR5LT-kQgVZKKLVPsKt",
+      "nombre": "OPPO RENO 5 LITE TPU CASE",
+      "archivo": "oppo-reno5-lite.webp",
+      "origen": "OPPO Reno5 Lite",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGA50-BXcyxnqKoqkUTC",
+      "nombre": "GALAXY A50/A30S HARD CASE",
+      "archivo": "galaxy-a50.webp",
+      "origen": "Galaxy A50",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "XN9T-qEgGeqnvkZxYcDs",
+      "nombre": "XIAOMI NOTE 9 TPU CASE",
+      "archivo": "redmi-note-9.webp",
+      "origen": "Redmi Note 9",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "XPX3T-SJYMJGnLWbiyYf",
+      "nombre": "XIAOMI POCCO X3/X3 PRO TPU CASE",
+      "archivo": "poco-x3.webp",
+      "origen": "Poco X3",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTG515GT-ZqvLICkQZio",
+      "nombre": "MOTO G51 5G TPU CASE",
+      "archivo": "moto-g51-5g.webp",
+      "origen": "Moto G51 5G",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGA134GT-ytJbuVKHhsm",
+      "nombre": "GALAXY A13 4G TPU CASE",
+      "archivo": "galaxy-a13.webp",
+      "origen": "Galaxy A13",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "H70T-WLEqhFLddGNbbfw",
+      "nombre": "HONOR 70 TPU CASE",
+      "archivo": "honor-70.webp",
+      "origen": "Honor 70",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "HN5TT-XIATDnhFLAvvHA",
+      "nombre": "HUAWEI NOVA 5T TPU CASE",
+      "archivo": "huawei-nova-5t.webp",
+      "origen": "Huawei nova 5T",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTE20LT-PqgoTKtSeDuO",
+      "nombre": "MOTO EDGE 20 LITE TPU CASE",
+      "archivo": "moto-edge-20-lite.webp",
+      "origen": "Moto Edge 20 Lite",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTG22T-UJPgsMdLTypXN",
+      "nombre": "MOTO G22 TPU CASE",
+      "archivo": "moto-g22.webp",
+      "origen": "Moto G22",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTG60ST-JSXKpJZwUJYg",
+      "nombre": "MOTO G60S TPU CASE",
+      "archivo": "moto-g60s.webp",
+      "origen": "Moto G60s",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTG71T-BTxhAmkpkQXBY",
+      "nombre": "MOTO G71 TPU CASE",
+      "archivo": "moto-g71.webp",
+      "origen": "Moto G71",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "OPA54T-KBaMwZDqRvxrJ",
+      "nombre": "OPPO A54 TPU CASE",
+      "archivo": "oppo-a54.webp",
+      "origen": "OPPO A54",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "OPA93T-HVIxoJpVIsgHO",
+      "nombre": "OPPO A93 TPU CASE",
+      "archivo": "oppo-a93.webp",
+      "origen": "OPPO A93",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SA51T-gMeYoMjETFdCuf",
+      "nombre": "GALAXY A51 TPU CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGA22T-OvMgNMevenVZb",
+      "nombre": "GALAXY A22 TPU CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGS21UT-MtRsIYdvrYda",
+      "nombre": "GALAXY S21 ULTRA TPU CASE",
+      "archivo": "galaxy-s21-ultra.webp",
+      "origen": "Galaxy S21 Ultra",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "XN124GT-TFtoXeuwQufy",
+      "nombre": "XIAOMI NOTE 12 4G TPU CASE",
+      "archivo": "redmi-note-12-4g.webp",
+      "origen": "Redmi Note 12 4G",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "XRA1T-CXDKOuZqdoHNHB",
+      "nombre": "XIAOMI A1 TPU CASE",
+      "archivo": "redmi-a1.webp",
+      "origen": "Redmi A1",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "XR12T-UNrHjGxjLRQHko",
+      "nombre": "XIAOMI REDMI 12 TPU CASE",
+      "archivo": "redmi-12.webp",
+      "origen": "Redmi 12",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "I143IN1-pCGXsLAfXRwU",
+      "nombre": "IPHONE 14/13/15 3 IN 1",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "MTE13T-TsYMgDrAlpycd",
+      "nombre": "MOTO E13 TPU CASE",
+      "archivo": "moto-e13.webp",
+      "origen": "Moto E13",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "OPR5LT-kUkwrDbCHWvuP",
+      "nombre": "OPPO RENO 5 LITE TPU CASE",
+      "archivo": "oppo-reno5-lite.webp",
+      "origen": "OPPO Reno5 Lite",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGS23UT-pUzmNNIojENf",
+      "nombre": "GALAXY S23 ULTRA TPU CASE",
+      "archivo": "galaxy-s23-ultra.webp",
+      "origen": "Galaxy S23 Ultra",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGS24UT-rNrjQhQGukuu",
+      "nombre": "GALAXY S24 ULTRA TPU CASE",
+      "archivo": "galaxy-s24-ultra.webp",
+      "origen": "Galaxy S24 Ultra",
+      "fuente": "mascaras",
+      "piezas": 4
+    },
+    {
+      "codigo": "SGA23",
+      "nombre": "GALAXY A23 HARD CASE",
+      "archivo": "galaxy-a23.webp",
+      "origen": "Galaxy A23",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA30",
+      "nombre": "GALAXY A30/A20 HARD CASE",
+      "archivo": "galaxy-a30.webp",
+      "origen": "Galaxy A30",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA50",
+      "nombre": "GALAXY A50/A30S HARD CASE",
+      "archivo": "galaxy-a50.webp",
+      "origen": "Galaxy A50",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SA515GT",
+      "nombre": "GALAXY A51 5G TPU CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "GP10PXLT",
+      "nombre": "GOOGLE PIXEL 10 PRO XL TPU",
+      "archivo": "google-pixel-10-pro-xl.webp",
+      "origen": "Google Pixel 10 Pro XL",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "I14PMMIT",
+      "nombre": "IPHONE 14 PRO MAX MILITAR TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "I14PMOT",
+      "nombre": "IPHONE 14 PRO MORADO TPU CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "MTG100T",
+      "nombre": "MOTO G100 TPU CASE",
+      "archivo": "moto-g100.webp",
+      "origen": "Moto G100",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPA31T",
+      "nombre": "OPPO A31 TPU CASE",
+      "archivo": "oppo-a31.webp",
+      "origen": "OPPO A31",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPR15TT",
+      "nombre": "OPPO REALME 15T TPU CASE",
+      "archivo": "realme-15t.webp",
+      "origen": "Realme 15T",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPR65GT",
+      "nombre": "OPPO RENO 6 5G TPU CASE",
+      "archivo": "oppo-reno6-5g.webp",
+      "origen": "OPPO Reno6 5G",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPR7LT",
+      "nombre": "OPPO RENO 7 LITE TPU CASE",
+      "archivo": "oppo-reno7-lite.webp",
+      "origen": "OPPO Reno7 Lite",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "VY05T",
+      "nombre": "VIVO Y05/Y11D TPU CASE",
+      "archivo": "vivo-y05.webp",
+      "origen": "Vivo Y05",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XR14TPT",
+      "nombre": "XIAOMI REDMI 14T PRO TPU CASE",
+      "archivo": "xiaomi-14t-pro.webp",
+      "origen": "Xiaomi 14T Pro",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XR15TPT",
+      "nombre": "XIAOMI REDMI 15T PRO TPU CASE",
+      "archivo": "xiaomi-15t-pro.webp",
+      "origen": "Xiaomi 15T Pro",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SA535G",
+      "nombre": "SAMSUNG A53 5G HARD CASE",
+      "archivo": "galaxy-a53-5g.webp",
+      "origen": "Galaxy A53 5G",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "I14PMST",
+      "nombre": "IPHONE 14 PRO MAX SALMON TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SA37T",
+      "nombre": "SAMSUNG A37 TPU CASE",
+      "archivo": "galaxy-a37.webp",
+      "origen": "Galaxy A37",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XRF5PY",
+      "nombre": "XIAOMI REDMI F5 PRO TPU CASE",
+      "archivo": "poco-f5-pro.webp",
+      "origen": "Poco F5 Pro",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "HN9SET-ZEFbXGKCrmXiK",
+      "nombre": "HUAWEI NOVA 9 SE TPU CASE",
+      "archivo": "huawei-nova-9-se.webp",
+      "origen": "Huawei nova 9 SE",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "HY9S-ECENbjoWhkffUnc",
+      "nombre": "HUAWEI Y9S HARD CASE",
+      "archivo": "huawei-y9s.webp",
+      "origen": "Huawei Y9s",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "I14MT-cHxKKRqGjCSQVi",
+      "nombre": "IPHONE 14 MORADO TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "I14PLT-BtPqFivpYerBo",
+      "nombre": "IPHONE 14 PLUS TPU CASE",
+      "archivo": "iphone-14-plus.webp",
+      "origen": "iPhone 14 Plus",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "MTG100T-yXpmCwuUBCeW",
+      "nombre": "MOTO G100 TPU CASE",
+      "archivo": "moto-g100.webp",
+      "origen": "Moto G100",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "MTG22T-hfegOhiZKyBgt",
+      "nombre": "MOTO G22 TPU CASE",
+      "archivo": "moto-g22.webp",
+      "origen": "Moto G22",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "MTG42T-AVmzBlFZdelIC",
+      "nombre": "MOTO G42 TPU CASE",
+      "archivo": "moto-g42.webp",
+      "origen": "Moto G42",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "MTG60ST-wsLJCJtnvXHZ",
+      "nombre": "MOTO G60S TPU CASE",
+      "archivo": "moto-g60s.webp",
+      "origen": "Moto G60s",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA04ST-bWbGHlTnAUJd",
+      "nombre": "GALAXY A04S TPU CASE",
+      "archivo": "galaxy-a04s.webp",
+      "origen": "Galaxy A04s",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA21S-FXHVgLjsAcSWl",
+      "nombre": "GALAXY A21S HARD CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XR10CT-joPRZZAXVehIp",
+      "nombre": "XIAOMI REDMI 10C TPU CASE",
+      "archivo": "redmi-10c.webp",
+      "origen": "Redmi 10C",
+      "fuente": "mascaras-blanco",
+      "piezas": 3
+    },
+    {
+      "codigo": "XR9CT-RYsRlLEEzDrhCK",
+      "nombre": "XIAOMI REDMI 9C TPU CASE",
+      "archivo": "redmi-9c.webp",
+      "origen": "Redmi 9C",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "HY94T-QttKbxlOZCEGqX",
+      "nombre": "HUAWEI Y9 2019 TPU CASE",
+      "archivo": "huawei-y9-2019.webp",
+      "origen": "Huawei Y9 2019",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "MTG31T-gADZeNdjsaWbM",
+      "nombre": "MOTO G31 TPU CASE",
+      "archivo": "moto-g31.webp",
+      "origen": "Moto G31",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "MTG32T-aXZbmHjPxrzxR",
+      "nombre": "MOTO G32 TPU CASE",
+      "archivo": "moto-g32.webp",
+      "origen": "Moto G32",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "MTG41T-guAyNXCHBlavu",
+      "nombre": "MOTO G41 TPU CASE",
+      "archivo": "moto-g41.webp",
+      "origen": "Moto G41",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPR6LT-EhTgdhHZJwvua",
+      "nombre": "OPPO RENO 6 LITE TPU CASE",
+      "archivo": "oppo-reno6-lite.webp",
+      "origen": "OPPO Reno6 Lite",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SA535G-tPRwUgcsilpXR",
+      "nombre": "GALAXY A53 5G HARD CASE",
+      "archivo": "galaxy-a53-5g.webp",
+      "origen": "Galaxy A53 5G",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA12-aFKHYrnHkGrOhX",
+      "nombre": "GALAXY A12 HARD CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA225GT-xJKqylLJOpA",
+      "nombre": "GALAXY A22 5G TPU CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XR9AT-TpsPCCYPVHeIZY",
+      "nombre": "XIAOMI REDMI 9A TPU CASE",
+      "archivo": "redmi-9a.webp",
+      "origen": "Redmi 9A",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "HN5TT-VMISPIEPKGciqy",
+      "nombre": "HUAWEI NOVA 5T TPU CASE",
+      "archivo": "huawei-nova-5t.webp",
+      "origen": "Huawei nova 5T",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "HN9SET-cRegoLbiknJec",
+      "nombre": "HUAWEI NOVA 9SE TPU CASE",
+      "archivo": "huawei-nova-9-se.webp",
+      "origen": "Huawei nova 9 SE",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA11T-dQwlnDhmEsnKB",
+      "nombre": "GALAXY A11 TPU CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XN9ST-eTerdpchDOOQht",
+      "nombre": "XIAOMI NOTE 9S/NOTE 9 PRO TPU CASE",
+      "archivo": "redmi-note-9s.webp",
+      "origen": "Redmi Note 9S",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPR65GT-qOdCszfLFmPs",
+      "nombre": "OPPO RENO 6 5G TPU CASE",
+      "archivo": "oppo-reno6-5g.webp",
+      "origen": "OPPO Reno6 5G",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XR10CT-aVUGkVglpqqCA",
+      "nombre": "XIAOMI REDMI 10C TPU CASE",
+      "archivo": "redmi-10c.webp",
+      "origen": "Redmi 10C",
+      "fuente": "mascaras-blanco",
+      "piezas": 3
+    },
+    {
+      "codigo": "XR12CT-HkuZEMQVxWFvZ",
+      "nombre": "XIAOMI REDMI 12C TPU CASE",
+      "archivo": "redmi-12c.webp",
+      "origen": "Redmi 12C",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "H50T-DJUtUdSUHkhHbBi",
+      "nombre": "HONOR 50 TPU CASE",
+      "archivo": "honor-50.webp",
+      "origen": "Honor 50",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "H90LT-xRfuEvAXuDnaYL",
+      "nombre": "HONOR 90 LITE TPU CASE",
+      "archivo": "honor-90-lite.webp",
+      "origen": "Honor 90 Lite",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "HM2LT-AqUHgYuhRmHZMj",
+      "nombre": "HUAWEI MATE 20 LITE TPU CASE",
+      "archivo": "huawei-mate-20-lite.webp",
+      "origen": "Huawei Mate 20 Lite",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "HY9AT-ygydSGScSKKbCd",
+      "nombre": "HUAWEI Y9A TPU CASE",
+      "archivo": "huawei-y9a.webp",
+      "origen": "Huawei Y9a",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "I14MT-egHlYuturEeWhh",
+      "nombre": "IPHONE 14 MORADO TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "I15PLT-phAaOcWZKHBWf",
+      "nombre": "IPHONE 15 PLUS TPU CASE",
+      "archivo": "iphone-15-plus.webp",
+      "origen": "iPhone 15 Plus",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "MTED20T-mWvTjQLBLTSg",
+      "nombre": "MOTO EDGE 20 TPU CASE",
+      "archivo": "moto-edge-20.webp",
+      "origen": "Moto Edge 20",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPR74G-dPnNZpisepxsr",
+      "nombre": "OPPO RENO 7 4G HARD CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPR75GT-GokbzTAJnmSS",
+      "nombre": "OPPO RENO 7 5G TPU CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA21ST-zesmvWpHbBPZ",
+      "nombre": "GALAXY A21S TPU CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA50-rXaPxNgoZcvzst",
+      "nombre": "GALAXY A50/A30S HARD CASE",
+      "archivo": "galaxy-a50.webp",
+      "origen": "Galaxy A50",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "VY22T-kcCWguxhhDwOKI",
+      "nombre": "VIVO Y22/Y22S TPU CASE",
+      "archivo": "vivo-y22s.webp",
+      "origen": "Vivo Y22s",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XR12CT-LuLSIZQvSwDND",
+      "nombre": "XIAOMI REDMI 12C TPU CASE",
+      "archivo": "redmi-12c.webp",
+      "origen": "Redmi 12C",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XR9CT-JFzMuuFHQDITpL",
+      "nombre": "XIAOMI REDMI 9C TPU CASE",
+      "archivo": "redmi-9c.webp",
+      "origen": "Redmi 9C",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPA12T-EybLbLKYHUDzV",
+      "nombre": "OPPO A12 TPU CASE",
+      "archivo": "oppo-a12.webp",
+      "origen": "OPPO A12",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA05T-JSQCbkLNqLvmI",
+      "nombre": "GALAXY A05 TPU CASE",
+      "archivo": "galaxy-a05.webp",
+      "origen": "Galaxy A05",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "HM5LT-eELvUcvfVdlqvg",
+      "nombre": "HONOR MAGIC 5 LITE TPU CASE",
+      "archivo": "honor-magic5-lite.webp",
+      "origen": "Honor Magic5 Lite",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "HY9ST-DIqGSsjeDoeejF",
+      "nombre": "HUAWEI Y9S TPU CASE",
+      "archivo": "huawei-y9s.webp",
+      "origen": "Huawei Y9s",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "I15T-XhDzaQxOnHgSdYX",
+      "nombre": "IPHONE 15 TPU CASE",
+      "archivo": "iphone-15.webp",
+      "origen": "iPhone 15",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPA57T-movChbPUnimZh",
+      "nombre": "OPPO A57 / A77 TPU CASE",
+      "archivo": "oppo-a57.webp",
+      "origen": "OPPO A57",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SA51T-YGSZELjAFXdmjr",
+      "nombre": "GALAXY A51 TPU CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SA52T-wjbQWKuclcZWsd",
+      "nombre": "GALAXY A52/A52S TPU CASE",
+      "archivo": "galaxy-a52.webp",
+      "origen": "Galaxy A52",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGS22UT-JpDFXQqBiuRO",
+      "nombre": "GALAXY S22 ULTRA TPU CASE",
+      "archivo": "galaxy-s22-ultra.webp",
+      "origen": "Galaxy S22 Ultra",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "VY33T-KtwoQeIcgIEkbh",
+      "nombre": "VIVO Y33/Y53S TPU CASE",
+      "archivo": "vivo-y33.webp",
+      "origen": "Vivo Y33",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "XN124GT-OhppUvPWiOxM",
+      "nombre": "XIAOMI NOTE 12 4G TPU CASE",
+      "archivo": "redmi-note-12-4g.webp",
+      "origen": "Redmi Note 12 4G",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "OPA54T-VClDtCLbGOFJj",
+      "nombre": "OPPO A54 TPU CASE",
+      "archivo": "oppo-a54.webp",
+      "origen": "OPPO A54",
+      "fuente": "mascaras",
+      "piezas": 3
+    },
+    {
+      "codigo": "SGA335G",
+      "nombre": "GALAXY A33 5G HARD CASE",
+      "archivo": "galaxy-a33-5g.webp",
+      "origen": "Galaxy A33 5G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGS20U",
+      "nombre": "GALAXY S20 ULTRA HARD CASE",
+      "archivo": "galaxy-s20-ultra.webp",
+      "origen": "Galaxy S20 Ultra",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "HM2LT",
+      "nombre": "HUAWEI MATE 20 LITE TPU CASE",
+      "archivo": "huawei-mate-20-lite.webp",
+      "origen": "Huawei Mate 20 Lite",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "HP80PT",
+      "nombre": "HUAWEI PURA 80 PRO TPU CASE",
+      "archivo": "huawei-pura-80-pro.webp",
+      "origen": "Huawei Pura 80 Pro",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I14PMCT",
+      "nombre": "IPHONE 14 PRO MAX CRISTAL TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTE30NT",
+      "nombre": "MOTO EDGE 30 NEO TPU CASE",
+      "archivo": "moto-edge-30-neo.webp",
+      "origen": "Moto Edge 30 Neo",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTE30PT",
+      "nombre": "MOTO EDGE 30 PRO TPU CASE",
+      "archivo": "moto-edge-30-pro.webp",
+      "origen": "Moto Edge 30 Pro",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA12T",
+      "nombre": "OPPO A12 TPU CASE",
+      "archivo": "oppo-a12.webp",
+      "origen": "OPPO A12",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPR8T",
+      "nombre": "OPPO REALME 8 TPU CASE",
+      "archivo": "realme-8.webp",
+      "origen": "Realme 8",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "XPM3T",
+      "nombre": "XIAOMI POCCO M3 TPU CASE",
+      "archivo": "poco-m3.webp",
+      "origen": "Poco M3",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "XR15TT",
+      "nombre": "XIAOMI REDMI 15T TPU CASE",
+      "archivo": "redmi-15t.webp",
+      "origen": "Redmi 15T",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA12",
+      "nombre": "OPPO A12 HARD CASE",
+      "archivo": "oppo-a12.webp",
+      "origen": "OPPO A12",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA15",
+      "nombre": "OPPO A15 HARD CASE",
+      "archivo": "oppo-a15.webp",
+      "origen": "OPPO A15",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA53",
+      "nombre": "OPPO A53 HARD CASE",
+      "archivo": "oppo-a53.webp",
+      "origen": "OPPO A53",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "VV40LT",
+      "nombre": "VIVO V40 LITE 4G TPU CASE",
+      "archivo": "vivo-v40-lite-5g.webp",
+      "origen": "Vivo V40 Lite 5G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTG60TT",
+      "nombre": "MOTO G60 TRANSPARENTE TPU CASE",
+      "archivo": "moto-g60.webp",
+      "origen": "Moto G60",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "HN8IT-pwcYReOWAtkZTo",
+      "nombre": "HUAWEI NOVA 8I TPU CASE",
+      "archivo": "huawei-nova-8i.webp",
+      "origen": "Huawei nova 8i",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I14P-GPnFVNsmfRDRRom",
+      "nombre": "IPHONE 14 PRO HARD CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I14PM-ziqXIbTdXPltCt",
+      "nombre": "IPHONE 14 PRO MAX HARD CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I14PMOT-LHoaPzZatYZP",
+      "nombre": "IPHONE 14 PRO MORADO TPU CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTE32T-LgPmxivQfPpPh",
+      "nombre": "MOTO E32 TPU CASE",
+      "archivo": "moto-e32.webp",
+      "origen": "Moto E32",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTG200T-pCvGvhpFFZag",
+      "nombre": "MOTO G200 TPU CASE",
+      "archivo": "moto-g200.webp",
+      "origen": "Moto G200",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SA32T-ADYVErQlTpdKjf",
+      "nombre": "GALAXY A32 TPU CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA10T-dOeVreHCEoWkv",
+      "nombre": "GALAXY A10 TPU",
+      "archivo": "galaxy-a10.webp",
+      "origen": "Galaxy A10",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA12-VucDUAKUYqcDPV",
+      "nombre": "GALAXY A12 HARD CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA22T-razmuYZxFOKyw",
+      "nombre": "GALAXY A22 TPU CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA30T-ZonGnGwWnCuPE",
+      "nombre": "GALAXY A30 TPU CASE",
+      "archivo": "galaxy-a30.webp",
+      "origen": "Galaxy A30",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "VV214GT-wRlljiKAwgaA",
+      "nombre": "VIVO V21 4G TPU",
+      "archivo": "vivo-v21.webp",
+      "origen": "Vivo V21",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTEG20T-fTSdJrPWfKaF",
+      "nombre": "MOTO EDGE 20 TPU CASE",
+      "archivo": "moto-edge-20.webp",
+      "origen": "Moto Edge 20",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SA535G-yIeVKYRBxAzeu",
+      "nombre": "GALAXY A53 5G HARD CASE",
+      "archivo": "galaxy-a53-5g.webp",
+      "origen": "Galaxy A53 5G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I14-MjkQMBUxmpWzNoYu",
+      "nombre": "IPHONE 14 HARD CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I14PMIT-iqMoXPZnxYiK",
+      "nombre": "IPHONE 14 PRO MILITAR TPU CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I14PMOT-QvCRfItiZkBk",
+      "nombre": "IPHONE 14 PRO MORADO TPU CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SA335GT-SuvHTkjMMtJM",
+      "nombre": "GALAXY A33 5G TPU CASE",
+      "archivo": "galaxy-a33-5g.webp",
+      "origen": "Galaxy A33 5G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SA51T-URVjOpsDqNTjbJ",
+      "nombre": "GALAXY A51 TPU CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA12T-cOiXKlawqymgP",
+      "nombre": "GALAXY A12 TPU CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "HP40T-PASssQuodVWBVR",
+      "nombre": "HUAWEI P40 TPU CASE",
+      "archivo": "huawei-p40.webp",
+      "origen": "Huawei P40",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTE22IT-NfocEnPpnTYg",
+      "nombre": "MOTO E22I TPU CASE",
+      "archivo": "moto-e22i.webp",
+      "origen": "Moto E22i",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA54-qRdZeCopvwrvBW",
+      "nombre": "OPPO A54 HARD CASE",
+      "archivo": "oppo-a54.webp",
+      "origen": "OPPO A54",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPR8T-zmOcvDttIjNMce",
+      "nombre": "OPPO REALME 8 TPU CASE",
+      "archivo": "realme-8.webp",
+      "origen": "Realme 8",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA11-ZNQzwsAIWVKOoG",
+      "nombre": "GALAXY A11 HARD CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA21ST-wugBnALghMaB",
+      "nombre": "GALAXY A21S TPU CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "HN8IT-mDZfcWNxzXjYZX",
+      "nombre": "HUAWEI NOVA 8I TPU CASE",
+      "archivo": "huawei-nova-8i.webp",
+      "origen": "Huawei nova 8i",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "HX7AT-cJZlaEWYvtyFCa",
+      "nombre": "HONOR X7A TPU CASE",
+      "archivo": "honor-x7a.webp",
+      "origen": "Honor X7a",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I14MT-qoaFsgdXkJbIYj",
+      "nombre": "IPHONE 14 MORADO TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTE32T-shERRqUhJBeHl",
+      "nombre": "MOTO E32 TPU CASE",
+      "archivo": "moto-e32.webp",
+      "origen": "Moto E32",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTG505GT-xHLJVtGoPAc",
+      "nombre": "MOTO G50 5G TPU CASE",
+      "archivo": "moto-g50-5g.webp",
+      "origen": "Moto G50 5G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA15T-rwzwSyddSAUCh",
+      "nombre": "OPPO A15 TPU CASE",
+      "archivo": "oppo-a15.webp",
+      "origen": "OPPO A15",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA16T-brGitmDLnnbuK",
+      "nombre": "OPPO A16 TPU CASE",
+      "archivo": "oppo-a16.webp",
+      "origen": "OPPO A16",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA53-ebNokIFlYeqWzt",
+      "nombre": "OPPO A53 HARD CASE",
+      "archivo": "oppo-a53.webp",
+      "origen": "OPPO A53",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA21S-wanccvHABPSGz",
+      "nombre": "GALAXY A21S HARD CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA34T-PcPvjdprymgef",
+      "nombre": "GALAXY A34 TPU CASE",
+      "archivo": "galaxy-a34.webp",
+      "origen": "Galaxy A34",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGS23UT-gFuzZqiksXxI",
+      "nombre": "GALAXY S23 ULTRA TPU CASE",
+      "archivo": "galaxy-s23-ultra.webp",
+      "origen": "Galaxy S23 Ultra",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "XN11PT-tVfJSkywuEGgy",
+      "nombre": "XIAOMI REDMI NOTE 11 PRO TPU CASE",
+      "archivo": "redmi-note-11-pro.webp",
+      "origen": "Redmi Note 11 Pro",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "XPX3-QrkKWjqNrrAjxCj",
+      "nombre": "XIAOMI POCO X3/X3 PRO HARD CASE",
+      "archivo": "poco-x3.webp",
+      "origen": "Poco X3",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "HY9S-AOSefHSscbXiWcB",
+      "nombre": "HUAWEI Y9S HARD CASE",
+      "archivo": "huawei-y9s.webp",
+      "origen": "Huawei Y9s",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I14P-tqgIMvnXmZuEISo",
+      "nombre": "IPHONE 14 PRO HARD CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I15T-IxKZlIbCUCciWrE",
+      "nombre": "IPHONE 15 TPU CASE",
+      "archivo": "iphone-15.webp",
+      "origen": "iPhone 15",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTE30FT-APgMZASRwWcN",
+      "nombre": "MOTO EDGE 30 FUSION TPU CASE",
+      "archivo": "moto-edge-30-fusion.webp",
+      "origen": "Moto Edge 30 Fusion",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SA324G-LwzcxkhkNKJJJ",
+      "nombre": "GALAXY A32 4G HARD CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SA52-DUiQdpzjXoHcJpU",
+      "nombre": "GALAXY A52/A52S HARD CASE",
+      "archivo": "galaxy-a52.webp",
+      "origen": "Galaxy A52",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA12-olQLTACpuRgqPW",
+      "nombre": "GALAXY A12 HARD CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA225GT-oxDIluzUKuV",
+      "nombre": "GALAXY A22 5G TPU CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA50T-omcwPAJUYOiSf",
+      "nombre": "GALAXY A50/A30S TPU CASE",
+      "archivo": "galaxy-a50.webp",
+      "origen": "Galaxy A50",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGS22T-daOHlHucMFzFD",
+      "nombre": "GALAXY S22 TPU CASE",
+      "archivo": "galaxy-s22.webp",
+      "origen": "Galaxy S22+",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGS23FET-oGSiRdmVuGH",
+      "nombre": "GALAXY S23 FE TPU CASE",
+      "archivo": "galaxy-s23-fe.webp",
+      "origen": "Galaxy S23 FE",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "VY33T-zMJUHYSpzhRBKn",
+      "nombre": "VIVO Y33/Y53S TPU CASE",
+      "archivo": "vivo-y33.webp",
+      "origen": "Vivo Y33",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "XPX4PT-bSEDkPEQswAbw",
+      "nombre": "XIAOMI POCCO X4 PRO TPU CASE",
+      "archivo": "poco-x4-pro.webp",
+      "origen": "Poco X4 Pro",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "XRN105GT-yfmqaiNZjRm",
+      "nombre": "XIAOMI NOTE 10 5G TPU CASE",
+      "archivo": "redmi-note-10-5g.webp",
+      "origen": "Redmi Note 10 5G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SA23T-lyERXoiPxAaKOM",
+      "nombre": "GALAXY A23 TPU CASE",
+      "archivo": "galaxy-a23.webp",
+      "origen": "Galaxy A23",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SA535G-XwvnUZemEwHdR",
+      "nombre": "GALAXY A53 5G HARD CASE",
+      "archivo": "galaxy-a53-5g.webp",
+      "origen": "Galaxy A53 5G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "XN9T-zQGEbhtCGpotjPC",
+      "nombre": "XIAOMI NOTE 9 TPU CASE",
+      "archivo": "redmi-note-9.webp",
+      "origen": "Redmi Note 9",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "H50T-mTodBDwTzuhYaLI",
+      "nombre": "HONOR 50 TPU CASE",
+      "archivo": "honor-50.webp",
+      "origen": "Honor 50",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "I15PMT-qafwshXrbZIDN",
+      "nombre": "IPHONE 15 PRO MAX TPU CASE",
+      "archivo": "iphone-15-pro-max.webp",
+      "origen": "iPhone 15 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTG30T-yHaXKdndVwKeb",
+      "nombre": "MOTO G30/G20 TPU CASE",
+      "archivo": "moto-g30.webp",
+      "origen": "Moto G30",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTG52T-AohrFhvGQCZUW",
+      "nombre": "MOTO G52 TPU CASE",
+      "archivo": "moto-g52.webp",
+      "origen": "Moto G52",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA17T-OzutkSQylKlYJ",
+      "nombre": "OPPO A17 TPU CASE",
+      "archivo": "oppo-a17.webp",
+      "origen": "OPPO A17",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA38T-wwggZtMYZGWpj",
+      "nombre": "OPPO A38 TPU CASE",
+      "archivo": "oppo-a38.webp",
+      "origen": "OPPO A38",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA12T-QGazoaRvpqArq",
+      "nombre": "GALAXY A12 TPU CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA15T-tUWWyRudwGkfi",
+      "nombre": "GALAXY A15 TPU CASE",
+      "archivo": "galaxy-a15.webp",
+      "origen": "Galaxy A15",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGS23FET-qdnAMfNyQBn",
+      "nombre": "GALAXY S23 FE TPU CASE",
+      "archivo": "galaxy-s23-fe.webp",
+      "origen": "Galaxy S23 FE",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "XR9AT-DrBTvswUCkbxWT",
+      "nombre": "XIAOMI REDMI 9A TPU CASE",
+      "archivo": "redmi-9a.webp",
+      "origen": "Redmi 9A",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "MTG60T-fIaiosPFntzhA",
+      "nombre": "MOTO G60 TPU CASE",
+      "archivo": "moto-g60.webp",
+      "origen": "Moto G60",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "OPA53T-qPtmVFwBZlRqq",
+      "nombre": "OPPO A53 TPU CASE",
+      "archivo": "oppo-a53.webp",
+      "origen": "OPPO A53",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "XRN10T-RFAMZSibichoP",
+      "nombre": "XIAOMI NOTE 10/NOTE 10S TPU CASE",
+      "archivo": "redmi-note-10-5g.webp",
+      "origen": "Redmi Note 10 5G",
+      "fuente": "mascaras",
+      "piezas": 2
+    },
+    {
+      "codigo": "SGA11",
+      "nombre": "GALAXY A11 HARD CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA134G",
+      "nombre": "GALAXY A13 4G HARD CASE",
+      "archivo": "galaxy-a13.webp",
+      "origen": "Galaxy A13",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HM2L",
+      "nombre": "HUAWEI MATE 20 LITE HARD CASE",
+      "archivo": "huawei-mate-20-lite.webp",
+      "origen": "Huawei Mate 20 Lite",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HN10PT",
+      "nombre": "HUAWEI NOVA 10 PRO TPU CASE",
+      "archivo": "huawei-nova-10-pro.webp",
+      "origen": "Huawei nova 10 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HP40PT",
+      "nombre": "HUAWEI P40 PRO TPU CASE",
+      "archivo": "huawei-p40-pro.webp",
+      "origen": "Huawei P40 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HP40T",
+      "nombre": "HUAWEI P40 TPU CASE",
+      "archivo": "huawei-p40.webp",
+      "origen": "Huawei P40",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HP60PT",
+      "nombre": "HUAWEI P60 PRO TPU CASE",
+      "archivo": "huawei-p60-pro.webp",
+      "origen": "Huawei P60 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I14PMIT",
+      "nombre": "IPHONE 14 PRO MILITAR TPU CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG50TT",
+      "nombre": "MOTO G50 TRANSPARENTE TPU CASE",
+      "archivo": "moto-g50-5g.webp",
+      "origen": "Moto G50 5G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG77T",
+      "nombre": "MOTO G77/G67 TPU CASE",
+      "archivo": "moto-g77.webp",
+      "origen": "Moto G77",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPRC11T",
+      "nombre": "OPPO REALME C11 TPU CASE",
+      "archivo": "realme-c11.webp",
+      "origen": "Realme C11",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPRC21T",
+      "nombre": "OPPO REALME C21 TPU CASE",
+      "archivo": "realme-c21.webp",
+      "origen": "Realme C21",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "VV20T",
+      "nombre": "VIVO V20 TPU CASE",
+      "archivo": "vivo-v20.webp",
+      "origen": "Vivo V20",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XPF7UT",
+      "nombre": "XIAOMI POCCO F7 ULTRA TPU CASE",
+      "archivo": "poco-f7-ultra.webp",
+      "origen": "Poco F7 Ultra",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XPX8PT",
+      "nombre": "XIAOMI POCCO X8 PRO TPU CASE",
+      "archivo": "poco-x8-pro.webp",
+      "origen": "Poco X8 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "VV40L5GT",
+      "nombre": "VIVO V40 LITE 5G TPU CASE",
+      "archivo": "vivo-v40-lite-5g.webp",
+      "origen": "Vivo V40 Lite 5G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HY9AT-HFvYRiNLSAOMuy",
+      "nombre": "HUAWEI Y9A TPU CASE",
+      "archivo": "huawei-y9a.webp",
+      "origen": "Huawei Y9a",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE22IT-NWQDhZVJViYr",
+      "nombre": "MOTO E22I TPU CASE",
+      "archivo": "moto-e22i.webp",
+      "origen": "Moto E22i",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE40T-VdPhRaMNsglTL",
+      "nombre": "MOTOROLA E40 TPU CASE",
+      "archivo": "moto-e40.webp",
+      "origen": "Moto E40",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG52T-BSwJAplTqLeqa",
+      "nombre": "MOTO G52 TPU CASE",
+      "archivo": "moto-g52.webp",
+      "origen": "Moto G52",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG71T-cEKSTMMQyANGy",
+      "nombre": "MOTO G71 TPU CASE",
+      "archivo": "moto-g71.webp",
+      "origen": "Moto G71",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPA93T-EEwsGFWyZArhk",
+      "nombre": "OPPO A93 TPU CASE",
+      "archivo": "oppo-a93.webp",
+      "origen": "OPPO A93",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPRC21T-NWgLqGTSpkis",
+      "nombre": "OPPO REALME C21 TPU CASE",
+      "archivo": "realme-c21.webp",
+      "origen": "Realme C21",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SA335GT-LmcoFjhJArpI",
+      "nombre": "GALAXY A33 5G TPU CASE",
+      "archivo": "galaxy-a33-5g.webp",
+      "origen": "Galaxy A33 5G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA10-GNhaLaIEpZOKnM",
+      "nombre": "GALAXY A10 HARD CASE",
+      "archivo": "galaxy-a10.webp",
+      "origen": "Galaxy A10",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA11-dGzDQtTaXquBpy",
+      "nombre": "GALAXY A11 HARD CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS20FE-ifjSfTJUTGXO",
+      "nombre": "GALAXY S20 FE HARD CASE",
+      "archivo": "galaxy-s20-fe.webp",
+      "origen": "Galaxy S20 FE",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS22T-wxnjMjvgqDSmD",
+      "nombre": "GALAXY S22 TPU CASE",
+      "archivo": "galaxy-s22.webp",
+      "origen": "Galaxy S22+",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XN9ST-VUSjUEwSYiIvYy",
+      "nombre": "XIAOMI NOTE 9S TPU",
+      "archivo": "redmi-note-9s.webp",
+      "origen": "Redmi Note 9S",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HN5T-TPsRMVBojCSUOoa",
+      "nombre": "HUAWEI NOVA 5T HARD CASE",
+      "archivo": "huawei-nova-5t.webp",
+      "origen": "Huawei nova 5T",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HY94T-zmUCHEaDRCEnau",
+      "nombre": "HUAWEI Y9 2019 TPU CASE",
+      "archivo": "huawei-y9-2019.webp",
+      "origen": "Huawei Y9 2019",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG31T-BEDHysRYBFHaz",
+      "nombre": "MOTO G31 TPU CASE",
+      "archivo": "moto-g31.webp",
+      "origen": "Moto G31",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG41T-HoEIGDcUxdYdy",
+      "nombre": "MOTO G41 TPU CASE",
+      "archivo": "moto-g41.webp",
+      "origen": "Moto G41",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG515GT-FGUqRmDAVzx",
+      "nombre": "MOTO G51 5G TPU CASE",
+      "archivo": "moto-g51-5g.webp",
+      "origen": "Moto G51 5G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPA53-EPyRvxrjSoREtm",
+      "nombre": "OPPO A53 HARD CASE",
+      "archivo": "oppo-a53.webp",
+      "origen": "OPPO A53",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SA51-jHBRqfRsSHVTXiz",
+      "nombre": "GALAXY A51 HARD CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "H70T-YfvsLDfnvqkhhQk",
+      "nombre": "HONOR 70 TPU CASE",
+      "archivo": "honor-70.webp",
+      "origen": "Honor 70",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HN5T-zadjCgKebfIMNto",
+      "nombre": "HUAWEI NOVA 5T HARD CASE",
+      "archivo": "huawei-nova-5t.webp",
+      "origen": "Huawei nova 5T",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HX7T-VXJWdRdntnfCRll",
+      "nombre": "HONOR X7 TPU CASE",
+      "archivo": "honor-x7.webp",
+      "origen": "Honor X7",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE30FT-cvsfgyuhbCrR",
+      "nombre": "MOTO EDGE 30 FUSION TPU CASE",
+      "archivo": "moto-edge-30-fusion.webp",
+      "origen": "Moto Edge 30 Fusion",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPA12T-PGFzZEkeRvEFU",
+      "nombre": "OPPO A12 TPU CASE",
+      "archivo": "oppo-a12.webp",
+      "origen": "OPPO A12",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPR5ZT-WhAkLJfJsGZjS",
+      "nombre": "OPPO RENO 5 Z TPU CASE",
+      "archivo": "oppo-reno5-z.webp",
+      "origen": "OPPO Reno5 Z",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPR75GT-swkhpzruRndF",
+      "nombre": "OPPO RENO 7 5G TPU CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPRC11T-MHlEQvJepKll",
+      "nombre": "OPPO REALME C11 TPU CASE",
+      "archivo": "realme-c11.webp",
+      "origen": "Realme C11",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SA32T-CPlgQxXZcBbPwx",
+      "nombre": "GALAXY A32 5G/A23 TPU CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SA51-dekExeviTXahqHD",
+      "nombre": "GALAXY A51 HARD CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA14T-UWRoCqmHzHaYg",
+      "nombre": "GALAXY A14 TPU CASE",
+      "archivo": "galaxy-a14.webp",
+      "origen": "Galaxy A14",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS20FET-lyWGfXdmqhc",
+      "nombre": "GALAXY S20 FE TPU CASE",
+      "archivo": "galaxy-s20-fe.webp",
+      "origen": "Galaxy S20 FE",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "VV214GT-ChGGpnlwYakp",
+      "nombre": "VIVO V21 4G TPU CASE",
+      "archivo": "vivo-v21.webp",
+      "origen": "Vivo V21",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA30-bcLMWRqPZNRdku",
+      "nombre": "GALAXY A30/A20 HARD CASE",
+      "archivo": "galaxy-a30.webp",
+      "origen": "Galaxy A30",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "H50T-IETZPYRubqBpEhm",
+      "nombre": "HONOR 50 TPU CASE",
+      "archivo": "honor-50.webp",
+      "origen": "Honor 50",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HX6T-aPzsfABXmDlyXRS",
+      "nombre": "HONOR X6 TPU CASE",
+      "archivo": "honor-x6.webp",
+      "origen": "Honor X6",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HY94-fYcIKWuxNvEePvh",
+      "nombre": "HUAWEI Y9 2019 HARD CASE",
+      "archivo": "huawei-y9-2019.webp",
+      "origen": "Huawei Y9 2019",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HY9S-pgWWYdoUVrdZSJO",
+      "nombre": "HUAWEI Y9S HARD CASE",
+      "archivo": "huawei-y9s.webp",
+      "origen": "Huawei Y9s",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I14P-oUaFezoAayTHXNp",
+      "nombre": "IPHONE 14 PRO HARD CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I14PMMT-dcqldArPYhux",
+      "nombre": "IPHONE 14 PRO MAX MORADO TPU CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE13T-nqRdYAfhvlpJx",
+      "nombre": "MOTO E13 TPU CASE",
+      "archivo": "moto-e13.webp",
+      "origen": "Moto E13",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE20LT-DrsseWsRBfdv",
+      "nombre": "MOTO EDGE 20 LITE TPU CASE",
+      "archivo": "moto-edge-20-lite.webp",
+      "origen": "Moto Edge 20 Lite",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE30PT-uBbryayjHgqp",
+      "nombre": "MOTO EDGE 30 PRO TPU CASE",
+      "archivo": "moto-edge-30-pro.webp",
+      "origen": "Moto Edge 30 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE40T-iMZKGfjusLjvj",
+      "nombre": "MOTO E40 TPU CASE",
+      "archivo": "moto-e40.webp",
+      "origen": "Moto E40",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTED20PT-xlRSrrOtBAg",
+      "nombre": "MOTO EDGE 20 PRO TPU CASE",
+      "archivo": "moto-edge-20-pro.webp",
+      "origen": "Moto Edge 20 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG13T-JxLKkEtkUyqlR",
+      "nombre": "MOTO G13/G23 TPU CASE",
+      "archivo": "moto-g13.webp",
+      "origen": "Moto G13",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG42T-AqPcusiStDnbA",
+      "nombre": "MOTO G42 TPU CASE",
+      "archivo": "moto-g42.webp",
+      "origen": "Moto G42",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG60ST-nexsjcpkZCNT",
+      "nombre": "MOTO G60S TPU CASE",
+      "archivo": "moto-g60s.webp",
+      "origen": "Moto G60s",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPA52T-kFTvkcLZOtDyo",
+      "nombre": "OPPO A52/A72/A92 TPU CASE",
+      "archivo": "oppo-a52.webp",
+      "origen": "OPPO A52",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPR74G-OyDIOsMDdyDNj",
+      "nombre": "OPPO RENO 7 4G HARD CASE",
+      "archivo": "oppo-reno7-4g.webp",
+      "origen": "OPPO Reno7 4G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA23-tFCwGRoSsiCkav",
+      "nombre": "GALAXY A23 HARD CASE",
+      "archivo": "galaxy-a23.webp",
+      "origen": "Galaxy A23",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA30T-FSYyzSPmTRCiZ",
+      "nombre": "GALAXY A30/A20 TPU CASE",
+      "archivo": "galaxy-a30.webp",
+      "origen": "Galaxy A30",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA54T-WwaKdXnIKeEsI",
+      "nombre": "GALAXY A54 TPU CASE",
+      "archivo": "galaxy-a54.webp",
+      "origen": "Galaxy A54",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS20UT-RQZtZHqpZguf",
+      "nombre": "GALAXY S20 ULTRA TPU CASE",
+      "archivo": "galaxy-s20-ultra.webp",
+      "origen": "Galaxy S20 Ultra",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS21FET-DlYeIAYJsFu",
+      "nombre": "GALAXY S21 FE TPU CASE",
+      "archivo": "galaxy-s21-fe.webp",
+      "origen": "Galaxy S21 FE",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS22T-URrgVfVXMnnml",
+      "nombre": "GALAXY S22 TPU CASE",
+      "archivo": "galaxy-s22.webp",
+      "origen": "Galaxy S22+",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "VY20T-BcIbUHSYwmwmhM",
+      "nombre": "VIVO Y20/Y11S TPU CASE",
+      "archivo": "vivo-y20.webp",
+      "origen": "Vivo Y20",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XN124GT-KXfGyXhkUsgW",
+      "nombre": "XIAOMI NOTE 12 4G TPU CASE",
+      "archivo": "redmi-note-12-4g.webp",
+      "origen": "Redmi Note 12 4G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XR9CT-mqOTYqwsndRkqG",
+      "nombre": "XIAOMI REDMI 9C TPU CASE",
+      "archivo": "redmi-9c.webp",
+      "origen": "Redmi 9C",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XRA1T-nwYfRAWpTaZoPi",
+      "nombre": "XIAOMI A1 TPU CASE",
+      "archivo": "redmi-a1.webp",
+      "origen": "Redmi A1",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HY94-uBUsiQrtFRqDmGf",
+      "nombre": "HUAWEI Y9 2019 HARD CASE",
+      "archivo": "huawei-y9-2019.webp",
+      "origen": "Huawei Y9 2019",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I14-KhMSfKaOKKOvGsxW",
+      "nombre": "IPHONE 14 HARD CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTED30NT-juULnrKIoAW",
+      "nombre": "MOTO EDGE 30 NEO TPU CASE",
+      "archivo": "moto-edge-30-neo.webp",
+      "origen": "Moto Edge 30 Neo",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPRC11T-uWuaYHaDJNAY",
+      "nombre": "OPPO REALME C11 TPU CASE",
+      "archivo": "realme-c11.webp",
+      "origen": "Realme C11",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SA51-XxLhxBzrYrOFSzc",
+      "nombre": "GALAXY A51 HARD CASE",
+      "archivo": "galaxy-a51.webp",
+      "origen": "Galaxy A51",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA10T-FIfQbtRczFort",
+      "nombre": "GALAXY A10 TPU CASE",
+      "archivo": "galaxy-a10.webp",
+      "origen": "Galaxy A10",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA11-VTHusVQBhZmqTH",
+      "nombre": "GALAXY A11 HARD CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA13-xqmEdtwOCToFNl",
+      "nombre": "GALAXY A13 HARD CASE",
+      "archivo": "galaxy-a13.webp",
+      "origen": "Galaxy A13",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA21S-MHnLRdzzVMGjk",
+      "nombre": "GALAXY A21S HARD CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA22-nOIEfEbjwvoJAm",
+      "nombre": "GALAXY A22 HARD CASE",
+      "archivo": "galaxy-a22-4g.webp",
+      "origen": "Galaxy A22 4G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS20FE-qFzeooJcRKwY",
+      "nombre": "GALAXY S20 FE HARD CASE",
+      "archivo": "galaxy-s20-fe.webp",
+      "origen": "Galaxy S20 FE",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS21T-SvLhVMCNdKgdv",
+      "nombre": "GALAXY S21 TPU CASE",
+      "archivo": "galaxy-s21.webp",
+      "origen": "Galaxy S21",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XPM4PT-vHVFpogWquLQr",
+      "nombre": "XIAOMI POCO M4 PRO 4G TPU CASE",
+      "archivo": "poco-m4-pro.webp",
+      "origen": "Poco M4 Pro",
+      "fuente": "mascaras-blanco",
+      "piezas": 1
+    },
+    {
+      "codigo": "XPX3-CpezOtMcnPgqVeW",
+      "nombre": "XIAOMI POCO X3/X3 PRO HARD CASE",
+      "archivo": "poco-x3.webp",
+      "origen": "Poco X3",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XPX3GTT-LCrzHwIzzdbC",
+      "nombre": "XIAOMI POCO X3 GT TPU CASE",
+      "archivo": "poco-x3-gt.webp",
+      "origen": "Poco X3 GT",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XRN12PPT-DJLiDFKTBmP",
+      "nombre": "XIAOMI NOTE 12 PRO PLUS TPU CASE",
+      "archivo": "redmi-note-12-pro-plus.webp",
+      "origen": "Redmi Note 12 Pro Plus",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE40T-XPBcLUXghnfdK",
+      "nombre": "MOTO E40 TPU CASE",
+      "archivo": "moto-e40.webp",
+      "origen": "Moto E40",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG100T-GWfVpifRRIXt",
+      "nombre": "MOTO G100 TPU CASE",
+      "archivo": "moto-g100.webp",
+      "origen": "Moto G100",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG41T-SLMTYyZvtrbRa",
+      "nombre": "MOTO G41 TPU CASE",
+      "archivo": "moto-g41.webp",
+      "origen": "Moto G41",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG60TT-qvNKYyKBtIbU",
+      "nombre": "MOTO G60 TRANSPARENTE TPU CASE",
+      "archivo": "moto-g60.webp",
+      "origen": "Moto G60",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPA54-mZWszoCNzZipXW",
+      "nombre": "OPPO A54 HARD CASE",
+      "archivo": "oppo-a54.webp",
+      "origen": "OPPO A54",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPR65GT-LkrKetGqUnlo",
+      "nombre": "OPPO RENO 6 5G TPU CASE",
+      "archivo": "oppo-reno6-5g.webp",
+      "origen": "OPPO Reno6 5G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA54-bxhlVbyPbuDnve",
+      "nombre": "GALAXY A54 HARD CASE",
+      "archivo": "galaxy-a54.webp",
+      "origen": "Galaxy A54",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HX5T-PjQTILVvHZOGKRi",
+      "nombre": "HONOR X5 TPU CASE",
+      "archivo": "honor-x5.webp",
+      "origen": "Honor X5",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HX8AT-ABSCnPkAvwlNye",
+      "nombre": "HONOR X8A TPU CASE",
+      "archivo": "honor-x8a.webp",
+      "origen": "Honor X8a",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HX8BT-kquQvVNdwCWeAr",
+      "nombre": "HONOR X8B TPU CASE",
+      "archivo": "honor-x8b.webp",
+      "origen": "Honor X8b",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I14P3N1-YOaODRjXgkEh",
+      "nombre": "IPHONE 14 PRO 3 IN 1",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I14PM-OQavEJqQtDLBwG",
+      "nombre": "IPHONE 14 PRO MAX HARD CASE",
+      "archivo": "iphone-14-pro-max.webp",
+      "origen": "iPhone 14 Pro Max",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I14PT-SZxWErUzkBUJJW",
+      "nombre": "IPHONE 14 PRO TPU CASE",
+      "archivo": "iphone-14-pro.webp",
+      "origen": "iPhone 14 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I15PT-JeXWzOrObxZVtL",
+      "nombre": "IPHONE 15 PRO TPU CASE",
+      "archivo": "iphone-15-pro.webp",
+      "origen": "iPhone 15 Pro",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE22IT-aQAfGzzRHvqb",
+      "nombre": "MOTO E22I TPU CASE",
+      "archivo": "moto-e22i.webp",
+      "origen": "Moto E22i",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTE30FT-DKopiSvlFLQp",
+      "nombre": "MOTO EDGE 30 FUSION TPU CASE",
+      "archivo": "moto-edge-30-fusion.webp",
+      "origen": "Moto Edge 30 Fusion",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTED40NT-jXGrLUXqKmR",
+      "nombre": "MOTO EDGE 40 NEO TPU CASE",
+      "archivo": "moto-edge-40-neo.webp",
+      "origen": "Moto Edge 40 Neo",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG42T-LsrCqaOlfvRbJ",
+      "nombre": "MOTO G42 TPU CASE",
+      "archivo": "moto-g42.webp",
+      "origen": "Moto G42",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG53T-yZXYQdVdWPovM",
+      "nombre": "MOTO G53 TPU CASE",
+      "archivo": "moto-g53.webp",
+      "origen": "Moto G53",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG60ST-LAkgWUwANdse",
+      "nombre": "MOTO G60S TPU CASE",
+      "archivo": "moto-g60s.webp",
+      "origen": "Moto G60s",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG71T-dMvIaOoctzKpv",
+      "nombre": "MOTO G71 TPU CASE",
+      "archivo": "moto-g71.webp",
+      "origen": "Moto G71",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPR6LT-glsXKpcmWvxew",
+      "nombre": "OPPO RENO 6 LITE TPU CASE",
+      "archivo": "oppo-reno6-lite.webp",
+      "origen": "OPPO Reno6 Lite",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SA23T-vUZGDQtfTAIgmd",
+      "nombre": "GALAXY A23 TPU CASE",
+      "archivo": "galaxy-a23.webp",
+      "origen": "Galaxy A23",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SA52-yjKJHNpPLwFkHHa",
+      "nombre": "GALAXY A52/A52S HARD CASE",
+      "archivo": "galaxy-a52.webp",
+      "origen": "Galaxy A52",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SA535GT-ZvQnbgFYBDpc",
+      "nombre": "GALAXY A53 5G TPU CASE",
+      "archivo": "galaxy-a53-5g.webp",
+      "origen": "Galaxy A53 5G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA05T-azCVGTaToqAtZ",
+      "nombre": "GALAXY A05 TPU CASE",
+      "archivo": "galaxy-a05.webp",
+      "origen": "Galaxy A05",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA12-NIAQqPSOqLUetC",
+      "nombre": "GALAXY A12 HARD CASE",
+      "archivo": "galaxy-a12.webp",
+      "origen": "Galaxy A12",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA21S-AnYnJUQjbZWBo",
+      "nombre": "GALAXY A21S HARD CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA21ST-vvWCdUjUQUNI",
+      "nombre": "GALAXY A21S TPU CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA30T-JEZsFXRXjSBup",
+      "nombre": "GALAXY A30/A20 TPU CASE",
+      "archivo": "galaxy-a30.webp",
+      "origen": "Galaxy A30",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS21T-FQTqLlJgYNmpU",
+      "nombre": "GALAXY S21 TPU CASE",
+      "archivo": "galaxy-s21.webp",
+      "origen": "Galaxy S21",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGS22T-peyZoBiRyHZNV",
+      "nombre": "GALAXY S22 TPU CASE",
+      "archivo": "galaxy-s22.webp",
+      "origen": "Galaxy S22+",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "VY22T-EnEexgAkNJHfnz",
+      "nombre": "VIVO Y22/Y22S TPU CASE",
+      "archivo": "vivo-y22s.webp",
+      "origen": "Vivo Y22s",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "XR10CT-ojGqCLrKQzNQO",
+      "nombre": "XIAOMI REDMI 10C TPU CASE",
+      "archivo": "redmi-10c.webp",
+      "origen": "Redmi 10C",
+      "fuente": "mascaras-blanco",
+      "piezas": 1
+    },
+    {
+      "codigo": "HX6T-UNGfsJlNZpKxaBX",
+      "nombre": "HONOR X6 TPU CASE",
+      "archivo": "honor-x6.webp",
+      "origen": "Honor X6",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HX7T-uhYodjkjxKNdAXN",
+      "nombre": "HONOR X7 TPU CASE",
+      "archivo": "honor-x7.webp",
+      "origen": "Honor X7",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "HX8T-wheQTZZRmLkYGSR",
+      "nombre": "HONOR X8 TPU CASE",
+      "archivo": "honor-x8.webp",
+      "origen": "Honor X8",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I15PLT-uspVZPETYYSZT",
+      "nombre": "IPHONE 15 PLUS TPU CASE",
+      "archivo": "iphone-15-plus.webp",
+      "origen": "iPhone 15 Plus",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTED20T-ooXHmBoqqLak",
+      "nombre": "MOTO EDGE 20 TPU CASE",
+      "archivo": "moto-edge-20.webp",
+      "origen": "Moto Edge 20",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG100T-yfiXCeZfEkSf",
+      "nombre": "MOTO G100 TPU CASE",
+      "archivo": "moto-g100.webp",
+      "origen": "Moto G100",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG13T-VlQcITJRwBmxh",
+      "nombre": "MOTO G13/G23 TPU CASE",
+      "archivo": "moto-g13.webp",
+      "origen": "Moto G13",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG32T-YNTsjiGbJJZXa",
+      "nombre": "MOTO G32 TPU CASE",
+      "archivo": "moto-g32.webp",
+      "origen": "Moto G32",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "MTG505GT-cPUdkLLhVHA",
+      "nombre": "MOTO G50 5G TPU CASE",
+      "archivo": "moto-g50-5g.webp",
+      "origen": "Moto G50 5G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPA15-ZlQGhATyEfnKhJ",
+      "nombre": "OPPO A15 HARD CASE",
+      "archivo": "oppo-a15.webp",
+      "origen": "OPPO A15",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPA15T-wBGlxdWsCydxt",
+      "nombre": "OPPO A15 TPU CASE",
+      "archivo": "oppo-a15.webp",
+      "origen": "OPPO A15",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPA16T-LIaJEHxlxGbrA",
+      "nombre": "OPPO A16 TPU CASE",
+      "archivo": "oppo-a16.webp",
+      "origen": "OPPO A16",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "OPRC53T-DmGRXTbVhzhA",
+      "nombre": "OPPO REALME C53 TPU CASE",
+      "archivo": "realme-c53.webp",
+      "origen": "Realme C53",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SA324GT-hZMnshFUdJZw",
+      "nombre": "GALAXY A32 4G TPU CASE",
+      "archivo": "galaxy-a32-4g.webp",
+      "origen": "Galaxy A32 4G",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA11-MnbSKHOYDjvNJG",
+      "nombre": "GALAXY A11 HARD CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA11T-yJIUlPEghknoN",
+      "nombre": "GALAXY A11 TPU CASE",
+      "archivo": "galaxy-a11.webp",
+      "origen": "Galaxy A11",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA134GT-bvUlNXIZMTj",
+      "nombre": "GALAXY A13 4G TPU CASE",
+      "archivo": "galaxy-a13.webp",
+      "origen": "Galaxy A13",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "SGA50T-wWSwPOiKKmQIL",
+      "nombre": "GALAXY A50/A30S TPU CASE",
+      "archivo": "galaxy-a50.webp",
+      "origen": "Galaxy A50",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "I14PLT-CYiqgApVDoMiu",
+      "nombre": "IPHONE 14 PLUS TPU CASE",
+      "archivo": "iphone-14-plus.webp",
+      "origen": "iPhone 14 Plus",
+      "fuente": "mascaras",
+      "piezas": 1
+    },
+    {
+      "codigo": "H600PT",
+      "nombre": "HONOR 600 PRO TPU CASE",
+      "archivo": "honor-600-pro.webp",
+      "origen": "Honor 600 Pro",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "HP80UT",
+      "nombre": "HUAWEI PURA 80 ULTRA TPU CASE",
+      "archivo": "huawei-pura-80-ultra.webp",
+      "origen": "Huawei Pura 80 Ultra",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "I14CT",
+      "nombre": "IPHONE 14 CRISTAL TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "I16PL3",
+      "nombre": "IPHONE 16 PLUS 3 IN 1",
+      "archivo": "iphone-16-plus.webp",
+      "origen": "iPhone 16 Plus",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "OPA585GT",
+      "nombre": "OPPO A58 5G/A78 5G TPU CASE",
+      "archivo": "oppo-a58-5g.webp",
+      "origen": "OPPO A58 5G",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "OPR11FT",
+      "nombre": "OPPO RENO 11F TPU CASE",
+      "archivo": "oppo-reno11-f.webp",
+      "origen": "OPPO Reno11 F",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "R16T",
+      "nombre": "REALME 16 5G TPU CASE",
+      "archivo": "realme-16.webp",
+      "origen": "Realme 16",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "RC85T",
+      "nombre": "REALME C85 TPU CASE",
+      "archivo": "realme-c85.webp",
+      "origen": "Realme C85",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "VV40L4GT",
+      "nombre": "VIVO V40 LITE 4G TPU CASE",
+      "archivo": "vivo-v40-lite-5g.webp",
+      "origen": "Vivo V40 Lite 5G",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "VY31DT",
+      "nombre": "VIVO Y31D TPU CASE",
+      "archivo": "vivo-y31d.webp",
+      "origen": "Vivo Y31D",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "XPF5PT",
+      "nombre": "XIAOMI POCCO F5 PRO TPU CASE",
+      "archivo": "poco-f5-pro.webp",
+      "origen": "Poco F5 Pro",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "SGA21S",
+      "nombre": "SAMSUNG A21S HARD CASE",
+      "archivo": "galaxy-a21s.webp",
+      "origen": "Galaxy A21s",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "XRN15PPT",
+      "nombre": "XIAOMI REDMI NOTE 15 PRO PLUS/POCCO M8 PRO TPU CASE",
+      "archivo": "redmi-note-15-pro-plus.webp",
+      "origen": "Redmi Note 15 Pro Plus",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "R165GT",
+      "nombre": "REALME 16 5G TPU CASE",
+      "archivo": "realme-16.webp",
+      "origen": "Realme 16",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "I14ST",
+      "nombre": "IPHONE 14 SALMON TPU CASE",
+      "archivo": "iphone-14.webp",
+      "origen": "iPhone 14",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "OPR15T",
+      "nombre": "OPPO REALME 15T TPU CASE",
+      "archivo": "realme-15t.webp",
+      "origen": "Realme 15T",
+      "fuente": "mascaras",
+      "piezas": 0
+    },
+    {
+      "codigo": "SA57T",
+      "nombre": "SAMSUNG A57 TPU CASE",
+      "archivo": "galaxy-a57.webp",
+      "origen": "Galaxy A57",
+      "fuente": "mascaras",
+      "piezas": 0
     }
   ]
 }

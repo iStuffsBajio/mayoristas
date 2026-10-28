@@ -28,6 +28,30 @@
     --splash: linear-gradient(135deg, var(--cian) 0%, var(--lima) 100%);
     --accion: linear-gradient(135deg, var(--magenta) 0%, var(--naranja) 100%);
 
+    /* El degradado del logotipo impreso, en el orden en que va ahí: naranja,
+       rojo, magenta, morado, azul y cian. El morado y el azul no estaban
+       entre los cuatro colores de marca, pero son los que hacen que la rampa
+       no salte del magenta al cian por un hueco gris. */
+    --degradado-letra: linear-gradient(100deg,
+      var(--naranja) 0%,
+      #ec2b5b 20%,
+      var(--magenta) 36%,
+      #8b17d4 58%,
+      #2440d8 78%,
+      var(--cian) 100%);
+
+    /* El mismo recorrido, en diagonal y para rellenar un campo entero. El
+       verde lima salía bien en el logotipo impreso y mal a pantalla completa
+       detrás de una funda transparente: la pieza perdía el contorno justo en
+       la zona clara. Esta rampa es más oscura en el centro y la silueta se
+       recorta contra ella. */
+    --degradado-campo: linear-gradient(155deg,
+      var(--cian) 0%,
+      #2440d8 30%,
+      #8b17d4 52%,
+      var(--magenta) 78%,
+      var(--naranja) 100%);
+
     --bg: #ffffff;
     --surface: #f2f6f8;
     --ink: #0d1114;
@@ -189,24 +213,58 @@
   .escenario-texto {
     display: flex;
     align-items: center;
+    /* Sin esto, un hijo ancho hace crecer la columna de la rejilla por encima
+       del ancho de la pantalla: el teléfono se queda con la página movida de
+       lado y medio texto fuera. */
+    min-width: 0;
     padding-block: var(--marco);
     padding-inline-start: max(var(--marco), (100% - var(--ancho)) / 2);
     padding-inline-end: var(--marco);
   }
 
-  .escenario-dentro { max-width: 46rem; width: 100%; }
+  /* `min-width: 0` no es adorno: sin él, un hijo ancho -la fila de plazas-
+     impide que esta columna encoja, la rejilla crece por encima del ancho de
+     la pantalla y el teléfono se queda con la página movida de lado. */
+  .escenario-dentro { max-width: 46rem; width: 100%; min-width: 0; }
+
+  /* Encima del titular, el a quién: esta página la abren dos públicos y el
+     mayorista tiene que saber en el primer vistazo que es la suya. */
+  .escenario-marca-sobre {
+    font-size: var(--step-small);
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-block-end: 14px;
+    background-image: var(--degradado-letra);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
 
   .escenario-titulo {
     font-size: var(--step-display);
+    /* 800 y el tracking más cerrado: es un cartel, no un párrafo. A 600 el
+       titular se leía como el de cualquier página de empresa. */
+    font-weight: 800;
+    letter-spacing: -0.045em;
     color: var(--ink);
     margin-block-end: 24px;
   }
 
-  /* Una palabra del titular con el degradado de accion. Un solo acento por
-     pantalla; mas de uno y deja de ser acento. */
+  /* La segunda línea con el degradado del logotipo entero -naranja a cian-,
+     no con el de dos colores: es la frase que tiene que quedarse, y es el
+     mismo degradado que llevan las pestañas y los botones. */
+  /* La segunda línea en VERSALES y la primera no.
+     En mayúsculas la frase entera se lee peor -las palabras pierden su
+     silueta y hay que deletrearlas- y además choca con el antetítulo, que ya
+     va en mayúsculas: dos bloques iguales seguidos aplanan la jerarquía.
+     Partida, la primera línea monta la frase y la segunda la remata, que es
+     lo que se queda. */
   .escenario-titulo em {
     font-style: normal;
-    background: var(--accion);
+    text-transform: uppercase;
+    letter-spacing: -0.02em;
+    background: var(--degradado-letra);
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -226,6 +284,48 @@
     color: var(--muted);
     margin-block-end: 8px;
   }
+
+  /* Elegir plaza es la primera decisión, así que va antes del campo y con el
+     mismo botón que las pestañas de arriba: blanco, trazo en degradado y
+     letra en degradado. Una sola forma en toda la página. */
+  /* Encima de las pastillas, a quién se le está preguntando. En cuanto
+     alguien escribe sin haber elegido tienda, se enciende: es el momento en
+     que importa, y un aviso al pie no lo lee nadie. */
+  .escenario-pide-plaza {
+    font-size: var(--step-small);
+    color: var(--muted);
+    margin-block-end: 8px;
+  }
+  .escenario-pide-plaza.urge {
+    font-weight: 800;
+    background-image: var(--degradado-letra);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .escenario-plazas {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-block-end: 18px;
+  }
+  .chip-plaza {
+    /* 44px es el mínimo que un pulgar acierta sin mirar. Esta pantalla se usa
+       de pie en un mostrador, no sentado. */
+    min-height: 44px;
+    padding: 10px 18px;
+    border: 1.5px solid transparent;
+    border-radius: 999px;
+    background: transparent;
+    font: inherit;
+    font-size: var(--step-small);
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    cursor: pointer;
+    transition: background 180ms ease, transform 140ms var(--salida);
+  }
+  .chip-plaza:active { transform: scale(0.97); }
 
   .escenario-buscar { position: relative; margin-block-end: 28px; }
 
@@ -256,9 +356,13 @@
   }
   .escenario-resultados button {
     display: flex;
+    align-items: center;
     justify-content: space-between;
     gap: 16px;
     width: 100%;
+    /* Alto de dedo, no de ratón: 48px. Con 12px de relleno dos resultados
+       seguidos caían dentro del mismo pulgar. */
+    min-height: 48px;
     padding: 12px 18px;
     font: inherit;
     font-size: var(--step-small);
@@ -271,43 +375,54 @@
   }
   .escenario-resultados button:hover,
   .escenario-resultados button:focus-visible { background: var(--surface); }
-  .escenario-piezas { color: var(--muted); white-space: nowrap; }
+  .escenario-piezas {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--ink);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  /* Un cero no se grita: se apaga. Sigue estando, que es lo que importa. */
+  .escenario-piezas[data-vacio] { color: var(--muted); font-weight: 500; opacity: 0.75; }
 
-  /* El boton de accion lleva el degradado magenta-naranja del logotipo y un
-     brillo del mismo color debajo. La guia de estilo que segui antes prohibe
-     degradados y sombras; en esta categoria -Samsung, Xiaomi, accesorios- son
-     el idioma normal, asi que se salta a proposito. La regla general no
-     conoce este negocio. */
+  /* El mismo botón de la casa que llevan las pestañas y las plazas: blanco
+     por dentro, degradado en el trazo y en la letra. Antes era una píldora
+     rellena de magenta con un brillo de color debajo; al lado de la banda de
+     color de la derecha eran dos degradados peleándose en la misma pantalla,
+     y el bloque sólido se llevaba la vista antes que el titular. */
   .escenario-accion {
-    padding: 17px 32px;
+    /* El relleno y el trazo en la misma caja, igual que la pestaña abierta.
+       La letra en degradado va en el <span> de dentro: el recorte al texto y
+       el relleno blanco no caben en el mismo elemento. */
+    padding: 15px 30px;
+    min-height: 52px;
     font: inherit;
     font-size: var(--step-body);
-    font-weight: 600;
-    letter-spacing: -0.01em;
-    color: #fff;
-    background: var(--accion);
-    border: none;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    border: 1.5px solid transparent;
     border-radius: 999px;
     cursor: pointer;
-    box-shadow: 0 8px 26px rgba(213, 26, 122, 0.32);
-    transition: transform 160ms var(--salida), box-shadow 200ms var(--salida), filter 160ms ease;
+    background:
+      linear-gradient(var(--bg), var(--bg)) padding-box,
+      var(--degradado-letra) border-box;
+    transition: transform 160ms var(--salida), box-shadow 200ms var(--salida);
   }
   .escenario-accion:active { transform: scale(0.97); }
   @media (hover: hover) and (pointer: fine) {
-    .escenario-accion:hover {
-      filter: brightness(1.06);
-      box-shadow: 0 12px 34px rgba(213, 26, 122, 0.42);
-    }
+    .escenario-accion:hover { box-shadow: 0 2px 14px rgba(13, 17, 20, 0.10); }
   }
 
   .escenario-campo {
     position: sticky;
     top: var(--barra);
     height: calc(100svh - var(--barra));
-    /* El splash del logotipo, a pantalla completa. Es lo que recupera la
-       energia de la version anterior: el gris pizarra de en medio hacia que
-       la pagina pareciera de otro negocio. */
-    background: var(--splash);
+    /* El degradado del logotipo impreso, a pantalla completa. Es lo que
+       recupera la energia de la version anterior: el gris pizarra de en medio
+       hacia que la pagina pareciera de otro negocio. */
+    background: var(--degradado-campo);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -317,11 +432,34 @@
   }
 
   .escenario-pieza {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
     width: min(34vw, 470px);
     height: min(68svh, 660px);
+  }
+
+  /* La marca va centrada sobre el cuerpo de la funda, que es la parte blanca.
+     El modo «multiply» la hace legible ahí y la apaga en cuanto se sale al color, sin
+     tener que colocarla a mano para cada modelo. */
+  /* El selector lleva `img` a propósito: `.escenario-pieza img` fija
+     `width: auto` para que la funda nunca se deforme, y con una clase a secas
+     ganaba por especificidad. La marca salía a tamaño natural -más ancha que
+     la propia funda- y se leía como un borrón gris encima del degradado.
+     Con `img.escenario-marca` tampoco bastaba: empata en especificidad con
+     la regla de la funda y ésa va después, así que ganaba por orden. */
+  .escenario-pieza img.escenario-marca {
+    position: absolute;
+    /* Grande a propósito. Pequeña y centrada se recorta en diez segundos;
+       a este tamaño cruza la zona imprimible entera y quitarla deja un
+       agujero en mitad de la funda. */
+    width: min(62%, 290px);
+    height: auto;
+    opacity: 0.26;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    user-select: none;
   }
   /* Contenida por las dos medidas. Con sólo `height` la funda se salía del
      cuadro por los lados en cuanto el cuadro era más bajo que ancho. */
@@ -341,9 +479,51 @@
     to   { opacity: 1; transform: none; filter: blur(0); }
   }
 
+  /* El dato que se busca, en el borde del campo y encima de la imagen. Antes
+     era un renglón de texto bajo la funda y se leía después del nombre, que
+     es justo al revés de como se mira: primero cuántas hay. */
+  .escenario-pildora {
+    position: absolute;
+    top: max(14px, calc(var(--marco) * 0.5));
+    inset-inline-end: max(14px, calc(var(--marco) * 0.5));
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 15px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.94);
+    color: var(--ink);
+    font-size: var(--step-small);
+    line-height: 1;
+    box-shadow: 0 2px 12px rgba(13, 17, 20, 0.16);
+  }
+  .escenario-pildora strong { font-weight: 800; letter-spacing: -0.02em; }
+  .escenario-pildora span   { color: var(--muted); }
+  .escenario-pildora .pildora-corto { display: none; }
+
   .escenario-ficha { width: min(34vw, 470px); }
   .escenario-modelo { font-size: var(--step-body); color: #fff; font-weight: 600; letter-spacing: -0.01em; }
   .escenario-stock  { font-size: var(--step-small); color: rgba(255,255,255,0.85); }
+
+  /* Desde cuándo es el dato. Discreto mientras está fresco y amarillo en
+     cuanto pasa de dos días: un mayorista prometiendo con existencias de la
+     semana pasada es el riesgo de verdad de esta página. */
+  .escenario-corte {
+    font-size: var(--step-small);
+    color: rgba(255, 255, 255, 0.72);
+    margin-block-start: 4px;
+  }
+  .escenario-corte.es-viejo { color: #ffd166; font-weight: 700; }
+
+  /* La foto prestada, dicha en voz baja: ayuda a reconocer la funda y no
+     puede pasar por la del modelo buscado. */
+  .escenario-aviso-foto {
+    font-size: var(--step-small);
+    color: rgba(255, 255, 255, 0.72);
+    font-style: italic;
+    margin-block-start: 4px;
+  }
 
   @media (prefers-reduced-motion: reduce) {
     .escenario-pieza img { animation: none; }
@@ -358,13 +538,46 @@
        de desbordarse por arriba, que es lo que hacía con un alto fijo. */
     .escenario-campo {
       order: -1;
-      height: 30svh;
-      min-height: 210px;
+      /* Un poco más alta que antes: ahora esta banda es la respuesta -foto,
+         piezas y plaza-, no un adorno de cabecera. */
+      height: 36svh;
+      min-height: 250px;
       position: sticky;
       top: var(--barra);
       gap: 10px;
       padding: 18px var(--marco);
     }
+    .escenario-pildora {
+      top: 12px;
+      inset-inline-end: 12px;
+      padding: 7px 12px;
+      gap: 6px;
+    }
+    .escenario-pildora .pildora-corto { display: inline; }
+    .escenario-pildora .pildora-largo { display: none; }
+
+    /* En el teléfono la funda se ve pequeña y la marca encima la ensucia más
+       de lo que protege. */
+    .escenario-pieza img.escenario-marca { width: min(58%, 190px); opacity: 0.24; }
+
+    /* Las plazas, en una tira que se desliza. Envueltas en dos renglones
+       empujaban el buscador fuera de la primera pantalla, y es lo único que
+       hay que tener a mano. Se sale del marco por los dos lados para que la
+       última no parezca cortada por error. */
+    .escenario-plazas {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      scrollbar-width: none;
+      margin-block-end: 16px;
+    }
+    .escenario-plazas::-webkit-scrollbar { display: none; }
+    .chip-plaza { flex: 0 0 auto; }
+
+    /* El titular cede tamaño en el teléfono: a 38px se comía dos renglones y
+       dejaba el buscador abajo del todo. Aquí lo que tiene que estar arriba
+       es la plaza y el campo, no el eslogan. */
+    .escenario-titulo { font-size: var(--step-head); }
+    .escenario-entrada { font-size: var(--step-small); max-width: none; margin-block-end: 18px; }
     .escenario-pieza { width: auto; height: auto; flex: 1 1 auto; min-height: 0; }
     .escenario-ficha { width: 100%; text-align: center; flex: 0 0 auto; }
     .escenario-texto {
@@ -443,6 +656,10 @@
   .oficios-pestanas button:active { transform: translateY(1px); }
 
   .oficios-medio { max-width: 42ch; }
+  .oficios-titulo,
+  .cifras-titulo,
+  .plazas-titulo { font-weight: 800; letter-spacing: -0.04em; }
+
   .oficios-titulo { font-size: var(--step-head); color: var(--ink); margin-block-end: 20px; }
   .oficios-texto  { font-size: var(--step-body); color: var(--ink); }
 
@@ -464,6 +681,35 @@
   }
 
   .oficios-celdas { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  /* El semáforo del reglamento: tres renglones, no una tabla. Es lo que
+     traduce un número de existencias en «puedo prometerlo o no». */
+  .oficios-semaforo {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-block: 4px 22px;
+  }
+  .oficios-semaforo li {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    font-size: var(--step-small);
+    color: var(--muted);
+  }
+  .oficios-semaforo .punto {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    align-self: center;
+  }
+  .oficios-semaforo strong {
+    color: var(--ink);
+    font-weight: 700;
+    min-width: 8ch;
+  }
+
   .celda {
     border-radius: 999px;
     display: flex;
@@ -481,20 +727,90 @@
     transition: transform 160ms var(--salida), background 160ms var(--salida);
   }
   .celda:active { transform: scale(0.98); }
-  .celda-tinta { background: var(--accion); color: #fff; font-weight: 600; }
-  .celda-tono  { background: var(--surface); color: var(--ink); font-weight: 600; }
+
+  /* El botón de la casa, el mismo que las pestañas de arriba y el de la
+     portada: blanco por dentro, degradado en el trazo y en la letra. Antes
+     el principal era una píldora rellena de magenta y el secundario un
+     bloque gris; con la banda de color al lado eran tres lenguajes de botón
+     distintos en la misma pantalla. */
+  .celda-tinta {
+    border: 1.5px solid transparent;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    background:
+      linear-gradient(var(--bg), var(--bg)) padding-box,
+      var(--degradado-letra) border-box;
+  }
+
+  /* El segundo, más callado todavía: sólo un filo. Dos botones con el mismo
+     trazo de colores compiten, y uno de los dos es el que importa. */
+  .celda-tono {
+    border: 1.5px solid rgba(13, 17, 20, 0.14);
+    background: transparent;
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  /* Sobre la franja negra el relleno es el negro, no el blanco: lo que se ve
+     es el trazo y la letra, sin una píldora blanca gritando en medio. */
+  .franja .celda-tinta {
+    background:
+      linear-gradient(var(--oscuro), var(--oscuro)) padding-box,
+      var(--degradado-letra) border-box;
+  }
+
   @media (hover: hover) and (pointer: fine) {
-    .celda-tinta:hover { filter: brightness(1.06); }
-    .celda-tono:hover  { background: #e6ecef; }
+    .celda-tinta:hover { box-shadow: 0 2px 14px rgba(13, 17, 20, 0.10); }
+    .celda-tono:hover  { background: var(--surface); }
   }
 
   .franja { background: var(--oscuro); padding: clamp(64px, 9vw, 120px) 0; }
   .franja-titulo {
     font-size: var(--step-head);
+    font-weight: 800;
+    letter-spacing: -0.04em;
     color: var(--bg);
     padding-inline: max(var(--marco), (100% - var(--ancho)) / 2);
-    margin-block-end: 40px;
+    margin-block-end: 18px;
     max-width: 26ch;
+  }
+  .franja-titulo em {
+    font-style: normal;
+    background: var(--degradado-letra);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+
+  .franja-entrada {
+    font-size: var(--step-body);
+    color: #c3ccd1;
+    line-height: 1.55;
+    max-width: 52ch;
+    padding-inline: max(var(--marco), (100% - var(--ancho)) / 2);
+    margin-block-end: 40px;
+  }
+
+  /* Los botones de cada tienda, al pie de la franja. Van aquí y no en el
+     texto porque es lo último que se mira antes de irse de la sección: el
+     que llegó hasta abajo ya sabe lo que hay y lo que falta es a quién
+     escribirle. */
+  .franja-contactos {
+    padding-inline: max(var(--marco), (100% - var(--ancho)) / 2);
+    margin-block-start: 48px;
+  }
+  .franja-pregunta {
+    font-size: var(--step-body);
+    font-weight: 700;
+    color: var(--bg);
+    margin-block-end: 14px;
+  }
+  .franja-botones {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+    max-width: 760px;
   }
 
   /* Rejilla, no tira que se arrastra.
@@ -638,32 +954,69 @@
     position: relative;
     flex: 0 0 auto;
     align-self: center;
-    padding: 8px 18px;
+    padding: 7px 16px;
     margin-inline-end: 8px;
-    border: 0;
+    /* El trazo va siempre, transparente mientras no toque. Pintándolo sólo en
+       la activa, los textos se movían 3px cada vez que se cambiaba de
+       pestaña. */
+    border: 1.5px solid transparent;
     border-radius: 999px;
     background: transparent;
-    color: var(--muted);
     font: inherit;
     font-size: var(--step-small);
-    font-weight: 600;
-    letter-spacing: -0.01em;
+    font-weight: 800;
+    letter-spacing: -0.015em;
     white-space: nowrap;
     cursor: pointer;
-    transition: color 150ms ease, background 180ms ease, transform 140ms var(--salida);
+    transition: background 180ms ease, transform 140ms var(--salida);
   }
   .pestana:last-child { margin-inline-end: 0; }
   .pestana:active { transform: scale(0.97); }
 
-  /* La barra inferior crece desde el centro en vez de aparecer de golpe.
-     Nada en el mundo real aparece de la nada: escala, no se enciende. */
-  .pestana.activa {
-    color: #fff;
-    background: var(--splash);
+  /* La letra con el degradado de la marca. El fondo se recorta a la forma de
+     las letras: lo que se ve pintado es el texto, no una caja. */
+  .pestana-texto,
+  .chip-plaza-texto {
+    background-image: var(--degradado-letra);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 
+  /* La abierta: blanca por dentro y con el degradado en el borde. Son dos
+     fondos sobre el mismo elemento, uno recortado al relleno y otro al trazo;
+     es la única forma de tener un borde con degradado sin añadir un elemento
+     que no pinta nada. */
+  .pestana.activa,
+  .chip-plaza.activa {
+    background:
+      linear-gradient(var(--bg), var(--bg)) padding-box,
+      var(--degradado-letra) border-box;
+    box-shadow: 0 1px 6px rgba(13, 17, 20, 0.07);
+  }
+
+  /* El hover lleva un trazo gris, no el de colores: con el mismo, pasar el
+     ratón por encima hacía que cualquier pestaña pareciera la abierta. */
   @media (hover: hover) and (pointer: fine) {
-    .pestana:hover:not(.activa) { color: var(--ink); background: var(--surface); }
+    .pestana:hover:not(.activa) {
+      background:
+        linear-gradient(var(--bg), var(--bg)) padding-box,
+        linear-gradient(rgba(13, 17, 20, 0.16), rgba(13, 17, 20, 0.16)) border-box;
+    }
+  }
+
+  /* Sin recorte a la letra el texto sería invisible: hay que devolverle un
+     color sólido. Pasa en navegadores viejos y en el modo de alto contraste,
+     donde además el sistema manda sobre cualquier color nuestro. */
+  @supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+    .pestana-texto,
+    .chip-plaza-texto { color: var(--magenta); }
+  }
+  @media (forced-colors: active) {
+    .pestana-texto,
+    .chip-plaza-texto { background-image: none; color: CanvasText; }
+    .pestana.activa,
+    .chip-plaza.activa { border-color: Highlight; }
   }
 }
 

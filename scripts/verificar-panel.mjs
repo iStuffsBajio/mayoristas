@@ -416,6 +416,55 @@ async function recorrerCola(window, donde) {
  * el campo vacío, se contestaría que no a doscientos casos sin decir por qué y
  * el reporte quedaría sin la mitad que importa.
  */
+/**
+ * La barra de busqueda por codigo de la seccion de ventas.
+ *
+ * La regla —que la plaza y el rango puestos no esconden un codigo que existe—
+ * vive en `buscarVentas.test.js`, que es donde se puede fijar. Lo que se
+ * comprueba aqui es lo que ninguna prueba de libreria ve: que la ficha se
+ * DIBUJE, y que un codigo inexistente lo diga en vez de dejar el hueco en
+ * blanco, que es como se ve igual que un fallo.
+ */
+async function buscarUnCodigo(window, donde) {
+  const doc = window.document
+  const campo = [...doc.querySelectorAll('input')]
+    .find(i => /buscar un c/i.test(i.placeholder || ''))
+  if (!campo) {
+    errores.push(`${donde} · no hay barra de busqueda por codigo en ventas`)
+    return 0
+  }
+
+  escribir(window, campo, 'SGS23UT')
+  await nuevaVuelta(window, 4)
+  if (!enPie(window, `${donde} · buscando SGS23UT`)) return 0
+
+  const ficha = doc.querySelector('[data-ficha-codigo]')
+  if (!ficha) {
+    errores.push(`${donde} · buscar SGS23UT no dibujo ninguna ficha`)
+    return 0
+  }
+  if (ficha.dataset.fichaCodigo !== 'SGS23UT') {
+    errores.push(`${donde} · la ficha dibujada es de ${ficha.dataset.fichaCodigo}, no del codigo buscado`)
+  }
+  // La ficha tiene que traer una linea por plaza, tambien las que salieron en
+  // cero: ensenar solo las que vendieron es volver a esconder el dato.
+  const lineas = ficha.querySelectorAll('[style*="minmax"]').length
+  if (lineas < 3) {
+    errores.push(`${donde} · la ficha trae ${lineas} renglones: faltan plazas o meses`)
+  }
+
+  escribir(window, campo, 'ZZZZ99')
+  await nuevaVuelta(window, 4)
+  if (!enPie(window, `${donde} · buscando un codigo que no existe`)) return 1
+  if (!doc.querySelector('[data-sin-coincidencias]')) {
+    errores.push(`${donde} · un codigo inexistente no avisa: la pantalla se queda muda`)
+  }
+
+  escribir(window, campo, '')
+  await nuevaVuelta(window, 3)
+  return 1
+}
+
 async function contestarCaso(window, donde) {
   const doc = window.document
   const boton = txt => [...doc.querySelectorAll('.revisar-ficha button')]
@@ -469,6 +518,7 @@ const SESIONES = [
 ]
 
 let pestanas = 0, secciones = 0, cabeceras = 0, hallazgos = 0
+let fichasDeCodigo = 0
 
 // Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
 // agrupacion sigue viva: sin ella la cola vuelve a ser una pregunta por
@@ -527,6 +577,9 @@ for (const [nombre, sesion] of SESIONES) {
         revisarConsola(dichos, `${nombre} · admin · «${t}»`)
         cabeceras += await todasLasCabeceras(window, `${nombre} · admin · ${t}`)
         hallazgos += await recorrerCola(window, `${nombre} · admin · ${t}`)
+        if (/ventas/i.test(t)) {
+          fichasDeCodigo += await buscarUnCodigo(window, `${nombre} · admin · ${t}`)
+        }
       }
     }
   }
@@ -538,6 +591,8 @@ for (const [nombre, sesion] of SESIONES) {
 // ── El parte ───────────────────────────────────────────────────────────────
 
 console.log(`\nsesiones 3 · pestañas ${pestanas} · secciones de admin ${secciones} · cabeceras pulsadas ${cabeceras} · hallazgos recorridos ${hallazgos}`)
+console.log(`  busqueda por codigo en ventas: ${fichasDeCodigo} ficha dibujada`)
+if (fichasDeCodigo < 1) errores.push('la busqueda por codigo de ventas no se ejecuto')
 for (const l of porSitio) console.log('  ' + l)
 console.log(`  lotes dibujados: ${lotesVistos.size}`)
 for (const l of lotesVistos) console.log('    · ' + l)

@@ -2,6 +2,8 @@
 // armado de pedidos. Antes estaba duplicado en ambas pantallas y los umbrales
 // se podian separar sin que nadie lo notara.
 
+import IconoFunda from './IconoFunda'
+
 export const UMBRAL_VERDE   = 10   // de aqui para arriba hay holgura
 export const UMBRAL_NARANJA = 4    // de 4 a 9 conviene resurtir
 
@@ -35,8 +37,12 @@ export default function StockBadge({ value, size = 13.5 }) {
   return (
     <span style={{ color, fontWeight: 700, fontSize: size, display: 'inline-flex', alignItems: 'center', whiteSpace: 'nowrap' }}>
       {n}
+      {/* Lo urgente se marca con la silueta de una funda, no con un rayo: el
+          rayo podía ser cualquier cosa y aquí lo que se cuenta son fundas. */}
       {nivel === 'urgente'
-        ? <span style={{ marginLeft: 4 }}>⚡</span>
+        ? <span style={{ marginLeft: 5, display: 'inline-flex', alignItems: 'center' }}>
+            <IconoFunda size={Math.round(size * 0.62)} />
+          </span>
         : <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: color, display: 'inline-block', marginLeft: 5 }} />}
     </span>
   )

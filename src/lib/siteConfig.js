@@ -10,9 +10,12 @@ const KEY    = 'config/site.json'
 
 export const DEFAULT_CONFIG = {
   tabs: {
-    inventario:  { visible: true, label: 'Inventario' },
-    personaliza: { visible: true, label: 'Diseña tu funda' },
-    stikers:     { visible: true, label: 'Stickers' },
+    // Cada pestaña dice de entrada para quién es: la página la abren
+    // mayoristas que vienen a consultar existencias y clientes que vienen a
+    // encargar algo suyo, y antes las tres sonaban igual de genéricas.
+    inventario:  { visible: true, label: 'Mayorista · Consulta' },
+    personaliza: { visible: true, label: 'Cliente · Diseña tu funda' },
+    stikers:     { visible: true, label: 'Cliente · Stickers' },
   },
   hero: {
     badge:     'Portal de mayoristas',

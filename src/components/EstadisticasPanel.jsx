@@ -8,6 +8,10 @@ import {
   consolidarHistorial, consolidarEstadisticas,
 } from '../lib/estadisticas'
 import { descargarHistorial, descargarComparativo, nombreDePeriodo } from '../lib/exportarEstadisticas'
+import { hayBusqueda } from '../lib/buscar'
+// La regla de buscar vive en la libreria, con sus pruebas, no aqui: la
+// pastilla de la plaza y la del rango no pueden esconder un codigo que existe.
+import { modelosQueCoinciden, fichaDeVentas } from '../lib/buscarVentas'
 
 // Una serie por gráfica, así que no hacen falta colores categóricos ni leyenda:
 // el título nombra la serie. Los tonos pasaron el validador de contraste contra
@@ -458,12 +462,112 @@ function ArchivoPermanente({ historial, sucursal }) {
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
+// ── Buscar un código ──────────────────────────────────────────────────────────
+
+/**
+ * La ficha de un código: sus piezas, en qué plaza salieron, su puesto en el
+ * ranking, su serie diaria y sus meses.
+ *
+ * Va con TODAS las plazas y con el archivo entero a propósito, sin mirar las
+ * pastillas de arriba. El por qué está en `buscarVentas.js`: buscar es ir por
+ * un modelo concreto, y mirando «San Luis · 7 días» un código que sólo se
+ * movió en León daría cero teniendo el dato a la vista.
+ */
+function FichaCodigo({ ficha, rango }) {
+  // Doce meses es lo que cabe de un vistazo; el archivo guarda todos y el
+  // Excel de «Archivo por mes» los baja completos.
+  const meses = ficha.meses.slice(-12)
+  const maxMes = Math.max(1, ...meses.map(m => m.salidas))
+  const maxPlaza = Math.max(1, ...ficha.plazas.map(p => p.salidas))
+
+  return (
+    <div data-ficha-codigo={ficha.codigo || ficha.clave}
+         style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '16px 18px', marginBottom: 18, background: 'rgba(2,136,173,0.035)' }}>
+
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <strong style={{ fontSize: 14.5, fontWeight: 800, color: TINTA }}>{ficha.producto}</strong>
+        {ficha.codigo && (
+          <span style={{ fontSize: 11.5, color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace' }}>{ficha.codigo}</span>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'baseline', marginBottom: 14 }}>
+        <Cifra valor={ficha.total} etiqueta={`piezas en ${rango} días`}
+               color={ficha.total > 0 ? TINTA : C_BAJA} />
+        {ficha.lugar !== null && (
+          <Cifra valor={`#${ficha.lugar}`} etiqueta={`de ${ficha.deCuantos} modelos con salida`} />
+        )}
+        {ficha.ultimo && (
+          <span style={{ fontSize: 12, color: TINTA_SUAVE }}>última salida {fmtDia(ficha.ultimo)}</span>
+        )}
+      </div>
+
+      {/* Cero no es «no encontrado»: es que no salió ni una pieza, que es el
+          dato que se vino a buscar. Se dice con palabras. */}
+      {ficha.total === 0 && (
+        <div style={{ marginBottom: 14 }}>
+          <Aviso>
+            No salió ni una pieza en los últimos {rango} días, en ninguna plaza. El modelo
+            existe: abajo están los meses en los que sí se movió.
+          </Aviso>
+        </div>
+      )}
+
+      {/* Las plazas, siempre todas. Que en una no se haya movido ninguna es
+          parte de la respuesta, y una plaza sin archivo publicado dice «sin
+          dato», no cero: no es lo mismo no vender que no saber. */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+        {ficha.plazas.map(p => (
+          <div key={p.slug} style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 140px) 1fr auto', gap: 10, alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: TINTA_SUAVE, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {p.nombre}
+            </span>
+            <Barra valor={p.salidas} max={maxPlaza} color={C_SERIE} />
+            <span style={{ fontSize: 12.5, fontWeight: 700, color: p.sinDato ? TINTA_TENUE : TINTA, fontVariantNumeric: 'tabular-nums', minWidth: '7ch', textAlign: 'right' }}>
+              {p.sinDato ? 'sin dato' : p.salidas}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {ficha.total > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <SerieDiaria serie={ficha.serie} />
+        </div>
+      )}
+
+      {meses.length > 0 && (
+        <div>
+          <h4 style={{ fontSize: 12.5, fontWeight: 700, color: TINTA, margin: '0 0 8px' }}>
+            Por mes, desde que hay archivo
+          </h4>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {meses.map(m => (
+              <div key={m.periodo} style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 140px) 1fr auto', gap: 10, alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: TINTA_SUAVE }}>{nombreDePeriodo(m.periodo)}</span>
+                <Barra valor={m.salidas} max={maxMes} color={C_RANKING} />
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: m.salidas ? TINTA : TINTA_TENUE, fontVariantNumeric: 'tabular-nums', minWidth: '4ch', textAlign: 'right' }}>
+                  {m.salidas}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function EstadisticasPanel() {
   const activas  = useMemo(() => SUCURSALES.filter(s => s.activa), [])
   const opciones = useMemo(() => [TODAS, ...activas], [activas])
 
   const [sel, setSel]     = useState(TODAS.slug)
   const [rango, setRango] = useState(30)
+  const [busqueda, setBusqueda] = useState('')
+  // Cuál de las coincidencias se está mirando. Null significa «la primera»,
+  // para que escribir un código y no tocar nada más ya enseñe su ficha.
+  const [claveSel, setClaveSel] = useState(null)
   const [porSucursal, setPorSucursal] = useState(null)
   const [cargando, setCargando]       = useState(true)
 
@@ -507,6 +611,22 @@ export default function EstadisticasPanel() {
   }, [porSucursal, sel, activas])
 
   const resumen = useMemo(() => datos ? resumir(datos, rango) : null, [datos, rango])
+
+  // Las coincidencias salen del catálogo de TODAS las plazas y de los 60 días
+  // completos, no del rango ni de la plaza elegidos. El rango decide qué
+  // gráfica se dibuja; nunca si el modelo aparece.
+  const buscando = hayBusqueda(busqueda)
+  const coincidencias = useMemo(
+    () => (buscando ? modelosQueCoinciden({ porSucursal, consulta: busqueda }) : []),
+    [buscando, porSucursal, busqueda],
+  )
+  const clave = coincidencias.some(c => c.clave === claveSel)
+    ? claveSel
+    : coincidencias[0]?.clave ?? null
+  const ficha = useMemo(
+    () => (clave ? fichaDeVentas({ porSucursal, clave, plazas: activas, rango }) : null),
+    [porSucursal, clave, activas, rango],
+  )
 
   // Lo que se enseña a la derecha del título cuando el comparativo está
   // cerrado: lo justo para saber si conviene abrirlo.
@@ -552,6 +672,68 @@ export default function EstadisticasPanel() {
           </Pildora>
         ))}
       </div>
+
+      {/* Buscar un código concreto.
+
+          Va fuera del bloque de abajo a propósito: ese bloque depende de que
+          la plaza elegida tenga estadística, y la búsqueda no puede depender
+          de eso. Si Aguascalientes no tiene archivo publicado, buscar un
+          código que se vende en León tiene que seguir contestando. */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
+        <input
+          value={busqueda}
+          onChange={e => { setBusqueda(e.target.value); setClaveSel(null) }}
+          placeholder="Buscar un código: SGA16T, iphone 15, mica..."
+          style={{ flex: 1, minWidth: 200, padding: '8px 14px', fontSize: 13, borderRadius: 999, border: '1px solid ' + LINEA, outline: 'none', color: TINTA }}
+        />
+        {busqueda && (
+          <Pildora onClick={() => { setBusqueda(''); setClaveSel(null) }}>Limpiar</Pildora>
+        )}
+      </div>
+
+      <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '0 0 20px', lineHeight: 1.5 }}>
+        Un código se busca en todas las plazas y en el archivo completo: ni la plaza ni el
+        rango que estén puestos arriba lo esconden.
+      </p>
+
+      {buscando && (
+        <div>
+          {/* Cuando coincide más de uno hay que poder elegir: escribir «a16»
+              trae el Samsung y el Oppo, y adivinar cuál quería sería peor. */}
+          {coincidencias.length > 1 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+              {coincidencias.slice(0, 8).map(c => (
+                <Pildora key={c.clave} activa={c.clave === clave} onClick={() => setClaveSel(c.clave)}>
+                  {c.codigo || c.producto}
+                </Pildora>
+              ))}
+              {coincidencias.length > 8 && (
+                <span style={{ fontSize: 11.5, color: TINTA_TENUE, alignSelf: 'center' }}>
+                  y {coincidencias.length - 8} más: escribe un poco más del código
+                </span>
+              )}
+            </div>
+          )}
+
+          {ficha
+            ? <FichaCodigo ficha={ficha} rango={rango} />
+            : (
+              <div data-sin-coincidencias style={{ padding: '14px 16px', borderRadius: 16, marginBottom: 18, background: 'rgba(16,22,25,0.03)', border: '1px solid ' + LINEA }}>
+                <p style={{ fontSize: 13, fontWeight: 700, color: TINTA, margin: 0 }}>
+                  Ningún modelo coincide con «{busqueda.trim()}»
+                </p>
+                {/* Decir dónde sí está, en vez de dejarlo en «no hay nada»:
+                    aquí sólo viven los códigos que han bajado de existencia
+                    alguna vez, y eso no es todo el catálogo. */}
+                <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '4px 0 0', lineHeight: 1.55 }}>
+                  Este archivo sólo tiene los códigos que han bajado de existencia alguna vez. Un
+                  código que exista en el catálogo y todavía no se haya movido se consulta en
+                  Inventarios.
+                </p>
+              </div>
+            )}
+        </div>
+      )}
 
       {cargando && <p style={{ fontSize: 13, color: TINTA_TENUE }}>Cargando movimiento de las sucursales...</p>}
 

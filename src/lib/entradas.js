@@ -13,9 +13,21 @@
 
 import { useEffect } from 'react'
 
+// Se miran los que todavía NO han entrado, y se vuelven a mirar siempre.
+//
+// Antes cada nodo se marcaba `visto` la primera vez y ya no se observaba
+// nunca más. Eso dejaba contenido invisible para siempre en cuanto el
+// observador se reemplazaba -al cambiar de pestaña, o en desarrollo, donde
+// React monta, desmonta y vuelve a montar-: el observador viejo se
+// desconectaba, el nuevo no miraba nada porque todo estaba «visto», y lo que
+// no hubiera entrado en pantalla se quedaba en opacidad cero.
+//
+// Pasó de verdad: dos de los tres puntos de la sección de oficios no se leían
+// nunca. Observar dos veces el mismo nodo no cuesta nada -el navegador lo
+// ignora- y quitar la marca quita el fallo entero.
 function mirar(ojo, raiz) {
-  for (const p of raiz.querySelectorAll?.('[data-entra]') ?? []) {
-    if (!p.dataset.visto) { p.dataset.visto = '1'; ojo.observe(p) }
+  for (const p of raiz.querySelectorAll?.('[data-entra]:not(.dentro)') ?? []) {
+    ojo.observe(p)
   }
 }
 
