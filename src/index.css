@@ -440,6 +440,43 @@
     height: min(68svh, 660px);
   }
 
+  /* La caja de la funda, al milímetro de la imagen: `inline-flex` encoge
+     hasta la foto, y el patrón de encima puede ir a `inset: 0` sabiendo que
+     coincide con ella. Con el patrón pegado al contenedor grande, la máscara
+     se descolocaba en cuanto la funda no llenaba el cuadro. */
+  /* La marca repetida por toda la funda, recortada con su propia silueta.
+     Una marca de agua pequeña y centrada se quita en diez segundos con
+     cualquier recorte; ésta cruza el producto entero, así que quitarla deja
+     la funda agujereada. `multiply` la deja gris sobre el blanco imprimible
+     y la apaga sola sobre el marco negro. */
+  .escenario-marca-patron {
+    position: absolute;
+    inset: 0;
+    background-image: url('/logo-istuffs.png');
+    background-repeat: repeat;
+    /* Por ALTO, no por ancho. La funda siempre llena el cuadro a lo alto
+       -`contain` manda la altura-, así que midiendo el azulejo contra el alto
+       sale la misma rejilla en el teléfono y en el escritorio. Por ancho
+       salían tres marcas en la pantalla grande y un borrón en la chica. */
+    background-size: auto 17%;
+    /* A color, por decisión del dueño. Se probaron las dos: en gris se lee
+       antes como marca de agua, y a color puede confundirse con un estampado
+       del producto. Gana el color porque es la marca y se reconoce de lejos.
+       Si algún día un cliente pregunta si la funda VIENE con el logotipo
+       impreso, la respuesta es bajar la opacidad o quitarle el color aquí. */
+    opacity: 0.22;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    -webkit-mask-image: var(--mascara);
+    mask-image: var(--mascara);
+    -webkit-mask-size: contain;
+    mask-size: contain;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: center;
+    mask-position: center;
+  }
+
   /* La marca va centrada sobre el cuerpo de la funda, que es la parte blanca.
      El modo «multiply» la hace legible ahí y la apaga en cuanto se sale al color, sin
      tener que colocarla a mano para cada modelo. */

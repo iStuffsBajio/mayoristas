@@ -391,19 +391,28 @@ export default function Escenario({ onIr }) {
 {/* Sin foto no se dibuja un hueco: el modelo existe igual y lo que
               importa -nombre, piezas y plaza- se enseña debajo. */}
           {foto && (
-            <img
-              key={foto.archivo}
-              src={`${PIEZA}/${foto.archivo}`}
-              alt={`Funda para ${foto.modelo}`}
-              width="900" height="1880"
-              onLoad={e => { e.currentTarget.style.visibility = 'visible' }}
-              onError={e => { e.currentTarget.style.visibility = 'hidden' }}
-            />
+            <>
+              <img
+                key={foto.archivo}
+                src={`${PIEZA}/${foto.archivo}`}
+                alt={`Funda para ${foto.modelo}`}
+                width="900" height="1880"
+                onLoad={e => { e.currentTarget.style.visibility = 'visible' }}
+                onError={e => { e.currentTarget.style.visibility = 'hidden' }}
+              />
+              {/* El patrón se recorta con la FOTO como máscara y comparte con
+                  ella el mismo encaje -`contain`, centrado, en el mismo
+                  cuadro-, así que cae clavado encima de la funda sin que nadie
+                  mida nada. Sin máscara habría que empapelar el cuadro entero
+                  de logotipos sobre el degradado. */}
+              <span className="escenario-marca-patron"
+                    style={{ '--mascara': `url(${PIEZA}/${foto.archivo})` }} />
+            </>
           )}
           {/* La marca sobre la foto. Son fotografías propias y se publican en
               abierto, así que salen firmadas. Va multiplicada: se lee sobre el
               blanco de la funda y se apaga sola al pasar al color del fondo. */}
-          {foto && <img className="escenario-marca" src="/logo-istuffs.png" alt="" aria-hidden="true" />}
+
         </div>
 
         <div className="escenario-ficha">
