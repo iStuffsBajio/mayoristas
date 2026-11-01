@@ -7,12 +7,17 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/lib/*.test.js",
-    "verificar": "node scripts/verificar-panel.mjs"
+    "test": "node --test src/lib/*.test.js crm/*.test.js",
+    "verificar": "node scripts/verificar-panel.mjs",
+    "crm": "node crm/probar.mjs",
+    "crm:simular": "node crm/simular.mjs",
+    "crm:web": "node crm/servidor.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.3.0",
     "@aws-sdk/client-s3": "^3.1050.0",
     "@napi-rs/canvas": "^1.0.11",
+    "@opentelemetry/api": "^1.10.0",
     "ag-psd": "^31.0.3",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
@@ -22,6 +27,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.18",
+    "jsdom": "^30.1.3",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
     "vite": "^5.1.4"
