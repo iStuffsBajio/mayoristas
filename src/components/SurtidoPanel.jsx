@@ -53,14 +53,16 @@ const VISTAS = [
   { id: 'agotados',   etiqueta: '⚠ Agotados que duelen',   ambito: 'bodega' },
 ]
 
-function Pildora({ activa, onClick, children, titulo }) {
+function Pildora({ activa, onClick, children, tenue }) {
+  // El botón de la casa, en `.chip-plaza`: blanco por dentro, trazo y letra
+  // en degradado. Antes era una píldora rellena de cian y verde, que es el
+  // único sitio donde seguía viva esa paleta.
   return (
-    <button type="button" onClick={onClick} title={titulo}
-      className="px-3.5 py-1.5 text-xs font-semibold transition-all"
-      style={activa
-        ? { background: 'linear-gradient(135deg, #00BCF2, #8DC63F)', borderRadius: 999, color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,188,242,0.22)' }
-        : { backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid ' + LINEA, borderRadius: 999, color: TINTA_SUAVE, cursor: 'pointer', background: 'none' }}>
-      {children}
+    <button type="button" onClick={onClick}
+            className={'chip-plaza' + (activa ? ' activa' : '')}
+            aria-pressed={activa}
+            style={tenue ? { opacity: 0.75 } : undefined}>
+      <span className="chip-plaza-texto">{children}</span>
     </button>
   )
 }
@@ -1001,7 +1003,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
       {(
         <button type="button" onClick={exportar}
           className="px-4 py-2 text-sm font-semibold transition-all"
-          style={{ background: 'linear-gradient(135deg, #5E9422, #8DC63F)', borderRadius: 999, color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(94,148,34,0.22)' }}>
+          style={{ borderRadius: 999, border: '1.5px solid transparent', cursor: 'pointer', fontWeight: 800, color: '#101619', background: 'linear-gradient(#fff, #fff) padding-box, var(--degradado-letra) border-box' }}>
           Bajar el reporte completo en Excel
         </button>
       )}

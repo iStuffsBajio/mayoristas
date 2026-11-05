@@ -73,11 +73,89 @@ export function ritmoPorModelo(historiales) {
   return ritmo
 }
 
-/** La clase de cada modelo, listo para consultar por código. */
-export function clasePorModelo(historiales) {
+// ── La clase se oxida ───────────────────────────────────────────────────────
+//
+// `ritmoPorModelo` promedia TODO el historial, así que un modelo que vendió
+// mucho en diciembre y nada desde entonces sigue figurando como clase A: se
+// le reserva sitio en bodega, se le surte con prioridad y encabeza las
+// alarmas, por una venta que ya no existe.
+//
+// Lo pidió el dueño con estas palabras: «modelos viejos o que antes eran
+// clase A que se vayan recorriendo a clase B y así sucesivamente». Es una
+// escalera, no un corte: se baja UN escalón por cada tramo sin vender, y
+// nunca por debajo de C.
+//
+// Por qué un escalón y no recalcular la clase con los últimos tres meses: la
+// clase tiene que ser una etiqueta estable del catálogo -significar lo mismo
+// en cualquier pantalla y en cualquier mes-. Bajando de a poco, un modelo que
+// tuvo un mes flojo no se desploma a C y vuelve a A en cuanto repunte.
+
+/**
+ * 🔒 Días sin vender que hacen bajar un escalón. Cruzar los dos baja dos.
+ *
+ * Tres meses sin una sola pieza en NINGUNA plaza ya no es un bache de
+ * temporada; seis, es otro producto.
+ */
+export const ESCALONES_SIN_VENDER = [90, 180]
+
+const ORDEN = ['A', 'B', 'C']
+
+/** Baja `n` escalones desde una clase, sin pasar de C. */
+export function bajarClase(clase, n) {
+  const i = ORDEN.indexOf(clase)
+  if (i < 0 || n <= 0) return clase
+  return ORDEN[Math.min(ORDEN.length - 1, i + n)]
+}
+
+/**
+ * El último mes con venta de cada código, mirando todos los historiales.
+ *
+ * Se usa el acumulado por mes y no `UltimoMov` del inventario a propósito:
+ * ese campo cuenta los recuentos como movimiento, y un ajuste de inventario
+ * rejuvenecería un modelo que lleva dos años parado.
+ */
+export function ultimaVentaPorModelo(historiales) {
+  const ultima = {}
+  for (const h of (historiales ?? []).filter(Boolean)) {
+    for (const p of h.periodos ?? []) {
+      for (const [codigo, n] of Object.entries(p.m ?? {})) {
+        if (!(n > 0)) continue
+        if (!ultima[codigo] || p.p > ultima[codigo]) ultima[codigo] = p.p
+      }
+    }
+  }
+  return ultima
+}
+
+/** Días desde el final del mes `YYYY-MM`. El mes en curso cuenta como cero. */
+export function diasDesdeElMes(periodo, hoy = new Date()) {
+  const [a, m] = String(periodo ?? '').split('-').map(Number)
+  if (!a || !m) return null
+  const finDeMes = new Date(a, m, 0)
+  return Math.max(0, Math.floor((hoy - finDeMes) / 86400000))
+}
+
+/**
+ * La clase de cada modelo, listo para consultar por código.
+ *
+ * `oxidar: false` devuelve la clase cruda del ritmo histórico, que es lo que
+ * hace falta para comparar contra lo de antes.
+ */
+export function clasePorModelo(historiales, { hoy = new Date(), oxidar = true } = {}) {
   const ritmo = ritmoPorModelo(historiales)
+  const ultima = oxidar ? ultimaVentaPorModelo(historiales) : {}
   const clases = {}
-  for (const [codigo, n] of Object.entries(ritmo)) clases[codigo] = claseDe(n)
+
+  for (const [codigo, n] of Object.entries(ritmo)) {
+    const cruda = claseDe(n)
+    if (!oxidar) { clases[codigo] = cruda; continue }
+
+    const dias = diasDesdeElMes(ultima[codigo], hoy)
+    // Sin una sola venta en todo el historial no hay nada que oxidar: ya es C.
+    const escalones = dias === null ? 0
+      : ESCALONES_SIN_VENDER.filter(u => dias >= u).length
+    clases[codigo] = bajarClase(cruda, escalones)
+  }
   return clases
 }
 

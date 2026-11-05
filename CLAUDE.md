@@ -63,6 +63,52 @@ piezas al mes y sólo 26 pasan de 10. La gráfica salía de un solo color.
 Si el catálogo cambia de tamaño, se vuelven a medir. No se copian de ningún
 sitio.
 
+### La clase se oxida: lo que ya no vende baja de escalón
+
+`ritmoPorModelo` promedia TODO el historial, así que un modelo que vendió
+mucho en diciembre y nada desde entonces seguía figurando como clase A: se le
+reservaba sitio en bodega, se le surtía con prioridad y encabezaba las
+alarmas por una venta que ya no existe.
+
+Ahora baja **un escalón por cada tramo sin vender en ninguna plaza** —90 días
+uno, 180 dos— y nunca por debajo de C. Es una escalera y no un recálculo a
+propósito: la clase tiene que significar lo mismo en todas las pantallas, y
+bajando de a poco un mes flojo no desploma un modelo a C.
+
+Medido al estrenarla: bajaron 13 modelos, **6 de ellos de clase A**. Cinco
+eran códigos duplicados con sufijo aleatorio —`PV-zuErp…`, `HDA-sPmqF…`— cuya
+última venta fue en **2023**, y pesaban como clase A por el promedio de todo
+el historial.
+
+La última venta sale del acumulado por mes, **nunca de `UltimoMov`**: ese
+campo cuenta los recuentos como movimiento y un ajuste de inventario
+rejuvenecería un modelo parado desde hace dos años.
+
+### Qué reponer antes de que se agote, y de dónde
+
+Pedir al proveedor tarda **40 días**; al nacional —la competencia— **4**, con
+menos margen. Con esos dos relojes la pantalla dice lo que antes se decidía
+de memoria: si a la red le quedan menos de 40 días de venta y bodega no
+tiene, el pedido normal NO LLEGA.
+
+Los días que debe aguantar cada clase, que puso el dueño:
+
+| | A | B | C |
+|---|---|---|---|
+| Tienda, temporada baja | 30 | 25 | 20 |
+| Tienda, temporada alta | 60 | 45 | 30 |
+| Bodega | **80** (2× el pedido) | 60 | 40 |
+
+Vive en `reservas.js`. Y el ritmo con el que se calcula **no** es el promedio
+de todo el historial: es el ponderado de `ritmo.js` —50% las últimas cuatro
+semanas, 30% las anteriores, 20% las de antes—. El promedio plano fue la
+causa de que se agotaran modelos recién surtidos: medido, 30 clase A iban a
+×1.5 o más de su ritmo histórico y 42 a la mitad o menos.
+
+Lo que todavía NO se puede medir es **cuántas veces se ha agotado** cada
+modelo, que es lo que pide el excedente anti-quiebre: hace falta el historial
+de existencias, y eso sólo sale de la tabla de movimientos de Eleventa.
+
 ### Tres reglas que NO son números y pesan más
 
 **Una funda no sirve para otro teléfono.** La demanda del Galaxy A06 no se
@@ -199,6 +245,18 @@ escondida, además, nada indicaba que hubiera más.
 
 Se centra con **márgenes automáticos** en el primer y el último hijo: centra
 cuando cabe todo y se anula solo cuando no.
+
+### `npm run preview` no puede leer el bucket
+
+El CORS del bucket abre `http://localhost:5173` -el servidor de desarrollo- y
+`https://istuffsbajio.com`, y nada más. En `npm run preview`, que sirve en el
+**4173**, todas las peticiones a S3 fallan con «Failed to fetch» y el panel se
+pinta entero diciendo «no tiene inventario publicado».
+
+No es un fallo del código: es que esa puerta no está abierta. Para mirar
+pantallas que dependen de datos, **el servidor de desarrollo**. Y si alguna
+vez hace falta revisar la compilación de verdad en local, hay que añadir el
+4173 al CORS del bucket, no pelearse con el código.
 
 ### `--window-size` de Chrome NO fija el viewport
 

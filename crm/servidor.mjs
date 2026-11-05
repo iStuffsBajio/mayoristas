@@ -447,6 +447,9 @@ servidor.listen(PUERTO, () => {
     ? '  Llave de la API: puesta. Todo funciona.\n'
     : '  Llave de la API: NO puesta.\n' +
       '  Los mensajes de audio, foto y ubicacion funcionan igual (no gastan modelo).\n' +
-      '  Para los de texto hace falta: export ANTHROPIC_API_KEY=...\n')
+      '  Para los de texto, pon esta linea en el archivo .env de la raiz:\n\n' +
+      '      ANTHROPIC_API_KEY=sk-ant-...\n\n' +
+      '  La llave se saca en console.anthropic.com. El .env ya esta en\n' +
+      '  .gitignore, asi que no se sube. Luego Ctrl+C y npm run crm:web.\n')
   console.log('  Ctrl+C para cerrar.\n')
 })

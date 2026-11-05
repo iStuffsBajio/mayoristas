@@ -1,6 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { claseDe, ritmoPorModelo, clasePorModelo, agotadosPorUbicacion, CLASE_A, CLASE_B } from './clases.js'
+import {
+  claseDe, ritmoPorModelo, clasePorModelo, agotadosPorUbicacion, CLASE_A, CLASE_B,
+  bajarClase, ultimaVentaPorModelo, diasDesdeElMes, ESCALONES_SIN_VENDER,
+} from './clases.js'
 
 test('los cortes de clase son los medidos sobre el catálogo propio', () => {
   // Si alguien los sube a los números de manual -20 y 5- todo el catálogo
@@ -92,4 +95,62 @@ test('bodega se cuenta por su propio campo, no por enCero', () => {
 test('sin bodega, la lista sale solo con las tiendas', () => {
   const r = agotadosPorUbicacion([], {}, [{ slug: 'leon', nombre: 'León' }])
   assert.equal(r.length, 1)
+})
+
+// ── La clase se oxida ────────────────────────────────────────────────────────
+//
+// Lo pidió el dueño: «modelos viejos o que antes eran clase A que se vayan
+// recorriendo a clase B y así sucesivamente». Sin esto, un modelo que vendió
+// mucho en diciembre y nada después sigue reservando sitio en bodega.
+
+test('un modelo que sigue vendiendo no baja de clase', () => {
+  const hoy = new Date('2026-11-05T12:00:00Z')
+  const hist = { periodos: [
+    { p: '2026-09', m: { X: 150 }, diasCubiertos: 30 },
+    { p: '2026-11', m: { X: 20 },  diasCubiertos: 5 },
+  ] }
+  assert.equal(clasePorModelo([hist], { hoy }).X, 'A')
+})
+
+test('tres meses sin vender bajan un escalón', () => {
+  const hoy = new Date('2026-11-05T12:00:00Z')
+  // Vendía como clase A, pero la última venta fue en junio: más de 90 días.
+  const hist = { periodos: [{ p: '2026-06', m: { X: 150 }, diasCubiertos: 30 }] }
+  assert.equal(clasePorModelo([hist], { hoy }).X, 'B')
+  // Y la clase cruda, sin oxidar, sigue siendo A: es la misma venta.
+  assert.equal(clasePorModelo([hist], { hoy, oxidar: false }).X, 'A')
+})
+
+test('seis meses sin vender bajan dos escalones', () => {
+  const hoy = new Date('2026-11-05T12:00:00Z')
+  const hist = { periodos: [{ p: '2026-03', m: { X: 150 }, diasCubiertos: 30 }] }
+  assert.equal(clasePorModelo([hist], { hoy }).X, 'C')
+})
+
+test('nunca se baja de C', () => {
+  assert.equal(bajarClase('C', 5), 'C')
+  assert.equal(bajarClase('A', 2), 'C')
+  assert.equal(bajarClase('A', 0), 'A')
+})
+
+test('la última venta sale del acumulado por mes, no de un recuento', () => {
+  // Dos plazas: en una vendió en marzo y en otra en octubre. Manda la más
+  // reciente, porque el modelo sigue vivo en la red.
+  const a = { periodos: [{ p: '2026-03', m: { X: 10 } }] }
+  const b = { periodos: [{ p: '2026-10', m: { X: 2 } }] }
+  assert.equal(ultimaVentaPorModelo([a, b]).X, '2026-10')
+})
+
+test('un mes con cero piezas no cuenta como venta', () => {
+  const hist = { periodos: [
+    { p: '2026-04', m: { X: 8 } },
+    { p: '2026-10', m: { X: 0 } },
+  ] }
+  assert.equal(ultimaVentaPorModelo([hist]).X, '2026-04')
+})
+
+test('el mes en curso cuenta como cero días', () => {
+  const hoy = new Date('2026-11-20T12:00:00Z')
+  assert.equal(diasDesdeElMes('2026-11', hoy), 0)
+  assert.ok(diasDesdeElMes('2026-08', hoy) > 80)
 })
