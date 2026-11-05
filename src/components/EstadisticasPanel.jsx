@@ -2,7 +2,14 @@ import { useState, useEffect, useMemo } from 'react'
 // La bodega queda fuera: lo que sale de ahi son envios a las sucursales,
 // no ventas, y mezclarlo falsearia el ranking.
 import { SUCURSALES_PUBLICAS as SUCURSALES } from '../lib/sucursales'
-import { estadisticasUrl, historialUrl } from '../lib/s3'
+import { estadisticasUrl, historialUrl, inventarioJsonUrl } from '../lib/s3'
+import { promedioEntrePlazas } from '../lib/precios'
+import {
+  proyeccionDelMes, puenteDeVariacion, momentum, brechas,
+  costoPorModelo, rentabilidad, capitalParado, salidasEntre,
+} from '../lib/radiografia'
+import { ritmoPonderado } from '../lib/ritmo'
+import { ultimaVentaPorModelo, diasDesdeElMes } from '../lib/clases'
 import {
   resumir, periodosDisponibles, comparativo,
   consolidarHistorial, consolidarEstadisticas,
@@ -42,14 +49,16 @@ const TODAS = { slug: 'todas', nombre: 'Todas las sucursales' }
 
 // ── Piezas ────────────────────────────────────────────────────────────────────
 
-function Pildora({ activa, onClick, children }) {
+function Pildora({ activa, onClick, children, tenue }) {
+  // El botón de la casa, en `.chip-plaza`: blanco por dentro, trazo y letra
+  // en degradado. Antes era una píldora rellena de cian y verde, que es el
+  // único sitio donde seguía viva esa paleta.
   return (
     <button type="button" onClick={onClick}
-      className="px-4 py-2 text-sm font-semibold transition-all"
-      style={activa
-        ? { background: 'linear-gradient(135deg, #00BCF2, #8DC63F)', borderRadius: 999, color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(0,188,242,0.22)' }
-        : { backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid ' + LINEA, borderRadius: 999, color: TINTA_SUAVE, cursor: 'pointer', background: 'none' }}>
-      {children}
+            className={'chip-plaza' + (activa ? ' activa' : '')}
+            aria-pressed={activa}
+            style={tenue ? { opacity: 0.75 } : undefined}>
+      <span className="chip-plaza-texto">{children}</span>
     </button>
   )
 }
@@ -59,7 +68,7 @@ function BotonExcel({ onClick, principal, children }) {
     <button type="button" onClick={onClick}
       className="px-4 py-2 text-sm font-semibold transition-all"
       style={principal
-        ? { background: 'linear-gradient(135deg, #5E9422, #8DC63F)', borderRadius: 999, color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 4px 14px rgba(94,148,34,0.22)' }
+        ? { borderRadius: 999, border: '1.5px solid transparent', cursor: 'pointer', fontWeight: 800, color: '#101619', background: 'linear-gradient(#fff, #fff) padding-box, var(--degradado-letra) border-box' }
         : { backgroundColor: '#fff', border: '1px solid ' + LINEA, borderRadius: 999, color: TINTA_SUAVE, cursor: 'pointer' }}>
       {children}
     </button>
@@ -460,6 +469,228 @@ function ArchivoPermanente({ historial, sucursal }) {
   )
 }
 
+// ── La radiografía ────────────────────────────────────────────────────────────
+
+const pesos = n => '$' + Math.round(n).toLocaleString('es-MX')
+
+/**
+ * El resumen en texto. No es adorno: es lo único de esta pantalla que se lee
+ * de pie, antes de abrir nada, y el dueño pidió «cinco a siete frases».
+ *
+ * Se arma con frases sueltas y se saltan las que no tienen dato detrás. Un
+ * párrafo con huecos -«subió un  %»- destruye la confianza en todo lo demás.
+ */
+function EnTreintaSegundos({ proyeccion, puente, empuje, rendimiento, parado, sucursal }) {
+  const frases = []
+
+  if (proyeccion?.acumulado > 0) {
+    frases.push(
+      `${sucursal.nombre}: ${proyeccion.acumulado} piezas en lo que va del mes` +
+      (proyeccion.acumuladoPesos ? ` (${pesos(proyeccion.acumuladoPesos)})` : '') +
+      `, a un ritmo de ${proyeccion.ritmo.toFixed(1)} al día.`)
+    if (proyeccion.diasQueFaltan > 0) {
+      frases.push(
+        `Si los ${proyeccion.diasQueFaltan} días que faltan se portan como las últimas cuatro semanas, ` +
+        `el mes cierra cerca de ${proyeccion.proyectado} piezas` +
+        (proyeccion.proyectadoPesos ? ` (${pesos(proyeccion.proyectadoPesos)})` : '') + '.')
+    }
+  }
+
+  if (puente && puente.pesosAntes > 0) {
+    const sube = puente.total >= 0
+    frases.push(
+      `Las últimas cuatro semanas van ${sube ? 'arriba' : 'abajo'} ${pesos(Math.abs(puente.total))} ` +
+      `respecto a las cuatro anteriores: ${pesos(Math.abs(puente.volumen))} de ${puente.volumen >= 0 ? 'más' : 'menos'} volumen ` +
+      `y ${pesos(Math.abs(puente.mezcla))} de modelos que ${puente.mezcla >= 0 ? 'entraron' : 'salieron'} del surtido.`)
+  }
+
+  const arriba = empuje?.acelerando?.[0]
+  if (arriba) {
+    frases.push(
+      `Lo que más se acelera es ${arriba.producto}: de ${arriba.antes} a ${arriba.ahora} piezas` +
+      (arriba.pct !== null ? ` (${arriba.pct > 0 ? '+' : ''}${arriba.pct}%)` : '') + '.')
+  }
+  const abajo = empuje?.frenando?.[0]
+  if (abajo) {
+    frases.push(
+      `Lo que más se frena es ${abajo.producto}, de ${abajo.antes} a ${abajo.ahora}: ` +
+      `antes de volver a pedirlo, conviene mirarlo.`)
+  }
+
+  if (rendimiento?.total > 0) {
+    frases.push(
+      `La utilidad de esas cuatro semanas es ${pesos(rendimiento.total)}, y ` +
+      `${rendimiento.cuantosHacenEl80} modelos hacen el 80%.`)
+  }
+
+  if (parado?.pesos > 0) {
+    frases.push(
+      `Hay ${pesos(parado.pesos)} a costo parados en ${parado.filas.length} modelos ` +
+      `que no se venden desde hace más de tres meses.`)
+  }
+
+  if (!frases.length) return null
+
+  return (
+    <section style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px', background: 'rgba(2,136,173,0.04)' }}>
+      <h3 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 8px' }}>En 30 segundos</h3>
+      <p style={{ fontSize: 14, color: TINTA, lineHeight: 1.65, margin: 0 }}>{frases.join(' ')}</p>
+      <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '10px 0 0', lineHeight: 1.5 }}>
+        En pesos, al promedio de precio público y mayoreo de las plazas que venden. Las piezas
+        son un piso: una salida resurtida el mismo día no se ve.
+      </p>
+    </section>
+  )
+}
+
+/**
+ * El puente de variación. Dos barras y una flecha: de dónde a dónde, y qué lo
+ * explica. Sin componente de precio, que no se puede medir -ver
+ * `radiografia.js`-.
+ */
+function Puente({ puente }) {
+  if (!puente.pesosAntes && !puente.pesosAhora) return null
+  const partes = [
+    { que: 'Más o menos de lo mismo', valor: puente.volumen, color: C_SERIE },
+    { que: 'Modelos que entran o salen', valor: puente.mezcla, color: C_RANKING },
+  ]
+  const max = Math.max(1, ...partes.map(p => Math.abs(p.valor)))
+
+  return (
+    <div>
+      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
+        Por qué cambió la venta
+      </h4>
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px' }}>
+        Las últimas cuatro semanas contra las cuatro anteriores.
+      </p>
+
+      <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', alignItems: 'baseline', marginBottom: 12 }}>
+        <Cifra valor={pesos(puente.pesosAntes)} etiqueta="antes" />
+        <Cifra valor={pesos(puente.pesosAhora)} etiqueta="ahora" />
+        <Cifra valor={`${puente.total >= 0 ? '+' : '−'}${pesos(Math.abs(puente.total))}`}
+               etiqueta="diferencia" color={puente.total >= 0 ? C_SUBE : C_BAJA} />
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {partes.map(p => (
+          <div key={p.que} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 12.5, color: TINTA, marginBottom: 3 }}>{p.que}</p>
+              <Barra valor={Math.abs(p.valor)} max={max} color={p.valor >= 0 ? p.color : C_BAJA} />
+            </div>
+            <span style={{ fontSize: 13.5, fontWeight: 800, color: p.valor >= 0 ? TINTA : C_BAJA, fontVariantNumeric: 'tabular-nums' }}>
+              {p.valor >= 0 ? '+' : '−'}{pesos(Math.abs(p.valor))}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Lo que se acelera y lo que se frena, que es lo que alimenta la compra. */
+function Momentum({ acelerando, frenando }) {
+  const columna = (titulo, filas, color, nota) => (
+    <div style={{ flex: '1 1 260px', minWidth: 0 }}>
+      <h4 style={{ fontSize: 12.5, fontWeight: 800, color: TINTA, margin: '0 0 2px' }}>{titulo}</h4>
+      <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '0 0 10px' }}>{nota}</p>
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {filas.slice(0, 6).map(f => (
+          <li key={f.codigo} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'baseline' }}>
+            <span style={{ fontSize: 12.5, color: TINTA, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  title={f.producto}>
+              {f.producto}
+            </span>
+            <span style={{ fontSize: 12, color: TINTA_SUAVE, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+              {f.antes} → <strong style={{ color, fontWeight: 800 }}>{f.ahora}</strong>
+              {f.pct !== null && <span style={{ color: TINTA_TENUE }}> · {f.pct > 0 ? '+' : ''}{f.pct}%</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+
+  return (
+    <div>
+      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 12px' }}>
+        Qué se mueve
+      </h4>
+      <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
+        {columna('Se acelera', acelerando, C_SUBE, 'Pedir más antes de que falte')}
+        {columna('Se frena', frenando, C_BAJA, 'Mirar antes de volver a comprar')}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Lo que vuela en una tienda y está parado en otra. Es la recomendación más
+ * barata que hay: mover una caja no cuesta comprar nada.
+ */
+function Brechas({ filas }) {
+  return (
+    <div>
+      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
+        Lo mismo, parado aquí y agotándose allá
+      </h4>
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px' }}>
+        {filas.length} casos. Es un traspaso, no una compra; el monto es lo que esa tienda
+        dejaría de hacer al mes si vendiera como la que manda.
+      </p>
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {filas.slice(0, 6).map(f => (
+          <li key={`${f.codigo}|${f.plaza}`}
+              style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'baseline' }}>
+            <div style={{ minWidth: 0 }}>
+              <Modelo producto={f.producto} codigo={f.codigo} />
+              <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: 0 }}>
+                {f.caso === 'parado'
+                  ? `${f.nombrePlaza} tiene ${f.existencia} y no las mueve · vuela en ${f.lider}`
+                  : `${f.nombrePlaza} ni lo maneja · vuela en ${f.lider}`}
+              </p>
+            </div>
+            <span style={{ fontSize: 13, fontWeight: 800, color: C_RANKING, whiteSpace: 'nowrap' }}>
+              {pesos(f.pesosAlMes)}<span style={{ fontSize: 11, color: TINTA_TENUE, fontWeight: 500 }}>/mes</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/** El dinero quieto en el estante. */
+function Parado({ datos }) {
+  return (
+    <div>
+      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
+        Dinero parado
+      </h4>
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px' }}>
+        {datos.filas.length} modelos · {datos.piezas} piezas · <strong style={{ color: TINTA }}>{pesos(datos.pesos)}</strong> a
+        costo, sin una sola venta en más de tres meses. La última venta sale del acumulado por
+        mes, no de un recuento de inventario.
+      </p>
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {datos.filas.slice(0, 6).map(f => (
+          <li key={f.codigo} style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: 12, alignItems: 'baseline' }}>
+            <span style={{ fontSize: 12.5, color: TINTA, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  title={f.producto}>
+              {f.producto}
+            </span>
+            <span style={{ fontSize: 11.5, color: TINTA_TENUE, whiteSpace: 'nowrap' }}>{f.dias} días</span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: TINTA, whiteSpace: 'nowrap', minWidth: '7ch', textAlign: 'right' }}>
+              {f.pesos === null ? '—' : pesos(f.pesos)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 // ── Buscar un código ──────────────────────────────────────────────────────────
@@ -585,9 +816,12 @@ export default function EstadisticasPanel() {
       }
       // Que a una sucursal le falte un archivo no puede tumbar el panel: cada
       // descarga cae en null por su cuenta y el resto sigue.
+      // El inventario entra aquí porque sin él no hay precios ni costos, y sin
+      // precios esta pantalla cuenta piezas: un negocio no se dirige en piezas.
       const pares = await Promise.all(activas.map(async s => [s.slug, {
         est:  await bajar(estadisticasUrl(s.slug)).catch(() => null),
         hist: await bajar(historialUrl(s.slug)).catch(() => null),
+        inv:  await bajar(inventarioJsonUrl(s.slug)).catch(() => null),
       }]))
       if (cancelado) return
       setPorSucursal(Object.fromEntries(pares))
@@ -611,6 +845,72 @@ export default function EstadisticasPanel() {
   }, [porSucursal, sel, activas])
 
   const resumen = useMemo(() => datos ? resumir(datos, rango) : null, [datos, rango])
+
+  // ── La radiografía ────────────────────────────────────────────────────
+  //
+  // El dinero se valora al promedio de precio público y mayoreo de las plazas
+  // que VENDEN -bodega no entra: ahí el iPhone 15 figura con precio igual al
+  // costo-. Se dice en pantalla para que nadie lea estas cifras como si
+  // fueran lo que paga un mayorista.
+  const inventarios = useMemo(
+    () => (porSucursal ? Object.fromEntries(activas.map(s => [s.slug, porSucursal[s.slug]?.inv])) : {}),
+    [porSucursal, activas])
+
+  const precios = useMemo(() => promedioEntrePlazas(inventarios), [inventarios])
+  const costos  = useMemo(() => costoPorModelo(inventarios), [inventarios])
+
+  const nombres = useMemo(() => {
+    const out = {}
+    for (const s of activas) Object.assign(out, porSucursal?.[s.slug]?.hist?.catalogo ?? {})
+    return out
+  }, [porSucursal, activas])
+
+  const proyeccion = useMemo(
+    () => (datos ? proyeccionDelMes({ est: datos, precios }) : null),
+    [datos, precios])
+
+  // Cuatro semanas contra las cuatro anteriores: es la comparación que usa
+  // quien compra, no el mes natural, que parte la tendencia por la mitad.
+  const ventanas = useMemo(() => {
+    if (!datos) return null
+    const hoy = new Date()
+    const dia = n => { const f = new Date(hoy); f.setDate(f.getDate() - n); return f.toISOString().slice(0, 10) }
+    return {
+      ahora: salidasEntre(datos, dia(27), dia(0)),
+      antes: salidasEntre(datos, dia(55), dia(28)),
+    }
+  }, [datos])
+
+  const puente = useMemo(
+    () => (ventanas ? puenteDeVariacion({ ...ventanas, precios }) : null),
+    [ventanas, precios])
+
+  const empuje = useMemo(
+    () => (datos ? momentum({ est: datos, precios, nombres }) : null),
+    [datos, precios, nombres])
+
+  const rendimiento = useMemo(
+    () => (ventanas ? rentabilidad({ salidas: ventanas.ahora, precios, costos, nombres }) : null),
+    [ventanas, precios, costos, nombres])
+
+  // Las dos de abajo son preguntas de RED: no cambian con la pastilla de
+  // plaza, porque mover una caja de una tienda a otra sólo tiene sentido
+  // mirando a las tres a la vez.
+  const huecos = useMemo(() => {
+    if (!porSucursal) return []
+    const ritmoPorPlaza = Object.fromEntries(activas.map(s => [
+      s.slug, ritmoPonderado({ est: porSucursal[s.slug]?.est, hist: porSucursal[s.slug]?.hist }).tasa,
+    ]))
+    return brechas({ ritmoPorPlaza, inventarios, precios, plazas: activas, nombres })
+  }, [porSucursal, activas, inventarios, precios, nombres])
+
+  const parado = useMemo(() => {
+    if (!porSucursal) return null
+    const ultima = ultimaVentaPorModelo(activas.map(s => porSucursal[s.slug]?.hist))
+    const sinVender = {}
+    for (const c of Object.keys(nombres)) sinVender[c] = diasDesdeElMes(ultima[c])
+    return capitalParado({ inventarios, diasSinVender: sinVender, costos, nombres, desde: 90 })
+  }, [porSucursal, activas, inventarios, costos, nombres])
 
   // Las coincidencias salen del catálogo de TODAS las plazas y de los 60 días
   // completos, no del rango ni de la plaza elegidos. El rango decide qué
@@ -768,6 +1068,23 @@ export default function EstadisticasPanel() {
               </span>
             )}
           </div>
+
+          {/* ── Lo primero: qué está pasando, en una frase ──────────── */}
+          {proyeccion && (
+            <EnTreintaSegundos
+              proyeccion={proyeccion} puente={puente} empuje={empuje}
+              rendimiento={rendimiento} parado={parado} sucursal={sucursal} />
+          )}
+
+          {puente && <Puente puente={puente} />}
+
+          {empuje && (empuje.acelerando.length > 0 || empuje.frenando.length > 0) && (
+            <Momentum acelerando={empuje.acelerando} frenando={empuje.frenando} />
+          )}
+
+          {sel === TODAS.slug && huecos.length > 0 && <Brechas filas={huecos} />}
+
+          {parado?.filas?.length > 0 && <Parado datos={parado} />}
 
           <SerieDiaria serie={resumen.serie} />
 

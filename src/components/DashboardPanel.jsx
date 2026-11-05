@@ -7,6 +7,9 @@ import { resumir, consolidarEstadisticas } from '../lib/estadisticas'
 import { analizarAgotados, piezasPerdidas, DIAS_SIN_COMPRAR } from '../lib/compras'
 import { resumirSemana, semanaPasada, formatoRango } from '../lib/personal'
 import { clasePorModelo, agotadosPorUbicacion } from '../lib/clases'
+import { ritmoPonderado } from '../lib/ritmo'
+import { reservas, ESTADOS, ORIGENES, ENTREGA } from '../lib/reservas'
+import { esTemporadaAlta } from '../lib/surtido'
 import { separarProtectores, esProtector } from '../lib/familias'
 import { promedioEntrePlazas, desviaciones, valorDe } from '../lib/precios'
 import BarrasAgotados from './BarrasAgotados'
@@ -139,6 +142,29 @@ export default function DashboardPanel({ onIrA }) {
     return total > 0 ? Math.round(total) : null
   }, [precios, agotados])
 
+  // ── Reservas: qué reponer ANTES de que se agote ───────────────────────
+  //
+  // El ritmo va PONDERADO, no promediado sobre todo el historial: un modelo
+  // que dobló su venta este mes se surtía al ritmo del año pasado y se
+  // vaciaba a los pocos días de haberlo surtido. Ver `ritmo.js`.
+  const porAgotarse = useMemo(() => {
+    if (!datos || !datos[BODEGA.slug]?.inv) return null
+
+    const ritmoPorPlaza = Object.fromEntries(sucursales.map(s => [
+      s.slug,
+      ritmoPonderado({ est: datos[s.slug]?.est, hist: datos[s.slug]?.hist }).tasa,
+    ]))
+    const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
+
+    return reservas({
+      inventarios: Object.fromEntries(sucursales.map(s => [s.slug, datos[s.slug]?.inv])),
+      bodega: datos[BODEGA.slug].inv,
+      ritmoPorPlaza,
+      clase: clasePorModelo(historiales),
+      alta: esTemporadaAlta(),
+    })
+  }, [datos, sucursales])
+
   // ── Personal: la semana pasada, que es la única completa ──────────────
   const rango = useMemo(() => semanaPasada(), [])
   const personal = useMemo(
@@ -153,8 +179,13 @@ export default function DashboardPanel({ onIrA }) {
     // Un inventario parado es la alerta más importante: si éste falla, todos
     // los demás números de la pantalla están mirando al pasado.
     for (const s of [...sucursales, BODEGA]) {
-      const gen = datos[s.slug]?.inv?.generado
-      const d = diasDesdeISO(gen)
+      // La fecha que vale es la del RESPALDO de la tienda, no la de la
+      // corrida. `generado` es de hoy siempre -la sincronización pasa cuatro
+      // veces al día pase lo que pase-, así que este aviso no saltaba nunca:
+      // la bodega llevaba ocho días sin respaldo y la pantalla callaba,
+      // mientras toda la compra se calculaba con esas existencias.
+      const inv = datos[s.slug]?.inv
+      const d = diasDesdeISO(inv?.respaldo?.fecha ?? inv?.generado)
       if (d === null) out.push({ tono: 'grave', texto: `${s.nombre} no tiene inventario publicado`, ir: 'inventarios' })
       else if (d >= DIAS_INVENTARIO_VIEJO) out.push({ tono: 'grave', texto: `El inventario de ${s.nombre} lleva ${d} días sin actualizarse`, ir: 'inventarios' })
     }
@@ -168,13 +199,34 @@ export default function DashboardPanel({ onIrA }) {
       if (agotados.inactivos?.length) out.push({ tono: 'aviso', texto: `${agotados.inactivos.length} modelos que se venden y bodega no compra hace ${DIAS_SIN_COMPRAR}+ días`, ir: 'bodega', foco: { vista: 'agotados', filtro: 'inactivos' } })
     }
 
+    // Lo que está en cero TENIENDO existencia en bodega no es un problema de
+    // compra: es un traslado que no se hizo. Se dice aparte porque la acción
+    // es otra y es gratis.
+    if (porAgotarse?.filas?.length) {
+      const enBodega = porAgotarse.filas.filter(f => f.estado === ESTADOS.CERO && f.enBodega > 0)
+      if (enBodega.length) {
+        out.push({
+          tono: 'grave',
+          texto: `${enBodega.length} ${enBodega.length === 1 ? 'modelo en cero que bodega SÍ tiene' : 'modelos en cero que bodega SÍ tiene'}: es surtir, no comprar`,
+          ir: 'surtido',
+        })
+      }
+      if (porAgotarse.resumen.nacional > 0) {
+        out.push({
+          tono: 'aviso',
+          texto: `${porAgotarse.resumen.nacional} ${porAgotarse.resumen.nacional === 1 ? 'modelo no alcanza' : 'modelos no alcanzan'} a esperar el pedido de ${ENTREGA.proveedor} días`,
+          ir: 'bodega',
+        })
+      }
+    }
+
     if (personal?.filas?.length) {
       const conRetardo = personal.filas.filter(f => f.retardos > 0)
       if (conRetardo.length) out.push({ tono: 'aviso', texto: `${conRetardo.length} ${conRetardo.length === 1 ? 'persona acumuló retardos' : 'personas acumularon retardos'} la semana pasada`, ir: 'personal' })
     }
 
     return out
-  }, [datos, agotados, agotadosProtector, porUbicacion, personal, sucursales])
+  }, [datos, agotados, agotadosProtector, porUbicacion, personal, porAgotarse, sucursales])
 
   if (cargando) return <p className="tablero-cargando">Reuniendo la información de todas las secciones…</p>
 
@@ -203,6 +255,63 @@ export default function DashboardPanel({ onIrA }) {
           </ul>
         )}
       </section>
+
+      {/* ── Antes de que se agote ───────────────────────────────────── */}
+      {porAgotarse?.filas?.length > 0 && (
+        <section className="tablero-reservas">
+          <header>
+            <h3>Antes de que se agote</h3>
+            <p>
+              Lo que no aguanta hasta la próxima surtida, al ritmo de las últimas semanas.
+              Pedir al proveedor tarda {ENTREGA.proveedor} días; al nacional, {ENTREGA.nacional}.
+            </p>
+          </header>
+
+          <div className="reservas-cifras">
+            <span className="reservas-cifra grave">
+              <strong>{porAgotarse.resumen.cero}</strong> en cero vendiéndose
+            </span>
+            <span className="reservas-cifra">
+              <strong>{porAgotarse.resumen.reponer}</strong> por debajo de su objetivo
+            </span>
+            {porAgotarse.resumen.pesosAlDia > 0 && (
+              <span className="reservas-cifra alerta">
+                <strong>${Math.round(porAgotarse.resumen.pesosAlDia).toLocaleString('es-MX')}</strong> de mayoreo al día
+              </span>
+            )}
+          </div>
+
+          <ul className="reservas-lista">
+            {porAgotarse.filas.slice(0, 8).map(f => (
+              <li key={`${f.plaza}|${f.codigo}`}>
+                <span className={'reservas-chip ' + f.estado}>
+                  {f.estado === ESTADOS.CERO ? 'en cero' : f.estado === ESTADOS.URGE ? 'hoy' : `${Math.round(f.dias)} d`}
+                </span>
+                <span className="reservas-clase">{f.clase}</span>
+                <span className="reservas-modelo" title={f.producto}>{f.producto}</span>
+                <span className="reservas-plaza">
+                  {sucursales.find(s => s.slug === f.plaza)?.nombre ?? f.plaza}
+                </span>
+                <span className="reservas-pedir">pedir {f.falta}</span>
+                {/* De dónde sale es la mitad de la decisión: si está en
+                    bodega es mandar una caja; si no, hay que elegir entre
+                    esperar 40 días o pagar más por 4. */}
+                <span className={'reservas-origen ' + f.origen}>
+                  {f.origen === ORIGENES.BODEGA ? `bodega tiene ${f.enBodega}`
+                    : f.origen === ORIGENES.NACIONAL ? `nacional · ${ENTREGA.nacional} d`
+                    : `proveedor · ${ENTREGA.proveedor} d`}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {porAgotarse.filas.length > 8 && onIrA && (
+            <button type="button" className="reservas-mas" onClick={() => onIrA('surtido')}>
+              Ver los {porAgotarse.filas.length} en Surtido
+            </button>
+          )}
+        </section>
+      )}
 
       {/* ── Las cifras de la semana ─────────────────────────────────── */}
       <div className="tablero-cifras">

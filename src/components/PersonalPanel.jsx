@@ -37,14 +37,16 @@ const ROSA        = '#C4156F'
 const VERDE       = '#5E9422'
 const AMBAR       = '#B45309'
 
-function Pildora({ activa, onClick, children }) {
+function Pildora({ activa, onClick, children, tenue }) {
+  // El botón de la casa, en `.chip-plaza`: blanco por dentro, trazo y letra
+  // en degradado. Antes era una píldora rellena de cian y verde, que es el
+  // único sitio donde seguía viva esa paleta.
   return (
     <button type="button" onClick={onClick}
-      className="px-3.5 py-1.5 text-xs font-semibold transition-all"
-      style={activa
-        ? { background: 'linear-gradient(135deg, #00BCF2, #8DC63F)', borderRadius: 999, color: '#fff', border: 'none', cursor: 'pointer', boxShadow: '0 3px 12px rgba(0,188,242,0.22)' }
-        : { backgroundColor: 'rgba(16,22,25,0.05)', border: '1px solid ' + LINEA, borderRadius: 999, color: TINTA_SUAVE, cursor: 'pointer', background: 'none' }}>
-      {children}
+            className={'chip-plaza' + (activa ? ' activa' : '')}
+            aria-pressed={activa}
+            style={tenue ? { opacity: 0.75 } : undefined}>
+      <span className="chip-plaza-texto">{children}</span>
     </button>
   )
 }
