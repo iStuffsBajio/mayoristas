@@ -333,3 +333,49 @@ test('motivo nulo es deshacer la correccion, no un error', async () => {
   })
   assert.notEqual(r.statusCode, 400)
 })
+
+// ── Surtidos ────────────────────────────────────────────────────────────────
+//
+// El registro de lo que sale de bodega. Lo que se fija aqui es el permiso y la
+// validacion; las cuentas -cuanto entro de verdad- viven en
+// `src/lib/surtidos.js` con sus propias pruebas.
+
+test('los surtidos piden sesion', async () => {
+  assert.equal((await pedir('GET', '/surtidos')).statusCode, 403)
+  assert.equal((await pedir('POST', '/surtidos', { cuerpo: { folio: 'F', destino: 'leon' } })).statusCode, 403)
+})
+
+test('una sucursal NO registra salidas: eso es de bodega', async () => {
+  // El permiso va por capacidad, no por «admin»: cuando exista el usuario del
+  // encargado de bodega lo hereda sin tocar la ruta.
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenLeon(),
+    cuerpo: { folio: 'F1', destino: 'leon', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.equal(r.statusCode, 403)
+})
+
+test('un surtido sin piezas no es un surtido', async () => {
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenAdmin(),
+    cuerpo: { folio: 'F2', destino: 'leon', lineas: [{ codigo: 'X', piezas: 0 }] },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('un destino que no es una sucursal se rechaza', async () => {
+  // Morelia no existe para esta pagina, y un folio a ninguna parte no se
+  // puede comprobar contra ningun respaldo.
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenAdmin(),
+    cuerpo: { folio: 'F3', destino: 'morelia', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('sin folio no se guarda nada', async () => {
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenAdmin(), cuerpo: { destino: 'leon', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.equal(r.statusCode, 400)
+})

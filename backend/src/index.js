@@ -458,6 +458,122 @@ async function rutaGuardarAjuste(evento, origen, cuerpo) {
   return responder(origen, 200, { ok: true, por: quien })
 }
 
+// ── Surtidos ───────────────────────────────────────────────────────────────
+//
+// El registro de lo que sale de bodega a cada tienda. Un folio guarda las
+// lineas que salieron Y la existencia que habia en el destino en ese momento:
+// ese «antes» es lo unico contra lo que se puede comparar despues, y solo
+// existe mientras todavia es antes. Los respaldos por fecha se quitaron a
+// proposito -44 MB al año- y solo queda un paso atras.
+//
+// Comprobar no le cuesta trabajo a nadie: el conteo es el ALTA que la tienda
+// hace en su propio Eleventa y que aparece en el respaldo siguiente. Las
+// cuentas las hace `src/lib/surtidos.js`; aqui solo se guarda y se lee.
+//
+// Van bajo `surtidos/`, que la politica del bucket NO abre al publico: dicen
+// quien mando que a donde. Cada quien escribe SOLO su archivo, igual que las
+// revisiones y los ajustes.
+
+const claveSurtidos = quien => `surtidos/${quien}.json`
+
+/**
+ * Quien puede registrar una salida de bodega.
+ *
+ * Va por CAPACIDAD y no atado a `admin` a proposito: el usuario del encargado
+ * de bodega esta pendiente, y cuando exista basta con que `quienEs` devuelva
+ * `bodega` para que lo herede sin tocar ninguna ruta.
+ */
+const PUEDE_SURTIR = new Set(['admin', 'bodega'])
+const puedeSurtir = sesion => PUEDE_SURTIR.has(quienEs(sesion))
+
+/** Todos los folios. Cualquier sesion los lee: la tienda ve lo que le llega. */
+async function rutaSurtidos(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
+
+  const quienes = ['admin', 'bodega', ...Object.keys(SUCURSALES)]
+  const archivos = await Promise.all(quienes.map(async q => [q, await leerJson(claveSurtidos(q))]))
+
+  const surtidos = []
+  for (const [quien, datos] of archivos) {
+    for (const f of Object.values(datos)) {
+      // Una tienda ve solo lo suyo; quien surte lo ve todo. Lo que una plaza
+      // le mando a otra no es asunto suyo.
+      if (!puedeSurtir(sesion) && f.destino !== sesion.sucursal) continue
+      surtidos.push({ ...f, quien: f.quien ?? quien })
+    }
+  }
+  return responder(origen, 200, { surtidos })
+}
+
+/**
+ * Registra una salida, o cierra un folio ya registrado.
+ *
+ * Mandar `cerrado: true` sobre un folio existente lo da por visto; es la unica
+ * parte que decide una persona, porque mirar una diferencia y resolver que se
+ * hace con ella no lo puede hacer un respaldo.
+ */
+async function rutaGuardarSurtido(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
+  if (!puedeSurtir(sesion)) return responder(origen, 403, { error: 'Solo bodega registra surtidos.' })
+
+  const quien = quienEs(sesion)
+  const folio = String(cuerpo?.folio ?? '').trim().slice(0, 80)
+  if (!folio) return responder(origen, 400, { error: 'Falta el folio.' })
+
+  const mios = await leerJson(claveSurtidos(quien))
+
+  // Cerrar un folio NO reescribe sus lineas ni su «antes». Un folio editable
+  // despues del alta no comprobaria nada: se podria ajustar hasta que cuadre.
+  if (cuerpo?.cerrado) {
+    if (!mios[folio]) return responder(origen, 404, { error: 'Ese folio no existe.' })
+    mios[folio] = { ...mios[folio], cerrado: new Date().toISOString(), cerradoPor: quien }
+  } else {
+    const destino = String(cuerpo?.destino ?? '').trim()
+    if (!SUCURSALES[destino]) return responder(origen, 400, { error: 'Destino desconocido.' })
+    if (mios[folio]) return responder(origen, 409, { error: 'Ese folio ya esta registrado.' })
+
+    const lineas = (Array.isArray(cuerpo?.lineas) ? cuerpo.lineas : [])
+      .map(l => ({
+        codigo:   String(l?.codigo ?? '').trim().toUpperCase().slice(0, 60),
+        producto: String(l?.producto ?? '').slice(0, 120),
+        piezas:   Math.max(0, Math.floor(Number(l?.piezas) || 0)),
+      }))
+      .filter(l => l.codigo && l.piezas > 0)
+    if (!lineas.length) return responder(origen, 400, { error: 'Un surtido sin piezas no es un surtido.' })
+    if (lineas.length > 2000) return responder(origen, 413, { error: 'Demasiadas lineas en un folio.' })
+
+    // El «antes» llega calculado del cliente, que es quien tiene el inventario
+    // del destino a la vista. Se guarda SOLO para los codigos que van en la
+    // caja: un inventario entero por folio seria el error de los 44 MB otra
+    // vez, y aqui no se puede borrar luego sin perder la comprobacion.
+    const antes = {}
+    for (const l of lineas) {
+      antes[l.codigo] = Math.max(0, Math.floor(Number(cuerpo?.antes?.[l.codigo]) || 0))
+    }
+
+    mios[folio] = {
+      folio, destino, lineas, antes,
+      cuando:  new Date().toISOString(),
+      cerrado: null,
+    }
+  }
+
+  if (Object.keys(mios).length > 3000) {
+    return responder(origen, 413, { error: 'Demasiados surtidos guardados.' })
+  }
+
+  await s3.send(new PutObjectCommand({
+    Bucket:       BUCKET,
+    Key:          claveSurtidos(quien),
+    Body:         Buffer.from(JSON.stringify(mios)),
+    ContentType:  'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+  return responder(origen, 200, { ok: true, folio, por: quien })
+}
+
 /**
  * Turnos del personal. Solo administrador.
  *
@@ -516,6 +632,8 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/revisiones') return await rutaGuardarRevision(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/ajustes')    return await rutaAjustes(evento, origen)
     if (metodo === 'POST' && ruta === '/ajustes')    return await rutaGuardarAjuste(evento, origen, cuerpo)
+    if (metodo === 'GET'  && ruta === '/surtidos')   return await rutaSurtidos(evento, origen)
+    if (metodo === 'POST' && ruta === '/surtidos')   return await rutaGuardarSurtido(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/diseno')     return await rutaSubirDiseno(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/config')     return await rutaGuardarConfig(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/inventario') return await rutaSubirInventario(evento, origen, cuerpo)

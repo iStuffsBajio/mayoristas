@@ -161,6 +161,29 @@ export const ajustes = token => pedir('/ajustes', { token })
 export const guardarAjuste = ({ codigo, tipo = 'ocultar', motivo, producto = '', nota = '' }, token) =>
   pedir('/ajustes', { metodo: 'POST', cuerpo: { codigo, tipo, motivo, producto, nota }, token })
 
+// ── Surtidos: lo que sale de bodega a cada tienda ────────────────────────────
+//
+// Un folio lleva las líneas que salieron y la existencia que había en el
+// destino en ese momento. Ese «antes» se manda desde aquí porque es el panel
+// el que tiene el inventario del destino a la vista, y sólo existe mientras
+// todavía es antes: los respaldos por fecha se quitaron a propósito y nada más
+// va a poder reconstruirlo después.
+
+export const surtidos = token => pedir('/surtidos', { token })
+
+/** Registra una salida. El folio y el «antes» los arma `lib/surtidos.js`. */
+export const guardarSurtido = ({ folio, destino, lineas, antes }, token) =>
+  pedir('/surtidos', { metodo: 'POST', cuerpo: { folio, destino, lineas, antes }, token })
+
+/**
+ * Da un folio por visto.
+ *
+ * No reescribe sus líneas ni su «antes»: un folio editable después del alta no
+ * comprobaría nada, porque se podría ajustar hasta que cuadre.
+ */
+export const cerrarSurtido = (folio, token) =>
+  pedir('/surtidos', { metodo: 'POST', cuerpo: { folio, cerrado: true }, token })
+
 // ── Galería del catálogo ─────────────────────────────────────────────────────
 
 /** Imágenes de una carpeta del catálogo, con enlaces temporales. */

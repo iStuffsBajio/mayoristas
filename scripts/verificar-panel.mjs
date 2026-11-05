@@ -58,6 +58,47 @@ const MODELOS = [
 
 const GENERADO = '2026-10-19T10:00:00Z'
 
+/**
+ * Dos folios de surtido, y los dos tienen que estar.
+ *
+ * Uno CUADRA y el otro trae DIFERENCIA, porque son dos caminos distintos de
+ * la pantalla: el que cuadra no despliega lineas y el que no, las despliega.
+ * Con solo uno de los dos, la mitad del componente no se ejecuta nunca.
+ *
+ * El «antes» va por debajo de la existencia de `productos` a proposito: asi
+ * (despues - antes) da un numero positivo y el folio aparece como dado de
+ * alta. Si el antes fuera igual, los dos saldrian «en camino» y la seccion
+ * pasaria en verde sin haber cuadrado nada.
+ *
+ * Y la fecha es la de HOY, no una fija: el cuadre descuenta lo que la plaza
+ * vendio desde que salio la caja, y con una fecha de octubre la ventana se
+ * tragaba todos los dias de venta de mentira. Entonces «entraron» salia
+ * enorme, los dos folios caian en «diferencia» y el camino del que cuadra no
+ * se ejecutaba. Es la misma trampa que la seccion existe para medir.
+ */
+const HOY_ISO = new Date().toISOString()
+const SURTIDOS = [
+  {
+    folio: 'hoy-leon-0001', destino: 'leon', quien: 'admin',
+    cuando: HOY_ISO,
+    // I13T tiene 34 piezas: con 24 antes, entraron 10, que es lo que salio.
+    // Las existencias de mentira viven en el arreglo de `productos` y hay que
+    // leerlas de ahi: elegir un codigo «que suene» daba un folio con 24
+    // piezas faltantes y los dos caian en «diferencia».
+    lineas: [{ codigo: 'I13T', producto: 'IPHONE 13 TPU CASE', piezas: 10 }],
+    antes: { I13T: 24 },
+    cerrado: null,
+  },
+  {
+    folio: 'hoy-aguascalientes-0002', destino: 'aguascalientes', quien: 'admin',
+    cuando: HOY_ISO,
+    // SGS23U3 tiene 12: con 10 antes entraron 2, y salieron 5. Faltan 3.
+    lineas: [{ codigo: 'SGS23U3', producto: 'SAMSUNG S23 ULTRA 3 IN 1', piezas: 5 }],
+    antes: { SGS23U3: 10 },
+    cerrado: null,
+  },
+]
+
 const productos = MODELOS.map(([Codigo, Producto], i) => ({
   Codigo, Producto,
   Existencia: [34, 4, 0, 12, 7, 0, 91, 0, 25, 0][i],
@@ -110,6 +151,7 @@ function respuesta(url) {
   if (/turnos/i.test(u)) return turnos
   // Las respuestas de la cola viven en el backend, no en S3 publico.
   if (/revisiones/i.test(u)) return { marcas: {} }
+  if (/surtidos/i.test(u)) return { surtidos: SURTIDOS }
   if (/site\.json|config/i.test(u)) return {}
   const plaza = u.match(/inventarios\/([a-z-]+)\/inventario\.json/)?.[1]
   if (plaza) return inventarioDe(plaza)
@@ -426,6 +468,66 @@ async function recorrerCola(window, donde) {
  * el reporte quedaría sin la mitad que importa.
  */
 /**
+ * La lista de folios de surtido.
+ *
+ * Las cuentas ya estan fijadas en `surtidos.test.js`. Lo que no ve ninguna
+ * prueba de libreria es que la seccion SE DIBUJE, y aqui se rompe de dos
+ * formas que no fallan solas:
+ *
+ *   · La seccion deja de pintarse y un folio con piezas faltantes no sale en
+ *     ningun sitio. Nadie lo echa de menos, porque nadie sabia que existia.
+ *   · Se pintan los folios pero no se despliegan las lineas que no cuadran,
+ *     que es el unico dato por el que esto existe.
+ *
+ * Los dos folios de mentira estan elegidos para pasar por los dos caminos:
+ * uno cuadra y el otro trae una diferencia de 3 piezas.
+ */
+async function listaDeFolios(window, donde) {
+  // Los folios necesitan DOS descargas: los inventarios de S3 -para cuadrar
+  // contra el respaldo- y los folios del backend. Un numero fijo de vueltas
+  // alcanzaba en dos vistas de tres y fallaba en la tercera sin que nada
+  // estuviera roto, asi que se espera a que aparezcan con un tope.
+  const doc = window.document
+
+  // Que el boton pulsado diga «Surtido» no significa que estemos en Surtido.
+  // El aviso del dashboard «Ver los 30 en Surtido» tambien lo dice, y pulsarlo
+  // dejaba la pantalla en Diseño: la comprobacion fallaba sin que nada
+  // estuviera roto. El ancla es algo que SOLO dibuja esta pestaña.
+  const enSurtido = () => [...doc.querySelectorAll('button')]
+    .some(b => /reporte completo en excel/i.test(b.textContent || ''))
+
+  let fichas = []
+  for (let i = 0; i < 12 && !fichas.length; i++) {
+    await nuevaVuelta(window, 8)
+    if (!enSurtido()) return 0
+    fichas = [...doc.querySelectorAll('[data-folio]')]
+  }
+  if (!fichas.length) {
+    errores.push(`${donde} · no se dibujo ningun folio de surtido`)
+    return 0
+  }
+
+  const estados = fichas.map(f => f.getAttribute('data-estado'))
+  if (!estados.includes('cuadra')) {
+    errores.push(`${donde} · ningun folio sale como «cuadra»: el cuadre contra el respaldo no corrio`)
+  }
+  if (!estados.includes('diferencia')) {
+    errores.push(`${donde} · ningun folio sale con «diferencia»: el camino que importa no se dibujo`)
+  }
+
+  // La linea que no cuadra tiene que estar, con su codigo: una diferencia de
+  // piezas se persigue por codigo, no por nombre.
+  const texto = doc.body.textContent || ''
+  if (estados.includes('diferencia') && !/faltan 3/.test(texto)) {
+    errores.push(`${donde} · un folio con diferencia no despliega lo que falta`)
+  }
+  if (estados.includes('diferencia') && !/SGS23U3/.test(texto)) {
+    errores.push(`${donde} · la linea con diferencia no enseña el codigo`)
+  }
+  return fichas.length
+}
+
+/**
  * La bandeja de «Costos que faltan en bodega».
  *
  * Esto no se puede fijar en una prueba de libreria: `sinCostear` ya tiene la
@@ -560,6 +662,7 @@ const SESIONES = [
 let pestanas = 0, secciones = 0, cabeceras = 0, hallazgos = 0
 let fichasDeCodigo = 0
 let bandejasDeCosto = 0
+let foliosVistos = 0
 
 // Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
 // agrupacion sigue viva: sin ella la cola vuelve a ser una pregunta por
@@ -622,6 +725,9 @@ for (const [nombre, sesion] of SESIONES) {
           fichasDeCodigo += await buscarUnCodigo(window, `${nombre} · admin · ${t}`)
           bandejasDeCosto += bandejaDeCostos(window, `${nombre} · admin · ${t}`)
         }
+        if (/surtido/i.test(t)) {
+          foliosVistos += await listaDeFolios(window, `${nombre} · admin · ${t}`)
+        }
       }
     }
   }
@@ -636,6 +742,10 @@ console.log(`\nsesiones 3 · pestañas ${pestanas} · secciones de admin ${secci
 console.log(`  busqueda por codigo en ventas: ${fichasDeCodigo} ficha dibujada`)
 if (fichasDeCodigo < 1) errores.push('la busqueda por codigo de ventas no se ejecuto')
 console.log(`  bandeja de costos que faltan: ${bandejasDeCosto} dibujada`)
+console.log(`  folios de surtido dibujados: ${foliosVistos}`)
+if (foliosVistos < 2) {
+  errores.push('la lista de folios de surtido no se dibujo con sus dos caminos: un folio con piezas faltantes no saldria en ningun sitio')
+}
 if (bandejasDeCosto < 1) {
   errores.push('la bandeja de «Costos que faltan en bodega» no se dibujo: el costo sale solo de bodega, y si el hueco no se ve la utilidad miente por omision')
 }

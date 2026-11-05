@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA } from '../lib/sucursales'
-import { inventarioJsonUrl, historialUrl } from '../lib/s3'
+import { inventarioJsonUrl, historialUrl, estadisticasUrl } from '../lib/s3'
 import {
   velocidadDiaria, velocidadCombinada, calcularSurtido, analizarBodega,
   candidatosADepurar, esTemporadaAlta, COBERTURA, MOTIVOS,
@@ -14,6 +14,10 @@ import { separarProduccion } from '../lib/produccion'
 import { useOrdenTabla } from '../lib/orden'
 import { clasePorModelo, agotadosPorUbicacion } from '../lib/clases'
 import BarrasAgotados from './BarrasAgotados'
+import { useAuth } from '../context/AuthContext'
+import { useSurtidos } from '../lib/useSurtidos'
+import { cuadrar, lineasDesdeSurtido, resumirFolios, ESTADOS as ESTADOS_SURTIDO, DIAS_PARA_DAR_DE_ALTA } from '../lib/surtidos'
+import { salidasEntre } from '../lib/radiografia'
 
 // Para la columna de reparto: «leon 9 · slp 4» cabe, los nombres largos no.
 const NOMBRE_CORTO = {
@@ -151,6 +155,108 @@ const Modelo = ({ f }) => (
  *
  * Trae `{ vista, filtro }`: la pestana que abrir y que subconjunto marcar.
  */
+/**
+ * Lo que ya salio de bodega, y si llego.
+ *
+ * El estado no lo marca nadie: lo decide el respaldo de la tienda. Cuando el
+ * ALTA aparece -hasta cuatro dias, que puso el dueño- el folio cuadra o
+ * enseña la diferencia; pasados esos dias sin aparecer, es otro problema y se
+ * dice distinto: nadie lo ha dado de alta.
+ */
+function Folios({ cuadres, resumen, onCerrar, puedeCerrar }) {
+  const COLOR = {
+    [ESTADOS_SURTIDO.CUADRA]:     VERDE,
+    [ESTADOS_SURTIDO.DIFERENCIA]: ROSA,
+    [ESTADOS_SURTIDO.TARDE]:      AMBAR,
+    [ESTADOS_SURTIDO.EN_CAMINO]:  TINTA_TENUE,
+  }
+  const TEXTO = {
+    [ESTADOS_SURTIDO.CUADRA]:     'Cuadra',
+    [ESTADOS_SURTIDO.DIFERENCIA]: 'Diferencia',
+    [ESTADOS_SURTIDO.TARDE]:      'Sin dar de alta',
+    [ESTADOS_SURTIDO.EN_CAMINO]:  'En camino',
+  }
+
+  const abiertos = cuadres.filter(c => !c.cerrado)
+  if (!abiertos.length) return null
+
+  return (
+    <section style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px', marginBottom: 18 }}>
+      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
+        Lo que ya salio de bodega
+      </h4>
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 14px', lineHeight: 1.55 }}>
+        {resumen.enCamino > 0 && <>{resumen.enCamino} en camino. </>}
+        {resumen.diferencia > 0 && (
+          <><strong style={{ color: ROSA }}>{resumen.diferencia} con diferencia</strong>
+            {resumen.piezasQueFaltan > 0 && <> ({resumen.piezasQueFaltan} piezas que faltan)</>}. </>
+        )}
+        {resumen.tarde > 0 && (
+          <><strong style={{ color: AMBAR }}>{resumen.tarde} sin dar de alta</strong> pasados los {DIAS_PARA_DAR_DE_ALTA} dias. </>
+        )}
+        Nadie cuenta nada a mano: el conteo es el alta que hace la tienda en su propia caja, y se
+        compara descontando lo que vendio mientras recibia.
+      </p>
+
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {abiertos.map(c => (
+          <li key={c.folio} data-folio={c.folio} data-estado={c.estado}
+              style={{ borderTop: '1px solid ' + LINEA, paddingTop: 10 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: COLOR[c.estado] }}>
+                {TEXTO[c.estado]}
+              </span>
+              <span style={{ fontSize: 12.5, color: TINTA, fontWeight: 700 }}>
+                {NOMBRE_CORTO[c.destino] ?? c.destino}
+              </span>
+              <span style={{ fontSize: 11.5, color: TINTA_TENUE, flex: 1 }}>
+                {c.folio} · {c.dias === 0 ? 'hoy' : `hace ${c.dias} d`} ·
+                {' '}{c.piezasQueSalieron} pz salieron
+                {c.estado !== ESTADOS_SURTIDO.EN_CAMINO && c.estado !== ESTADOS_SURTIDO.TARDE
+                  && <>, {c.piezasQueEntraron} entraron</>}
+              </span>
+              {puedeCerrar && (
+                <button type="button" onClick={() => onCerrar(c.folio)}
+                        style={{ fontSize: 11, color: TINTA_SUAVE, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                  Dar por visto
+                </button>
+              )}
+            </div>
+
+            {/* Solo las lineas que no cuadran. Las que cuadran no hay que
+                mirarlas, y enseñarlas esconderia las dos que importan. */}
+            {c.conDiferencia.length > 0 && (
+              <ul style={{ listStyle: 'none', margin: '8px 0 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {c.conDiferencia.slice(0, 6).map(f => (
+                  <li key={f.codigo} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, fontSize: 11.5 }}>
+                    {/* El CODIGO delante: una diferencia de piezas es alerta
+                        sensible, y eso se persigue por codigo, no por nombre. */}
+                    <span style={{ fontWeight: 800, color: TINTA, minWidth: '8ch' }}>{f.codigo}</span>
+                    <span style={{ color: TINTA_SUAVE, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={f.producto}>{f.producto}</span>
+                    <span style={{ fontWeight: 800, color: f.diferencia < 0 ? ROSA : AMBAR, whiteSpace: 'nowrap' }}>
+                      {f.diferencia < 0 ? `faltan ${-f.diferencia}` : `sobran ${f.diferencia}`}
+                      {' '}<span style={{ color: TINTA_TENUE, fontWeight: 600 }}>
+                        (salieron {f.piezas}, entraron {f.entraron})
+                      </span>
+                    </span>
+                  </li>
+                ))}
+                {c.filas.some(f => f.sinVender) && (
+                  <li style={{ fontSize: 11, color: AMBAR }}>
+                    Sin el archivo de venta de esa plaza, estas cuentas no descuentan lo que se
+                    vendio mientras recibia: la diferencia puede ser mercancia que se vendio.
+                  </li>
+                )}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = null }) {
   const sucursales = SUCURSALES_ACTIVAS
   const opciones = useMemo(() => [TODAS, ...sucursales, ...(FERIAS ? [FERIAS] : [])], [sucursales])
@@ -184,6 +290,14 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   const [datos, setDatos]   = useState(null)
   const [cargando, setCargando] = useState(true)
 
+  // El registro de lo que ya salio. Va por capacidad y no por «admin»: cuando
+  // exista el usuario del encargado de bodega lo hereda sin tocar esto.
+  const { token, isAdmin } = useAuth()
+  const { folios, registrar, cerrar, sinRed: sinRedSurtidos } = useSurtidos(token)
+  const puedeRegistrar = isAdmin
+  const [registrando, setRegistrando] = useState(false)
+  const [avisoSurtido, setAvisoSurtido] = useState(null)
+
   useEffect(() => {
     let cancelado = false
     setCargando(true)
@@ -193,9 +307,14 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
         catch { return null }
       }
       const slugs = [...sucursales.map(s => s.slug), BODEGA.slug, ...(FERIAS ? [FERIAS.slug] : [])]
+      // La estadistica diaria entra aqui por una sola razon: sin ella no se
+      // puede saber cuanto vendio la tienda mientras recibia, y restar
+      // existencias a secas acusa de piezas que se vendieron. Ver
+      // `lib/surtidos.js`.
       const pares = await Promise.all(slugs.map(async slug => [slug, {
         inv:  await bajar(inventarioJsonUrl(slug)),
         hist: await bajar(historialUrl(slug)),
+        est:  await bajar(estadisticasUrl(slug)),
       }]))
       if (!cancelado) { setDatos(Object.fromEntries(pares)); setCargando(false) }
     })()
@@ -447,6 +566,26 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     esFeria,
     fuga: agotados ?? null,
   })
+
+  // Cada folio, cuadrado contra el respaldo de su destino.
+  //
+  // El gancho va AQUI, por encima de los returns tempranos: un useMemo
+  // colocado despues de un `if (cargando) return` cambia el numero de ganchos
+  // entre dibujos y deja la pantalla entera en blanco. Ya paso una vez.
+  const cuadres = useMemo(() => {
+    if (!datos) return []
+    const hoy = new Date()
+    return Object.values(folios).map(f => {
+      const d = datos[f.destino]
+      // Lo que la tienda vendio desde que salio la caja. Sin este termino la
+      // cuenta sale corta y acusa de piezas que estan en una bolsa de cliente.
+      const desde = String(f.cuando).slice(0, 10)
+      const vendidas = d?.est ? salidasEntre(d.est, desde, hoy.toISOString().slice(0, 10)) : null
+      return { ...cuadrar(f, { inventarioDestino: d?.inv, vendidas, hoy }), cerrado: f.cerrado ?? null }
+    }).sort((a, b) => String(b.cuando).localeCompare(String(a.cuando)))
+  }, [folios, datos])
+
+  const resumenFolios = useMemo(() => resumirFolios(cuadres), [cuadres])
 
   if (cargando) {
     return (
@@ -1000,6 +1139,57 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
             </Tabla>
           </>)}
 
+      <Folios cuadres={cuadres} resumen={resumenFolios}
+              onCerrar={async f => { try { await cerrar(f) } catch { setAvisoSurtido('No se pudo cerrar el folio.') } }}
+              puedeCerrar={puedeRegistrar} />
+
+      {avisoSurtido && <Aviso>{avisoSurtido}</Aviso>}
+      {sinRedSurtidos && (
+        <Aviso>
+          No se pudieron leer los surtidos registrados. Una lista vacia aqui diria que no hay nada
+          pendiente, y lo que pasa es que no se pudo mirar.
+        </Aviso>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Registrar lo que sale.
+          Parte de lo CALCULADO y no de un formulario en blanco: lo que se
+          registra tiene que ser lo que se mando, y teclear doscientos codigos
+          a mano es la forma mas segura de que esto no se llene nunca.
+          Pide una plaza concreta porque el «antes» es de UN inventario: desde
+          «Todas» no hay destino contra el que comparar. */}
+      {puedeRegistrar && !esFeria && vista === 'venta' && (
+        sel === TODAS.slug ? (
+          <p style={{ fontSize: 11.5, color: TINTA_TENUE, margin: 0 }}>
+            Para registrar un surtido, elige primero la tienda a la que va: lo que se compara
+            despues es el inventario de ESA tienda.
+          </p>
+        ) : porVenta.length === 0 ? null : (
+          <button type="button" disabled={registrando}
+            onClick={async () => {
+              setAvisoSurtido(null)
+              setRegistrando(true)
+              try {
+                const lineas = lineasDesdeSurtido(porVenta)
+                const f = await registrar({
+                  destino: sel, lineas, quien: 'admin',
+                  inventarioDestino: datos?.[sel]?.inv,
+                })
+                setAvisoSurtido(`Registrado el folio ${f.folio}: ${lineas.length} codigos, `
+                  + `${lineas.reduce((a, l) => a + l.piezas, 0)} piezas. Se comprobara solo cuando `
+                  + `${nombreSel} lo de de alta.`)
+              } catch (e) {
+                setAvisoSurtido(e?.message || 'No se pudo registrar el surtido.')
+              }
+              setRegistrando(false)
+            }}
+            className="px-4 py-2 text-sm font-semibold transition-all"
+            style={{ borderRadius: 999, border: '1.5px solid transparent', cursor: registrando ? 'wait' : 'pointer', fontWeight: 800, color: '#101619', background: 'linear-gradient(#fff, #fff) padding-box, var(--degradado-letra) border-box' }}>
+            {registrando ? 'Registrando...' : `Registrar este surtido a ${nombreSel}`}
+          </button>
+        )
+      )}
+
       {(
         <button type="button" onClick={exportar}
           className="px-4 py-2 text-sm font-semibold transition-all"
@@ -1007,6 +1197,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
           Bajar el reporte completo en Excel
         </button>
       )}
+      </div>
 
       <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '14px 0 0', lineHeight: 1.55, paddingTop: 12, borderTop: '1px solid ' + LINEA }}>
         El ritmo sale de dividir lo vendido entre los días con dato, no entre los del calendario: si una

@@ -165,6 +165,70 @@ son uno por uno y son los únicos que **no** se agrupan.
 
 ---
 
+## 🔒 CONFIRMAR — El registro de surtidos se comprueba con el respaldo
+
+Lo que sale de bodega a cada tienda deja folio. Antes no dejaba nada: se
+mandaba la caja con su lista y se confiaba. Si llegan 8 de las 10 que salieron
+**nadie se entera nunca**, porque la tienda da de alta 8, bodega descontó 10, y
+las dos cuentas parecen correctas cada una por su lado.
+
+| Constante | Dónde | Hoy | Qué decide |
+|---|---|---|---|
+| `DIAS_PARA_DAR_DE_ALTA` | `surtidos.js` | `4` | Gracia antes de reclamar el alta |
+| `TOLERANCIA` | `surtidos.js` | `0` | Piezas de diferencia que se dejan pasar |
+
+Los 4 días los puso el dueño: «por lo general puede tardar 4 días máximo».
+Pasados, **no es que falte mercancía**: es que nadie la ha dado de alta, que es
+otro problema y se dice distinto —`tarde`, no `diferencia`—. Dar un folio sin
+alta por mercancía perdida mandaría a buscar cajas que están en su sitio.
+
+Y la tolerancia es **cero**, que conviene que siga siéndolo: una tolerancia «de
+una pieza o dos» es exactamente del tamaño de lo que se pierde de verdad, y la
+volvería invisible justo en el caso que esto existe para detectar.
+
+### Nadie cuenta a mano: el conteo es el alta de su propio Eleventa
+
+No hay conteo a ciegas ni captura de recepción. El conteo ya existe y es mejor
+que cualquiera que se teclee: el **alta** que la tienda hace en su caja, que
+aparece en el respaldo siguiente. Lo decidió el dueño así y tiene dos ventajas
+—no añade trabajo a la tienda, y el número no lo escribe nadie que pueda
+equivocarse al escribirlo—.
+
+### El folio se abre AL SALIR, y esto no es negociable
+
+Para saber cuánto entró hay que saber cuánto había antes, y el «antes» sólo
+existe mientras todavía es antes. Los respaldos por fecha **se quitaron a
+propósito** —crecían 44 MB al año— y sólo queda `anterior.json`, UN paso atrás:
+no se puede mirar cuatro días hacia atrás.
+
+Por eso el folio **se guarda su propio antes**: al registrar la salida se
+congela la existencia de cada código en la plaza de destino, y sólo de esos
+códigos. Guardar el inventario entero por folio sería repetir el error de los
+44 MB.
+
+Si alguien cambia esto para que bodega registre *después* de la confirmación,
+el folio deja de comprobar nada: el alta ya ocurrió y no hay contra qué
+comparar.
+
+### La trampa que hace falsas todas las cuentas: la tienda vende mientras recibe
+
+    entraron = (existencia_después − existencia_antes) + lo_que_se_vendió
+
+Sin el término de la venta, un modelo que recibió 10 y vendió 3 parece haber
+recibido 7, y el folio acusaría de 3 piezas que están en una bolsa de cliente.
+Por eso la pestaña de Surtido baja también `estadisticas.json` de cada plaza,
+que antes no pedía. Cuando ese archivo falta, **la fila lo confiesa** en vez de
+callarlo: una cuenta sin el término de venta no se puede leer como buena.
+
+Un folio **cerrado** no se reescribe: ni sus líneas ni su «antes». Uno editable
+después del alta no comprobaría nada, porque se podría ajustar hasta que cuadre.
+
+El permiso va por **capacidad** (`PUEDE_SURTIR`), no atado a `admin`: el
+usuario del encargado de bodega está pendiente y cuando exista lo hereda sin
+tocar ninguna ruta.
+
+---
+
 ## 🔒 CONFIRMAR — Buscar nunca respeta el filtro de existencia
 
 Esto se rompió **tres veces**. Buscar es ir por un modelo concreto: si existe
@@ -300,6 +364,25 @@ También busca un código en la sección de ventas y comprueba que la **ficha se
 dibuje** —con su renglón por plaza— y que un código inexistente lo diga en vez
 de dejar el hueco en blanco, que se ve igual que un fallo. La regla en sí no se
 comprueba aquí: eso es cosa de `buscarVentas.test.js`.
+
+Comprueba también que la **lista de folios de surtido** se dibuje, con sus
+**dos caminos**: uno que cuadra y uno con diferencia. Con un solo folio de
+mentira la mitad del componente no se ejecuta, porque el que cuadra no
+despliega líneas y el que no, las despliega —y esas líneas son el único dato
+por el que esto existe—. Tres cosas que costaron una vuelta cada una:
+
+- **La fecha de los folios de mentira es la de HOY, no una fija.** El cuadre
+  descuenta lo que la plaza vendió desde que salió la caja; con una fecha de
+  octubre la ventana se tragaba todos los días de venta falsos, «entraron»
+  salía enorme y los dos folios caían en «diferencia». Es la misma trampa que
+  la sección existe para medir.
+- **Las existencias se leen del arreglo `productos`, no se suponen.** Elegir un
+  código «que suene» —`SGS23UT`, que está en cero— daba un folio con 24 piezas
+  faltantes y otra vez los dos en «diferencia».
+- **Que un botón diga «Surtido» no significa estar en Surtido.** El aviso del
+  dashboard «Ver los 30 en Surtido» también lo dice, y pulsarlo dejaba la
+  pantalla en Diseño: la comprobación fallaba sin que nada estuviera roto. El
+  ancla es el botón del Excel, que sólo dibuja esa pestaña.
 
 Y comprueba que la bandeja de **«Costos que faltan en bodega»** se dibuje, con
 su botón de bajar el Excel, y que la frase de la utilidad diga de cuántos
@@ -599,7 +682,15 @@ ningún año porque no abre.
   JavaScript público. Así estuvieron meses la llave de AWS, el secreto de
   Dropbox y las cinco contraseñas.
 - Amplify sólo tiene tres variables: `VITE_API_URL`, `VITE_S3_BUCKET`,
-  `VITE_S3_REGION`. Las dos últimas no son secretos.
+  `VITE_S3_REGION`. **Ninguna de las tres es un secreto**: la URL de la Lambda
+  ya viene incrustada en el JavaScript público —se saca del paquete en vivo— y
+  las rutas que importan piden sesión.
+- **`VITE_API_URL` tiene que estar en el `.env` local.** Sin ella `pedir()` ni
+  siquiera llega al `fetch`, así que todo lo que vive en el backend —ajustes,
+  surtidos, la cola— no se puede probar: `npm run verificar` pasaba en verde
+  sin haber ejercitado una sola ruta. **Ojo: con ella puesta, `npm run dev`
+  escribe en el S3 de verdad**, y registrar un surtido desde desarrollo crea un
+  folio real.
 - `index.html` va con `no-store` (`customHttp.yml`). Sin eso, tras un
   despliegue el navegador pide un `.js` que ya no existe y la página sale en
   blanco.
