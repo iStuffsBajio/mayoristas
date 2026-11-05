@@ -670,6 +670,140 @@ ningún año porque no abre.
 
 ---
 
+## ⚠️ VERIFICAR — La venta línea por línea, y lo que destapó
+
+`scripts/extraer-ventas-linea.js` saca de `VENTATICKETS` y
+`VENTATICKETS_ARTICULOS` lo que el agregado mensual no puede dar: el día y la
+**hora** de cada venta, **qué precio se cobró** (`USA_MAYOREO` por línea), la
+ganancia que calculó la caja, quién cobró y a qué mayorista se le apuntó.
+Publica sólo agregados en `ventas/<plaza>.json`. Las reglas viven en
+`src/lib/ventasTicket.js`, con pruebas.
+
+**Va a un prefijo PRIVADO, y eso no es opcional.** Lleva NOMBRES: los de los
+mayoristas y el de quién cobró cada ticket. Esa es la lista de clientes del
+negocio. La política del bucket sólo abre `inventarios/*` y `config/*`;
+comprobado de verdad: `ventas/leon.json` da **403** sin credenciales y
+`inventarios/leon/inventario.json` sigue dando 200.
+
+### Lo primero: el canal que ya teníamos está bien
+
+| | piezas |
+|---|---|
+| Líneas de ticket de León, sin etiquetas ni stickers | **7,181** |
+| `INVENTARIO_HISTORIAL`, lo que ya publicábamos | **7,184** |
+
+Tres piezas de diferencia entre dos fuentes independientes. El historial
+mensual no estaba corto; el «agujero del 29%» que aparecía al comparar en
+crudo era otra cosa (abajo).
+
+### 🔒 El mayoreo es la mitad del dinero, y cambia por plaza
+
+| plaza | del dinero a mayoreo |
+|---|---|
+| Aguascalientes | **72%** |
+| León | 52% |
+| San Luis | 44% |
+| Ferias | 1% |
+| Bodega | 0% |
+
+Y en el mismo código el mayoreo es un **38% más barato** por pieza: el I13T
+sale a $229 al público y a $143 a mayoreo, y de 149 piezas, **104 salen a
+mayoreo**. Lo mismo el SGA16T y el I15PMT.
+
+La pestaña de Ventas valora hoy al **promedio de público y mayoreo** de las
+plazas que venden. Con estos números eso infla el dinero en las plazas
+mayoristas y lo desinfla en Ferias. Ya no hay que estimar: **la caja apuntó
+qué precio cobró en cada línea**, y `pesoDelMayoreo()` da el precio medio real
+por código. Cambiarlo es decisión de negocio: preguntar antes.
+
+### La GANANCIA de Eleventa NO se puede usar
+
+Viene por línea y parece el dato ideal. Medido, es basura, y por la razón que
+ya conocíamos:
+
+| plaza | margen que dice la caja |
+|---|---|
+| Aguascalientes | **92%** |
+| Ferias | 67% |
+| San Luis | 65% |
+| León | 54% |
+| Bodega | **8%** |
+
+El 92% es imposible y el 8% también: la caja calcula la ganancia con el costo
+que tiene capturado **cada plaza**, que es justo el número del que el dueño
+desconfía. De ahí el reparto de responsabilidades, que ahora queda completo:
+
+| | De dónde | Por qué |
+|---|---|---|
+| **Precio** | los TICKETS | es lo que se cobró, no una lista de precios |
+| **Costo** | BODEGA | es quien compra |
+| **Margen** | de esos dos, calculado | nunca de `GANANCIA` |
+
+### 🔒 La temporada medida no es la que dice `MESES_ALTA`
+
+Dinero por día de venta, 2023 en adelante, 1.00 = el promedio de la propia
+plaza. Ferias queda fuera a propósito, que deforma cualquier promedio:
+
+| | ene | feb | mar | abr | may | jun | jul | ago | sep | oct | nov | **dic** |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| San Luis | 1.19 | 1.02 | 0.80 | 0.90 | 1.04 | 1.00 | 0.97 | 0.89 | 0.78 | 0.73 | 0.83 | **1.84** |
+| Aguascalientes | 1.25 | 1.16 | 0.86 | 0.91 | 0.93 | 1.00 | 0.89 | 0.83 | 0.73 | 0.68 | 0.86 | **1.88** |
+| León | 1.49 | 0.96 | 0.78 | 0.85 | 0.89 | 0.97 | 0.86 | 0.91 | 0.75 | 0.80 | 0.64 | **2.11** |
+
+Las tres plazas dicen lo mismo, y son años de datos, no una impresión:
+
+- **Diciembre casi dobla** (×1.84 a ×2.11) y **enero es el segundo** (×1.19 a
+  ×1.49).
+- **Agosto y octubre están por DEBAJO** del promedio —octubre es el suelo, de
+  ×0.68 a ×0.80—, aunque se recuerden como meses fuertes.
+- **Noviembre también está por debajo** en las tres (×0.64 a ×0.86).
+
+Ojo con la conclusión fácil: `MESES_ALTA = [11, 12]` incluye noviembre, y
+noviembre vende poco. Pero hay que estar surtido en noviembre **para**
+diciembre, así que como regla de COMPRA puede estar bien. El hueco de verdad
+es otro: **enero no está en `MESES_ALTA`**, así que la cobertura baja a
+«temporada baja» justo cuando enero corre a ×1.19–1.49.
+
+No se cambia nada de esto sin preguntar.
+
+### Cuatro trampas medidas, todas silenciosas
+
+**Los booleanos de Eleventa son `'t'`/`'f'`, no 1/0.** Comparar contra 1 no
+devuelve cero filas: revienta la consulta entera con «conversion error from
+string "t"».
+
+**Un ticket CANCELADO conserva sus líneas.** En León hay 68 cancelados.
+Sumar las líneas sin mirar el ticket las cuenta como venta y la cifra sale
+alta sin que nada parezca roto.
+
+**El departamento MAYORISTAS no son productos: son los CLIENTES**, dados de
+alta como si fueran productos —con su nombre y su local, al estilo
+«NOMBRE PLAZA (1234)»— y añadidos a la venta para apuntar de quién es el
+ticket. Los nombres de verdad **no se escriben aquí**: `CLAUDE.md` va en git, y
+esa es exactamente la lista que acabamos de dejar en un prefijo privado. Para
+verlos, el archivo de la plaza. En León son **2,368 «piezas» que valen $24**. Sumarlas como fundas
+infla todo; por eso `claseDeLinea()` las aparta. Son la otra mitad de aquel
+«agujero del 29%» —la primera son los stickers, 614 pz y $5,710, que son venta
+de verdad pero sin inventario—.
+
+De paso resuelve una pregunta que llevaba abierta: **a qué mayorista se le
+vendió cada ticket se puede saber, y está en uso**. León tiene 157 mayoristas
+distintos; el primero, 290 tickets.
+
+**La hora se lee del texto, no con `new Date()`.** Llegan como
+«2026-10-31 15:03:02.0000», en hora local y sin zona: `new Date()` las trata
+como UTC y la gráfica de horas sale corrida seis posiciones **con forma de
+curva**, así que no se nota.
+
+### Lo que esto abre
+
+Hay mucho más historial del que creíamos: **Aguascalientes desde 2019-11, San
+Luis desde 2020-03, Ferias desde 2021-06**. La nota de que «no existe
+antecedente de julio y agosto hacia abajo» era de las estadísticas propias, no
+de los respaldos.
+
+---
+
 ## ⚠️ VERIFICAR — Despliegue
 
 - **`revisiones/` no es público y no puede serlo.** Las notas de la cola de

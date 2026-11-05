@@ -379,3 +379,25 @@ test('sin folio no se guarda nada', async () => {
   })
   assert.equal(r.statusCode, 400)
 })
+
+// ── Venta linea por linea ───────────────────────────────────────────────────
+//
+// Vive en un prefijo privado porque lleva NOMBRES: los de los mayoristas y el
+// de quien cobro cada ticket. Esa es la lista de clientes del negocio.
+
+test('la venta por linea es solo del administrador', async () => {
+  // Ni su propia plaza: la lista de mayoristas con cuanto compra cada uno es
+  // informacion del dueño, no del mostrador.
+  assert.equal((await pedir('GET', '/ventas', { query: { plaza: 'leon' } })).statusCode, 403)
+  assert.equal((await pedir('GET', '/ventas', { token: tokenLeon(), query: { plaza: 'leon' } })).statusCode, 403)
+})
+
+test('una plaza inventada se rechaza antes de tocar S3', async () => {
+  // Morelia se ignora a proposito en toda la pagina.
+  const r = await pedir('GET', '/ventas', { token: tokenAdmin(), query: { plaza: 'morelia' } })
+  assert.equal(r.statusCode, 400)
+})
+
+test('sin plaza no se adivina ninguna', async () => {
+  assert.equal((await pedir('GET', '/ventas', { token: tokenAdmin() })).statusCode, 400)
+})

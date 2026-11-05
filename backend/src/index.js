@@ -574,6 +574,347 @@ async function rutaGuardarSurtido(evento, origen, cuerpo) {
   return responder(origen, 200, { ok: true, folio, por: quien })
 }
 
+// ── Venta linea por linea ──────────────────────────────────────────────────
+//
+// Lo que saca `scripts/extraer-ventas-linea.js` de los tickets de Eleventa:
+// el dia y la hora de cada venta, que precio se cobro -publico o mayoreo-, la
+// ganancia que calculo la caja, quien cobro y a que mayorista se le apunto.
+//
+// Vive en `ventas/`, que la politica del bucket NO abre al publico, por la
+// misma razon que `personal/`: lleva NOMBRES. Los de los mayoristas -dados de
+// alta con su nombre y su local, al estilo «NOMBRE PLAZA (1234)»- y el de
+// quien cobro cada ticket. Esa es la lista de clientes del negocio y no puede
+// quedar en una URL publica.
+//
+// Por lo mismo, los nombres de verdad no se escriben en el repositorio: aqui
+// y en las pruebas van ejemplos inventados, que ensenan la forma igual.
+
+const claveVentas = plaza => `ventas/${plaza}.json`
+
+/**
+ * La venta de una plaza. Solo administrador.
+ *
+ * Una sucursal NO la lee, ni la suya: la lista de mayoristas con cuanto compra
+ * cada uno es informacion del dueño, no del mostrador.
+ */
+async function rutaVentas(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
+
+  const plaza = String(evento.queryStringParameters?.plaza ?? '').trim()
+  // Bodega y ferias tambien tienen caja, asi que valen ademas de las tiendas.
+  if (!SUCURSALES[plaza] && plaza !== 'bodega' && plaza !== 'ferias') {
+    return responder(origen, 400, { error: 'Plaza desconocida.' })
+  }
+
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: claveVentas(plaza) }))
+    return responder(origen, 200, JSON.parse(await r.Body.transformToString()))
+  } catch {
+    // Que una plaza no tenga archivo todavia no es un error del servidor: es
+    // que no se ha extraido. Se dice, para que la pantalla no lo lea como un
+    // cero -«no vendio nada»- que es lo contrario.
+    return responder(origen, 404, { error: 'Esa plaza no tiene venta extraida todavia.' })
+  }
+}
+
+// ── Flujo de efectivo ──────────────────────────────────────────────────────
+//
+// SOLO ADMINISTRADOR, todas las rutas. Lo decidió el dueño: «solo admin tiene
+// acceso, ellos hacen todo directo en eleventa». Las plazas registran sus
+// entradas y salidas en el punto de venta y de ahí las lee el extractor; nadie
+// más entra aquí.
+//
+// Va bajo `caja/`, que la política del bucket NO abre al público, igual que
+// `personal/` y `revisiones/`. Y por una razón más fuerte que las otras dos:
+// los faltantes al cerrar turno llevan el nombre de quien cerró pegado a una
+// cantidad de dinero que falta. Eso no puede quedar accesible por URL.
+//
+// Tres clases de archivo, y se distinguen a propósito:
+//   caja/<slug>.json          lo que publica el extractor. NO se escribe aquí.
+//   caja/depositos.json       los bloques semanales marcados como depositados
+//   caja/ajustes.json         las correcciones, con su valor calculado al lado
+//   config/caja.json          los parámetros por sucursal
+//
+// Los tres últimos los escribe una sola persona —el administrador— así que no
+// hacen falta archivos por autor como en `revisiones/`: ahí el problema era
+// que León y bodega contestaban a la vez.
+
+const PLAZAS_CAJA = new Set(['leon', 'san-luis', 'aguascalientes', 'torreon', 'ferias'])
+
+const MOTIVOS_CAJA = new Set([
+  'error-de-captura', 'gasto-no-registrado', 'devolucion', 'faltante', 'otro',
+])
+
+const TIPOS_MOV = new Set(['gasto', 'retiro', 'adelanto', 'proveedor', 'otra-salida', 'entrada'])
+
+/** Los campos de un día que se pueden corregir a mano. */
+const CAMPOS_AJUSTABLES = new Set([
+  'efectivoCobrado', 'tarjeta', 'transferencia', 'otrasNoEfectivo', 'devoluciones',
+  'gastos', 'retiros', 'adelantos', 'proveedores', 'otrasSalidas', 'entradas', 'arqueo',
+])
+
+const monto = v => {
+  const n = Number(v)
+  // Un monto que no es número se rechaza en vez de guardarse como NaN: un NaN
+  // en el JSON envenena todas las sumas de la pantalla y no se ve de dónde
+  // vino. Y nada de negativos: una salida se expresa por su tipo, no por el
+  // signo, o restar dos veces sería un descuido de una tecla.
+  if (!Number.isFinite(n) || n < 0) return null
+  return Math.round(n * 100) / 100
+}
+
+/**
+ * Todo lo que necesita la pestaña: el flujo de las cinco plazas, los depósitos
+ * marcados, los ajustes y los parámetros, en una sola respuesta.
+ *
+ * En una sola a propósito: son nueve archivos y pedirlos de uno en uno desde
+ * el navegador dejaba la pantalla pintándose a trozos, con los semáforos
+ * cambiando de color a medida que llegaban. Un semáforo que pasa de verde a
+ * rojo solo no se lee como «ya cargó»: se lee como un fallo.
+ */
+async function rutaCaja(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
+
+  const plazas = [...PLAZAS_CAJA]
+  const flujos = await Promise.all(plazas.map(async p => [p, await leerJson(`caja/${p}.json`)]))
+
+  const [depositos, ajustes, parametros, movimientos] = await Promise.all([
+    leerJson('caja/depositos.json'),
+    leerJson('caja/ajustes.json'),
+    leerJson('config/caja.json'),
+    leerJson('caja/movimientos.json'),
+  ])
+
+  return responder(origen, 200, {
+    flujos: Object.fromEntries(flujos),
+    depositos, ajustes, parametros, movimientos,
+  })
+}
+
+/**
+ * Marca un bloque semanal como depositado, o le quita la marca.
+ *
+ * La clave es el LUNES de la semana que cubre, que es como se identifica un
+ * bloque en toda la pantalla. Mandar `monto: null` quita la marca y el bloque
+ * vuelve a acumular, que es como se deshace un depósito apuntado por error.
+ */
+async function rutaGuardarDeposito(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
+
+  const plaza = String(cuerpo?.sucursal ?? '')
+  if (!PLAZAS_CAJA.has(plaza)) return responder(origen, 400, { error: 'Sucursal desconocida.' })
+
+  const semana = String(cuerpo?.semana ?? '')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(semana)) {
+    return responder(origen, 400, { error: 'La semana se identifica por su lunes, en formato YYYY-MM-DD.' })
+  }
+
+  const todos = await leerJson('caja/depositos.json')
+  const dePlaza = { ...(todos[plaza] ?? {}) }
+
+  if (cuerpo?.monto == null) {
+    delete dePlaza[semana]
+  } else {
+    const m = monto(cuerpo.monto)
+    if (m === null) return responder(origen, 400, { error: 'El monto no es un número válido.' })
+    dePlaza[semana] = {
+      semana, monto: m,
+      fecha:       String(cuerpo.fecha ?? '').slice(0, 10),
+      hora:        String(cuerpo.hora ?? '').slice(0, 5),
+      folio:       String(cuerpo.folio ?? '').slice(0, 60),
+      comprobante: !!cuerpo.comprobante,
+      deposito:    String(cuerpo.deposito ?? '').slice(0, 80),   // quién depositó
+      nota:        String(cuerpo.nota ?? '').slice(0, 500),
+      marcadoPor:  'admin',
+      marcadoEn:   new Date().toISOString(),
+    }
+  }
+
+  const nuevo = { ...todos, [plaza]: dePlaza }
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: 'caja/depositos.json',
+    Body: Buffer.from(JSON.stringify(nuevo)),
+    ContentType: 'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+  return responder(origen, 200, { ok: true, semana, plaza })
+}
+
+/**
+ * Guarda una corrección de un día, o la deshace.
+ *
+ * **El valor calculado NO se toca.** Se guarda qué campo se corrigió y a qué,
+ * y la página aplica el ajuste al leer. Es la misma regla que `ajustes/` sigue
+ * con el inventario, y por el mismo motivo: `caja/<slug>.json` se regenera del
+ * respaldo varias veces al día, así que una corrección escrita encima se
+ * borraría sola esa misma tarde.
+ *
+ * Y todo ajuste lleva motivo. Sin él no se guarda: una cifra corregida sin
+ * explicación es indistinguible de un error de captura, que es justo una de
+ * las cosas que esto sirve para corregir.
+ */
+async function rutaGuardarAjusteCaja(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
+
+  const plaza = String(cuerpo?.sucursal ?? '')
+  if (!PLAZAS_CAJA.has(plaza)) return responder(origen, 400, { error: 'Sucursal desconocida.' })
+
+  const f = String(cuerpo?.fecha ?? '')
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return responder(origen, 400, { error: 'Falta el día.' })
+
+  const todos = await leerJson('caja/ajustes.json')
+  const dePlaza = { ...(todos[plaza] ?? {}) }
+
+  if (cuerpo?.motivo == null) {
+    delete dePlaza[f]
+  } else {
+    const motivo = String(cuerpo.motivo)
+    if (!MOTIVOS_CAJA.has(motivo)) return responder(origen, 400, { error: 'Motivo desconocido.' })
+
+    const valores = {}
+    for (const [k, v] of Object.entries(cuerpo?.valores ?? {})) {
+      if (!CAMPOS_AJUSTABLES.has(k)) continue
+      const m = monto(v)
+      if (m === null) return responder(origen, 400, { error: `El valor de «${k}» no es un número válido.` })
+      valores[k] = m
+    }
+    if (!Object.keys(valores).length) {
+      return responder(origen, 400, { error: 'Un ajuste sin ningún valor no es un ajuste.' })
+    }
+
+    dePlaza[f] = {
+      fecha: f, valores, motivo,
+      nota:  String(cuerpo.nota ?? '').slice(0, 500),
+      quien: 'admin',
+      cuando: new Date().toISOString(),
+    }
+  }
+
+  const nuevo = { ...todos, [plaza]: dePlaza }
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: 'caja/ajustes.json',
+    Body: Buffer.from(JSON.stringify(nuevo)),
+    ContentType: 'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+  return responder(origen, 200, { ok: true, fecha: f, plaza })
+}
+
+/** Los parámetros por sucursal. Solo administrador. */
+async function rutaGuardarParametros(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
+
+  const plaza = String(cuerpo?.sucursal ?? '')
+  if (!PLAZAS_CAJA.has(plaza)) return responder(origen, 400, { error: 'Sucursal desconocida.' })
+
+  const p = cuerpo?.parametros
+  if (!p || typeof p !== 'object') return responder(origen, 400, { error: 'Parámetros inválidos.' })
+
+  // Un número vacío se guarda como null, NO como cero. Es la misma regla que
+  // los precios: un cero es «sin capturar» y no «gratis», y aquí un fondo fijo
+  // de cero se compararía contra el límite dando un verde sin saberse nada.
+  const numeroOnulo = v => {
+    if (v === null || v === undefined || v === '') return null
+    const n = Number(v)
+    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null
+  }
+  const dia = v => {
+    const n = Number(v)
+    return Number.isInteger(n) && n >= 1 && n <= 7 ? n : null
+  }
+  const hora = v => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v ?? '')) ? String(v) : '')
+  const fechaOnula = v => (/^\d{4}-\d{2}-\d{2}$/.test(String(v ?? '')) ? String(v) : null)
+
+  const limpios = {
+    diaDeposito:    dia(p.diaDeposito),
+    periodoCubre:   p.periodoCubre === 'semana-en-curso' ? 'semana-en-curso' : 'semana-anterior',
+    fondoFijo:      numeroOnulo(p.fondoFijo),
+    limiteEfectivo: numeroOnulo(p.limiteEfectivo),
+    cuenta:         String(p.cuenta ?? '').slice(0, 60),
+    responsable:    String(p.responsable ?? '').slice(0, 80),
+    tolerancia:     numeroOnulo(p.tolerancia),
+    horaLimite:     hora(p.horaLimite),
+    gastoMaxSinComprobante: numeroOnulo(p.gastoMaxSinComprobante),
+    desdeControlSalidas:    fechaOnula(p.desdeControlSalidas),
+  }
+
+  const todos = await leerJson('config/caja.json')
+  const nuevo = { ...todos, [plaza]: limpios }
+
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: 'config/caja.json',
+    Body: Buffer.from(JSON.stringify(nuevo)),
+    ContentType: 'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+  return responder(origen, 200, { ok: true, plaza, parametros: limpios })
+}
+
+/**
+ * Captura un movimiento de caja a mano, o lo borra.
+ *
+ * Es la vía de escape, no el camino normal: desde el 2026-11-05 las plazas
+ * registran sus entradas y salidas en Eleventa y de ahí las trae el extractor.
+ * Esto queda para lo que se olvidó anotar ahí, y por eso cada movimiento lleva
+ * `origen: 'pagina'`: en la pantalla se distingue de lo que vino del punto de
+ * venta, porque uno lo teclea quien cobra y el otro quien revisa.
+ */
+async function rutaGuardarMovimiento(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
+
+  const plaza = String(cuerpo?.sucursal ?? '')
+  if (!PLAZAS_CAJA.has(plaza)) return responder(origen, 400, { error: 'Sucursal desconocida.' })
+
+  const id = String(cuerpo?.id ?? '').slice(0, 80)
+  if (!id) return responder(origen, 400, { error: 'Falta el identificador del movimiento.' })
+
+  const todos = await leerJson('caja/movimientos.json')
+  const dePlaza = { ...(todos[plaza] ?? {}) }
+
+  if (cuerpo?.borrar) {
+    delete dePlaza[id]
+  } else {
+    const f = String(cuerpo?.fecha ?? '')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return responder(origen, 400, { error: 'Falta el día.' })
+
+    const tipo = String(cuerpo?.tipo ?? '')
+    if (!TIPOS_MOV.has(tipo)) return responder(origen, 400, { error: 'Tipo de movimiento desconocido.' })
+
+    const m = monto(cuerpo?.monto)
+    if (m === null || m === 0) return responder(origen, 400, { error: 'Un movimiento sin monto no es un movimiento.' })
+
+    const concepto = String(cuerpo?.concepto ?? '').trim().slice(0, 160)
+    if (!concepto) return responder(origen, 400, { error: 'Todo movimiento lleva concepto.' })
+
+    dePlaza[id] = {
+      id, f, tipo, monto: m, concepto,
+      comprobante: !!cuerpo.comprobante,
+      origen: 'pagina',
+      quien: 'admin',
+      cuando: new Date().toISOString(),
+    }
+  }
+
+  if (Object.keys(dePlaza).length > 10000) {
+    return responder(origen, 413, { error: 'Demasiados movimientos guardados.' })
+  }
+
+  const nuevo = { ...todos, [plaza]: dePlaza }
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: 'caja/movimientos.json',
+    Body: Buffer.from(JSON.stringify(nuevo)),
+    ContentType: 'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+  return responder(origen, 200, { ok: true, id, plaza })
+}
+
 /**
  * Turnos del personal. Solo administrador.
  *
@@ -628,12 +969,18 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/login')      return await rutaLogin(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/galeria')    return await rutaGaleria(evento, origen)
     if (metodo === 'GET'  && ruta === '/turnos')     return await rutaTurnos(evento, origen)
+    if (metodo === 'GET'  && ruta === '/ventas')     return await rutaVentas(evento, origen)
     if (metodo === 'GET'  && ruta === '/revisiones') return await rutaRevisiones(evento, origen)
     if (metodo === 'POST' && ruta === '/revisiones') return await rutaGuardarRevision(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/ajustes')    return await rutaAjustes(evento, origen)
     if (metodo === 'POST' && ruta === '/ajustes')    return await rutaGuardarAjuste(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/surtidos')   return await rutaSurtidos(evento, origen)
     if (metodo === 'POST' && ruta === '/surtidos')   return await rutaGuardarSurtido(evento, origen, cuerpo)
+    if (metodo === 'GET'  && ruta === '/caja')            return await rutaCaja(evento, origen)
+    if (metodo === 'POST' && ruta === '/caja/deposito')   return await rutaGuardarDeposito(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/caja/ajuste')     return await rutaGuardarAjusteCaja(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/caja/parametros') return await rutaGuardarParametros(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/caja/movimiento') return await rutaGuardarMovimiento(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/diseno')     return await rutaSubirDiseno(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/config')     return await rutaGuardarConfig(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/inventario') return await rutaSubirInventario(evento, origen, cuerpo)
