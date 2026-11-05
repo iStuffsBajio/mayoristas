@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { revisiones, guardarRevision } from '../lib/api'
+import { revisiones, guardarRevision, guardarAjuste } from '../lib/api'
+import { estadoDe, codigosDeFicha, MOTIVOS, ESTADOS } from '../lib/ajustes'
+import { useAjustes } from '../lib/useAjustes'
 import { exportarRevisiones } from '../lib/exportarRevisiones'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl } from '../lib/s3'
@@ -95,6 +97,8 @@ export default function RevisarPanel() {
   const [i, setI] = useState(0)
   const [marcas, setMarcas] = useState(leerMarcas)
   const [sinRed, setSinRed] = useState(false)
+  const [corrigiendo, setCorrigiendo] = useState(false)
+  const [motivo, setMotivo] = useState('ya-no-existe')
   const [eligiendo, setEligiendo] = useState(null)   // 'si' | 'no' | null
   const [borrador, setBorrador] = useState('')
 
@@ -124,6 +128,46 @@ export default function RevisarPanel() {
       .catch(() => { if (vivo) setSinRed(true) })
     return () => { vivo = false }
   }, [token])
+
+  // Las correcciones ya hechas. Lo ajustado deja de preguntarse: si ya
+  // dijiste que ese código no existe, volver a preguntarlo cada día es
+  // justo lo que hace que la cola deje de mirarse.
+  //
+  // Se cargan con el mismo gancho que usa el dashboard. Con dos cargadores
+  // distintos bastaría con que uno se quedara atrás para que el error
+  // siguiera saliendo en esa pantalla y la corrección pareciera rota.
+  const { correcciones, ocultos, setCorrecciones } = useAjustes(token)
+
+  /**
+   * Marca uno o varios códigos como que ya no existen.
+   *
+   * Se pinta al momento y se manda después, igual que las respuestas: el
+   * trabajo va al ritmo de quien corrige, no al de la red.
+   */
+  const corregir = async (codigos, producto, motivo) => {
+    const ahora = new Date().toISOString()
+    setCorrecciones(c => {
+      const s = { ...c }
+      for (const cod of codigos) {
+        const clave = `ocultar|${String(cod).toUpperCase()}`
+        s[clave] = { clave, tipo: 'ocultar', codigo: String(cod).toUpperCase(), producto, motivo, cuando: ahora, quien }
+      }
+      return s
+    })
+    if (!token) return
+    for (const cod of codigos) {
+      await guardarAjuste({ codigo: cod, motivo, producto }, token).catch(() => setSinRed(true))
+    }
+  }
+
+  const deshacer = async codigo => {
+    setCorrecciones(c => {
+      const s = { ...c }
+      delete s[`ocultar|${String(codigo).toUpperCase()}`]
+      return s
+    })
+    if (token) await guardarAjuste({ codigo, motivo: null }, token).catch(() => setSinRed(true))
+  }
 
   const { grupos, existencias } = useMemo(() => {
     const todos = new Map(), ex = {}
@@ -176,6 +220,13 @@ export default function RevisarPanel() {
   // lo que no ha mirado nadie es lo que hace falta mirar.
   const cola = useMemo(() => {
     const hecho = x => (marcas[x.id] ? 1 : 0)
+    // Lo ya corregido no se vuelve a preguntar. Si ayer dijiste que ese
+    // código no existe, volver a sacarlo mañana es lo que hace que la cola
+    // deje de mirarse.
+    const vivos = todos.filter(x => {
+      const cs = codigosDeFicha(x)
+      return cs.length === 0 || cs.some(c => !ocultos.has(c))
+    })
     // El orden lo decide `PASO` en fichas.js: lo que hay que hacer con cada
     // ficha, no cuántas piezas tiene. Ordenando por peso, el lote de los que
     // ya no tienen ni una pieza —el único que se ejecuta sin pensar— salía el
@@ -183,10 +234,26 @@ export default function RevisarPanel() {
     //
     // Dentro de un mismo paso sí manda el peso, que ahí sí es donde hay más
     // dinero quieto.
-    return [...todos].sort((a, b) => hecho(a) - hecho(b)
+    return [...vivos].sort((a, b) => hecho(a) - hecho(b)
       || a.orden - b.orden
       || b.peso - a.peso)
-  }, [todos, marcas])
+  }, [todos, marcas, ocultos])
+
+  // Lo corregido aquí que la caja todavía no ha tocado. No desaparece: se
+  // muda de «Atención» a esta bandeja, con su antigüedad. Sin eso, corregir
+  // sería una forma cómoda de esconder problemas.
+  //
+  // Va aquí arriba y no junto a donde se dibuja: debajo del `return` de
+  // «cargando», React cuenta un hook de menos en el primer dibujo y la
+  // pantalla se cae entera con el error #310. Lo cazó `npm run verificar`.
+  const pendientes = useMemo(() => {
+    const out = []
+    for (const a of Object.values(correcciones)) {
+      const e = estadoDe(a, inv ?? {})
+      if (e.estado === ESTADOS.PENDIENTE) out.push({ ...a, ...e })
+    }
+    return out.sort((x, y) => y.dias - x.dias)
+  }, [correcciones, inv])
 
   if (cargando) return <p className="tablero-cargando">Leyendo el catálogo de las cinco plazas…</p>
 
@@ -373,6 +440,32 @@ export default function RevisarPanel() {
               </button>
             </div>
           </div>
+        ) : corrigiendo ? (
+          <div className="rev-corregir">
+            <p className="rev-corregir-que">
+              Se deja de reclamar
+              {' '}<strong>{codigosDeFicha(item).join(', ')}</strong>
+              {' '}en el panel, y pasa a la lista de lo que hay que corregir en la caja.
+            </p>
+            <label className="rotulo-campo" htmlFor="motivo-ajuste">¿Por qué?</label>
+            <select id="motivo-ajuste" value={motivo} onChange={e => setMotivo(e.target.value)}>
+              {Object.entries(MOTIVOS).map(([k, texto]) => (
+                <option key={k} value={k}>{texto}</option>
+              ))}
+            </select>
+            <div className="rev-botones">
+              <button type="button" className="boton-tinta"
+                      onClick={async () => {
+                        await corregir(codigosDeFicha(item), item.producto ?? '', motivo)
+                        setCorrigiendo(false)
+                      }}>
+                Corregir
+              </button>
+              <button type="button" className="rev-saltar" onClick={() => setCorrigiendo(false)}>
+                Cancelar
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="rev-botones">
             <button type="button" className="rev-responde rev-es-si" onClick={() => elegir('si')}>
@@ -384,6 +477,14 @@ export default function RevisarPanel() {
             <button type="button" className="rev-saltar" onClick={() => irA(pos + 1)}>
               {respuesta ? 'Siguiente' : 'Lo veo después'}
             </button>
+            {/* La diferencia con «Sí» y «No»: esto no es una respuesta, es
+                una corrección. Saca el caso del panel y lo pasa a la lista
+                de lo que hay que arreglar en la caja. */}
+            {codigosDeFicha(item).length > 0 && (
+              <button type="button" className="rev-saltar" onClick={() => setCorrigiendo(true)}>
+                Ya no existe
+              </button>
+            )}
             {pos > 0 && (
               <button type="button" className="rev-saltar" onClick={() => irA(pos - 1)}>
                 Atrás
@@ -393,10 +494,41 @@ export default function RevisarPanel() {
         )}
       </section>
 
+      {pendientes.length > 0 && (
+        <section className="rev-pendientes">
+          <h3>
+            Corregidos aquí, pendientes en la caja
+            <span className="rev-pendientes-cuenta">{pendientes.length}</span>
+          </h3>
+          <p>
+            Ya no se reclaman en el panel. Se quitan solos de esta lista cuando el respaldo
+            llegue sin ellos: nadie tiene que marcar nada como hecho.
+          </p>
+          <ul>
+            {pendientes.map(p => (
+              <li key={p.clave} className={p.insiste ? 'insiste' : undefined}>
+                <span className="rev-pend-codigo">{p.codigo}</span>
+                <span className="rev-pend-producto" title={p.producto}>{p.producto}</span>
+                <span className="rev-pend-motivo">{MOTIVOS[p.motivo] ?? p.motivo}</span>
+                <span className="rev-pend-donde">
+                  {p.plazas.map(s => nombreSucursal(s)).join(' · ')}
+                </span>
+                <span className="rev-pend-dias">
+                  {p.dias === 0 ? 'hoy' : `${p.dias} d`}
+                </span>
+                <button type="button" className="rev-saltar" onClick={() => deshacer(p.codigo)}>
+                  Deshacer
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <p className="tablero-nota">
-        Contestar no corrige nada: los hallazgos salen de los datos y desaparecen solos cuando
-        el catálogo cambia en la caja. Lo que queda aquí es el porqué de cada decisión, que es
-        lo que sirve para que el mismo error no se repita.
+        Contestar deja escrito el porqué; <strong>corregir</strong> saca el caso del panel y lo
+        pasa a la lista de arriba. Lo corregido no desaparece: espera ahí hasta que el respaldo
+        de la caja llegue sin el error, y entonces se retira solo.
       </p>
     </div>
   )

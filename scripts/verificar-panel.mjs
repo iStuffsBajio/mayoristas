@@ -181,7 +181,16 @@ function inventarioDe(plaza) {
     return {
       productos: productos
         .filter(p => !SIN_BODEGA.includes(p.Codigo))
-        .map(p => ({ ...p, Producto: p.Producto.replace(/^SAMSUNG\b/, 'GALAXY') })),
+        .map((p, i) => ({ ...p, Producto: p.Producto.replace(/^SAMSUNG\b/, 'GALAXY'),
+          // El costo sale de bodega y SOLO de bodega, asi que aqui tiene que
+          // haberlo: sin el, la utilidad y «Dinero parado» salen en blanco y
+          // esta comprobacion pasaria en verde sin haber valorado nada.
+          //
+          // Y a dos se les deja sin costo a proposito, para que la bandeja de
+          // «Costos que faltan» tenga algo que pintar. Sin eso no se
+          // ejercita: un cero es «sin capturar», no «gratis».
+          ...(i < 2 ? {} : { Costo: 30 + i }),
+        })),
       generado: GENERADO,
     }
   }
@@ -417,6 +426,37 @@ async function recorrerCola(window, donde) {
  * el reporte quedaría sin la mitad que importa.
  */
 /**
+ * La bandeja de «Costos que faltan en bodega».
+ *
+ * Esto no se puede fijar en una prueba de libreria: `sinCostear` ya tiene la
+ * suya, y lo que falla aqui es otra cosa —que la seccion deje de pintarse—.
+ * Importa porque el costo sale de bodega y SOLO de bodega: si el hueco no se
+ * ve, la utilidad sigue saliendo, mas pequena, y nadie se entera de que habla
+ * de la mitad del catalogo. Una cifra incompleta que no se anuncia es peor
+ * que ninguna.
+ *
+ * Tambien comprueba que la frase de la utilidad diga de cuantos modelos
+ * habla, que es la otra mitad del trato.
+ */
+function bandejaDeCostos(window, donde) {
+  const doc = window.document
+  const texto = doc.body.textContent || ''
+  if (!/Costos que faltan en bodega/i.test(texto)) {
+    errores.push(`${donde} · no se dibujo la bandeja de costos que faltan`)
+    return 0
+  }
+  // El boton que la baja en Excel: sin el, la lista es un reproche y no un
+  // trabajo que se pueda repartir.
+  const baja = [...doc.querySelectorAll('button')].some(b => /bajar la lista/i.test(b.textContent || ''))
+  if (!baja) errores.push(`${donde} · la bandeja de costos no tiene como bajarse en Excel`)
+
+  if (/La utilidad de esas cuatro semanas/.test(texto) && !/les falta el costo en bodega/.test(texto)) {
+    errores.push(`${donde} · la utilidad no dice de cuantos modelos habla teniendo costos sin capturar`)
+  }
+  return 1
+}
+
+/**
  * La barra de busqueda por codigo de la seccion de ventas.
  *
  * La regla —que la plaza y el rango puestos no esconden un codigo que existe—
@@ -519,6 +559,7 @@ const SESIONES = [
 
 let pestanas = 0, secciones = 0, cabeceras = 0, hallazgos = 0
 let fichasDeCodigo = 0
+let bandejasDeCosto = 0
 
 // Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
 // agrupacion sigue viva: sin ella la cola vuelve a ser una pregunta por
@@ -579,6 +620,7 @@ for (const [nombre, sesion] of SESIONES) {
         hallazgos += await recorrerCola(window, `${nombre} · admin · ${t}`)
         if (/ventas/i.test(t)) {
           fichasDeCodigo += await buscarUnCodigo(window, `${nombre} · admin · ${t}`)
+          bandejasDeCosto += bandejaDeCostos(window, `${nombre} · admin · ${t}`)
         }
       }
     }
@@ -593,6 +635,10 @@ for (const [nombre, sesion] of SESIONES) {
 console.log(`\nsesiones 3 · pestañas ${pestanas} · secciones de admin ${secciones} · cabeceras pulsadas ${cabeceras} · hallazgos recorridos ${hallazgos}`)
 console.log(`  busqueda por codigo en ventas: ${fichasDeCodigo} ficha dibujada`)
 if (fichasDeCodigo < 1) errores.push('la busqueda por codigo de ventas no se ejecuto')
+console.log(`  bandeja de costos que faltan: ${bandejasDeCosto} dibujada`)
+if (bandejasDeCosto < 1) {
+  errores.push('la bandeja de «Costos que faltan en bodega» no se dibujo: el costo sale solo de bodega, y si el hueco no se ve la utilidad miente por omision')
+}
 for (const l of porSitio) console.log('  ' + l)
 console.log(`  lotes dibujados: ${lotesVistos.size}`)
 for (const l of lotesVistos) console.log('    · ' + l)

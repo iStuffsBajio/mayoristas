@@ -286,3 +286,50 @@ test('se contesta si o no, y lo viejo se sigue aceptando', async () => {
     assert.notEqual(r.statusCode, 400, `rechazo el estado ${estado}`)
   }
 })
+
+// ── Ajustes ─────────────────────────────────────────────────────────────────
+//
+// Son las correcciones que se hacen en la pagina sin tocar el dato: viven al
+// lado del inventario porque el respaldo de Eleventa lo regenera cuatro veces
+// al dia y cualquier cosa escrita encima se borraria sola.
+
+test('los ajustes piden sesion', async () => {
+  assert.equal((await pedir('GET', '/ajustes')).statusCode, 403)
+  assert.equal((await pedir('POST', '/ajustes', { cuerpo: { codigo: 'X', motivo: 'otro' } })).statusCode, 403)
+})
+
+test('una sucursal puede ocultar un codigo que ya no existe', async () => {
+  const r = await pedir('POST', '/ajustes', {
+    token: tokenLeon(),
+    cuerpo: { tipo: 'ocultar', codigo: 'I11T-WiHRPYpaKVFJXXD', motivo: 'codigo-duplicado' },
+  })
+  assert.notEqual(r.statusCode, 403)
+  assert.notEqual(r.statusCode, 400)
+})
+
+test('sin codigo no hay ajuste: no se puede aplicar a nada', async () => {
+  const r = await pedir('POST', '/ajustes', { token: tokenAdmin(), cuerpo: { motivo: 'otro' } })
+  assert.equal(r.statusCode, 400)
+})
+
+test('un motivo inventado se rechaza', async () => {
+  // La lista es cerrada para que el reporte de cada sucursal se pueda contar.
+  const r = await pedir('POST', '/ajustes', {
+    token: tokenAdmin(), cuerpo: { codigo: 'X', motivo: 'porque si' },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('un tipo de ajuste desconocido se rechaza', async () => {
+  const r = await pedir('POST', '/ajustes', {
+    token: tokenAdmin(), cuerpo: { tipo: 'borrar-todo', codigo: 'X', motivo: 'otro' },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('motivo nulo es deshacer la correccion, no un error', async () => {
+  const r = await pedir('POST', '/ajustes', {
+    token: tokenAdmin(), cuerpo: { codigo: 'X', motivo: null },
+  })
+  assert.notEqual(r.statusCode, 400)
+})

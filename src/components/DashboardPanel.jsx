@@ -9,6 +9,8 @@ import { resumirSemana, semanaPasada, formatoRango } from '../lib/personal'
 import { clasePorModelo, agotadosPorUbicacion } from '../lib/clases'
 import { ritmoPonderado } from '../lib/ritmo'
 import { reservas, ESTADOS, ORIGENES, ENTREGA } from '../lib/reservas'
+import { useAjustes } from '../lib/useAjustes'
+import { sinOcultos, estadoDe, ESTADOS as ESTADOS_AJUSTE } from '../lib/ajustes'
 import { esTemporadaAlta } from '../lib/surtido'
 import { separarProtectores, esProtector } from '../lib/familias'
 import { promedioEntrePlazas, desviaciones, valorDe } from '../lib/precios'
@@ -63,6 +65,11 @@ export default function DashboardPanel({ onIrA }) {
 
   const sucursales = SUCURSALES_ACTIVAS
 
+  // Lo corregido en Revisar deja de reclamarse aquí. Es la mitad del trato:
+  // si el dashboard sigue gritando lo que ya dijiste que no existe, corregir
+  // no sirve de nada.
+  const { correcciones, ocultos } = useAjustes(token)
+
   useEffect(() => {
     let cancelado = false
     setCargando(true)
@@ -108,7 +115,7 @@ export default function DashboardPanel({ onIrA }) {
   // y ocupan cuatro de los cinco primeros puestos del ranking; mezclados,
   // tapan a las fundas que de verdad mueven el mostrador.
   const { fundas: agotadosFunda, protectores: agotadosProtector } = useMemo(
-    () => separarProtectores(agotados?.filas), [agotados])
+    () => separarProtectores(sinOcultos(agotados?.filas, ocultos)), [agotados, ocultos])
 
   const porUbicacion = useMemo(() => {
     if (!agotados || !datos) return null
@@ -156,14 +163,29 @@ export default function DashboardPanel({ onIrA }) {
     ]))
     const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
 
-    return reservas({
+    const r = reservas({
       inventarios: Object.fromEntries(sucursales.map(s => [s.slug, datos[s.slug]?.inv])),
       bodega: datos[BODEGA.slug].inv,
       ritmoPorPlaza,
       clase: clasePorModelo(historiales),
       alta: esTemporadaAlta(),
     })
-  }, [datos, sucursales])
+    // Lo mismo aquí: un código corregido no vuelve a pedir reposición.
+    const filas = sinOcultos(r.filas, ocultos)
+    const cuenta = e => filas.filter(f => f.estado === e).length
+    return {
+      filas,
+      resumen: {
+        ...r.resumen,
+        cero: cuenta(ESTADOS.CERO),
+        urge: cuenta(ESTADOS.URGE),
+        reponer: cuenta(ESTADOS.REPONER),
+        pesosAlDia: filas.filter(f => f.estado === ESTADOS.CERO)
+          .reduce((a, f) => a + f.pesosAlDia, 0),
+        nacional: filas.filter(f => f.origen === ORIGENES.NACIONAL).length,
+      },
+    }
+  }, [datos, sucursales, ocultos])
 
   // ── Personal: la semana pasada, que es la única completa ──────────────
   const rango = useMemo(() => semanaPasada(), [])
@@ -220,13 +242,30 @@ export default function DashboardPanel({ onIrA }) {
       }
     }
 
+    // Lo corregido no se esconde: se muda. Si desapareciera del todo, esto
+    // sería una forma cómoda de no arreglar nada.
+    const pendientes = Object.values(correcciones)
+      .map(a => estadoDe(a, Object.fromEntries(
+        [...sucursales, BODEGA].map(s => [s.slug, datos[s.slug]?.inv]))))
+      .filter(e => e.estado === ESTADOS_AJUSTE.PENDIENTE)
+    if (pendientes.length) {
+      const viejos = pendientes.filter(e => e.insiste).length
+      out.push({
+        tono: viejos ? 'grave' : 'aviso',
+        texto: viejos
+          ? `${viejos} ${viejos === 1 ? 'código corregido lleva' : 'códigos corregidos llevan'} más de tres semanas sin arreglarse en la caja`
+          : `${pendientes.length} ${pendientes.length === 1 ? 'código corregido aquí, pendiente' : 'códigos corregidos aquí, pendientes'} en la caja`,
+        ir: 'revisar',
+      })
+    }
+
     if (personal?.filas?.length) {
       const conRetardo = personal.filas.filter(f => f.retardos > 0)
       if (conRetardo.length) out.push({ tono: 'aviso', texto: `${conRetardo.length} ${conRetardo.length === 1 ? 'persona acumuló retardos' : 'personas acumularon retardos'} la semana pasada`, ir: 'personal' })
     }
 
     return out
-  }, [datos, agotados, agotadosProtector, porUbicacion, personal, porAgotarse, sucursales])
+  }, [datos, agotados, agotadosProtector, porUbicacion, personal, porAgotarse, correcciones, sucursales])
 
   if (cargando) return <p className="tablero-cargando">Reuniendo la información de todas las secciones…</p>
 

@@ -292,14 +292,23 @@ caída de la pantalla en blanco se escapó porque la comprobación pulsaba
 cuatro y la columna rota era la octava. Falla si el cuerpo se queda vacío o
 si la consola suelta un error.
 
-Hoy cubre: 3 sesiones · 11 pestañas · 10 secciones de panel · 29 cabeceras ·
-12 hallazgos de la cola de revisión, **y los 4 lotes**. Si alguno de esos
+Hoy cubre: 3 sesiones · 11 pestañas · 11 secciones de panel · 29 cabeceras ·
+12 hallazgos de la cola de revisión, **los 4 lotes** y la bandeja de costos. Si alguno de esos
 números baja, algo dejó de pintarse.
 
 También busca un código en la sección de ventas y comprueba que la **ficha se
 dibuje** —con su renglón por plaza— y que un código inexistente lo diga en vez
 de dejar el hueco en blanco, que se ve igual que un fallo. La regla en sí no se
 comprueba aquí: eso es cosa de `buscarVentas.test.js`.
+
+Y comprueba que la bandeja de **«Costos que faltan en bodega»** se dibuje, con
+su botón de bajar el Excel, y que la frase de la utilidad diga de cuántos
+modelos habla. Por eso el inventario de mentira de bodega lleva `Costo` en
+todos menos **dos**: con costo en todos la bandeja no se pinta y no se
+ejercita; sin costo en ninguno la utilidad y «Dinero parado» salen en blanco y
+la sección pasaría en verde sin haber valorado nada. Lo que falla aquí es que
+la sección deje de pintarse —una cifra incompleta que no se anuncia es peor que
+ninguna—; que el cálculo sea correcto es cosa de `radiografia.test.js`.
 
 También comprueba que la cola va **en orden**: cada ficha lleva su sitio en
 `data-paso` y el recorrido falla si uno sube detrás de otro más bajo. Es la
@@ -454,6 +463,47 @@ iPhone 15 es **costo $55, público $250, mayoreo $150**.
 
 `promedioEntrePlazas()` excluye bodega por defecto. **Si alguien la mete, todo
 lo que se valore en pesos saldrá mal.**
+
+### 🔒 El COSTO es al revés: sale de bodega y de nadie más
+
+Esto parece contradecir el apartado de arriba y no lo hace. Son dos campos
+distintos y cada uno lo mantiene quien lo sabe:
+
+| | De dónde sale | Por qué |
+|---|---|---|
+| **Precio** (público y mayoreo) | las plazas que **venden** | bodega no vende: ahí es basura heredada |
+| **Costo** | **bodega**, sólo bodega | bodega **compra**: es quien lo sabe |
+
+Lo decidió el dueño el 2026-11-05, con estas palabras: «en tema de costos,
+utiliza únicamente los valores de bodega, puesto que en sucursal los da de alta
+otra persona y posiblemente se pueda equivocar». El mismo iPhone 15 dice **36
+en bodega y 55 en Aguascalientes**, y mirando la pantalla no hay forma de saber
+cuál es el bueno.
+
+Vive en `costoPorModelo()` en `radiografia.js`, que recibe **de qué plaza**
+leer y por defecto lee bodega. Antes hacía la mediana de las sucursales
+excluyendo bodega; es justo lo contrario.
+
+**Y tiene un precio que hay que conocer.** Medido el 2026-11-05: de los 296
+modelos con venta en 30 días, **118 no tienen costo en bodega** —el **43% de
+las piezas vendidas**—. 111 están dados de alta con el costo en cero y 7 no
+están. Encabezan la lista los que más se mueven: I17PMT (26 pz), SGA17T (26),
+SGA07T (23), MTG06T (14), I17PT (12).
+
+El hueco **no se rellena** con el costo de la sucursal: un margen inventado no
+se distingue en pantalla de uno bueno, y se decidiría sobre él. Se enseña:
+`sinCostear()` arma la lista, la pestaña de Ventas la pinta en ámbar ordenada
+por piezas y `exportarCostos.js` la baja en Excel con una hoja por trabajo
+—capturar un número es de un rato; dar de alta un producto es una decisión—.
+Se encoge sola en el respaldo siguiente.
+
+Por eso **la utilidad dice siempre de cuántos modelos habla**. Una cifra que
+cubre la mitad del catálogo se lee como si cubriera todo.
+
+Y por eso la pestaña de Ventas **baja también el inventario de bodega**, que
+antes no pedía: sin él no hay ningún costo, y todo lo que se valore a costo
+sale en cero. Si alguna vez «Dinero parado» o la utilidad salen en blanco, eso
+es lo primero que hay que mirar.
 
 **El IVA no se maneja igual en cada plaza.** En bodega `PFINAL = PVENTA × 1.16`;
 en Aguascalientes `PFINAL = PVENTA`. Por eso el precio se guarda tal cual viene

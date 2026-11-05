@@ -1526,6 +1526,79 @@
   /* ── Antes de que se agote ───────────────────────────────────────────
      Va justo debajo de las alertas y antes de las cifras: es lo único de
      esta pantalla que se puede resolver hoy mismo mandando una caja. */
+  /* ── Corregidos aquí, pendientes en la caja ──────────────────────────
+     El ámbar es la regla del dueño: mientras el respaldo no demuestre que se
+     corrigió, sigue en ámbar. No lo cierra nadie marcando una casilla; lo
+     cierra el respaldo. */
+  .rev-pendientes {
+    border: 1.5px solid rgba(180, 83, 9, 0.35);
+    background: rgba(180, 83, 9, 0.05);
+    border-radius: 22px;
+    padding: 16px 18px;
+    margin-block-end: 18px;
+  }
+  .rev-pendientes h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: var(--step-small);
+    font-weight: 800;
+    color: #B45309;
+  }
+  .rev-pendientes-cuenta {
+    background: #B45309;
+    color: #fff;
+    border-radius: 999px;
+    padding: 1px 9px;
+    font-size: 12px;
+  }
+  .rev-pendientes > p {
+    font-size: var(--step-small);
+    color: var(--muted);
+    margin-block: 6px 12px;
+    max-width: 68ch;
+    line-height: 1.5;
+  }
+  .rev-pendientes ul { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+  .rev-pendientes li {
+    display: grid;
+    grid-template-columns: 110px 1fr auto auto 44px auto;
+    gap: 10px;
+    align-items: center;
+    padding: 7px 0;
+    border-block-end: 1px solid rgba(180, 83, 9, 0.12);
+    font-size: var(--step-small);
+  }
+  .rev-pendientes li:last-child { border-block-end: none; }
+  /* Tres semanas sin que nadie lo toque en la caja ya no es un pendiente:
+     es que nadie lo está corrigiendo, y eso vuelve a ser una alerta. */
+  .rev-pendientes li.insiste .rev-pend-dias { color: #C4156F; font-weight: 800; }
+
+  .rev-pend-codigo   { font-family: ui-monospace, monospace; font-size: 11.5px; color: var(--ink); }
+  .rev-pend-producto { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rev-pend-motivo,
+  .rev-pend-donde    { color: var(--muted); white-space: nowrap; }
+  .rev-pend-dias     { color: #B45309; font-weight: 700; text-align: right; }
+
+  /* El formulario de corrección: una sola pregunta, lista cerrada. */
+  .rev-corregir { display: flex; flex-direction: column; gap: 8px; }
+  .rev-corregir-que { font-size: var(--step-small); color: var(--ink); line-height: 1.5; }
+  .rev-corregir select {
+    font: inherit;
+    font-size: var(--step-small);
+    padding: 9px 12px;
+    border: 1.5px solid rgba(13, 17, 20, 0.14);
+    border-radius: 12px;
+    background: #fff;
+    color: var(--ink);
+    max-width: 320px;
+  }
+
+  @media (max-width: 860px) {
+    .rev-pendientes li { grid-template-columns: 1fr auto; row-gap: 3px; }
+    .rev-pend-codigo, .rev-pend-motivo, .rev-pend-donde { grid-column: 1; }
+  }
+
   .tablero-reservas {
     background: #fff;
     border: 1px solid rgba(13, 17, 20, 0.10);

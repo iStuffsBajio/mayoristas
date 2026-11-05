@@ -8,7 +8,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   salidasEntre, pesosDe, pesoPorDiaSemana, proyeccionDelMes, puenteDeVariacion,
-  momentum, brechas, costoPorModelo, rentabilidad, capitalParado,
+  momentum, brechas, costoPorModelo, rentabilidad, capitalParado, sinCostear,
 } from './radiografia.js'
 
 const HOY = new Date('2026-11-20T12:00:00Z')
@@ -127,14 +127,16 @@ test('una brecha distingue «lo tiene parado» de «ni lo maneja»', () => {
   assert.equal(x.pesosAlMes, 3000)      // 1/día × 30 × $100
 })
 
-test('sin costo no se inventa margen', () => {
+test('el costo sale de bodega y de nadie más', () => {
+  // Al revés que el precio: bodega es quien compra, así que es quien sabe lo
+  // que costó. En sucursal lo captura otra persona y puede equivocarse.
   const costos = costoPorModelo({
-    leon: { productos: [{ Codigo: 'X', Costo: 40 }] },
-    // Bodega queda fuera aunque traiga costo: ahí no se mantienen.
-    bodega: { productos: [{ Codigo: 'X', Costo: 5 }, { Codigo: 'Y', Costo: 5 }] },
+    leon:   { productos: [{ Codigo: 'X', Costo: 999 }, { Codigo: 'Z', Costo: 40 }] },
+    bodega: { productos: [{ Codigo: 'X', Costo: 40 }, { Codigo: 'Y', Costo: 0 }] },
   })
-  assert.equal(costos.X, 40)
-  assert.equal(costos.Y, undefined)
+  assert.equal(costos.X, 40, 'manda bodega, no los 999 de León')
+  assert.equal(costos.Y, undefined, 'un cero es «sin capturar», no «gratis»')
+  assert.equal(costos.Z, undefined, 'lo que bodega no costea, no se costea')
 
   const r = rentabilidad({ salidas: { X: 10, Y: 10 }, precios: PRECIOS, costos })
   assert.equal(r.filas.length, 1, 'Y no entra: no hay con qué calcular su margen')
@@ -165,4 +167,18 @@ test('el capital parado se valora a costo y sólo cuenta lo que lleva tiempo qui
   assert.equal(filas.length, 1)
   assert.equal(filas[0].codigo, 'X')
   assert.equal(pesos, 550)
+})
+
+test('lo que se vende sin costear es una lista de trabajo', () => {
+  const inventarios = { bodega: { productos: [{ Codigo: 'Y', Costo: 0 }] } }
+  const filas = sinCostear({
+    salidas: { X: 10, Y: 30, Z: 5 },
+    costos: { Z: 55 },
+    inventarios,
+    nombres: { Y: 'GALAXY A17' },
+  })
+  // Z tiene costo: no entra. Y pesa más que X y va primero.
+  assert.deepEqual(filas.map(f => f.codigo), ['Y', 'X'])
+  assert.equal(filas[0].caso, 'costo-en-cero', 'está en bodega, falta el número')
+  assert.equal(filas[1].caso, 'no-esta-en-bodega', 'ni siquiera está dado de alta')
 })

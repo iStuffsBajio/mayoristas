@@ -150,6 +150,17 @@ export const revisiones = token => pedir('/revisiones', { token })
 export const guardarRevision = (id, estado, nota, token) =>
   pedir('/revisiones', { metodo: 'POST', cuerpo: { id, estado, nota }, token })
 
+// ── Ajustes: correcciones que no tocan el dato ───────────────────────────────
+//
+// Viven al lado del inventario porque el respaldo de Eleventa lo regenera
+// cuatro veces al día: escribir encima sería borrarlo esa misma tarde.
+
+export const ajustes = token => pedir('/ajustes', { token })
+
+/** Guarda una corrección. `motivo` en null la deshace. */
+export const guardarAjuste = ({ codigo, tipo = 'ocultar', motivo, producto = '', nota = '' }, token) =>
+  pedir('/ajustes', { metodo: 'POST', cuerpo: { codigo, tipo, motivo, producto, nota }, token })
+
 // ── Galería del catálogo ─────────────────────────────────────────────────────
 
 /** Imágenes de una carpeta del catálogo, con enlaces temporales. */

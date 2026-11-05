@@ -374,6 +374,90 @@ async function rutaGuardarRevision(evento, origen, cuerpo) {
   return responder(origen, 200, { ok: true, por: quien })
 }
 
+// ── Ajustes: las correcciones que se hacen en la pagina ───────────────────
+//
+// No tocan el dato. `inventario.json` se regenera desde el respaldo de
+// Eleventa cuatro veces al dia, asi que una correccion escrita encima se
+// borraria sola esa misma tarde. Esto se guarda AL LADO y la pagina lo
+// aplica al leer; el estado -pendiente o resuelto- no lo marca nadie: lo
+// decide el respaldo siguiente.
+//
+// Van bajo `ajustes/`, que la politica del bucket NO abre al publico: llevan
+// quien corrigio que y por que. Igual que `revisiones/`, cada quien escribe
+// SOLO su archivo y al leer se juntan: con uno compartido, dos personas
+// corrigiendo a la vez se borrarian sin avisar.
+
+const TIPOS_AJUSTE = new Set(['ocultar'])
+const MOTIVOS_AJUSTE = new Set([
+  'ya-no-existe', 'codigo-duplicado', 'mal-capturado', 'no-se-maneja-aqui', 'otro',
+])
+
+const claveAjustes = quien => `ajustes/${quien}.json`
+
+/** Todos los ajustes, de todos. Requiere sesion de cualquier tipo. */
+async function rutaAjustes(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
+
+  const quienes = ['admin', ...Object.keys(SUCURSALES)]
+  const archivos = await Promise.all(quienes.map(async q => [q, await leerJson(claveAjustes(q))]))
+
+  const ajustes = []
+  for (const [quien, datos] of archivos) {
+    for (const a of Object.values(datos)) ajustes.push({ ...a, quien })
+  }
+  return responder(origen, 200, { ajustes })
+}
+
+/**
+ * Guarda o retira un ajuste. Mandar `motivo: null` lo retira, que es como se
+ * deshace una correccion: el dato vuelve a verse en crudo.
+ */
+async function rutaGuardarAjuste(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
+
+  const quien = quienEs(sesion)
+  if (!quien) return responder(origen, 403, { error: 'Sesion sin sucursal.' })
+
+  const codigo = String(cuerpo?.codigo ?? '').trim().toUpperCase().slice(0, 60)
+  if (!codigo) return responder(origen, 400, { error: 'Falta el codigo.' })
+
+  const tipo = String(cuerpo?.tipo ?? 'ocultar')
+  if (!TIPOS_AJUSTE.has(tipo)) return responder(origen, 400, { error: 'Tipo de ajuste desconocido.' })
+
+  const clave = `${tipo}|${codigo}`
+  const mios = await leerJson(claveAjustes(quien))
+
+  // Sin motivo se retira. Toda correccion lleva motivo: es lo que hace que el
+  // reporte que baja a cada sucursal se pueda ordenar y contar.
+  if (cuerpo?.motivo == null) {
+    delete mios[clave]
+  } else {
+    const motivo = String(cuerpo.motivo)
+    if (!MOTIVOS_AJUSTE.has(motivo)) return responder(origen, 400, { error: 'Motivo desconocido.' })
+    mios[clave] = {
+      clave, tipo, codigo, motivo,
+      producto: String(cuerpo.producto ?? '').slice(0, 120),
+      nota:     String(cuerpo.nota ?? '').slice(0, 500),
+      cuando:   new Date().toISOString(),
+    }
+  }
+
+  if (Object.keys(mios).length > 5000) {
+    return responder(origen, 413, { error: 'Demasiados ajustes guardados.' })
+  }
+
+  await s3.send(new PutObjectCommand({
+    Bucket:       BUCKET,
+    Key:          claveAjustes(quien),
+    Body:         Buffer.from(JSON.stringify(mios)),
+    ContentType:  'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+  return responder(origen, 200, { ok: true, por: quien })
+}
+
 /**
  * Turnos del personal. Solo administrador.
  *
@@ -430,6 +514,8 @@ export async function handler(evento) {
     if (metodo === 'GET'  && ruta === '/turnos')     return await rutaTurnos(evento, origen)
     if (metodo === 'GET'  && ruta === '/revisiones') return await rutaRevisiones(evento, origen)
     if (metodo === 'POST' && ruta === '/revisiones') return await rutaGuardarRevision(evento, origen, cuerpo)
+    if (metodo === 'GET'  && ruta === '/ajustes')    return await rutaAjustes(evento, origen)
+    if (metodo === 'POST' && ruta === '/ajustes')    return await rutaGuardarAjuste(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/diseno')     return await rutaSubirDiseno(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/config')     return await rutaGuardarConfig(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/inventario') return await rutaSubirInventario(evento, origen, cuerpo)

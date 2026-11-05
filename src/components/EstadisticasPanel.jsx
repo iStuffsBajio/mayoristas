@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 // La bodega queda fuera: lo que sale de ahi son envios a las sucursales,
 // no ventas, y mezclarlo falsearia el ranking.
-import { SUCURSALES_PUBLICAS as SUCURSALES } from '../lib/sucursales'
+import { SUCURSALES_PUBLICAS as SUCURSALES, BODEGA } from '../lib/sucursales'
 import { estadisticasUrl, historialUrl, inventarioJsonUrl } from '../lib/s3'
 import { promedioEntrePlazas } from '../lib/precios'
 import {
   proyeccionDelMes, puenteDeVariacion, momentum, brechas,
-  costoPorModelo, rentabilidad, capitalParado, salidasEntre,
+  costoPorModelo, rentabilidad, capitalParado, salidasEntre, sinCostear,
 } from '../lib/radiografia'
 import { ritmoPonderado } from '../lib/ritmo'
 import { ultimaVentaPorModelo, diasDesdeElMes } from '../lib/clases'
@@ -15,6 +15,7 @@ import {
   consolidarHistorial, consolidarEstadisticas,
 } from '../lib/estadisticas'
 import { descargarHistorial, descargarComparativo, nombreDePeriodo } from '../lib/exportarEstadisticas'
+import { descargarCostos } from '../lib/exportarCostos'
 import { hayBusqueda } from '../lib/buscar'
 // La regla de buscar vive en la libreria, con sus pruebas, no aqui: la
 // pastilla de la plaza y la del rango no pueden esconder un codigo que existe.
@@ -480,7 +481,7 @@ const pesos = n => '$' + Math.round(n).toLocaleString('es-MX')
  * Se arma con frases sueltas y se saltan las que no tienen dato detrás. Un
  * párrafo con huecos -«subió un  %»- destruye la confianza en todo lo demás.
  */
-function EnTreintaSegundos({ proyeccion, puente, empuje, rendimiento, parado, sucursal }) {
+function EnTreintaSegundos({ proyeccion, puente, empuje, rendimiento, parado, sucursal, huecoCosto }) {
   const frases = []
 
   if (proyeccion?.acumulado > 0) {
@@ -518,9 +519,16 @@ function EnTreintaSegundos({ proyeccion, puente, empuje, rendimiento, parado, su
   }
 
   if (rendimiento?.total > 0) {
+    // La utilidad dice SIEMPRE de cuántos modelos habla. Sin eso, una cifra
+    // que cubre la mitad del catálogo se lee como si cubriera todo, y la
+    // decisión se toma sobre una utilidad que no es la del negocio.
+    const faltan = huecoCosto?.length ?? rendimiento.sinCosto ?? 0
     frases.push(
       `La utilidad de esas cuatro semanas es ${pesos(rendimiento.total)}, y ` +
-      `${rendimiento.cuantosHacenEl80} modelos hacen el 80%.`)
+      `${rendimiento.cuantosHacenEl80} modelos hacen el 80%` +
+      (faltan > 0
+        ? `. Es la utilidad de ${rendimiento.filas.length} modelos: a ${faltan} les falta el costo en bodega y quedan fuera de esa cifra.`
+        : '.'))
   }
 
   if (parado?.pesos > 0) {
@@ -691,6 +699,74 @@ function Parado({ datos }) {
   )
 }
 
+/**
+ * Los costos que faltan en bodega.
+ *
+ * No es una alerta de dato sucio: es una lista de trabajo. El costo se toma
+ * de bodega -quien compra es quien sabe lo que costó- y lo que bodega no
+ * tiene costeado se queda sin margen. En vez de rellenarlo con el de la
+ * sucursal, que lo captura otra persona y puede equivocarse, el hueco se
+ * enseña ordenado por lo que más se mueve y se baja en Excel.
+ *
+ * Ordenado por PIEZAS a propósito: capturar el costo del iPhone 17 Pro Max
+ * recupera el margen de veintitantas piezas y el de un modelo que vendió una
+ * recupera una. Es la misma tarea con rendimientos muy distintos.
+ */
+function CostosQueFaltan({ filas }) {
+  const piezas = filas.reduce((a, f) => a + f.piezas, 0)
+  const sinAlta = filas.filter(f => f.caso === 'no-esta-en-bodega')
+
+  return (
+    <section style={{ border: '1px solid #FCD34D', borderRadius: 22, padding: '18px 20px', background: 'rgba(252,211,77,0.10)' }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 6 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 800, color: '#92400E', margin: 0, flex: 1 }}>
+          Costos que faltan en bodega
+        </h3>
+        <button type="button" className="boton-tinta" style={{ fontSize: 11.5, padding: '6px 12px' }}
+                onClick={() => descargarCostos(filas)}>
+          Bajar la lista en Excel
+        </button>
+      </div>
+      <p style={{ fontSize: 11.5, color: '#92400E', margin: '0 0 12px', lineHeight: 1.55 }}>
+        <strong>{filas.length} modelos</strong> con venta no tienen costo capturado en bodega, y
+        son <strong>{piezas} piezas</strong> de las últimas cuatro semanas sin margen calculable.
+        El costo se toma de bodega porque es quien compra; no se rellena con el de la sucursal,
+        donde lo captura otra persona.
+        {sinAlta.length > 0 && (
+          <> De esos, <strong>{sinAlta.length}</strong> ni siquiera están dados de alta en bodega:
+          se venden en tienda y bodega no los conoce.</>
+        )}
+      </p>
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {filas.slice(0, 8).map(f => (
+          <li key={f.codigo} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 12, alignItems: 'baseline' }}>
+            {/* El CÓDIGO primero: esto se corrige en Eleventa, y ahí se busca
+                por código. El nombre va de apoyo, para reconocerlo. */}
+            <span style={{ fontSize: 11.5, fontWeight: 800, color: '#92400E', fontVariantNumeric: 'tabular-nums', minWidth: '8ch' }}>
+              {f.codigo}
+            </span>
+            <span style={{ fontSize: 12.5, color: TINTA, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  title={f.caso === 'no-esta-en-bodega' ? `${f.producto} — no está en bodega` : f.producto}>
+              {f.producto}
+              {f.caso === 'no-esta-en-bodega' && (
+                <span style={{ color: '#92400E', fontWeight: 700 }}> · sin alta</span>
+              )}
+            </span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: TINTA, whiteSpace: 'nowrap' }}>
+              {f.piezas} pz
+            </span>
+          </li>
+        ))}
+      </ul>
+      {filas.length > 8 && (
+        <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '10px 0 0' }}>
+          Y {filas.length - 8} más. La lista entera va en el Excel.
+        </p>
+      )}
+    </section>
+  )
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 // ── Buscar un código ──────────────────────────────────────────────────────────
@@ -823,8 +899,13 @@ export default function EstadisticasPanel() {
         hist: await bajar(historialUrl(s.slug)).catch(() => null),
         inv:  await bajar(inventarioJsonUrl(s.slug)).catch(() => null),
       }]))
+      // Bodega no vende, así que no entra en ninguna estadística de venta.
+      // Su inventario sí hace falta: es de donde sale el COSTO, y de ningún
+      // otro sitio. Lo decidió el dueño porque en sucursal lo captura otra
+      // persona y puede equivocarse.
+      const invBodega = await bajar(inventarioJsonUrl(BODEGA.slug)).catch(() => null)
       if (cancelado) return
-      setPorSucursal(Object.fromEntries(pares))
+      setPorSucursal({ ...Object.fromEntries(pares), [BODEGA.slug]: { inv: invBodega } })
       setCargando(false)
     })()
     return () => { cancelado = true }
@@ -857,7 +938,14 @@ export default function EstadisticasPanel() {
     [porSucursal, activas])
 
   const precios = useMemo(() => promedioEntrePlazas(inventarios), [inventarios])
-  const costos  = useMemo(() => costoPorModelo(inventarios), [inventarios])
+
+  // El PRECIO sale de las plazas que venden y el COSTO de bodega. No es una
+  // incoherencia: cada dato lo mantiene quien lo sabe. Bodega no vende, así
+  // que su precio es basura heredada; bodega compra, así que su costo es el
+  // bueno. El detalle está en `costoPorModelo`.
+  const invBodega = useMemo(
+    () => ({ bodega: porSucursal?.[BODEGA.slug]?.inv }), [porSucursal])
+  const costos = useMemo(() => costoPorModelo(invBodega), [invBodega])
 
   const nombres = useMemo(() => {
     const out = {}
@@ -892,6 +980,13 @@ export default function EstadisticasPanel() {
   const rendimiento = useMemo(
     () => (ventanas ? rentabilidad({ salidas: ventanas.ahora, precios, costos, nombres }) : null),
     [ventanas, precios, costos, nombres])
+
+  // Lo que se vende y bodega no tiene costeado. No es un aviso: es la lista
+  // de trabajo, y se baja en Excel para repartirla.
+  const huecoCosto = useMemo(() => {
+    if (!ventanas) return []
+    return sinCostear({ salidas: ventanas.ahora, costos, inventarios: invBodega, nombres })
+  }, [ventanas, costos, invBodega, nombres])
 
   // Las dos de abajo son preguntas de RED: no cambian con la pastilla de
   // plaza, porque mover una caja de una tienda a otra sólo tiene sentido
@@ -1073,8 +1168,11 @@ export default function EstadisticasPanel() {
           {proyeccion && (
             <EnTreintaSegundos
               proyeccion={proyeccion} puente={puente} empuje={empuje}
-              rendimiento={rendimiento} parado={parado} sucursal={sucursal} />
+              rendimiento={rendimiento} parado={parado} sucursal={sucursal}
+              huecoCosto={huecoCosto} />
           )}
+
+          {huecoCosto.length > 0 && <CostosQueFaltan filas={huecoCosto} />}
 
           {puente && <Puente puente={puente} />}
 
