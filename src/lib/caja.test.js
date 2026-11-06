@@ -521,3 +521,28 @@ test('LA TRAMPA: un objeto vacio no es una plaza sin ventas, es una plaza sin ar
     'traer respaldo pero ningun dia sigue siendo no tener dato')
   assert.equal(tieneDatos({ dias: [{ f: '2026-11-05', efectivo: 100 }] }), true)
 })
+
+test('recortar lo que se VE no puede recortar lo que se DEBE', () => {
+  // La pantalla enseña dos semanas -lo pidio el dueño- pero el acumulado se
+  // calcula sobre ocho. Si alguien pasara las dos visibles a esta funcion, una
+  // semana de hace un mes sin depositar desapareceria de la cuenta sin que
+  // nadie se entere, y es justo el dinero que hay que perseguir.
+  const bloque = (clave, depositado) => ({
+    clave, depositado, conControl: true, total: { neto: 1000 },
+  })
+  const ocho = [
+    bloque('2026-11-02', false),   // esta semana, sin depositar
+    bloque('2026-10-26', true),    // la pasada, depositada
+    bloque('2026-10-19', false),   // vieja y SIN depositar: esta es la clave
+    bloque('2026-10-12', true),
+  ]
+
+  const completo = acumuladoPorDepositar(ocho)
+  const soloVisibles = acumuladoPorDepositar(ocho.slice(0, 2))
+
+  assert.equal(completo.semanas, 2, 'la de hace tres semanas sigue contando')
+  assert.equal(completo.masVieja, '2026-10-19', 'y es la que hay que perseguir primero')
+  assert.equal(soloVisibles.semanas, 1, 'recortando, desaparece')
+  assert.ok(completo.total > soloVisibles.total,
+    'y con ella desaparece su dinero: por eso el gancho guarda las ocho')
+})

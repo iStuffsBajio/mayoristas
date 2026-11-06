@@ -91,17 +91,13 @@ export default function Footer() {
 
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-10"
           >
+          {/* Aquí había tres enlaces -Privacidad, Términos, Cookies- que iban
+              todos a `href="#"`. No existen esas páginas, así que no era un
+              enlace: era un botón que no hace nada, y eso se nota más que la
+              ausencia. Lo descartó el dueño el 2026-11-06 con estas palabras:
+              «esos ahorita los descartamos, puesto que no tengo nada de eso».
+              Cuando haya páginas de verdad, vuelven. */}
           <p style={{ color: 'var(--muted)', fontSize: 'var(--step-small)' }}>{footer.copyright}</p>
-          <div className="flex gap-6">
-            {['Privacidad', 'Términos', 'Cookies'].map(item => (
-              <a key={item} href="#" className="transition-colors"
-                style={{ color: 'var(--muted)', fontSize: 'var(--step-small)', textDecoration: 'none' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--ink)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--muted)')}>
-                {item}
-              </a>
-            ))}
-          </div>
         </div>
       </div>
     </footer>

@@ -17,7 +17,15 @@ export const PLAZAS_CAJA = [
   { slug: 'leon',           nombre: 'León' },
   { slug: 'san-luis',       nombre: 'San Luis Potosí' },
   { slug: 'aguascalientes', nombre: 'Aguascalientes' },
-  { slug: 'torreon',        nombre: 'Torreón' },
+  // Torreón NO está activa como tienda: no publica inventario ni
+  // estadísticas. Lo que sí tiene es el histórico de caja que viene en su
+  // respaldo -498 días-, y el dueño decidió el 2026-11-06 aprovechar sólo eso:
+  // «podemos utilizar únicamente el historial que viene en el respaldo».
+  //
+  // Por eso se marca. Sin la marca aparecía igual que una tienda abierta, con
+  // sus semanas «sin depositar», y eso manda a perseguir un depósito de una
+  // plaza que no está operando.
+  { slug: 'torreon',        nombre: 'Torreón', historico: true },
   // Ferias cierra ocho meses al año: va al final y no entra en el promedio de
   // nada, por lo mismo que no entra en el surtido de las tiendas.
   { slug: 'ferias',         nombre: 'Ferias', estacional: true },
@@ -82,7 +90,8 @@ export function useCaja(token, { semanas = SEMANAS, hasta = null } = {}) {
       ...Object.values(datos?.movimientos?.[p.slug] ?? {}),
     ]
 
-    const bloques = bloquesSemanales({
+    // Las ocho semanas, para las cuentas que NO pueden olvidar lo viejo.
+    const todos = bloquesSemanales({
       hasta: hasta ?? hoy.slice(0, 10),
       cuantas: semanas,
       dias: flujo?.dias ?? [],
@@ -92,14 +101,30 @@ export function useCaja(token, { semanas = SEMANAS, hasta = null } = {}) {
       params, hoy,
     })
 
-    const acumulado = acumuladoPorDepositar(bloques)
+    // Lo que debe al banco y lo que debe haber en el cajón se calculan sobre
+    // las OCHO. Una semana de hace un mes sin depositar sigue siendo dinero
+    // que falta, y recortarla aquí la haría desaparecer de la cuenta sin que
+    // nadie se enterara.
+    const acumulado = acumuladoPorDepositar(todos)
 
     return {
       ...p,
-      params, bloques, acumulado, movimientos,
+      params, acumulado, movimientos,
+      // ── Y lo que se DIBUJA son dos: la semana pasada y ésta ────────────
+      //
+      // El recorte va aquí, en el origen, y no en cada pantalla. Se intentó
+      // al revés -recortando donde se pintan los bloques- y no bastó: el
+      // concentrado seguía sumando el efectivo cobrado de las ocho semanas
+      // por su cuenta, así que el dueño seguía viendo ocho. Con una sola
+      // lista `bloques`, ninguna pantalla puede volver a mezclarlas sin
+      // querer.
+      //
+      // Lo viejo no se tira: sigue en `todos` y sigue contando arriba.
+      bloques:   todos.slice(0, SEMANAS_A_LA_VISTA),
+      todos,
       faltantes: flujo?.faltantes ?? [],
       respaldo:  flujo?.respaldo ?? null,
-      enCaja:    efectivoEnCaja({ bloques, params }),
+      enCaja:    efectivoEnCaja({ bloques: todos, params }),
       // Sin archivo publicado no es que no haya movimiento: es que el
       // extractor no ha corrido para esa plaza, y se dice distinto.
       //

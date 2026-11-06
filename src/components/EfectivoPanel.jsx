@@ -22,7 +22,7 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { apiConfigurada } from '../lib/api'
-import { useCaja, SEMANAS_A_LA_VISTA } from '../lib/useCaja'
+import { useCaja } from '../lib/useCaja'
 import {
   ESTADOS, DIAS, pesos, pesosCortos, semaforo, faltantesDe, gastosQueDuelen,
   periodoQueCubre, fechaDeDeposito, nombreDia, semanaDe,
@@ -106,7 +106,7 @@ const DeDonde = ({ texto }) => (
 // ── La tarjeta de una plaza ─────────────────────────────────────────────────
 
 function TarjetaPlaza({ plaza, onVer }) {
-  const { bloques, acumulado, params, enCaja, sinDatos, nombre, estacional } = plaza
+  const { bloques, acumulado, params, enCaja, sinDatos, nombre, estacional, historico } = plaza
   // El bloque de arriba es el de la semana más reciente, que es el que se está
   // viviendo. El semáforo de la tarjeta es el suyo, más el límite de efectivo,
   // que no depende de ninguna semana en concreto.
@@ -119,7 +119,11 @@ function TarjetaPlaza({ plaza, onVer }) {
       style={{ ...caja, padding: '18px 18px', borderLeft: `4px solid ${COLOR[color]}` }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
         <h4 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, color: TINTA }}>
-          {nombre}{estacional && <span style={{ fontSize: 10, fontWeight: 600, color: TINTA_TENUE }}> · por temporada</span>}
+          {nombre}
+          {estacional && <span style={{ fontSize: 10, fontWeight: 600, color: TINTA_TENUE }}> · por temporada</span>}
+          {/* No está operando: lo que se ve es su histórico. Sin decirlo, sus
+              semanas sin depositar se leen como dinero que alguien debe. */}
+          {historico && <span style={{ fontSize: 10, fontWeight: 600, color: TINTA_TENUE }}> · sólo historial</span>}
         </h4>
         <span style={{ fontSize: 13 }}>{PUNTO[color]}</span>
       </div>
@@ -752,10 +756,15 @@ function Parametros({ plazas, onGuardar }) {
 // ── El concentrado ─────────────────────────────────────────────────────────
 
 function Concentrado({ plazas }) {
-  const total = plazas.reduce((a, p) => a + p.acumulado.total, 0)
-  const semanas = plazas.reduce((a, p) => a + p.acumulado.semanas, 0)
-  const techo = plazas.some(p => p.acumulado.techo)
-  const conPendiente = plazas.filter(p => p.acumulado.semanas > 0)
+  // Las plazas que sólo son histórico no entran aquí. Esto es la lista de lo
+  // que hay que ir a depositar, y una tienda que no está operando no debe
+  // nada: dejarla dentro manda a perseguir un depósito que no existe.
+  const vivas = plazas.filter(p => !p.historico)
+
+  const total = vivas.reduce((a, p) => a + p.acumulado.total, 0)
+  const semanas = vivas.reduce((a, p) => a + p.acumulado.semanas, 0)
+  const techo = vivas.some(p => p.acumulado.techo)
+  const conPendiente = vivas.filter(p => p.acumulado.semanas > 0)
 
   return (
     <div data-concentrado style={{ ...caja, background: 'linear-gradient(135deg,#101619,#1d2b31)' }}>
@@ -903,7 +912,7 @@ export default function EfectivoPanel() {
               {/* Sólo la semana pasada y ésta, que es lo que pidió el dueño.
                   Las demás se siguen calculando y siguen contando en «lo que
                   falta por depositar»: lo que cambia es que no se dibujan. */}
-              {abierta.bloques.slice(0, SEMANAS_A_LA_VISTA).map(b => (
+              {abierta.bloques.map(b => (
                 <Bloque key={b.clave} plaza={abierta} bloque={b}
                   onMarcar={marcar} onDesmarcar={desmarcar} onAjustar={ajustar} />
               ))}
