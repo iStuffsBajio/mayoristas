@@ -29,7 +29,7 @@ a las tiendas. Preguntar siempre.
 
 | Constante | Dónde | Hoy | Qué decide |
 |---|---|---|---|
-| `MESES_ALTA` | `surtido.js` | `[11, 12]` | Qué meses son temporada alta |
+| `MESES_ALTA` | `surtido.js` | `[1, 11, 12]` | Qué meses son temporada alta |
 | `COBERTURA` | `surtido.js` | `{baja:30, alta:60}` | Días que debe aguantar una tienda |
 | `MESES_COBERTURA` | `compras.js` | `{normal:2, alta:3}` | Meses que debe aguantar bodega |
 | `DIAS_PARA_DEPURAR` | `surtido.js` | `90` | Historial mínimo para proponer bajas |
@@ -43,7 +43,11 @@ a las tiendas. Preguntar siempre.
 | `CLASE_A` | `clases.js` | `5` | Piezas al mes desde las que un modelo es clase A |
 | `CLASE_B` | `clases.js` | `2` | Y desde las que es clase B |
 | `MAYOREO_MINIMO` | `precios.js` | `100` | Bajo este mayoreo no se vigila el precio |
-| `DESVIACION` | `precios.js` | `0.15` | Desviación que se considera digna de mirar |
+| `DESVIACION` | `precios.js` | `0.15` | Desviación entre plazas digna de mirar |
+| `BRECHA` | `precioCobrado.js` | `0.20` | Cuánto puede apartarse lo cobrado de la lista |
+| `PIEZAS_MINIMAS` | `precioCobrado.js` | `3` | Piezas para que un código entre en esa cuenta |
+| `DIAS_PARA_DAR_DE_ALTA` | `surtidos.js` | `4` | Gracia antes de reclamar el alta de un surtido |
+| `TOLERANCIA` | `surtidos.js` | `0` | Piezas de diferencia que se dejan pasar |
 
 ### Los cortes de clase se miden, no se copian
 
@@ -356,9 +360,17 @@ caída de la pantalla en blanco se escapó porque la comprobación pulsaba
 cuatro y la columna rota era la octava. Falla si el cuerpo se queda vacío o
 si la consola suelta un error.
 
-Hoy cubre: 3 sesiones · 11 pestañas · 11 secciones de panel · 29 cabeceras ·
-12 hallazgos de la cola de revisión, **los 4 lotes** y la bandeja de costos. Si alguno de esos
-números baja, algo dejó de pintarse.
+Hoy cubre: 3 sesiones · 11 pestañas · 12 secciones de panel · 29 cabeceras ·
+12 hallazgos de la cola de revisión, **los 4 lotes**, la bandeja de costos y
+**las 5 plazas del flujo de efectivo**. Si alguno de esos números baja, algo
+dejó de pintarse.
+
+**Y para escribir en un campo controlado por React, el rastreador se siembra
+con algo DISTINTO de lo que se va a escribir.** `escribir()` lo sembraba
+siempre con `''`, así que BORRAR un campo no llegaba nunca: React comparaba
+`''` contra `''` y descartaba el evento. Eso hacía parecer que un botón de
+guardar seguía habilitado con el campo vacío —una regla rota que no lo
+estaba— y dejaba sin comprobar todas las del tipo «vaciar deshabilita».
 
 También busca un código en la sección de ventas y comprueba que la **ficha se
 dibuje** —con su renglón por plaza— y que un código inexistente lo diga en vez
@@ -528,6 +540,136 @@ aporta sus propios píxeles oscuros y una silueta en blanco deja de parecerlo.
 
 Quedan **2 en blanco** (XRN13PT, HX7CT), **2 rechazados** porque el PSD es una
 plantilla de corte (SGS25UT, SGS25U3) y **7 sin PSD**.
+
+---
+
+## 🔒 CONFIRMAR — El flujo de efectivo: sin control de salidas, el esperado es un TECHO
+
+Esta es la regla que puede costar dinero y una acusación injusta, así que va
+primero.
+
+Hasta el **2026-11-05** nadie registraba las salidas de caja en Eleventa.
+Medido: `ACUMULADO_SALIDAS` sale en cero en **2,128 de los 2,136 días** de
+Aguascalientes. Ese día el dueño dio la indicación de que todas las plazas
+empiecen a registrarlas.
+
+Entonces, para toda semana anterior a esa fecha, el «efectivo esperado» **no es
+una cifra, es un máximo**: dice que debería haber más dinero del que de verdad
+hay, porque hubo salidas que nadie anotó. Restarle el depósito daría un
+faltante inventado, **y un faltante inventado no se distingue en pantalla de
+uno real**.
+
+Por eso `conControl()` manda en `src/lib/caja.js`: un día sin control se pinta,
+se suma y se enseña, pero NO produce diferencia ni semáforo rojo. Sale en gris
+con su aviso. Es la misma regla que ya rige `Alta`: sirve como cota, nunca como
+prueba.
+
+La fecha va **por plaza**, en los parámetros editables, porque una puede tardar
+en adoptarlo más que otra. Sin fecha configurada, NINGÚN día tiene control:
+equivocarse hacia el lado de no acusar a nadie es el error barato.
+
+### Bloques semanales, no un acumulado
+
+Lo decidió el dueño: «maneja bloques semanales no acumuladas y en cada bloque
+una sección para marcar como depositado y si no se marcó como depositado que se
+pueda ir acumulando».
+
+Cada semana es su propio bloque con su cifra y su botón. Lo que no se marcó se
+va sumando, y el efectivo en caja es `fondo fijo + los bloques sin marcar`.
+Con un saldo corrido no se podía saber QUÉ semana quedó sin depositar: sumaba
+bien y no servía de nada, porque la pregunta es «¿de qué semana es este
+dinero?» y un saldo de $38,000 no la contesta.
+
+### Los faltantes NO son retiros y no restan del neto
+
+Eleventa escribe sola una línea «Efectivo faltante al cerrar turno de ‹nombre›
+del ‹fecha›» cuando lo contado no cuadra. Medido de enero a octubre de 2026:
+
+| Plaza | Efectivo cobrado | Faltantes | % |
+|---|---|---|---|
+| León | $965,652.53 | $14,931.32 | 1.55% |
+| San Luis | $588,389.78 | **$28,300.29** | **4.81%** |
+| Aguascalientes | $420,589.10 | $8,610.18 | 2.05% |
+| Torreón | $390,645.66 | $15,310.33 | 3.92% |
+| **Total** | **$2,365,277.07** | **$67,152.12** | **2.84%** |
+
+San Luis lleva además **$134,810.01 en 51 faltantes durante 2025**.
+
+Contarlos como salida los haría desaparecer: el neto bajaría otro tanto y la
+caja «cuadraría» justo en el caso que esto existe para detectar. Son dinero que
+falta, no dinero que salió, y van en su propia línea.
+
+**Sólo los ve el administrador.** Lo decidió el dueño: «solo admin tiene acceso,
+ellos hacen todo directo en eleventa». Todas las rutas de `/caja` exigen
+`sesion.admin`, ni su propia plaza, porque esas líneas llevan el nombre de quien
+cerró pegado a una cantidad de dinero que falta. Y por eso `caja/` **no es
+público**: lo sirve el backend, igual que `personal/` y `revisiones/`.
+
+### Ningún parámetro trae valor por defecto
+
+`PARAMETROS_VACIOS` los deja todos en `null` a propósito: fondo fijo, límite de
+efectivo, tolerancia, hora límite, día de depósito, cuenta y responsable son
+decisiones del dueño. Un número inventado en el código se leería en pantalla
+igual que uno suyo, y se decidiría sobre él. Mientras falten, la plaza sale en
+gris y no se juzga.
+
+**Un campo vacío se guarda como `null`, NUNCA como cero** —`limpiarParametros()`
+en el backend, con prueba—. Es la misma regla que los precios: un cero es «sin
+capturar» y no «gratis». Aquí tiene dientes: un fondo fijo de cero se
+compararía contra el límite y daría un semáforo verde sin que nadie hubiera
+configurado nada. Lo mismo con los montos: `Number('')` da **cero**, así que el
+texto vacío se rechaza antes de llegar a `Number`, o un campo en blanco se
+guardaría como un depósito de $0.00.
+
+---
+
+## ⚠️ VERIFICAR — De dónde sale el flujo de efectivo, y las tres tablas que mienten
+
+Del respaldo de Eleventa, con `node scripts/extraer-caja.mjs`. Va en la corrida
+de GitHub Actions, junto a los turnos, y publica `caja/<slug>.json`.
+
+**`CORTE_OPERACIONES` es LA fuente.** Una fila por día y caja, con las formas de
+pago ya separadas —`VENTAS_EFECTIVO`, `VENTAS_TARJETA`,
+`VENTAS_TRANSFERENCIA`, `VENTAS_VALES`, `VENTAS_CREDITO`, `VENTAS_CHEQUE`,
+`DEVOLUCIONES_VENTAS_EFECTIVO`—. Aguascalientes tiene 2,136 días seguidos desde
+el 2019-11-26. **Y ya reparte los pagos mixtos**, comprobado contra los tickets
+de octubre de León al peso:
+
+    efectivo  88,428.61 = 88,028.61 de tickets «e» + 400 del mixto
+    tarjeta    9,690.09 =  9,590.09 de tickets «t» + 100 del mismo mixto
+
+**`PAGOS_MIXTOS` NO se lee, aunque el nombre invite.** En León dice 352 líneas y
+$178,376 de tarjeta cuando los tickets y el corte coinciden en $132,551 de
+tarjeta EN TOTAL. Leyéndola, la tarjeta sale inflada un 35% y el efectivo
+encogido otro tanto. Es basura heredada, igual que los precios de bodega.
+
+**`ACUMULADO_ENTRADAS` y `ACUMULADO_SALIDAS` tampoco.** No cuadran con
+`CORTE_MOVIMIENTOS`: el faltante de $1,960.02 del 2026-09-14 en Aguascalientes
+está en el detalle y `ACUMULADO_SALIDAS` de ese día sale en cero. Se usa el
+detalle, que además trae el CONCEPTO, que es lo que hay que enseñar.
+
+**Las devoluciones se restan UNA vez.** `CORTE_MOVIMIENTOS` también las guarda
+—473 líneas y $79,081.74 en Aguascalientes— y sumar las dos fuentes las
+restaría dos veces: es el mismo suceso anotado en dos tablas. Se usa sólo
+`DEVOLUCIONES_VENTAS_EFECTIVO` del corte.
+
+**`FORMA_PAGO` es CHAR con relleno de espacios, no un número.** Castearla a
+entero revienta con `SQLCODE -413`. Los códigos son `e` efectivo · `t` tarjeta ·
+`s` transferencia · `m` mixto · `c` crédito. `ESTA_CANCELADO` es `'f'`/`'t'`
+**minúscula** y `SOSPECHOSO` es `'F'` **mayúscula** —y está en `F` en los 2,195
+turnos de Ags, así que no sirve para nada—. Hay 334 tickets cancelados en Ags y
+379 en San Luis que hay que excluir.
+
+**`TURNOS.EFECTIVO_AL_CIERRE` es el arqueo y está lleno** —2,057 de 2,195 en
+Ags—. Cumple `cierre = ventas en efectivo − devoluciones en efectivo`,
+comprobado en dos días al centavo. **`DINERO_INICIAL` no sirve**: cero en 2,195
+de 2,195 turnos de Ags y 349 de 349 de León. El fondo fijo es un parámetro.
+
+**Torreón vende y el código decía que no.** `sucursales.js` la tiene como
+`activa: false` —que es cosa de lo que ve un mayorista— pero su respaldo trae
+**$702,960 de venta en efectivo** desde junio de 2025. Es la «Sucursal 4» y
+entra en el flujo de efectivo. Aparte, hay una carpeta `MORELIA` con respaldos
+que se detienen el **2024-03-25** y que no aparece en el código: queda fuera.
 
 ---
 
@@ -795,6 +937,160 @@ distintos; el primero, 290 tickets.
 como UTC y la gráfica de horas sale corrida seis posiciones **con forma de
 curva**, así que no se nota.
 
+### 🔒 Enero entró en `MESES_ALTA`, y noviembre se queda aunque venda poco
+
+Lo autorizó el dueño el 2026-11-05. Enero es el **segundo mes más fuerte**
+—×1.19 a ×1.49— y estaba cayendo en «temporada baja», así que la cobertura
+bajaba a 30 días justo cuando la venta corre un 20-50% por encima.
+
+Noviembre parece que no debería estar ahí, porque vende **por debajo** del
+promedio en las tres plazas. Es al revés, y es el punto de la regla: la
+cobertura compra días de venta **al ritmo de hoy**, y si el mes siguiente corre
+más rápido, esos días valen menos días.
+
+| 60 días comprados en noviembre aguantan de diciembre |
+|---|
+| León **18 d** (×3.3) · San Luis **27 d** (×2.2) · Aguascalientes **27 d** (×2.2) |
+
+Y el pedido al proveedor tarda **40 días**. O sea: **ni con la cobertura alta
+puesta se llega a diciembre con un pedido normal**, y quitando noviembre León
+pasaría de 18 días a 9. La regla no es obsoleta; se queda corta.
+
+Lo que la arreglaría de verdad es escalar la cobertura por el **factor medido**
+del mes que hay que cubrir, en vez de un interruptor de dos posiciones. El dato
+ya está en `ventas/<plaza>.json`. Es decisión del dueño.
+
+### 🔒 El precio promedio por plaza, y por qué el corte NO es en pesos
+
+Es el dato que pidió el dueño, con sus palabras: «me habla precisamente de
+cuánto vende la sucursal a público versus cuánto vende a mayoreo». Vive en
+`precioPorPlaza()`, en `ventasTicket.js`.
+
+Sobre la **ventana de 365 días**, que no es un detalle: ver abajo.
+
+| plaza | público | mayoreo | descuento | piezas a mayoreo | invertidos |
+|---|---|---|---|---|---|
+| León | $221 | $146 | 35% | 65% | 15 |
+| San Luis | $197 | $145 | 29% | 64% | 22 |
+| Aguascalientes | $161 | $145 | 23% | 47% | 28 |
+| Ferias | $254 | $264 | 0% | 0% | 1 |
+
+Ferias no hace mayoreo: su precio de mayoreo es el mismo que el público.
+
+El dueño pidió excluir «los productos que su costo es menor a 100 pesos, por
+ejemplo stickers pequeños y productos adicionales». La intención está clara; el
+corte en pesos no la cumple, **medido**:
+
+- **Por COSTO no se puede.** Todo el catálogo cuesta entre $55 y $60: un umbral
+  de $100 por costo deja fuera absolutamente todo. Misma lección que
+  `MAYOREO_MINIMO` ya costó una vez.
+- **Por PRECIO deja fuera fundas de verdad.** En Aguascalientes un corte de
+  $100 se lleva el **61% de las piezas**: 595 códigos y $1.22M, con el iPhone 7
+  Plus a $53 y el XR a $76, que son fundas liquidándose baratas. Y al mismo
+  tiempo **deja dentro** el hidrogel de privacidad, a $109.
+
+Lo que el dueño quiere decir —stickers y añadidos fuera, fundas dentro— es lo
+que ya clasifican `produccion.js` y `familias.js`, por código y con el nombre
+de red. Se usa eso. El piso en pesos existe y vale **cero**: sólo descarta el
+precio cero, que no es un precio sino una línea regalada.
+
+**El descuento se mide CÓDIGO CONTRA SÍ MISMO y se resume con la MEDIANA.**
+Dos cosas distintas, y las dos se vieron en los datos:
+
+- Dividir el total cobrado a mayoreo entre el total cobrado al público da la
+  **paradoja de Simpson** —los modelos caros se van a mayoreo y los baratos al
+  mostrador— y el descuento sale invertido sin que ningún precio esté mal.
+- **Promediar los descuentos por código tampoco sirve**: la razón no está
+  acotada por abajo. Un código vendido una vez a $1 al público y a $145 a
+  mayoreo aporta un −144, y San Luis salía con un descuento del **−63%**
+  teniendo público $197 y mayoreo $145.
+
+La mediana no se mueve por un puñado de líneas raras, que en precios las hay
+siempre. Y las líneas raras no se tiran: se cuentan en `invertidos`, que son
+los códigos cobrados más caro a mayoreo que al público.
+
+### 🔒 La lista de precios de dos plazas no es lo que cobran
+
+Todo lo que el panel valora en pesos sale de la LISTA del inventario. Hasta
+ahora no había con qué comprobarla. Con los tickets sí, y no cuadra
+(`brechaDeLista()` en `precioCobrado.js`):
+
+Sobre la ventana de 365 días:
+
+| plaza | cobrado/lista | comparados | desviados | diferencia |
+|---|---|---|---|---|
+| León | **101%** | 225 | 13 | $12,807 |
+| San Luis | **96%** | 176 | 26 | $9,657 |
+| Ferias | **116%** | 195 | 5 | $50,779 |
+| Aguascalientes | **75%** | 188 | **116** | **$75,160** |
+
+**Sólo Aguascalientes tiene una brecha de verdad**: cobra el 75% de lo que su
+lista dice, en 116 códigos, y el iPhone 13 figura a $250 y se cobra a $167.
+León y San Luis cobran su lista; Ferias cobra algo por encima.
+
+La brecha no dice quién tiene razón: puede ser que la lista esté alta o que el
+mostrador esté regalando margen. Las dos se arreglan en la sucursal.
+
+### ⚠️ Y el error que dio esta medición la primera vez: 164 veces de más
+
+La primera versión de esta tabla decía que a San Luis le faltaban
+**$1,582,316** y a Aguascalientes **$846,531**. Era falso, y el fallo vale más
+que el número:
+
+**Se comparaban ventas de 2021 contra la lista de precios de HOY.** El dueño lo
+olió antes de que nadie lo buscara —«algo me hace ruido… una diferencia, o algo
+está mal»— y tenía razón.
+
+| plaza | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
+|---|---|---|---|---|---|---|
+| San Luis | $108 | $123 | $124 | $134 | $148 | **$152** |
+| Aguascalientes | — | $66 | $120 | $146 | $147 | **$137** |
+| León | — | — | — | — | $151 | **$152** |
+
+Los precios subieron un 40% en cinco años y **el 92% de las piezas de San Luis
+son de antes de 2026**, así que su «precio medio de todo el historial» es el de
+hace tres años. Contra la lista de hoy, eso son cinco años de subidas
+disfrazadas de descuadre: la cifra real de San Luis es **$9,657**, 164 veces
+menos.
+
+El mismo error torcía la comparación entre plazas: decía que Aguascalientes
+vendía a **$109** contra los **$221** de León, «a mitad de precio». Con ventana
+comparable las tres venden casi igual —$152, $151, $140 de precio medio— y lo
+que pasaba es que se comparaban **once meses de León contra siete años de
+Aguascalientes**.
+
+**La regla que queda:** cualquier cuenta de PRECIO se hace con ventana. Por eso
+`ventas/<plaza>.json` publica dos agregados, y hay que coger el que toca:
+
+| | para qué sirve |
+|---|---|
+| raíz del archivo | contar piezas y medir la temporada, donde lo viejo no estorba |
+| `ventana` (365 d) | **cualquier cosa valorada en pesos** |
+
+365 días y no 90: una ventana corta tomada en octubre —el mes más flojo— diría
+que el negocio vale un 30% menos de lo que vale.
+
+### Los costos invertidos están en BODEGA, no en las tiendas
+
+`costosInvertidos()` busca productos cuyo costo supera su precio de venta. Eso
+no es opinable: está mal capturado.
+
+| plaza | productos así |
+|---|---|
+| **bodega** | **552 de 556 (99%)** |
+| León | 1 (el sticker pequeño) |
+| San Luis | 0 de 756 |
+| Aguascalientes | 0 de 783 |
+| Ferias | 0 |
+
+Se midió porque se sospechaba de San Luis, y San Luis está limpio: su costo es
+$55 contra $216 de público, igual que León, y el mismo producto trae el mismo
+costo en las tres plazas. **La inversión es de bodega y es casi total.**
+
+No cambia la regla del costo —sigue saliendo de bodega, que es quien compra—
+porque lo que está mal ahí es el PRECIO, no el costo. Pero conviene saber que
+el 99% de bodega tiene esa forma antes de usar cualquier precio suyo.
+
 ### Lo que esto abre
 
 Hay mucho más historial del que creíamos: **Aguascalientes desde 2019-11, San
@@ -812,6 +1108,21 @@ de los respaldos.
   que `personal/`. Cada quien escribe **sólo su propio archivo**
   (`revisiones/<quien>.json`) y al leer se juntan: con uno compartido, dos
   personas contestando a la vez se borrarían la respuesta sin avisar.
+- **Una carpeta nueva del bucket NO necesita permisos nuevos en la Lambda.**
+  Comprobado el 2026-11-06: el rol `istuffs-backend-role-pw6qlxs6` lleva una
+  sola política propia, `istuffs-s3-inventarios`, con `s3:GetObject` y
+  `s3:PutObject` sobre `arn:aws:s3:::istuffs-inventarios/*` —comodín de todo el
+  bucket—. Así que `caja/`, o cualquier prefijo que venga, ya está cubierto.
+  Lo contrario se dio por hecho una vez y mandó a buscar un permiso que no
+  faltaba.
+
+  Lo que **sí** está limitado por prefijo es la lectura PÚBLICA, en la política
+  del bucket: sólo `inventarios/*` y `config/*`. Por eso un archivo con datos
+  de empleados o con el número de cuenta del banco **no puede ir en `config/`**
+  aunque sea configuración. Los parámetros de caja viven en
+  `caja/parametros.json` por eso, y hay una prueba en `backend/test/caja.test.js`
+  que falla si alguien los regresa: el error no se ve —el archivo se guarda
+  igual y la pantalla funciona perfecta—.
 - **Nunca** poner un secreto en una variable `VITE_*`. Vite las incrusta en el
   JavaScript público. Así estuvieron meses la llave de AWS, el secreto de
   Dropbox y las cinco contraseñas.

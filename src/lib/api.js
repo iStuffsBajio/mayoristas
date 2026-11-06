@@ -196,3 +196,53 @@ export async function galeria(carpeta) {
     return []
   }
 }
+
+// ── Flujo de efectivo ────────────────────────────────────────────────────────
+//
+// SOLO ADMINISTRADOR. Lo decidio el dueño: las plazas hacen todo directo en
+// Eleventa y nadie mas entra aqui. Y hay un motivo mas fuerte que el permiso:
+// los faltantes al cerrar turno llevan el NOMBRE de quien cerro pegado a una
+// cantidad de dinero que falta, asi que `caja/` es privado y lo sirve el
+// backend, igual que `personal/`.
+
+/**
+ * Todo lo que necesita la pestaña en una sola llamada: el flujo de las cinco
+ * plazas, los depositos marcados, los ajustes, los movimientos y los
+ * parametros.
+ *
+ * En una sola a proposito. Son nueve archivos, y pidiendolos de uno en uno la
+ * pantalla se pintaba a trozos con los semaforos cambiando de color a medida
+ * que llegaban. Un semaforo que pasa de verde a rojo solo no se lee como «ya
+ * cargo»: se lee como un fallo.
+ */
+export const caja = token => pedir('/caja', { token })
+
+/**
+ * Marca un bloque semanal como depositado, o le quita la marca.
+ *
+ * `semana` es el LUNES de la semana que cubre. Mandar `monto: null` quita la
+ * marca y el bloque vuelve a acumular, que es como se deshace un deposito
+ * apuntado por error.
+ */
+export const marcarDeposito = ({ sucursal, semana, monto, fecha, hora, folio, comprobante, deposito, nota }, token) =>
+  pedir('/caja/deposito', {
+    metodo: 'POST', token,
+    cuerpo: { sucursal, semana, monto, fecha, hora, folio, comprobante, deposito, nota },
+  })
+
+/** Corrige un dia sin tocar lo calculado. `motivo` en null deshace. */
+export const ajustarCaja = ({ sucursal, fecha, valores, motivo, nota }, token) =>
+  pedir('/caja/ajuste', { metodo: 'POST', token, cuerpo: { sucursal, fecha, valores, motivo, nota } })
+
+/** Los parametros de una sucursal. Un campo vacio se guarda nulo, no cero. */
+export const guardarParametrosCaja = (sucursal, parametros, token) =>
+  pedir('/caja/parametros', { metodo: 'POST', token, cuerpo: { sucursal, parametros } })
+
+/**
+ * Captura un movimiento de caja a mano, o lo borra con `borrar: true`.
+ *
+ * Es la via de escape, no el camino normal: desde el 2026-11-05 las plazas los
+ * registran en Eleventa y de ahi los trae el extractor.
+ */
+export const guardarMovimientoCaja = (mov, token) =>
+  pedir('/caja/movimiento', { metodo: 'POST', token, cuerpo: mov })

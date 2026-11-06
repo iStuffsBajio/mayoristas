@@ -634,7 +634,12 @@ async function rutaVentas(evento, origen) {
 //   caja/<slug>.json          lo que publica el extractor. NO se escribe aquí.
 //   caja/depositos.json       los bloques semanales marcados como depositados
 //   caja/ajustes.json         las correcciones, con su valor calculado al lado
-//   config/caja.json          los parámetros por sucursal
+//   caja/parametros.json      los parámetros por sucursal
+//
+// Los parámetros NO van en `config/`, aunque sean configuración: la política
+// del bucket abre `config/*` a lectura pública, y aquí dentro hay el NÚMERO DE
+// CUENTA BANCARIA destino y el nombre del responsable del depósito. Eso no
+// puede quedar accesible por URL.
 //
 // Los tres últimos los escribe una sola persona —el administrador— así que no
 // hacen falta archivos por autor como en `revisiones/`: ahí el problema era
@@ -655,11 +660,18 @@ const CAMPOS_AJUSTABLES = new Set([
 ])
 
 const monto = v => {
-  const n = Number(v)
+  // El texto vacío se rechaza ANTES de llegar a `Number`, que lo convierte en
+  // cero: un campo que alguien dejó en blanco se habría guardado como un
+  // depósito de $0.00, y en pantalla eso no se distingue de haber depositado
+  // nada de verdad.
+  if (v === null || v === undefined) return null
+  if (typeof v === 'string' && v.trim() === '') return null
+
   // Un monto que no es número se rechaza en vez de guardarse como NaN: un NaN
   // en el JSON envenena todas las sumas de la pantalla y no se ve de dónde
   // vino. Y nada de negativos: una salida se expresa por su tipo, no por el
   // signo, o restar dos veces sería un descuido de una tecla.
+  const n = Number(v)
   if (!Number.isFinite(n) || n < 0) return null
   return Math.round(n * 100) / 100
 }
@@ -683,7 +695,7 @@ async function rutaCaja(evento, origen) {
   const [depositos, ajustes, parametros, movimientos] = await Promise.all([
     leerJson('caja/depositos.json'),
     leerJson('caja/ajustes.json'),
-    leerJson('config/caja.json'),
+    leerJson('caja/parametros.json'),
     leerJson('caja/movimientos.json'),
   ])
 
@@ -804,22 +816,21 @@ async function rutaGuardarAjusteCaja(evento, origen, cuerpo) {
   return responder(origen, 200, { ok: true, fecha: f, plaza })
 }
 
-/** Los parámetros por sucursal. Solo administrador. */
-async function rutaGuardarParametros(evento, origen, cuerpo) {
-  const sesion = sesionDe(evento)
-  if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
-
-  const plaza = String(cuerpo?.sucursal ?? '')
-  if (!PLAZAS_CAJA.has(plaza)) return responder(origen, 400, { error: 'Sucursal desconocida.' })
-
-  const p = cuerpo?.parametros
-  if (!p || typeof p !== 'object') return responder(origen, 400, { error: 'Parámetros inválidos.' })
-
-  // Un número vacío se guarda como null, NO como cero. Es la misma regla que
-  // los precios: un cero es «sin capturar» y no «gratis», y aquí un fondo fijo
-  // de cero se compararía contra el límite dando un verde sin saberse nada.
+/**
+ * Deja los parámetros de una sucursal en su forma guardable.
+ *
+ * Se exporta para poder probarla: la ruta escribe en S3 antes de responder, así
+ * que desde fuera no hay forma de ver qué se guardó. Y lo que hace aquí es una
+ * regla de negocio, no un detalle de la ruta: **un número vacío se guarda como
+ * `null`, NO como cero.** Es la misma regla que los precios —un cero es «sin
+ * capturar» y no «gratis»— y aquí tiene dientes: un fondo fijo de cero se
+ * compararía contra el límite y daría un semáforo verde sin que nadie hubiera
+ * configurado nada.
+ */
+export function limpiarParametros(p = {}) {
   const numeroOnulo = v => {
     if (v === null || v === undefined || v === '') return null
+    if (typeof v === 'string' && v.trim() === '') return null
     const n = Number(v)
     return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null
   }
@@ -830,7 +841,7 @@ async function rutaGuardarParametros(evento, origen, cuerpo) {
   const hora = v => (/^([01]\d|2[0-3]):[0-5]\d$/.test(String(v ?? '')) ? String(v) : '')
   const fechaOnula = v => (/^\d{4}-\d{2}-\d{2}$/.test(String(v ?? '')) ? String(v) : null)
 
-  const limpios = {
+  return {
     diaDeposito:    dia(p.diaDeposito),
     periodoCubre:   p.periodoCubre === 'semana-en-curso' ? 'semana-en-curso' : 'semana-anterior',
     fondoFijo:      numeroOnulo(p.fondoFijo),
@@ -842,12 +853,26 @@ async function rutaGuardarParametros(evento, origen, cuerpo) {
     gastoMaxSinComprobante: numeroOnulo(p.gastoMaxSinComprobante),
     desdeControlSalidas:    fechaOnula(p.desdeControlSalidas),
   }
+}
 
-  const todos = await leerJson('config/caja.json')
+/** Los parámetros por sucursal. Solo administrador. */
+async function rutaGuardarParametros(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
+
+  const plaza = String(cuerpo?.sucursal ?? '')
+  if (!PLAZAS_CAJA.has(plaza)) return responder(origen, 400, { error: 'Sucursal desconocida.' })
+
+  const p = cuerpo?.parametros
+  if (!p || typeof p !== 'object') return responder(origen, 400, { error: 'Parámetros inválidos.' })
+
+  const limpios = limpiarParametros(p)
+
+  const todos = await leerJson('caja/parametros.json')
   const nuevo = { ...todos, [plaza]: limpios }
 
   await s3.send(new PutObjectCommand({
-    Bucket: BUCKET, Key: 'config/caja.json',
+    Bucket: BUCKET, Key: 'caja/parametros.json',
     Body: Buffer.from(JSON.stringify(nuevo)),
     ContentType: 'application/json; charset=utf-8',
     CacheControl: 'no-cache',

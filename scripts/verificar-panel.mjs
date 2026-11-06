@@ -140,6 +140,149 @@ const turnos = {
   })),
 }
 
+// ── Flujo de efectivo ───────────────────────────────────────────────────────
+//
+// Las fechas se calculan RELATIVAS A HOY, no fijas. Con un noviembre de 2026
+// escrito a mano, esta comprobacion dejaria de ejercitar «la semana en curso»
+// en cuanto pasara el mes, y lo haria en silencio: los bloques seguirian
+// dibujandose, solo que ninguno seria el de ahora.
+const lunesDe = d => {
+  const x = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7))
+  return x
+}
+const isoDia = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const LUNES_HOY = lunesDe(new Date())
+/** El lunes de la semana de hace `n` semanas. */
+const semanaAtras = n => {
+  const x = new Date(LUNES_HOY)
+  x.setDate(LUNES_HOY.getDate() - n * 7)
+  return isoDia(x)
+}
+/** Los siete dias de esa semana, con venta. */
+const diasDe = (n, efectivo) => {
+  const l = new Date(LUNES_HOY)
+  l.setDate(LUNES_HOY.getDate() - n * 7)
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(l)
+    d.setDate(l.getDate() + i)
+    return {
+      f: isoDia(d), efectivo, tarjeta: i === 1 ? 400 : 0,
+      transferencia: i === 3 ? 150 : 0, devEfectivo: i === 5 ? 100 : 0,
+      nVentas: 3 + i, arqueo: efectivo - (i === 5 ? 100 : 0),
+      cajero: 'daniela coronilla',
+    }
+  })
+}
+
+// El control de salidas arranca hace DOS semanas: asi las tres primeras se
+// pueden juzgar y las demas salen como techo. Las dos ramas tienen que
+// dibujarse o la mitad de esta pantalla no se ejecuta nunca.
+const DESDE_CONTROL = semanaAtras(2)
+
+const diasDeOcho = base => Array.from({ length: 8 }, (_, n) => diasDe(n, base + n * 50)).flat()
+
+const caja = {
+  flujos: {
+    // Leon: configurada, con un bloque marcado y otro sin marcar, faltantes
+    // repetidos de la misma persona y un gasto sin comprobante.
+    leon: {
+      sucursal: 'leon', nombre: 'León',
+      respaldo: { archivo: 'respaldo-04-11-26.fbk', fecha: semanaAtras(0) },
+      dias: diasDeOcho(2000),
+      movimientos: [
+        { f: semanaAtras(0), tipo: 'gasto', monto: 120, concepto: 'garrafon de agua', origen: 'eleventa' },
+        { f: semanaAtras(0), tipo: 'retiro', monto: 500, concepto: 'retiro autorizado', origen: 'eleventa', comprobante: true },
+        { f: semanaAtras(1), tipo: 'adelanto', monto: 300, concepto: 'adelanto de nomina', origen: 'eleventa', comprobante: true },
+      ],
+      faltantes: [
+        { f: semanaAtras(3), monto: 3161.15, persona: 'daniela coronilla', sentido: 'faltante' },
+        { f: semanaAtras(6), monto: 2230.04, persona: 'daniela coronilla', sentido: 'faltante' },
+        { f: semanaAtras(7), monto: 5700.00, persona: 'jenni gllardo', sentido: 'faltante' },
+      ],
+    },
+    // San Luis: SIN tolerancia, para que salga el camino «sin configurar».
+    'san-luis': {
+      sucursal: 'san-luis', nombre: 'San Luis Potosí',
+      respaldo: { archivo: 'respaldo-04-11-26.fbk', fecha: semanaAtras(0) },
+      dias: diasDeOcho(1500), movimientos: [], faltantes: [],
+    },
+    // Aguascalientes: configurada y sin ningun deposito marcado, para que
+    // salgan «pendiente», «atrasado» y «no depositado».
+    aguascalientes: {
+      sucursal: 'aguascalientes', nombre: 'Aguascalientes',
+      respaldo: { archivo: 'respaldo-04-11-26.fbk', fecha: semanaAtras(0) },
+      dias: diasDeOcho(1000), movimientos: [], faltantes: [],
+    },
+    // Ferias: con dato y SIN parametros, para que salga en gris.
+    ferias: {
+      sucursal: 'ferias', nombre: 'Ferias',
+      respaldo: { archivo: 'respaldo-03-11-26.fbk', fecha: semanaAtras(0) },
+      dias: diasDe(0, 800), movimientos: [], faltantes: [],
+    },
+    // Torreon NO aparece a proposito: es el camino de «sin archivo
+    // publicado», que no es lo mismo que «sin movimiento» y se dice distinto.
+  },
+  parametros: {
+    leon: {
+      diaDeposito: 1, periodoCubre: 'semana-anterior', fondoFijo: 1000,
+      // El limite se deja por DEBAJO de lo que acumulan los bloques sin
+      // marcar, para que la tarjeta salga en rojo: es la alerta de seguridad
+      // y si nada la dispara, no se ejercita.
+      limiteEfectivo: 5000, tolerancia: 50, horaLimite: '14:00',
+      cuenta: '****1234', responsable: 'Daniela', gastoMaxSinComprobante: 300,
+      desdeControlSalidas: DESDE_CONTROL,
+    },
+    'san-luis': {
+      diaDeposito: 2, periodoCubre: 'semana-anterior', fondoFijo: 800,
+      limiteEfectivo: null, tolerancia: null, horaLimite: '14:00',
+      cuenta: '', responsable: '', gastoMaxSinComprobante: null,
+      desdeControlSalidas: DESDE_CONTROL,
+    },
+    aguascalientes: {
+      diaDeposito: 1, periodoCubre: 'semana-anterior', fondoFijo: 500,
+      limiteEfectivo: 90000, tolerancia: 100, horaLimite: '13:00',
+      cuenta: '****9999', responsable: 'Brenda', gastoMaxSinComprobante: null,
+      desdeControlSalidas: DESDE_CONTROL,
+    },
+  },
+  // Dos bloques marcados: uno CON control -que puede comparar y cuadra- y
+  // otro SIN control -que se marca pero no se compara-. Los dos caminos.
+  depositos: {
+    leon: {
+      [semanaAtras(1)]: {
+        semana: semanaAtras(1), monto: 14950, fecha: semanaAtras(0), hora: '13:20',
+        folio: 'A-881', comprobante: true, deposito: 'Daniela',
+        marcadoPor: 'admin', marcadoEn: HOY_ISO,
+      },
+      [semanaAtras(4)]: {
+        semana: semanaAtras(4), monto: 9000, fecha: semanaAtras(3), hora: '12:00',
+        folio: 'A-840', comprobante: false, deposito: 'Daniela',
+        marcadoPor: 'admin', marcadoEn: HOY_ISO,
+      },
+    },
+  },
+  // Un ajuste, para que se dibuje el rastro: el valor calculado se conserva y
+  // la celda sale marcada.
+  ajustes: {
+    leon: {
+      [semanaAtras(0)]: {
+        fecha: semanaAtras(0), valores: { gastos: 250 }, motivo: 'gasto-no-registrado',
+        nota: 'se pago el garrafon y no se anoto', quien: 'admin', cuando: HOY_ISO,
+      },
+    },
+  },
+  movimientos: {
+    leon: {
+      'm-1': {
+        id: 'm-1', f: semanaAtras(0), tipo: 'gasto', monto: 480,
+        concepto: 'papeleria sin ticket', comprobante: false,
+        origen: 'pagina', quien: 'admin', cuando: HOY_ISO,
+      },
+    },
+  },
+}
+
 /** Lo que devuelve cada ruta, según lo que pida. */
 function respuesta(url) {
   const u = String(url)
@@ -152,6 +295,7 @@ function respuesta(url) {
   // Las respuestas de la cola viven en el backend, no en S3 publico.
   if (/revisiones/i.test(u)) return { marcas: {} }
   if (/surtidos/i.test(u)) return { surtidos: SURTIDOS }
+  if (/\/caja/i.test(u)) return caja
   if (/site\.json|config/i.test(u)) return {}
   const plaza = u.match(/inventarios\/([a-z-]+)\/inventario\.json/)?.[1]
   if (plaza) return inventarioDe(plaza)
@@ -345,7 +489,14 @@ function revisarConsola(dichos, donde) {
 function escribir(window, input, valor) {
   // React guarda el valor anterior en un rastreador y descarta el evento si
   // no cambió. Sin esto el cambio no llega nunca al componente.
-  input._valueTracker?.setValue('')
+  //
+  // El rastreador se siembra con algo DISTINTO de lo que se va a escribir.
+  // Sembrándolo siempre con '', BORRAR un campo no llegaba nunca: React
+  // comparaba '' contra '' y descartaba el evento, así que el componente se
+  // quedaba con el valor anterior. Eso hacía parecer que un botón de guardar
+  // seguía habilitado con el campo vacío —una regla rota que no lo estaba— y
+  // de paso dejaba sin comprobar todas las del tipo «vaciar deshabilita».
+  input._valueTracker?.setValue(valor === '' ? '\u0000' : '')
   // El prototipo sale del elemento: un <textarea> no hereda de HTMLInputElement
   // y usar el descriptor equivocado escribe el valor sin que React se entere.
   const proto = input.tagName === 'TEXTAREA'
@@ -651,6 +802,201 @@ async function contestarCaso(window, donde) {
 
 const notaGuardada = window => /Brenda/.test(window.localStorage.getItem('istuffs_revisar_marcas') ?? '')
 
+/**
+ * La pestaña de flujo de efectivo.
+ *
+ * Las cuentas ya estan fijadas en `caja.test.js` -45 pruebas-. Lo que no ve
+ * ninguna prueba de libreria es que la pantalla SE DIBUJE, y aqui se rompe de
+ * formas que no fallan solas:
+ *
+ *   · La seccion deja de pintarse y una semana sin depositar no sale en
+ *     ningun sitio. Nadie la echa de menos, porque nadie sabia que existia.
+ *   · Se pintan los bloques pero NO el aviso del techo, y entonces un
+ *     esperado que es un maximo se lee como una cifra. Es el fallo caro: se
+ *     perseguiria un faltante que no existe.
+ *   · Se pinta el acumulado pero sin distinguir los bloques marcados de los
+ *     que no, y el dueño deposita dos veces la misma semana.
+ *
+ * El dato de mentira esta armado para pasar por las dos ramas de cada cosa:
+ * con control y sin control, marcado y sin marcar, con parametros y sin ellos,
+ * con archivo publicado y sin el.
+ */
+async function revisarEfectivo(window, donde) {
+  const doc = window.document
+
+  // Que el boton pulsado diga «Efectivo» no basta: cualquier aviso del
+  // dashboard que lo mencione tambien lo dice. El ancla es algo que SOLO
+  // dibuja esta pestaña.
+  const enEfectivo = () => !!doc.querySelector('[data-concentrado]')
+
+  let tarjetas = []
+  for (let i = 0; i < 12 && !tarjetas.length; i++) {
+    await nuevaVuelta(window, 8)
+    if (!enEfectivo()) return 0
+    tarjetas = [...doc.querySelectorAll('[data-plaza-caja]')]
+  }
+  if (!tarjetas.length) {
+    errores.push(`${donde} · no se dibujo ninguna tarjeta de plaza en el flujo de efectivo`)
+    return 0
+  }
+
+  // Las cinco plazas que manejan efectivo, Torreon incluida: vende y esta al
+  // dia aunque `sucursales.js` la tenga como inactiva para el mayorista.
+  const slugs = tarjetas.map(t => t.dataset.plazaCaja)
+  for (const esperada of ['leon', 'san-luis', 'aguascalientes', 'torreon', 'ferias']) {
+    if (!slugs.includes(esperada)) {
+      errores.push(`${donde} · falta la tarjeta de ${esperada} en el flujo de efectivo`)
+    }
+  }
+
+  // Los semaforos. Si todas salen del mismo color, el color no esta
+  // calculandose: el dato de mentira tiene a Leon pasada de limite -rojo- y a
+  // Ferias sin parametros -gris-.
+  const colores = new Set(tarjetas.map(t => t.dataset.semaforo))
+  if (colores.size < 2) {
+    errores.push(`${donde} · todas las plazas salen del mismo color (${[...colores]}): el semaforo no se esta calculando`)
+  }
+  if (!colores.has('gris')) {
+    errores.push(`${donde} · ninguna plaza sale en gris: lo que no se puede juzgar se esta pintando como si se pudiera`)
+  }
+
+  // El concentrado tiene que decir que es un TECHO: hay semanas de antes del
+  // control de salidas dentro del acumulado.
+  const texto = () => doc.body.textContent || ''
+  if (!/m[aá]x/i.test(texto())) {
+    errores.push(`${donde} · el concentrado no avisa de que el acumulado es un maximo`)
+  }
+
+  // Torreon no tiene archivo publicado: tiene que decirlo, y decirlo
+  // DISTINTO de «no hubo movimiento».
+  if (!/extractor todav[ií]a no ha corrido/i.test(texto())) {
+    errores.push(`${donde} · una plaza sin archivo publicado no lo dice: un hueco se lee como «no hay nada que depositar»`)
+  }
+
+  // ── Los bloques de una plaza ──
+  const verLeon = tarjetas.find(t => t.dataset.plazaCaja === 'leon')
+    ?.querySelector('button')
+  if (!verLeon) {
+    errores.push(`${donde} · la tarjeta de Leon no tiene como abrir sus bloques`)
+    return tarjetas.length
+  }
+  clic(window, verLeon)
+  await nuevaVuelta(window, 8)
+  if (!enPie(window, `${donde} · bloques de Leon`)) return tarjetas.length
+
+  const bloques = [...doc.querySelectorAll('[data-bloque]')]
+  if (bloques.length < 8) {
+    errores.push(`${donde} · se dibujaron ${bloques.length} bloques semanales de 8`)
+  }
+
+  // Marcado y sin marcar, las dos ramas. Si solo sale una, la mitad de la
+  // pantalla no se ejecuta: el dato de mentira tiene dos semanas marcadas.
+  const marcados = bloques.filter(b => b.dataset.depositado === '1')
+  const sinMarcar = bloques.filter(b => b.dataset.depositado === '0')
+  if (!marcados.length) errores.push(`${donde} · ningun bloque sale como depositado`)
+  if (!sinMarcar.length) errores.push(`${donde} · ningun bloque sale sin depositar`)
+
+  // Los estados tienen que ser varios. Todos iguales significa que
+  // `estadoDeposito` no esta corriendo.
+  const estados = new Set(bloques.map(b => b.dataset.estado))
+  if (estados.size < 2) {
+    errores.push(`${donde} · todos los bloques salen con el estado «${[...estados]}»: el estado no se calcula`)
+  }
+  if (!estados.has('sin-control')) {
+    errores.push(`${donde} · ningun bloque sale como «sin control»: las semanas de antes del 2026-11-05 se estan juzgando`)
+  }
+
+  // El aviso del techo, que es el que evita perseguir un faltante inventado.
+  if (!/no se compara contra el dep[oó]sito/i.test(texto())) {
+    errores.push(`${donde} · un bloque sin control de salidas no avisa de que no se compara: se leeria como una cifra`)
+  }
+
+  // ── La tabla diaria ──
+  const verDias = [...sinMarcar[0].querySelectorAll('button')]
+    .find(b => /ver d[ií]as/i.test(b.textContent || ''))
+  if (!verDias) {
+    errores.push(`${donde} · un bloque no tiene como desplegar sus dias`)
+  } else {
+    clic(window, verDias)
+    await nuevaVuelta(window, 6)
+    if (!enPie(window, `${donde} · tabla diaria`)) return tarjetas.length
+
+    const lineas = [...doc.querySelectorAll('[data-linea]')].map(l => l.dataset.linea)
+    // Las trece lineas del calculo mas el arqueo. Si falta una, el neto sale
+    // de una resta que no se ve, y nadie puede comprobarlo.
+    for (const necesaria of [
+      'ventaTotal', 'tarjeta', 'transferencia', 'otrasNoEfectivo', 'efectivoCobrado',
+      'devoluciones', 'gastos', 'retiros', 'adelantos', 'proveedores',
+      'otrasSalidas', 'entradas', 'neto', 'arqueo',
+    ]) {
+      if (!lineas.includes(necesaria)) {
+        errores.push(`${donde} · falta la linea «${necesaria}» de la tabla diaria`)
+      }
+    }
+  }
+
+  // ── Marcar como depositado ──
+  //
+  // Va AL FINAL del recorrido de esta pantalla. Marcar recarga y vuelve a
+  // armar los bloques: haciendolo antes, todo lo de arriba se mira sobre una
+  // pantalla que ya cambio.
+  await marcarUnBloque(window, donde)
+
+  return tarjetas.length
+}
+
+/**
+ * Marca un bloque como depositado.
+ *
+ * Lo que se comprueba es la regla que puede romperse en silencio: que el monto
+ * sea obligatorio. Si el boton de guardar deja de estar deshabilitado con el
+ * campo vacio, se marcaria una semana como depositada sin monto, y esa semana
+ * dejaria de acumular sin que nadie hubiera llevado el dinero al banco.
+ */
+async function marcarUnBloque(window, donde) {
+  const doc = window.document
+  const sinMarcar = [...doc.querySelectorAll('[data-bloque][data-depositado="0"]')]
+  if (!sinMarcar.length) return
+
+  const abrir = [...sinMarcar[0].querySelectorAll('button')]
+    .find(b => /marcar depositado/i.test(b.textContent || ''))
+  if (!abrir) {
+    errores.push(`${donde} · un bloque sin marcar no tiene boton de marcarlo`)
+    return
+  }
+  clic(window, abrir)
+  await nuevaVuelta(window, 5)
+  if (!enPie(window, `${donde} · forma de deposito`)) return
+
+  const guardar = () => [...doc.querySelectorAll('button')]
+    .find(b => /guardar dep[oó]sito/i.test(b.textContent || ''))
+  if (!guardar()) {
+    errores.push(`${donde} · la forma de deposito no tiene boton de guardar`)
+    return
+  }
+
+  // El monto llega con lo esperado puesto, que es lo util. Vaciarlo tiene que
+  // deshabilitar el guardado.
+  const campo = [...doc.querySelectorAll('input')]
+    .find(i => i.inputMode === 'decimal')
+  if (campo) {
+    escribir(window, campo, '')
+    await nuevaVuelta(window, 3)
+    if (!guardar()?.disabled) {
+      errores.push(`REGLA ROTA · ${donde} · un deposito sin monto se puede guardar: esa semana dejaria de acumular sin que el dinero saliera`)
+    }
+    escribir(window, campo, '1234.50')
+    await nuevaVuelta(window, 3)
+    if (guardar()?.disabled) {
+      errores.push(`REGLA ROTA · ${donde} · con monto puesto el deposito sigue sin poder guardarse`)
+    }
+  }
+
+  clic(window, guardar())
+  await nuevaVuelta(window, 6)
+  enPie(window, `${donde} · tras marcar el deposito`)
+}
+
 // ── El recorrido ───────────────────────────────────────────────────────────
 
 const SESIONES = [
@@ -663,6 +1009,7 @@ let pestanas = 0, secciones = 0, cabeceras = 0, hallazgos = 0
 let fichasDeCodigo = 0
 let bandejasDeCosto = 0
 let foliosVistos = 0
+let plazasDeEfectivo = 0
 
 // Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
 // agrupacion sigue viva: sin ella la cola vuelve a ser una pregunta por
@@ -708,7 +1055,7 @@ for (const [nombre, sesion] of SESIONES) {
     // sucursal, que lleva la misma cola de revision y su propio surtido.
     if (/admin|mi panel/i.test(etiqueta)) {
       const menu = [...doc.querySelectorAll('button')]
-        .filter(x => x.closest('[class*="admin" i], nav, aside') || /pestañ|hero|catálog|color|pie|usuari|dropbox|surtido|compras|personal/i.test(x.textContent))
+        .filter(x => x.closest('[class*="admin" i], nav, aside') || /pestañ|hero|catálog|color|pie|usuari|dropbox|surtido|compras|personal|efectivo/i.test(x.textContent))
       const vistas = new Set()
       for (const m of menu) {
         const t = m.textContent.trim()
@@ -728,6 +1075,9 @@ for (const [nombre, sesion] of SESIONES) {
         if (/surtido/i.test(t)) {
           foliosVistos += await listaDeFolios(window, `${nombre} · admin · ${t}`)
         }
+        if (/efectivo/i.test(t)) {
+          plazasDeEfectivo += await revisarEfectivo(window, `${nombre} · admin · ${t}`)
+        }
       }
     }
   }
@@ -743,6 +1093,10 @@ console.log(`  busqueda por codigo en ventas: ${fichasDeCodigo} ficha dibujada`)
 if (fichasDeCodigo < 1) errores.push('la busqueda por codigo de ventas no se ejecuto')
 console.log(`  bandeja de costos que faltan: ${bandejasDeCosto} dibujada`)
 console.log(`  folios de surtido dibujados: ${foliosVistos}`)
+console.log(`  plazas de flujo de efectivo dibujadas: ${plazasDeEfectivo}`)
+if (plazasDeEfectivo < 5) {
+  errores.push(`el flujo de efectivo dibujo ${plazasDeEfectivo} plazas de 5: una semana sin depositar no saldria en ningun sitio`)
+}
 if (foliosVistos < 2) {
   errores.push('la lista de folios de surtido no se dibujo con sus dos caminos: un folio con piezas faltantes no saldria en ningun sitio')
 }

@@ -9,6 +9,7 @@ import SurtidoPanel from './SurtidoPanel'
 import PersonalPanel from './PersonalPanel'
 import DashboardPanel from './DashboardPanel'
 import RevisarPanel from './RevisarPanel'
+import EfectivoPanel from './EfectivoPanel'
 
 const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
   <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid rgba(16,22,25,0.05)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -408,6 +409,7 @@ const SECCIONES = [
   { id: 'inventarios', icono: '📦', titulo: 'Inventarios',  sub: 'Existencias y faltantes' },
   { id: 'surtido',     icono: '🚚', titulo: 'Surtido',      sub: 'Qué mandar a cada plaza' },
   { id: 'bodega',      icono: '🏬', titulo: 'Bodega',       sub: 'Compra y cobertura' },
+  { id: 'efectivo',    icono: '💵', titulo: 'Efectivo',     sub: 'Flujo y depositos por plaza' },
   { id: 'personal',    icono: '🕗', titulo: 'Personal',     sub: 'Puntualidad y retardos' },
   { id: 'revisar',     icono: '🔍', titulo: 'Revisar',      sub: 'Códigos y nombres, uno a uno' },
   { id: 'config',      icono: '🎨', titulo: 'Diseño',       sub: 'Textos, colores y contacto' },
@@ -498,6 +500,7 @@ export default function AdminPanel() {
         {seccion === 'inventarios' && <InventariosPanel />}
         {seccion === 'surtido'     && <SurtidoPanel ambito="sucursales" foco={foco} />}
         {seccion === 'bodega'      && <SurtidoPanel ambito="bodega" foco={foco} />}
+        {seccion === 'efectivo'    && <EfectivoPanel />}
         {seccion === 'personal'    && <PersonalPanel />}
         {seccion === 'revisar'     && <RevisarPanel />}
         {seccion === 'config'      && (
