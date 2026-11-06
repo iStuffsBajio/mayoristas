@@ -693,6 +693,39 @@ function precioPorPlaza(window, donde) {
 }
 
 /**
+ * La bandeja de precios a revisar por sucursal.
+ *
+ * Se rompe en silencio de dos formas: dejando de dibujarse -y entonces el
+ * precio torcido no sale en ningun sitio- o perdiendo el aviso de que la
+ * diferencia NO es dinero perdido, que es lo unico que impide que alguien
+ * sume la columna y crea que le falta ese dinero.
+ *
+ * El dato de mentira hace que salte sola: la lista del inventario falso dice
+ * $55 para el I13T y la venta falsa lo cobra a $216.
+ */
+function preciosARevisar(window, donde) {
+  const doc = window.document
+  const sec = doc.querySelector('[data-precios-revisar]')
+  if (!sec) {
+    errores.push(`${donde} · no se dibujo la bandeja de precios a revisar`)
+    return 0
+  }
+  const txt = (sec.textContent || '').replace(/\s+/g, ' ')
+  if (!/no es dinero perdido/i.test(txt)) {
+    errores.push(`${donde} · la bandeja de precios no avisa de que la diferencia no es dinero perdido`)
+  }
+  if (!/Bajar el Excel/i.test(txt)) {
+    errores.push(`${donde} · la bandeja de precios no tiene como bajarse`)
+  }
+  // Una pastilla por plaza con algo que revisar: sin ellas solo se veria una
+  // plaza y las demas quedarian escondidas.
+  if (!sec.querySelectorAll('.chip-plaza').length) {
+    errores.push(`${donde} · la bandeja de precios no deja elegir plaza`)
+  }
+  return 1
+}
+
+/**
  * La lista de folios de surtido.
  *
  * Las cuentas ya estan fijadas en `surtidos.test.js`. Lo que no ve ninguna
@@ -1084,6 +1117,7 @@ let fichasDeCodigo = 0
 let bandejasDeCosto = 0
 let foliosVistos = 0
 let preciosPorPlaza = 0
+let bandejasDePrecio = 0
 let plazasDeEfectivo = 0
 
 // Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
@@ -1147,6 +1181,7 @@ for (const [nombre, sesion] of SESIONES) {
           fichasDeCodigo += await buscarUnCodigo(window, `${nombre} · admin · ${t}`)
           bandejasDeCosto += bandejaDeCostos(window, `${nombre} · admin · ${t}`)
           preciosPorPlaza += precioPorPlaza(window, `${nombre} · admin · ${t}`)
+          bandejasDePrecio += preciosARevisar(window, `${nombre} · admin · ${t}`)
         }
         if (/surtido/i.test(t)) {
           foliosVistos += await listaDeFolios(window, `${nombre} · admin · ${t}`)
@@ -1170,6 +1205,10 @@ if (fichasDeCodigo < 1) errores.push('la busqueda por codigo de ventas no se eje
 console.log(`  bandeja de costos que faltan: ${bandejasDeCosto} dibujada`)
 console.log(`  folios de surtido dibujados: ${foliosVistos}`)
 console.log(`  seccion de precio por plaza: ${preciosPorPlaza} dibujada`)
+console.log(`  bandeja de precios a revisar: ${bandejasDePrecio} dibujada`)
+if (bandejasDePrecio < 1) {
+  errores.push('la bandeja de precios a revisar no se dibujo: un precio torcido no saldria en ningun sitio')
+}
 if (preciosPorPlaza < 1) {
   errores.push('la seccion de precio por plaza no se dibujo: sin ella el precio medio vuelve a mezclar fundas, micas y stickers, y eso sale un numero que parece bueno')
 }

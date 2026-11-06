@@ -19,6 +19,8 @@ import { descargarCostos } from '../lib/exportarCostos'
 import { useVentas } from '../lib/useVentas'
 import { useAuth } from '../context/AuthContext'
 import { precioPorPlaza } from '../lib/ventasTicket'
+import { brechaDeLista } from '../lib/precioCobrado'
+import { descargarPrecios } from '../lib/exportarPrecios'
 import { hayBusqueda } from '../lib/buscar'
 // La regla de buscar vive en la libreria, con sus pruebas, no aqui: la
 // pastilla de la plaza y la del rango no pueden esconder un codigo que existe.
@@ -881,6 +883,105 @@ function PrecioPorPlaza({ porPlaza, plazas }) {
   )
 }
 
+/**
+ * Los precios que no cuadran con su lista, por sucursal.
+ *
+ * Lo pidió el dueño: «los modelos que tengan un precio diferente posiblemente
+ * sea un error, esos también aislarlos y ponerlo dentro de la lista de cosas a
+ * modificar por sucursal».
+ *
+ * Se enseña aquí y no en el panel de la sucursal porque la sucursal **no
+ * puede verlo**: sale de `ventas/<plaza>.json`, que es privado de
+ * administrador. El dueño lo baja en Excel y se lo manda, igual que el
+ * reporte de la cola de revisión.
+ *
+ * ── Lo que la cifra NO es ─────────────────────────────────────────────────
+ *
+ * No es dinero perdido. Es lo que separa el precio de la lista del que se
+ * cobró, y puede ser que la lista esté alta o que se esté descontando en el
+ * mostrador. Se dice en pantalla y también dentro del Excel, porque es donde
+ * se va a leer sin contexto.
+ *
+ * Y sale de la VENTANA de 365 días, nunca del acumulado: con todo el historial
+ * la cifra de San Luis salía en $1,582,316 cuando la de verdad es $9,657,
+ * porque se comparaban ventas de 2021 contra la lista de hoy.
+ */
+function PreciosARevisar({ porPlaza }) {
+  const conAlgo = Object.entries(porPlaza).filter(([, x]) => x.brecha.filas.length)
+  if (!conAlgo.length) return null
+
+  const [abierta, setAbierta] = useState(conAlgo[0][0])
+  const actual = porPlaza[abierta] ?? conAlgo[0][1]
+
+  return (
+    <section data-precios-revisar
+             style={{ border: '1px solid #FCD34D', borderRadius: 22, padding: '18px 20px', background: 'rgba(252,211,77,0.10)' }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 6 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 800, color: '#92400E', margin: 0, flex: 1 }}>
+          Precios a revisar por sucursal
+        </h3>
+        <button type="button" className="boton-tinta" style={{ fontSize: 11.5, padding: '6px 12px' }}
+                onClick={() => descargarPrecios(porPlaza)}>
+          Bajar el Excel por sucursal
+        </button>
+      </div>
+
+      <p style={{ fontSize: 11.5, color: '#92400E', margin: '0 0 12px', lineHeight: 1.55 }}>
+        Códigos donde lo que cobra la caja se aparta de lo que dice su lista de precios, de los
+        últimos 365 días. <strong>La diferencia no es dinero perdido</strong>: puede ser que la
+        lista esté alta o que se esté descontando en el mostrador. Las dos se arreglan en la
+        sucursal, y las dos empiezan por verlas.
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        {conAlgo.map(([slug, x]) => (
+          <button key={slug} type="button" onClick={() => setAbierta(slug)}
+                  className={slug === abierta ? 'chip-plaza activa' : 'chip-plaza'}>
+            {x.nombre}
+            <span style={{ marginInlineStart: 6, fontWeight: 800 }}>{x.brecha.filas.length}</span>
+          </button>
+        ))}
+      </div>
+
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 8px' }}>
+        {actual.nombre} cobra <strong style={{ color: TINTA }}>
+          {Math.round(100 * actual.brecha.razonTipica)}%
+        </strong> de lo que dice su lista, mirando {actual.brecha.comparados} códigos.
+      </p>
+
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {actual.brecha.filas.slice(0, 8).map(f => (
+          <li key={f.codigo} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 10, alignItems: 'baseline', fontSize: 12 }}>
+            {/* El CODIGO delante: esto se corrige en Eleventa, y ahi se busca
+                por codigo. El nombre va de apoyo. */}
+            <span style={{ fontWeight: 800, color: '#92400E', minWidth: '8ch', fontVariantNumeric: 'tabular-nums' }}>
+              {f.codigo}
+            </span>
+            <span style={{ color: TINTA, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                  title={f.producto}>
+              {f.producto}
+              {f.familia !== 'funda' && (
+                <span style={{ color: TINTA_TENUE }}> · {f.familia}</span>
+              )}
+            </span>
+            <span style={{ color: TINTA_SUAVE, whiteSpace: 'nowrap' }}>
+              cobra {pesos(f.cobrado)} de {pesos(f.lista)}
+            </span>
+            <span style={{ fontWeight: 800, color: TINTA, whiteSpace: 'nowrap', minWidth: '5ch', textAlign: 'right' }}>
+              {Math.round(100 * f.razon)}%
+            </span>
+          </li>
+        ))}
+      </ul>
+      {actual.brecha.filas.length > 8 && (
+        <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '10px 0 0' }}>
+          Y {actual.brecha.filas.length - 8} más. La lista entera va en el Excel.
+        </p>
+      )}
+    </section>
+  )
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 // ── Buscar un código ──────────────────────────────────────────────────────────
@@ -988,6 +1089,10 @@ export default function EstadisticasPanel() {
   // sucursal recibe 403 y la seccion simplemente no se dibuja.
   const { token } = useAuth()
   const { porPlaza: ventasPorPlaza } = useVentas(token, activas.map(x => x.slug))
+
+  // La brecha entre la lista de precios y lo cobrado, por plaza. Hace falta
+  // el inventario de cada una para leer su lista, asi que se calcula abajo
+  // -donde ya estan descargados- y no aqui.
 
   const [sel, setSel]     = useState(TODAS.slug)
   const [rango, setRango] = useState(30)
@@ -1100,6 +1205,27 @@ export default function EstadisticasPanel() {
   const rendimiento = useMemo(
     () => (ventanas ? rentabilidad({ salidas: ventanas.ahora, precios, costos, nombres }) : null),
     [ventanas, precios, costos, nombres])
+
+  // La brecha entre la lista de precios y lo que cobra la caja, por plaza.
+  // Se calcula aquí porque hace falta el inventario de cada una -de ahí sale
+  // su lista- y es donde ya están descargados.
+  const preciosARevisar = useMemo(() => {
+    if (!ventasPorPlaza || !porSucursal) return {}
+    const out = {}
+    for (const s of activas) {
+      const v = ventasPorPlaza[s.slug]?.ventana?.porCodigo
+      const inventario = porSucursal[s.slug]?.inv
+      if (!v || !inventario) continue
+      out[s.slug] = {
+        nombre: s.nombre,
+        // Sobre la VENTANA, nunca el acumulado: con todo el historial se
+        // comparan ventas de 2021 contra la lista de hoy y la cifra sale 164
+        // veces mayor de lo que es.
+        brecha: brechaDeLista({ porCodigo: v, inventario }),
+      }
+    }
+    return out
+  }, [ventasPorPlaza, porSucursal, activas])
 
   // Lo que se vende y bodega no tiene costeado. No es un aviso: es la lista
   // de trabajo, y se baja en Excel para repartirla.
@@ -1298,6 +1424,10 @@ export default function EstadisticasPanel() {
               Va aquí arriba, no al final: es lo que el dueño mira primero
               para saber si una plaza es de mostrador o de mayoreo. */}
           <PrecioPorPlaza porPlaza={ventasPorPlaza} plazas={activas} />
+
+          {/* Y lo que de ahí sale torcido, aislado por sucursal para mandarlo.
+              Va justo debajo del precio, que es donde se entiende. */}
+          <PreciosARevisar porPlaza={preciosARevisar} />
 
           {puente && <Puente puente={puente} />}
 
