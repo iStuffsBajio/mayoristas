@@ -81,6 +81,21 @@ const SLUG = arg('sucursal')
 // corrida de GitHub, que no tiene la A: montada.
 const ORIGEN = arg('origen') || origenPorDefecto()
 
+/**
+ * 🔒 Dias de la ventana reciente.
+ *
+ * El acumulado de todo el historial NO sirve para hablar de precios: el de
+ * cada plaza arranca un año distinto -Aguascalientes 2019, San Luis 2020,
+ * Leon 2025- y los precios han subido un 40% en cinco años. El 92% de las
+ * piezas de San Luis son de antes de 2026, asi que su «precio medio» de todo
+ * el historial es el de hace tres años.
+ *
+ * 365 dias: un año entero, para que la temporada no lo sesgue -una ventana de
+ * tres meses tomada en octubre diria que el negocio vale un 30% menos de lo
+ * que vale- y a la vez reciente, para que el precio sea el de ahora.
+ */
+const DIAS_VENTANA = Number(arg('dias')) || 365
+
 const SEP = '~|~'
 
 /**
@@ -159,7 +174,17 @@ async function procesar(slug) {
         ({ ticket, codigo, producto, depto, cantidad, total, ganancia, mayoreo }))
 
     log(`[${slug}] ${tickets.length} tickets · ${lineas.length} lineas`)
+
+    // Dos agregados a proposito, y cada uno sirve para una cosa:
+    //
+    //   · TODO el historial, para contar piezas y medir la temporada, donde
+    //     lo viejo no estorba y hacen falta años para ver un diciembre.
+    //   · La VENTANA, para cualquier cuenta de PRECIO. Mezclar las dos fue el
+    //     error que dio una «diferencia» de 1.5 millones que era, casi toda,
+    //     cinco años de subidas de precio.
     const agregado = agregarVentas({ tickets, lineas })
+    const corte = new Date(Date.now() - DIAS_VENTANA * 86400000).toISOString().slice(0, 10)
+    const reciente = agregarVentas({ tickets, lineas, desdeDia: corte })
 
     return {
       plaza: slug,
@@ -167,6 +192,9 @@ async function procesar(slug) {
       generado: new Date().toISOString(),
       respaldo: { fecha: respaldo.fecha },
       ...agregado,
+      // La ventana va aparte y completa: quien valore en pesos usa esta y
+      // quien cuente piezas o mida temporada usa la de arriba.
+      ventana: { dias: DIAS_VENTANA, ...reciente },
     }
   } finally {
     try { fs.rmSync(workDir, { recursive: true, force: true }) } catch { /* da igual */ }
@@ -188,6 +216,10 @@ for (const slug of slugs) {
   }
 
   const r = datos.resumen
+  const v = datos.ventana.resumen
+  log(`[${slug}] ventana ${DIAS_VENTANA} d: ${v.piezas} pz · `
+    + `$${Math.round(v.dinero).toLocaleString('es-MX')} · `
+    + `precio medio $${v.piezas > 0 ? Math.round(v.dinero / v.piezas) : 0}`)
   log(`[${slug}] ${r.tickets} tickets vivos · ${r.cancelados} cancelados · ${r.piezas} pz · `
     + `$${Math.round(r.dinero).toLocaleString('es-MX')} · `
     + `mayoreo ${r.dinero > 0 ? Math.round(100 * r.dineroMayoreo / r.dinero) : 0}% del dinero · `

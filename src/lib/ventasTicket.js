@@ -133,8 +133,30 @@ const vacio = () => ({ tickets: 0, piezas: 0, dinero: 0, ganancia: 0 })
  * y `lineas` de `{ ticket, codigo, producto, depto, cantidad, total, ganancia,
  * mayoreo }`. Devuelve sólo agregados: el detalle crudo no se publica, porque
  * son miles de renglones y porque lleva nombres.
+ *
+ * ── `desde` NO es un lujo: sin él los precios no se pueden comparar ────────
+ *
+ * El historial de cada plaza arranca un día distinto —Aguascalientes 2019-11,
+ * San Luis 2020-03, León 2025-12— y los precios han subido. Medido, dinero por
+ * pieza:
+ *
+ *                   2021   2022   2023   2024   2025   2026
+ *     San Luis      $108   $123   $124   $134   $148   $152
+ *     Aguascalientes   —    $66   $120   $146   $147   $137
+ *     León             —      —      —      —   $151   $152
+ *
+ * El 92% de las piezas de San Luis son de antes de 2026, así que su precio
+ * medio de TODO el historial —$83 en Aguascalientes— no es su precio: es el de
+ * hace tres años. Comparar eso con los once meses de León decía que
+ * Aguascalientes vende a mitad de precio, y no es verdad. Y comparado contra
+ * la lista de HOY daba una «diferencia» de más de un millón y medio de pesos
+ * que era, casi toda, cinco años de subidas de precio.
+ *
+ * Por eso cualquier cuenta de PRECIO se hace con ventana. El acumulado de todo
+ * el historial sigue valiendo para contar piezas y para la temporada, donde lo
+ * viejo no estorba.
  */
-export function agregarVentas({ tickets, lineas }) {
+export function agregarVentas({ tickets, lineas, desdeDia = null }) {
   const porId = new Map()
   for (const t of tickets ?? []) porId.set(String(t.id), t)
 
@@ -147,8 +169,15 @@ export function agregarVentas({ tickets, lineas }) {
   const porCajero = new Map()
   let desde = null, hasta = null
 
+  const dentro = t => {
+    if (!desdeDia) return true
+    const h = horaDe(t.cuando)
+    return !!h && h.dia >= desdeDia
+  }
+
   // Los tickets se cuentan una vez, no una por línea.
   for (const t of tickets ?? []) {
+    if (!dentro(t)) continue
     if (esSi(t.cancelado)) { resumen.cancelados++; continue }
     resumen.tickets++
     const h = horaDe(t.cuando)
@@ -177,6 +206,7 @@ export function agregarVentas({ tickets, lineas }) {
     const t = porId.get(String(l.ticket))
     // Una línea sin su ticket no se puede fechar ni saber si se cancelo. No
     // se cuenta: suponerla viva es lo que infla la cifra.
+    if (t && !dentro(t)) continue
     if (!t || esSi(t.cancelado)) {
       if (t) resumen.piezasCanceladas += num(l.cantidad)
       continue
@@ -246,6 +276,9 @@ export function agregarVentas({ tickets, lineas }) {
 
   return {
     desde, hasta,
+    // La ventana pedida, para que quien lea el archivo sepa si estos numeros
+    // son de todo el historial o de un tramo.
+    ventanaDesde: desdeDia,
     resumen: {
       ...resumen,
       // Cuánto del dinero sale a precio de mayoreo. Es la cifra que decide si
@@ -262,6 +295,13 @@ export function agregarVentas({ tickets, lineas }) {
       .sort((a, b) => b.tickets - a.tickets),
     cajeros: lista(porCajero, 'cajero'),
   }
+}
+
+/** La mediana de una lista. Robusta a la linea rara, que en precios abunda. */
+function medianaDe(xs) {
+  const o = [...xs].sort((a, b) => a - b)
+  const m = o.length >> 1
+  return o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2
 }
 
 /**
@@ -332,8 +372,9 @@ export function precioPorPlaza(porCodigo, { piso = PISO_PRECIO } = {}) {
   const grupo = () => ({
     codigos: 0, pz: 0, dinero: 0,
     pzPublico: 0, dineroPublico: 0, pzMayoreo: 0, dineroMayoreo: 0,
-    // Para el descuento, que se mide POR CODIGO y luego se pondera. Ver abajo.
-    descPeso: 0, descSuma: 0, invertidos: 0,
+    // Para el descuento, que se mide POR CODIGO y se resume con la MEDIANA.
+    // Ver abajo por que no con un promedio.
+    razones: [], invertidos: 0,
   })
   const grupos = { fundas: grupo(), protectores: grupo(), produccion: grupo() }
 
@@ -375,8 +416,9 @@ export function precioPorPlaza(porCodigo, { piso = PISO_PRECIO } = {}) {
       const pMay = num(f.dineroMayoreo) / pzMay
       const pPub = (dinero - num(f.dineroMayoreo)) / pzPub
       if (pPub > 0) {
-        g.descSuma += (1 - pMay / pPub) * pz
-        g.descPeso += pz
+        // Se guarda la RAZON, no el descuento ya calculado: el resumen se
+        // hace con la mediana y hace falta la lista entera.
+        g.razones.push(pMay / pPub)
         // Un codigo que se cobra MAS CARO a mayoreo que al publico. Eso si es
         // un precio mal puesto, y hay que poder perseguirlo por codigo.
         if (pMay > pPub) g.invertidos++
@@ -395,10 +437,22 @@ export function precioPorPlaza(porCodigo, { piso = PISO_PRECIO } = {}) {
     // mostrador.
     mezclaPiezas: g.pz > 0 ? g.pzMayoreo / g.pz : null,
     mezclaDinero: g.dinero > 0 ? g.dineroMayoreo / g.dinero : null,
-    // Cuanto mas barato sale el mayoreo, medido CODIGO A CODIGO y ponderado
-    // por piezas. No se divide un total entre otro: eso da la paradoja de
-    // Simpson y un descuento negativo donde no hay ningun precio mal.
-    descuento: g.descPeso > 0 ? g.descSuma / g.descPeso : null,
+    // Cuanto mas barato sale el mayoreo, codigo contra si mismo y resumido
+    // con la MEDIANA. Dos razones, y las dos se vieron en los datos:
+    //
+    //   · Dividir el total cobrado a mayoreo entre el total cobrado al
+    //     publico da la paradoja de Simpson -los modelos caros se van a
+    //     mayoreo y los baratos al mostrador- y el descuento sale invertido
+    //     sin que ningun precio este mal.
+    //
+    //   · Promediar los descuentos por codigo tampoco sirve: la razon no
+    //     esta acotada por abajo. Un codigo vendido una vez a $1 al publico
+    //     y a $145 a mayoreo aporta un -144, y San Luis salia con un
+    //     descuento del -63% teniendo publico $197 y mayoreo $145.
+    //
+    // La mediana no se mueve por un puñado de lineas raras, que en precios
+    // los hay siempre.
+    descuento: g.razones.length ? 1 - medianaDe(g.razones) : null,
     // Y aparte, cuantos codigos se cobran mas caro a mayoreo que al publico.
     // Ese numero si senala precios que hay que corregir.
     invertidos: g.invertidos,

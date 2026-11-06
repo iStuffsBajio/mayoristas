@@ -212,3 +212,57 @@ test('un mayoreo MAS CARO que el publico sale como descuento negativo', () => {
   })
   assert.ok(r.fundas.descuento < 0)
 })
+
+test('LA CUARTA TRAMPA: sin ventana, el precio medio es el de hace tres años', () => {
+  // El historial de cada plaza arranca un dia distinto y los precios suben.
+  // El 92% de las piezas de San Luis son de antes de 2026, asi que su precio
+  // medio de TODO el historial no es su precio: es el de hace tres años.
+  // Comparado contra la lista de HOY daba una «diferencia» de 1.5 millones
+  // que era, casi toda, cinco años de subidas.
+  const tickets = [
+    { id: 1, cuando: '2021-06-01 12:00:00.0000', cancelado: 'f' },
+    { id: 2, cuando: '2026-10-01 12:00:00.0000', cancelado: 'f' },
+  ]
+  const lineas = [
+    { ticket: 1, codigo: 'I13T', producto: 'IPHONE 13', depto: 'FUNDAS', cantidad: 10, total: 1080, mayoreo: 'f' },
+    { ticket: 2, codigo: 'I13T', producto: 'IPHONE 13', depto: 'FUNDAS', cantidad: 10, total: 2160, mayoreo: 'f' },
+  ]
+
+  const todo = agregarVentas({ tickets, lineas })
+  assert.equal(todo.resumen.dinero / todo.resumen.piezas, 162, 'mezcla 2021 con 2026')
+  assert.equal(todo.ventanaDesde, null)
+
+  const reciente = agregarVentas({ tickets, lineas, desdeDia: '2026-01-01' })
+  assert.equal(reciente.resumen.dinero / reciente.resumen.piezas, 216, 'el precio de HOY')
+  assert.equal(reciente.resumen.tickets, 1)
+  assert.equal(reciente.ventanaDesde, '2026-01-01')
+  assert.equal(reciente.desde, '2026-10-01', 'y el rango real empieza dentro de la ventana')
+})
+
+test('la ventana no cuenta las lineas de los tickets que deja fuera', () => {
+  const tickets = [{ id: 1, cuando: '2020-01-01 12:00:00.0000', cancelado: 'f' }]
+  const lineas = [{ ticket: 1, codigo: 'X', depto: 'FUNDAS', cantidad: 99, total: 9900, mayoreo: 'f' }]
+  const r = agregarVentas({ tickets, lineas, desdeDia: '2026-01-01' })
+  assert.equal(r.resumen.piezas, 0)
+  assert.equal(r.porCodigo.X, undefined)
+})
+
+test('una linea rara no puede torcer el descuento: se resume con MEDIANA', () => {
+  // Paso de verdad: San Luis salia con un descuento del -63% teniendo publico
+  // $197 y mayoreo $145. La razon no esta acotada por abajo, asi que un
+  // codigo vendido una vez a $1 al publico aporta un -144 y arrastra el
+  // promedio entero.
+  const normales = {}
+  for (let i = 0; i < 9; i++) {
+    normales['N' + i] = {
+      producto: 'FUNDA', pz: 2, dinero: 300, pzMayoreo: 1, dineroMayoreo: 100,
+    }   // publico $200, mayoreo $100 -> 50% de descuento
+  }
+  const r = precioPorPlaza({
+    ...normales,
+    // El bicho: una pieza a $1 al publico y otra a $145 a mayoreo.
+    RARO: { producto: 'FUNDA', pz: 2, dinero: 146, pzMayoreo: 1, dineroMayoreo: 145 },
+  })
+  assert.equal(r.fundas.descuento, 0.5, 'la mediana no se mueve por el bicho')
+  assert.equal(r.fundas.invertidos, 1, 'pero el bicho se cuenta y se puede perseguir')
+})
