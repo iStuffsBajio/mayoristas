@@ -188,12 +188,30 @@ const lunesDe = d => {
 }
 const isoDia = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const LUNES_HOY = lunesDe(new Date())
+// Se IMPORTA, no se copia. Esta comprobacion tiene que seguir contando los
+// bloques bien el dia que el dueño mueva el inicio del historial, y una
+// constante repetida a mano se queda vieja sin que nada falle.
+const { INICIO_HISTORIAL } = await import('../src/lib/caja.js')
 /** El lunes de la semana de hace `n` semanas. */
 const semanaAtras = n => {
   const x = new Date(LUNES_HOY)
   x.setDate(LUNES_HOY.getDate() - n * 7)
   return isoDia(x)
 }
+/** El lunes de dentro de `n` semanas. */
+const semanaAdelante = n => semanaAtras(-n)
+
+/**
+ * Cuantos bloques tiene que dibujar la pantalla HOY.
+ *
+ * Desde el 2026-11-06 el historial arranca en ceros -`INICIO_HISTORIAL`-, asi
+ * que al estrenarlo hay UNA semana y no ocho. Esto se calcula en vez de
+ * escribirse para que el numero crezca solo cada lunes hasta toparse en dos,
+ * que es lo que se enseña. Escrito a mano, la comprobacion fallaria sola el
+ * lunes siguiente sin que nada estuviera roto.
+ */
+const BLOQUES_HOY = Math.max(1, Math.min(
+  2, Math.round((new Date(LUNES_HOY) - new Date(`${INICIO_HISTORIAL}T00:00`)) / (7 * 864e5)) + 1))
 /** Los siete dias de esa semana, con venta. */
 const diasDe = (n, efectivo) => {
   const l = new Date(LUNES_HOY)
@@ -235,7 +253,16 @@ const caja = {
         { f: semanaAtras(0), tipo: 'gasto', monto: 120, concepto: 'garrafon de agua', origen: 'eleventa' },
         { f: semanaAtras(0), tipo: 'retiro', monto: 500, concepto: 'retiro autorizado', origen: 'eleventa', comprobante: true },
         { f: semanaAtras(1), tipo: 'adelanto', monto: 300, concepto: 'adelanto de nomina', origen: 'eleventa', comprobante: true },
+        // Una salida que alguien registro PORQUE falto dinero. Es la unica
+        // clase de faltante que la pantalla enseña desde el 2026-11-06, y no
+        // resta del efectivo neto: va en su propia linea.
+        { f: semanaAtras(0), tipo: 'faltante', monto: 180, concepto: 'FALTANTE EN CAJA', persona: 'daniela coronilla', origen: 'eleventa' },
       ],
+      // Los descuadres que Eleventa escribe sola al cerrar turno. Se quedan
+      // aqui A PROPOSITO aunque ya no se enseñen: el recorrido comprueba que
+      // «jenni gllardo» NO aparece en ninguna pantalla. Quitandolos del dato
+      // de mentira, esa comprobacion pasaria en verde aunque alguien los
+      // volviera a pintar.
       faltantes: [
         { f: semanaAtras(3), monto: 3161.15, persona: 'daniela coronilla', sentido: 'faltante' },
         { f: semanaAtras(6), monto: 2230.04, persona: 'daniela coronilla', sentido: 'faltante' },
@@ -278,7 +305,14 @@ const caja = {
       diaDeposito: 2, periodoCubre: 'semana-anterior', fondoFijo: 800,
       limiteEfectivo: null, tolerancia: null, horaLimite: '14:00',
       cuenta: '', responsable: '', gastoMaxSinComprobante: null,
-      desdeControlSalidas: DESDE_CONTROL,
+      // En el FUTURO a proposito: asi la semana en curso de esta plaza sale
+      // «sin control» y el camino del techo cae DENTRO de lo que se dibuja.
+      //
+      // Antes bastaba con que la semana pasada no tuviera control. Ya no: el
+      // historial arranca el lunes en curso, asi que ahora mismo solo hay una
+      // semana a la vista y las dos ramas tienen que caber en ella. Caben
+      // porque la fecha va por PLAZA, que es justo para lo que se hizo asi.
+      desdeControlSalidas: semanaAdelante(1),
     },
     aguascalientes: {
       diaDeposito: 1, periodoCubre: 'semana-anterior', fondoFijo: 500,
@@ -290,6 +324,17 @@ const caja = {
   // Dos bloques marcados: uno CON control -que puede comparar y cuadra- y
   // otro SIN control -que se marca pero no se compara-. Los dos caminos.
   depositos: {
+    // Aguascalientes marca la semana EN CURSO y la cuadra al peso: es la
+    // rama «depositado» y el unico verde del tablero. Tiene que estar en la
+    // semana en curso -7,000 menos 100 de devoluciones- porque es la unica
+    // que se dibuja hoy.
+    aguascalientes: {
+      [semanaAtras(0)]: {
+        semana: semanaAtras(0), monto: 6900, fecha: semanaAtras(0), hora: '12:30',
+        folio: 'B-312', comprobante: true, deposito: 'Brenda',
+        marcadoPor: 'admin', marcadoEn: HOY_ISO,
+      },
+    },
     leon: {
       [semanaAtras(1)]: {
         semana: semanaAtras(1), monto: 14950, fecha: semanaAtras(0), hora: '13:20',
@@ -318,6 +363,14 @@ const caja = {
       'm-1': {
         id: 'm-1', f: semanaAtras(0), tipo: 'gasto', monto: 480,
         concepto: 'papeleria sin ticket', comprobante: false,
+        origen: 'pagina', quien: 'admin', cuando: HOY_ISO,
+      },
+      // Capturado AQUI, no en Eleventa. Con los dos, la misma persona sale
+      // dos veces y se dibuja el apartado de «repetido», que es la alerta que
+      // pidio el dueño y que con un solo faltante no se ejercita.
+      'm-2': {
+        id: 'm-2', f: semanaAtras(0), tipo: 'faltante', monto: 95,
+        concepto: 'falto en el corte de la tarde', persona: 'daniela coronilla',
         origen: 'pagina', quien: 'admin', cuando: HOY_ISO,
       },
     },
@@ -986,7 +1039,55 @@ async function revisarEfectivo(window, donde) {
     errores.push(`${donde} · una plaza sin archivo publicado no lo dice: un hueco se lee como «no hay nada que depositar»`)
   }
 
-  // ── Los bloques de una plaza ──
+  // El concentrado NO puede sumar semanas anteriores al inicio del historial.
+  //
+  // Es la comprobacion que ataja lo que se vio en pantalla el 2026-11-06: «lo
+  // que debe entrar al banco» decia $411,648 en **32 semanas sin marcar**,
+  // dinero que llevaba meses en el banco. Recortar los bloques que se DIBUJAN
+  // no basta -el concentrado suma por su cuenta-, asi que se mira su cifra:
+  // con cuatro plazas vivas y una semana de historial no puede pasar de
+  // cuatro, y sin el recorte se dispara a treinta y tantas.
+  const PLAZAS_VIVAS = 4   // las cinco menos Torreon, que es solo historial
+  const dice = /(\d+)\s+semanas?\s+sin\s+marcar/.exec(texto())
+  if (!dice) {
+    errores.push(`${donde} · el concentrado no dice cuantas semanas quedan sin marcar`)
+  } else if (Number(dice[1]) > PLAZAS_VIVAS * BLOQUES_HOY) {
+    errores.push(`${donde} · el concentrado suma ${dice[1]} semanas sin marcar y como mucho caben ${PLAZAS_VIVAS * BLOQUES_HOY}: esta contando historial anterior al ${INICIO_HISTORIAL} como dinero pendiente`)
+  }
+
+  // ── El cuadro de la semana en curso ──
+  //
+  // El dueño pidio el 2026-11-06 ver, al lado del efectivo, lo cobrado con
+  // tarjeta, transferencia y lo demas, y la venta total de la sucursal. Son
+  // columnas: si una deja de pintarse, la tabla se ve perfecta y lo que
+  // falta no lo echa nadie de menos.
+  const cuadro = doc.querySelector('[data-calendario]')
+  if (!cuadro) {
+    errores.push(`${donde} · no se dibujo el cuadro de la semana en curso`)
+  } else {
+    const cabeceras = [...cuadro.querySelectorAll('th')].map(t => (t.textContent || '').trim().toLowerCase())
+    for (const necesaria of ['efectivo neto', 'tarjeta', 'transfer.', 'otros', 'venta total']) {
+      if (!cabeceras.includes(necesaria)) {
+        errores.push(`${donde} · al cuadro de la semana le falta la columna «${necesaria}»`)
+      }
+    }
+    // Y la fila de abajo, que son las ventas totales en general. Sin ella hay
+    // desglose por plaza y ningun total, que es la mitad de lo que se pidio.
+    if (!cuadro.querySelector('[data-calendario-total]')) {
+      errores.push(`${donde} · el cuadro de la semana no suma las plazas: no hay fila de total`)
+    }
+  }
+
+  // ── Los bloques ──
+  //
+  // Desde el 2026-11-06 el historial arranca en ceros, asi que al estrenar
+  // esto hay UNA semana a la vista y no ocho. Eso obliga a recorrer tres
+  // plazas en vez de una: las ramas que antes cabian en ocho bloques de Leon
+  // -con control y sin control, marcado y sin marcar- ahora viven una en cada
+  // plaza, porque `desdeControlSalidas` va por plaza y cada una marca lo suyo.
+  //
+  // Recorrer solo Leon dejaria sin ejecutar la mitad del componente, y la
+  // comprobacion pasaria en verde habiendo mirado un bloque.
   const verLeon = tarjetas.find(t => t.dataset.plazaCaja === 'leon')
     ?.querySelector('button')
   if (!verLeon) {
@@ -997,43 +1098,74 @@ async function revisarEfectivo(window, donde) {
   await nuevaVuelta(window, 8)
   if (!enPie(window, `${donde} · bloques de Leon`)) return tarjetas.length
 
-  // Dos: la semana pasada y esta. Lo pidio el dueño el 2026-11-06, porque
-  // ocho eran dos meses de renglones para revisar el corte de ayer.
-  //
-  // Las otras seis se siguen CALCULANDO -y siguen contando en «lo que falta
-  // por depositar»-, asi que si esto baja de dos, lo que se rompio es el
-  // dibujo, no el calculo.
-  const SEMANAS_A_LA_VISTA = 2
-  const bloques = [...doc.querySelectorAll('[data-bloque]')]
-  if (bloques.length < SEMANAS_A_LA_VISTA) {
-    errores.push(`${donde} · se dibujaron ${bloques.length} bloques semanales de ${SEMANAS_A_LA_VISTA}`)
+  /** Salta a otra plaza por su pestaña y devuelve sus bloques. */
+  const irAPlaza = async nombre => {
+    const chip = [...doc.querySelectorAll('button')]
+      .find(x => (x.textContent || '').trim() === nombre)
+    if (!chip) {
+      errores.push(`${donde} · no hay pestaña para ${nombre} en los bloques`)
+      return []
+    }
+    clic(window, chip)
+    await nuevaVuelta(window, 6)
+    if (!enPie(window, `${donde} · bloques de ${nombre}`)) return []
+    return [...doc.querySelectorAll('[data-bloque]')]
   }
 
-  // Marcado y sin marcar, las dos ramas. Si solo sale una, la mitad de la
-  // pantalla no se ejecuta: el dato de mentira tiene dos semanas marcadas.
-  const marcados = bloques.filter(b => b.dataset.depositado === '1')
-  const sinMarcar = bloques.filter(b => b.dataset.depositado === '0')
-  if (!marcados.length) errores.push(`${donde} · ningun bloque sale como depositado`)
-  if (!sinMarcar.length) errores.push(`${donde} · ningun bloque sale sin depositar`)
+  const estados = new Set()
+  const depositados = new Set()
+  let bloquesVistos = 0
 
-  // Los estados tienen que ser varios. Todos iguales significa que
-  // `estadoDeposito` no esta corriendo.
-  const estados = new Set(bloques.map(b => b.dataset.estado))
+  for (const nombre of ['León', 'San Luis Potosí', 'Aguascalientes']) {
+    const suyos = nombre === 'León'
+      ? [...doc.querySelectorAll('[data-bloque]')]
+      : await irAPlaza(nombre)
+    if (!suyos.length) {
+      errores.push(`${donde} · ${nombre} no dibujo ningun bloque semanal`)
+      continue
+    }
+    // El numero se CALCULA del inicio del historial: hoy uno, dos a partir
+    // del lunes siguiente. Escrito a mano fallaria solo sin estar roto nada.
+    if (suyos.length !== BLOQUES_HOY) {
+      errores.push(`${donde} · ${nombre} dibujo ${suyos.length} bloques y tocaban ${BLOQUES_HOY} desde el ${INICIO_HISTORIAL}`)
+    }
+    bloquesVistos += suyos.length
+    for (const x of suyos) {
+      estados.add(x.dataset.estado)
+      depositados.add(x.dataset.depositado)
+    }
+  }
+
+  // Lo de antes del inicio del historial NO se dibuja. Si vuelve a contarse,
+  // «lo que debe entrar al banco» regresa a los $411,648 de dinero que ya
+  // esta en el banco, y eso no se distingue de una deuda real.
+  const viejos = [...doc.querySelectorAll('[data-bloque]')]
+    .map(x => x.dataset.bloque).filter(c => c < INICIO_HISTORIAL)
+  if (viejos.length) {
+    errores.push(`${donde} · se dibujaron semanas anteriores al inicio del historial (${viejos.join(', ')}): vuelven a contarse como pendientes`)
+  }
+
+  if (!depositados.has('1')) errores.push(`${donde} · ningun bloque sale como depositado`)
+  if (!depositados.has('0')) errores.push(`${donde} · ningun bloque sale sin depositar`)
   if (estados.size < 2) {
     errores.push(`${donde} · todos los bloques salen con el estado «${[...estados]}»: el estado no se calcula`)
   }
   if (!estados.has('sin-control')) {
-    errores.push(`${donde} · ningun bloque sale como «sin control»: las semanas de antes del 2026-11-05 se estan juzgando`)
+    errores.push(`${donde} · ningun bloque sale como «sin control»: una semana sin registro de salidas se esta juzgando`)
   }
 
   // El aviso del techo, que es el que evita perseguir un faltante inventado.
+  // Se mira estando en San Luis, que es la plaza sin control.
+  await irAPlaza('San Luis Potosí')
   if (!/no se compara contra el dep[oó]sito/i.test(texto())) {
     errores.push(`${donde} · un bloque sin control de salidas no avisa de que no se compara: se leeria como una cifra`)
   }
 
-  // ── La tabla diaria ──
-  const verDias = [...sinMarcar[0].querySelectorAll('button')]
-    .find(b => /ver d[ií]as/i.test(b.textContent || ''))
+  // ── La tabla diaria, de vuelta en Leon ──
+  await irAPlaza('León')
+  const sinMarcar = [...doc.querySelectorAll('[data-bloque][data-depositado="0"]')]
+  const verDias = sinMarcar.length && [...sinMarcar[0].querySelectorAll('button')]
+    .find(x => /ver d[ií]as/i.test(x.textContent || ''))
   if (!verDias) {
     errores.push(`${donde} · un bloque no tiene como desplegar sus dias`)
   } else {
@@ -1042,18 +1174,26 @@ async function revisarEfectivo(window, donde) {
     if (!enPie(window, `${donde} · tabla diaria`)) return tarjetas.length
 
     const lineas = [...doc.querySelectorAll('[data-linea]')].map(l => l.dataset.linea)
-    // Las trece lineas del calculo mas el arqueo. Si falta una, el neto sale
-    // de una resta que no se ve, y nadie puede comprobarlo.
+    // Las trece lineas del calculo, los faltantes y el arqueo. Si falta una,
+    // el neto sale de una resta que no se ve y nadie puede comprobarlo.
     for (const necesaria of [
       'ventaTotal', 'tarjeta', 'transferencia', 'otrasNoEfectivo', 'efectivoCobrado',
       'devoluciones', 'gastos', 'retiros', 'adelantos', 'proveedores',
-      'otrasSalidas', 'entradas', 'neto', 'arqueo',
+      'otrasSalidas', 'entradas', 'neto', 'faltantes', 'arqueo',
     ]) {
       if (!lineas.includes(necesaria)) {
         errores.push(`${donde} · falta la linea «${necesaria}» de la tabla diaria`)
       }
     }
   }
+
+  // ── Los faltantes registrados ──
+  //
+  // Va antes de marcar, porque marcar recarga. Lo que se comprueba aqui es la
+  // regla que el dueño puso el 2026-11-06 y que no falla sola: que se enseñe
+  // lo que alguien REGISTRO y que NO se enseñen los descuadres que Eleventa
+  // escribe al cerrar turno.
+  await revisarFaltantes(window, donde)
 
   // ── Marcar como depositado ──
   //
@@ -1063,6 +1203,59 @@ async function revisarEfectivo(window, donde) {
   await marcarUnBloque(window, donde)
 
   return tarjetas.length
+}
+
+/**
+ * La seccion de faltantes registrados.
+ *
+ * Dos comprobaciones, y la que importa es la segunda:
+ *
+ *   · Que se dibuje lo que alguien registro como salida por faltante -uno
+ *     desde Eleventa y otro capturado en la pagina-, agrupado por persona.
+ *   · Que NO aparezca «jenni gllardo», que solo existe en los descuadres de
+ *     corte del dato de mentira. El dueño los quito el 2026-11-06 porque no
+ *     son precisos: $67,152 en diez meses, el 2.84% del efectivo cobrado, que
+ *     no es dinero que desaparece sino un cierre que nadie cuadra. Enseñarlos
+ *     acusa de un robo a quien solo cerro deprisa, y eso no falla solo.
+ */
+async function revisarFaltantes(window, donde) {
+  const doc = window.document
+  const chip = [...doc.querySelectorAll('button')]
+    .find(x => /^faltantes/i.test((x.textContent || '').trim()))
+  if (!chip) {
+    errores.push(`${donde} · no hay pestaña de faltantes`)
+    return
+  }
+  clic(window, chip)
+  await nuevaVuelta(window, 6)
+  if (!enPie(window, `${donde} · faltantes`)) return
+
+  if (!doc.querySelector('[data-faltantes]')) {
+    errores.push(`${donde} · la seccion de faltantes no se dibujo: un faltante registrado no saldria en ningun sitio`)
+    return
+  }
+  const texto = doc.body.textContent || ''
+  if (!/falt[oó] en el corte de la tarde/i.test(texto)) {
+    errores.push(`${donde} · un faltante capturado en la pagina no se dibuja`)
+  }
+  if (!/FALTANTE EN CAJA/i.test(texto)) {
+    errores.push(`${donde} · un faltante registrado en Eleventa no se dibuja`)
+  }
+  if (!/2 veces/.test(texto)) {
+    errores.push(`${donde} · no se agrupa por persona: un faltante repetido del mismo cajero es la alerta que se pidio`)
+  }
+  if (/jenni gllardo/i.test(texto)) {
+    errores.push(`REGLA ROTA · ${donde} · se estan enseñando los descuadres de cierre de turno: no son precisos y acusan de un faltante a quien solo cerro deprisa`)
+  }
+
+  // Y de vuelta a los bloques, que es donde sigue el recorrido.
+  const volver = [...doc.querySelectorAll('button')]
+    .find(x => /bloques por sucursal/i.test((x.textContent || '').trim()))
+  if (volver) {
+    clic(window, volver)
+    await nuevaVuelta(window, 6)
+    enPie(window, `${donde} · de vuelta en los bloques`)
+  }
 }
 
 /**

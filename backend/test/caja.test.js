@@ -283,8 +283,13 @@ test('todo movimiento de caja lleva concepto, tipo conocido, dia y monto', async
   assert.ok(paso(await con({})), 'el movimiento completo tiene que pasar')
 })
 
-test('los seis tipos de movimiento se aceptan', async () => {
-  for (const tipo of ['gasto', 'retiro', 'adelanto', 'proveedor', 'otra-salida', 'entrada']) {
+test('los siete tipos de movimiento se aceptan, faltante incluido', async () => {
+  // `faltante` entro el 2026-11-06, cuando el dueño cambio de donde sale un
+  // faltante: de los descuadres que Eleventa escribe al cerrar turno -que no
+  // son precisos- a la salida que alguien registra porque de verdad falto
+  // dinero. Sin este tipo esa salida no se puede capturar desde la pagina, y
+  // la seccion de faltantes se queda con lo que venga de Eleventa y nada mas.
+  for (const tipo of ['gasto', 'retiro', 'adelanto', 'proveedor', 'otra-salida', 'entrada', 'faltante']) {
     const r = await pedir('POST', '/caja/movimiento', {
       token: tokenAdmin(),
       cuerpo: { sucursal: 'leon', id: `m-${tipo}`, fecha: '2026-11-05', tipo, monto: 50, concepto: 'x' },

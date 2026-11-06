@@ -13,6 +13,7 @@ import {
   flujoDelDia, flujoSemana, estadoDeposito, fechaDeDeposito, efectivoEnCaja,
   semaforo, faltantesDe, gastosQueDuelen, periodoQueCubre, pesos,
   bloqueSemanal, bloquesSemanales, acumuladoPorDepositar, tieneDatos,
+  INICIO_HISTORIAL,
 } from './caja.js'
 
 // Parámetros de una plaza ya configurada, para no repetirlos en cada prueba.
@@ -267,10 +268,16 @@ test('sin fondo fijo, el efectivo en caja es null y no cero', () => {
 //
 // Lo pidió el dueño así: bloques semanales, no acumulados, cada uno con su
 // marca de depositado, y lo que no se marcó se va sumando.
+//
+// Las de aquí abajo pasan `desde: null` a propósito: miden cómo se apilan los
+// bloques y cómo se acumulan, que es independiente de desde cuándo cuenta el
+// historial. El recorte por `INICIO_HISTORIAL` tiene sus propias pruebas al
+// final de este apartado, y con `desde` escrito a mano en vez de la
+// constante, para que mover la constante no las vuelva verdes por accidente.
 
 test('cada semana es su propio bloque, de la mas reciente a la mas vieja', () => {
   const b = bloquesSemanales({
-    hasta: '2026-11-05', cuantas: 3, dias: [
+    hasta: '2026-11-05', cuantas: 3, desde: null, dias: [
       ...semanaPlana('2026-11-02'), ...semanaPlana('2026-10-26'), ...semanaPlana('2026-10-19'),
     ],
     params: CONFIGURADA, hoy: '2026-11-05T12:00',
@@ -285,7 +292,7 @@ test('cada semana es su propio bloque, de la mas reciente a la mas vieja', () =>
 
 test('un bloque sin marcar acumula; marcarlo lo saca de la cuenta', () => {
   const dias = [...semanaPlana('2026-11-02'), ...semanaPlana('2026-10-26')]
-  const base = { hasta: '2026-11-05', cuantas: 2, dias, params: CONFIGURADA, hoy: '2026-11-05T12:00' }
+  const base = { hasta: '2026-11-05', cuantas: 2, desde: null, dias, params: CONFIGURADA, hoy: '2026-11-05T12:00' }
 
   const sinMarcar = acumuladoPorDepositar(bloquesSemanales(base))
   assert.equal(sinMarcar.semanas, 2)
@@ -302,7 +309,7 @@ test('un bloque sin marcar acumula; marcarlo lo saca de la cuenta', () => {
 
 test('el efectivo en caja baja al marcar un bloque como depositado', () => {
   const dias = [...semanaPlana('2026-11-02'), ...semanaPlana('2026-10-26')]
-  const base = { hasta: '2026-11-05', cuantas: 2, dias, params: CONFIGURADA, hoy: '2026-11-05T12:00' }
+  const base = { hasta: '2026-11-05', cuantas: 2, desde: null, dias, params: CONFIGURADA, hoy: '2026-11-05T12:00' }
 
   assert.equal(efectivoEnCaja({ bloques: bloquesSemanales(base), params: CONFIGURADA }),
     1000 + 14000, 'fondo fijo más las dos semanas sin depositar')
@@ -329,7 +336,7 @@ test('el acumulado avisa cuando mezcla semanas sin control: es un techo', () => 
   // Dos semanas pendientes, una de antes del control. El total ya no es una
   // cifra, y presentarlo como tal es el error que `conControl` evita.
   const a = acumuladoPorDepositar(bloquesSemanales({
-    hasta: '2026-11-05', cuantas: 2,
+    hasta: '2026-11-05', cuantas: 2, desde: null,
     dias: [...semanaPlana('2026-11-02'), ...semanaPlana('2026-10-26')],
     params: { ...CONFIGURADA, desdeControlSalidas: '2026-11-02' },
     hoy: '2026-11-05T12:00',
@@ -340,7 +347,7 @@ test('el acumulado avisa cuando mezcla semanas sin control: es un techo', () => 
 
 test('con todas las semanas medidas, el acumulado es una cifra y lo dice', () => {
   const a = acumuladoPorDepositar(bloquesSemanales({
-    hasta: '2026-11-05', cuantas: 2,
+    hasta: '2026-11-05', cuantas: 2, desde: null,
     dias: [...semanaPlana('2026-11-02'), ...semanaPlana('2026-10-26')],
     params: { ...CONFIGURADA, desdeControlSalidas: '2026-01-01' },
     hoy: '2026-11-05T12:00',
@@ -370,6 +377,58 @@ test('una semana sin control se puede marcar como depositada igual', () => {
   assert.equal(b.estado, ESTADOS.SIN_CONTROL)
   assert.equal(b.diferencia, null, 'no se inventa un faltante de 1000')
   assert.equal(acumuladoPorDepositar([b]).total, 0, 'y deja de acumular')
+})
+
+// ── El historial arranca en ceros ───────────────────────────────────────────
+//
+// Lo pidió el dueño el 2026-11-06. Lo que arregla se vio en pantalla: «lo que
+// debe entrar al banco» decía $411,648 en 32 semanas sin marcar, dinero que ya
+// estaba en el banco desde hacía meses. Una deuda inventada de medio millón no
+// se distingue en pantalla de una real.
+
+test('no se cuentan semanas anteriores al inicio del historial', () => {
+  const b = bloquesSemanales({
+    hasta: '2026-11-05', cuantas: 8, desde: '2026-11-02',
+    dias: [
+      ...semanaPlana('2026-11-02'), ...semanaPlana('2026-10-26'),
+      ...semanaPlana('2026-10-19'), ...semanaPlana('2026-10-12'),
+    ],
+    params: CONFIGURADA, hoy: '2026-11-05T12:00',
+  })
+  assert.equal(b.length, 1, 'ocho pedidas, una existe: el historial empieza ese lunes')
+  assert.equal(b[0].clave, '2026-11-02')
+  // Y lo de antes no cuenta como pendiente, que es el punto entero.
+  assert.equal(acumuladoPorDepositar(b).total, 7000, 'no las 28,000 de las cuatro semanas')
+})
+
+test('el recorte crece solo conforme pasan las semanas', () => {
+  // La misma llamada, cuatro semanas después: ya son cinco bloques. Sin esto
+  // habría que tocar el código cada lunes.
+  const b = bloquesSemanales({
+    hasta: '2026-11-30', cuantas: 8, desde: '2026-11-02',
+    dias: semanaPlana('2026-11-02'), params: CONFIGURADA, hoy: '2026-11-30T12:00',
+  })
+  assert.equal(b.length, 5, 'del 2 de nov al 30 hay cinco lunes')
+  assert.equal(b[4].clave, '2026-11-02', 'y la más vieja es justo el inicio')
+})
+
+test('el recorte nunca deja la pantalla sin un solo bloque', () => {
+  // Con el inicio en el futuro la lista saldría vacía, y una lista vacía deja
+  // la pantalla en blanco: se ve igual que un fallo. La semana en curso sale
+  // siempre.
+  const b = bloquesSemanales({
+    hasta: '2026-11-05', cuantas: 8, desde: '2027-06-07',
+    dias: semanaPlana('2026-11-02'), params: CONFIGURADA, hoy: '2026-11-05T12:00',
+  })
+  assert.equal(b.length, 1)
+  assert.equal(b[0].clave, '2026-11-02')
+})
+
+test('el inicio del historial es un lunes, como todas las semanas de la casa', () => {
+  // Si fuera otro día, `semanaDe` lo corre a su lunes y el historial empezaría
+  // antes de lo que dice la constante, sin que nadie se entere.
+  assert.equal(diaDeSemana(INICIO_HISTORIAL), 1, 'el inicio del historial tiene que ser lunes')
+  assert.equal(semanaDe(INICIO_HISTORIAL).desde, INICIO_HISTORIAL)
 })
 
 // ── El semáforo ─────────────────────────────────────────────────────────────
@@ -439,13 +498,29 @@ test('pasada la hora limite del dia de deposito sale atrasado; pasado el dia, no
 
 // ── Los faltantes ───────────────────────────────────────────────────────────
 
+// 🔒 Llevan `tipo: 'faltante'` y eso es la prueba entera: desde el 2026-11-06
+// sólo cuenta la salida que alguien REGISTRÓ porque faltó dinero, no el
+// descuadre que Eleventa escribe sola al cerrar turno.
 const FALTANTES = [
-  { f: '2026-07-27', monto: 3840.13, persona: 'Administrador de la Tienda' },
-  { f: '2026-07-09', monto: 3161.15, persona: 'daniela coronilla' },
-  { f: '2026-06-05', monto: 2230.04, persona: 'daniela coronilla' },
-  { f: '2026-01-09', monto: 5700.00, persona: 'jenni gllardo' },
-  { f: '2025-12-23', monto: 7712.00, persona: 'Administrador de la Tienda' },
+  { f: '2026-07-27', tipo: 'faltante', monto: 3840.13, persona: 'Administrador de la Tienda' },
+  { f: '2026-07-09', tipo: 'faltante', monto: 3161.15, persona: 'daniela coronilla' },
+  { f: '2026-06-05', tipo: 'faltante', monto: 2230.04, persona: 'daniela coronilla' },
+  { f: '2026-01-09', tipo: 'faltante', monto: 5700.00, persona: 'jenni gllardo' },
+  { f: '2025-12-23', tipo: 'faltante', monto: 7712.00, persona: 'Administrador de la Tienda' },
 ]
+
+test('solo cuenta lo registrado como faltante, no cualquier salida', () => {
+  // Es la mitad de la regla nueva. Un gasto de caja en esta cuenta acusaría a
+  // alguien de perder dinero que de hecho se gastó en algo, y un descuadre de
+  // corte —que ya no llega aquí— acusaría a quien sólo cerró deprisa.
+  const r = faltantesDe([
+    ...FALTANTES,
+    { f: '2026-07-27', tipo: 'gasto', monto: 99999, concepto: 'papelería' },
+    { f: '2026-07-27', tipo: 'otra-salida', monto: 88888, concepto: 'sin clasificar' },
+    { f: '2026-07-27', monto: 77777, persona: 'daniela coronilla' },
+  ])
+  assert.equal(r.veces, 5, 'los cinco faltantes; ni el gasto, ni la otra salida, ni el que no dice tipo')
+})
 
 test('los faltantes NO restan del neto: son dinero que falta, no que salio', () => {
   // Contarlos como salida los haría desaparecer: el neto bajaría otro tanto y
@@ -474,7 +549,7 @@ test('los faltantes se pueden mirar por rango', () => {
 })
 
 test('un faltante sin persona no se pierde: se agrupa como sin identificar', () => {
-  const r = faltantesDe([{ f: '2026-05-01', monto: 100 }])
+  const r = faltantesDe([{ f: '2026-05-01', tipo: 'faltante', monto: 100 }])
   assert.equal(r.porPersona[0].persona, 'sin identificar')
   assert.equal(r.total, 100)
 })

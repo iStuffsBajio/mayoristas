@@ -25,7 +25,7 @@ import { apiConfigurada } from '../lib/api'
 import { useCaja } from '../lib/useCaja'
 import {
   ESTADOS, DIAS, pesos, pesosCortos, semaforo, faltantesDe, gastosQueDuelen,
-  periodoQueCubre, fechaDeDeposito, nombreDia, semanaDe,
+  periodoQueCubre, fechaDeDeposito, nombreDia, semanaDe, INICIO_HISTORIAL,
 } from '../lib/caja'
 
 const TINTA       = '#101619'
@@ -89,6 +89,13 @@ function rangoCorto({ desde, hasta }) {
   return a.getMonth() === b.getMonth()
     ? `${a.getDate()} al ${b.getDate()} de ${mes(b)}`
     : `${a.getDate()} de ${mes(a)} al ${b.getDate()} de ${mes(b)}`
+}
+
+/** Un día suelto, corto: «2 de nov». */
+function diaCorto(f) {
+  const [y, m, d] = String(f).split('-').map(Number)
+  const fecha = new Date(y, m - 1, d)
+  return `${fecha.getDate()} de ${fecha.toLocaleDateString('es-MX', { month: 'short' }).replace('.', '')}`
 }
 
 /**
@@ -202,6 +209,7 @@ const LINEAS = [
   ['otrasSalidas',    '− Otras salidas',                  'resta', 'Lo que Eleventa registró como Salida sin clasificar: sólo sabe Entrada o Salida'],
   ['entradas',        '+ Entradas de caja',               'suma',  'Lo que Eleventa registró como Entrada'],
   ['neto',            '= EFECTIVO NETO',                  'total', 'Efectivo cobrado menos devoluciones y salidas, más entradas'],
+  ['faltantes',       '· Faltantes registrados',          'nota',  'Salidas que alguien registró porque faltó dinero. Van aparte y NO restan del efectivo neto: si restaran, el depósito cuadraría al peso justo cuando falta dinero, y el único caso que esta pantalla existe para detectar sería el único invisible'],
 ]
 
 function Bloque({ plaza, bloque, onMarcar, onDesmarcar, onAjustar }) {
@@ -402,10 +410,14 @@ function TablaDias({ plaza, bloque, cubre, onAjustar }) {
         <tbody>
           {LINEAS.map(([clave, titulo, clase, deDonde]) => {
             const esTotal = clase === 'total'
+            // La línea de faltantes va por fuera del cálculo y tiene que
+            // VERSE por fuera: puesta con el mismo color que las restas,
+            // cualquiera la lee como una más y la suma con la vista.
+            const esNota = clase === 'nota'
             return (
               <tr key={clave} data-linea={clave}
                 style={{ background: esTotal ? 'rgba(16,22,25,0.025)' : undefined }}>
-                <td style={{ padding: '6px 8px', color: esTotal ? TINTA : TINTA_SUAVE,
+                <td style={{ padding: '6px 8px', color: esTotal ? TINTA : esNota ? AMBAR : TINTA_SUAVE,
                   fontWeight: esTotal ? 800 : 500, whiteSpace: 'nowrap',
                   position: 'sticky', left: 0, background: esTotal ? '#F7F8F9' : '#fff' }}>
                   {titulo}<DeDonde texto={deDonde} />
@@ -420,14 +432,14 @@ function TablaDias({ plaza, bloque, cubre, onAjustar }) {
                         : 'Clic para ajustar'}
                       style={{ padding: '6px 8px', textAlign: 'right', cursor: 'pointer',
                         fontWeight: esTotal ? 800 : 500, whiteSpace: 'nowrap',
-                        color: ajustado ? ROSA : !f.hayDato ? '#C9D5DA' : esTotal ? TINTA : TINTA_SUAVE }}>
+                        color: ajustado ? ROSA : !f.hayDato ? '#C9D5DA' : esTotal ? TINTA : esNota ? AMBAR : TINTA_SUAVE }}>
                       {ajustado && '✏️ '}
                       {f.hayDato || f[clave] ? pesos(f[clave]) : '—'}
                     </td>
                   )
                 })}
                 <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 800,
-                  color: esTotal ? TINTA : TINTA_SUAVE, whiteSpace: 'nowrap' }}>
+                  color: esTotal ? TINTA : esNota ? AMBAR : TINTA_SUAVE, whiteSpace: 'nowrap' }}>
                   {pesos(bloque.total[clave])}
                 </td>
               </tr>
@@ -559,12 +571,23 @@ function FormaAjuste({ plaza, fecha, clave, fila, onGuardar, onCerrar }) {
   )
 }
 
-// ── Los faltantes que ya trae Eleventa ──────────────────────────────────────
+// ── Los faltantes registrados ───────────────────────────────────────────────
 
+/**
+ * 🔒 Sólo lo que alguien registró a propósito.
+ *
+ * Hasta el 2026-11-06 esta sección enseñaba los descuadres que Eleventa
+ * escribe sola al cerrar turno. El dueño los quitó porque no son precisos
+ * —«ellos a la hora de cerrar no consideran que siempre tiene que coincidir
+ * el monto»— y los números le dan la razón: $67,152 en diez meses, el 2.84%
+ * de todo el efectivo cobrado y un 4.81% en San Luis. Eso no es dinero que
+ * desaparece, es un cierre que nadie cuadra, y enseñarlo como faltante acusa
+ * de un robo a quien sólo cerró deprisa.
+ */
 function Faltantes({ plazas }) {
   const anio = new Date().getFullYear()
   const porPlaza = plazas.map(p => ({
-    ...p, r: faltantesDe(p.faltantes, { desde: `${anio}-01-01`, hasta: `${anio}-12-31` }),
+    ...p, r: faltantesDe(p.movimientos, { desde: `${anio}-01-01`, hasta: `${anio}-12-31` }),
   })).filter(p => p.r.veces > 0).sort((a, b) => b.r.total - a.r.total)
 
   const total = porPlaza.reduce((a, p) => a + p.r.total, 0)
@@ -576,13 +599,16 @@ function Faltantes({ plazas }) {
   return (
     <div data-faltantes style={{ ...caja, borderLeft: `4px solid ${ROSA}` }}>
       <h3 style={{ margin: '0 0 6px', fontSize: 14.5, fontWeight: 800, color: TINTA }}>
-        💸 Efectivo que faltó al cerrar turno · {anio}
+        💸 Faltantes registrados · {anio}
       </h3>
       <p style={{ margin: '0 0 16px', fontSize: 12, color: TINTA_SUAVE, lineHeight: 1.65 }}>
-        Esto no lo captura nadie: lo escribe Eleventa sola cuando lo contado al
-        cerrar no cuadra, con el nombre de quien cerró. <strong>No es un retiro
-        y no resta del efectivo neto</strong> —contarlo como salida lo haría
-        desaparecer justo en el caso que importa—. Son <strong>{pesos(total)}</strong> en{' '}
+        Salidas de efectivo que alguien registró <strong>porque de verdad
+        faltó dinero</strong>, en Eleventa o aquí. No entran los descuadres que
+        el punto de venta escribe solo al cerrar turno: ésos no son precisos y
+        se quitaron. <strong>No restan del efectivo neto</strong> —si restaran,
+        el depósito cuadraría al peso justo cuando falta dinero—, así que
+        aparecen aquí y, a la vez, como la diferencia del bloque de esa semana.
+        Son <strong>{pesos(total)}</strong> en{' '}
         {porPlaza.reduce((a, p) => a + p.r.veces, 0)} veces.
       </p>
 
@@ -596,16 +622,31 @@ function Faltantes({ plazas }) {
               </span>
             </div>
             <div style={{ marginTop: 8, display: 'grid', gap: 4 }}>
-              {p.r.porPersona.map(x => (
-                <div key={x.persona} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12 }}>
+              {p.r.lineas.slice(0, 20).map((x, i) => (
+                <div key={x.id ?? `${x.f}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12 }}>
                   <span style={{ color: TINTA_SUAVE }}>
-                    {x.persona}
-                    {x.veces > 1 && <span style={{ color: ROSA, fontWeight: 700 }}> · {x.veces} veces</span>}
+                    {x.f} · {x.concepto || 'sin concepto'}
+                    {(x.persona || x.quien) && <span style={{ color: TINTA_TENUE }}> · {x.persona || x.quien}</span>}
                   </span>
-                  <span style={{ color: TINTA, fontWeight: 700 }}>{pesos(x.monto)}</span>
+                  <span style={{ color: TINTA, fontWeight: 700, whiteSpace: 'nowrap' }}>{pesos(x.monto)}</span>
                 </div>
               ))}
             </div>
+            {/* Repetido por la misma persona es la alerta que pidió el dueño,
+                y sólo se ve agrupando. Con uno solo no dice nada, así que no
+                se dibuja. */}
+            {p.r.porPersona.some(x => x.veces > 1) && (
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px solid ' + LINEA, display: 'grid', gap: 4 }}>
+                {p.r.porPersona.filter(x => x.veces > 1).map(x => (
+                  <div key={x.persona} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 12 }}>
+                    <span style={{ color: TINTA_SUAVE }}>
+                      {x.persona}<span style={{ color: ROSA, fontWeight: 700 }}> · {x.veces} veces</span>
+                    </span>
+                    <span style={{ color: TINTA, fontWeight: 700 }}>{pesos(x.monto)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -779,6 +820,14 @@ function Concentrado({ plazas }) {
       <p style={{ margin: '4px 0 0', fontSize: 12.5, color: 'rgba(255,255,255,0.65)' }}>
         {semanas === 0 ? 'todo depositado' : `${semanas} ${semanas === 1 ? 'semana' : 'semanas'} sin marcar, en ${conPendiente.length} ${conPendiente.length === 1 ? 'plaza' : 'plazas'}`}
       </p>
+      {/* Sin decir desde cuándo cuenta, una cifra pequeña se lee como que las
+          plazas casi no venden, y una grande como una deuda vieja. Decirlo
+          cuesta un renglón. */}
+      <p style={{ margin: '6px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.45)', lineHeight: 1.6 }}>
+        Cuenta desde el {diaCorto(INICIO_HISTORIAL)}: lo de antes ya se
+        depositó en su momento y no es un pendiente, aunque siga entero en el
+        archivo de la plaza.
+      </p>
       {techo && (
         <p style={{ margin: '10px 0 0', fontSize: 11.5, color: '#FBBF24', lineHeight: 1.6 }}>
           Es un máximo: hay semanas de antes de que las plazas registraran sus
@@ -925,10 +974,13 @@ export default function EfectivoPanel() {
       {!cargando && vista === 'faltantes' && (
         <>
           <Faltantes plazas={plazas} />
-          {plazas.every(p => faltantesDe(p.faltantes).veces === 0) && (
+          {plazas.every(p => faltantesDe(p.movimientos).veces === 0) && (
             <div style={caja}>
               <p style={{ margin: 0, fontSize: 13, color: TINTA_SUAVE, lineHeight: 1.7 }}>
-                Ninguna plaza tiene descuadres al cerrar turno en lo que hay publicado.
+                Ninguna plaza ha registrado una salida de efectivo por faltante.
+                Los descuadres que el punto de venta escribe solo al cerrar turno
+                ya no cuentan aquí: no son precisos, y acusaban de un faltante a
+                quien sólo cerró deprisa.
               </p>
             </div>
           )}
@@ -942,39 +994,80 @@ export default function EfectivoPanel() {
   )
 }
 
-/** El calendario de la semana en curso: efectivo neto por día y plaza. */
+/**
+ * La semana en curso: el efectivo neto día a día, y al lado la venta entera.
+ *
+ * Las cuatro columnas de la derecha las pidió el dueño el 2026-11-06: «me
+ * gustaría visualizar las ventas totales en general, el desglose de cada
+ * sucursal… a un costadito pagos con tarjeta, transferencia o todo lo demás, y
+ * a un ladito total ventas de la sucursal».
+ *
+ * Las dos cifras gordas de cada renglón miden cosas distintas y por eso no
+ * suman entre sí: **efectivo neto** es lo que debe quedar en el cajón —lo
+ * cobrado en efectivo menos devoluciones y salidas— y **venta total** es todo
+ * lo que se vendió, se cobrara como se cobrara. Van separadas por una línea
+ * para que nadie intente cuadrar la una con la otra.
+ */
 function Calendario({ plazas }) {
   const conDatos = plazas.filter(p => !p.sinDatos)
   if (!conDatos.length) return null
   const semana = conDatos[0].bloques[0]
+  if (!semana) return null
+
+  // Las cuatro de la derecha, en orden. `ventaTotal` cierra porque es la suma
+  // de las otras tres más el efectivo cobrado, y eso se lee de izquierda a
+  // derecha sin explicarlo.
+  const PAGOS = [
+    ['tarjeta',         'Tarjeta'],
+    ['transferencia',   'Transfer.'],
+    ['otrasNoEfectivo', 'Otros'],
+    ['ventaTotal',      'Venta total'],
+  ]
+
+  const suma = k => conDatos.reduce((a, p) => a + (p.bloques[0]?.total?.[k] ?? 0), 0)
+  const sumaDia = i => conDatos.reduce((a, p) => {
+    const f = p.bloques[0]?.filas?.[i]
+    return a + (f?.hayDato ? f.neto : 0)
+  }, 0)
+  const hayDia = i => conDatos.some(p => p.bloques[0]?.filas?.[i]?.hayDato)
+
+  const th = extra => ({
+    textAlign: 'right', padding: '6px 8px', fontSize: 10, fontWeight: 700, color: TINTA_TENUE,
+    textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid ' + LINEA,
+    whiteSpace: 'nowrap', ...extra,
+  })
+  // El borde a la izquierda separa el efectivo de la venta: son dos cuentas
+  // distintas y pegadas se leen como una sola fila de números que suma.
+  const corte = { borderLeft: '1px solid ' + LINEA }
 
   return (
-    <div style={{ ...caja, overflowX: 'auto' }}>
+    <div data-calendario style={{ ...caja, overflowX: 'auto' }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 14.5, fontWeight: 800, color: TINTA }}>
-        📅 Efectivo neto de la semana en curso
+        📅 La semana en curso, plaza por plaza
       </h3>
-      <p style={{ margin: '0 0 14px', fontSize: 11.5, color: TINTA_TENUE }}>
-        {rangoCorto(semana)} · el día de depósito de cada plaza va marcado con ▲
+      <p style={{ margin: '0 0 14px', fontSize: 11.5, color: TINTA_TENUE, lineHeight: 1.6 }}>
+        {rangoCorto(semana)} · el día de depósito de cada plaza va marcado con ▲.
+        Los siete días y «efectivo neto» son lo que debe quedar en el cajón;
+        de la línea a la derecha, lo que se vendió cobrara como se cobrara.
       </p>
-      <table style={{ width: '100%', minWidth: 520, borderCollapse: 'collapse', fontSize: 12.5 }}>
+      <table style={{ width: '100%', minWidth: 860, borderCollapse: 'collapse', fontSize: 12.5 }}>
         <thead>
           <tr>
-            <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700, color: TINTA_TENUE,
-              textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid ' + LINEA }}>Plaza</th>
-            {DIAS.map(d => (
-              <th key={d} style={{ textAlign: 'right', padding: '6px 8px', fontSize: 10, fontWeight: 700, color: TINTA_TENUE,
-                textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid ' + LINEA }}>{d.slice(0, 3)}</th>
+            <th style={th({ textAlign: 'left', position: 'sticky', left: 0, background: '#fff' })}>Plaza</th>
+            {DIAS.map(d => <th key={d} style={th()}>{d.slice(0, 3)}</th>)}
+            <th style={th({ fontWeight: 800, color: TINTA })}>Efectivo neto</th>
+            {PAGOS.map(([k, t], i) => (
+              <th key={k} style={th({ ...(i === 0 ? corte : null), ...(k === 'ventaTotal' ? { fontWeight: 800, color: TINTA } : null) })}>{t}</th>
             ))}
-            <th style={{ textAlign: 'right', padding: '6px 8px', fontSize: 10, fontWeight: 800, color: TINTA,
-              textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid ' + LINEA }}>Semana</th>
           </tr>
         </thead>
         <tbody>
           {conDatos.map(p => {
             const b = p.bloques[0]
             return (
-              <tr key={p.slug}>
-                <td style={{ padding: '7px 8px', color: TINTA, fontWeight: 600, whiteSpace: 'nowrap' }}>{p.nombre}</td>
+              <tr key={p.slug} data-plaza-calendario={p.slug}>
+                <td style={{ padding: '7px 8px', color: TINTA, fontWeight: 600, whiteSpace: 'nowrap',
+                  position: 'sticky', left: 0, background: '#fff' }}>{p.nombre}</td>
                 {b.filas.map((f, i) => (
                   <td key={f.f} style={{ padding: '7px 8px', textAlign: 'right', whiteSpace: 'nowrap',
                     color: !f.hayDato ? '#C9D5DA' : f.neto < 0 ? ROSA : TINTA_SUAVE }}>
@@ -985,10 +1078,48 @@ function Calendario({ plazas }) {
                 <td style={{ padding: '7px 8px', textAlign: 'right', fontWeight: 800, color: TINTA, whiteSpace: 'nowrap' }}>
                   {pesosCortos(b.total.neto)}
                 </td>
+                {PAGOS.map(([k], i) => (
+                  <td key={k} style={{ padding: '7px 8px', textAlign: 'right', whiteSpace: 'nowrap',
+                    ...(i === 0 ? corte : null),
+                    fontWeight: k === 'ventaTotal' ? 800 : 500,
+                    color: k === 'ventaTotal' ? TINTA : b.total[k] ? TINTA_SUAVE : '#C9D5DA' }}>
+                    {pesosCortos(b.total[k])}
+                  </td>
+                ))}
               </tr>
             )
           })}
         </tbody>
+        {/* Las ventas totales en general, que es lo que se pidió ver además
+            del desglose. Con una sola plaza la fila repetiría el renglón de
+            arriba, así que no se dibuja. */}
+        {conDatos.length > 1 && (
+          <tfoot>
+            <tr data-calendario-total style={{ background: 'rgba(16,22,25,0.025)' }}>
+              <td style={{ padding: '9px 8px', color: TINTA, fontWeight: 800, whiteSpace: 'nowrap',
+                borderTop: '2px solid ' + LINEA, position: 'sticky', left: 0, background: '#F7F8F9' }}>
+                Las {conDatos.length} plazas
+              </td>
+              {DIAS.map((d, i) => (
+                <td key={d} style={{ padding: '9px 8px', textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap',
+                  borderTop: '2px solid ' + LINEA, color: hayDia(i) ? TINTA_SUAVE : '#C9D5DA' }}>
+                  {hayDia(i) ? pesosCortos(sumaDia(i)) : '—'}
+                </td>
+              ))}
+              <td style={{ padding: '9px 8px', textAlign: 'right', fontWeight: 800, color: TINTA,
+                whiteSpace: 'nowrap', borderTop: '2px solid ' + LINEA }}>
+                {pesosCortos(suma('neto'))}
+              </td>
+              {PAGOS.map(([k], i) => (
+                <td key={k} style={{ padding: '9px 8px', textAlign: 'right', whiteSpace: 'nowrap',
+                  borderTop: '2px solid ' + LINEA, ...(i === 0 ? corte : null),
+                  fontWeight: 800, color: TINTA }}>
+                  {pesosCortos(suma(k))}
+                </td>
+              ))}
+            </tr>
+          </tfoot>
+        )}
       </table>
     </div>
   )

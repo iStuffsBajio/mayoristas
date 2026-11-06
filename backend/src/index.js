@@ -651,12 +651,15 @@ const MOTIVOS_CAJA = new Set([
   'error-de-captura', 'gasto-no-registrado', 'devolucion', 'faltante', 'otro',
 ])
 
-const TIPOS_MOV = new Set(['gasto', 'retiro', 'adelanto', 'proveedor', 'otra-salida', 'entrada'])
+// `faltante` está aquí para poder CAPTURARLO, no para que reste: `caja.js`
+// lo deja fuera del efectivo neto a propósito (ver `NO_RESTAN`).
+const TIPOS_MOV = new Set(['gasto', 'retiro', 'adelanto', 'proveedor', 'otra-salida', 'entrada', 'faltante'])
 
 /** Los campos de un día que se pueden corregir a mano. */
 const CAMPOS_AJUSTABLES = new Set([
   'efectivoCobrado', 'tarjeta', 'transferencia', 'otrasNoEfectivo', 'devoluciones',
   'gastos', 'retiros', 'adelantos', 'proveedores', 'otrasSalidas', 'entradas', 'arqueo',
+  'faltantes',
 ])
 
 const monto = v => {

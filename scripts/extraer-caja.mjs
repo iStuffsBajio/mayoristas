@@ -160,6 +160,20 @@ ORDER BY t.INICIO_EN;
  */
 const RE_DESCUADRE = /efectivo\s+(faltante|sobrante)\s+al\s+cerrar\s+turno\s+de\s+(.+?)(?:\s+del\s+(\d{1,2}\/\d{1,2}).*)?$/i
 
+/**
+ * Una salida que una PERSONA registró porque de verdad faltó dinero.
+ *
+ * Es la única clase de faltante que la pantalla enseña desde el 2026-11-06.
+ * Se separa de `otra-salida` por una razón de cálculo, no de presentación: un
+ * faltante no resta del efectivo neto —ver `NO_RESTAN` en `caja.js`—, y
+ * dejándolo caer en `otra-salida` restaría, el depósito cuadraría al peso y
+ * el dinero que falta se volvería invisible.
+ *
+ * Sólo se mira en las salidas. Un `sobrante` apuntado como ENTRADA es dinero
+ * que apareció, y ése sí entra a la caja como cualquier otra entrada.
+ */
+const RE_FALTANTE = /\bfaltante|\bsobrante|\bdescuadre/i
+
 /** Lo que teclea una persona se queda como concepto; lo que escribe Eleventa, no. */
 function clasificar(tipo, descripcion) {
   const d = String(descripcion || '').trim()
@@ -175,9 +189,10 @@ function clasificar(tipo, descripcion) {
   // El tipo fino —gasto, retiro, adelanto, proveedor— no lo distingue
   // Eleventa: sólo sabe Entrada o Salida. Entra como `otra-salida` y se
   // reclasifica en la página, que es donde alguien lo puede mirar.
+  const esEntrada = String(tipo).toLowerCase() === 'entrada'
   return {
     clase: 'movimiento',
-    tipo: String(tipo).toLowerCase() === 'entrada' ? 'entrada' : 'otra-salida',
+    tipo: esEntrada ? 'entrada' : RE_FALTANTE.test(d) ? 'faltante' : 'otra-salida',
     concepto: d,
   }
 }

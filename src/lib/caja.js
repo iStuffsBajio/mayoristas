@@ -55,6 +55,30 @@ export const PRIMER_DIA = 1  // getDay(): 0 domingo, 1 lunes
 export const DIAS = ['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo']
 
 /**
+ * 🔒 Desde cuándo cuenta esta pantalla. El historial arranca en CEROS.
+ *
+ * Lo puso el dueño el 2026-11-06, con sus palabras: «como es una sección
+ * nueva y técnicamente quiero empezar el historial en ceros, únicamente
+ * considerando la semana en curso, que es la semana que inicia del lunes 2 de
+ * noviembre al domingo 8 de noviembre».
+ *
+ * No es cosmética, y lo que arregla se vio en pantalla: «lo que debe entrar al
+ * banco» decía **$411,648 en 32 semanas sin marcar**, la más vieja del 14 de
+ * septiembre. Ese dinero ya está en el banco; lo que pasa es que se depositó
+ * meses antes de que existiera el botón de marcarlo, así que ocho semanas de
+ * venta de Eleventa se leían como un pendiente. Una deuda inventada de medio
+ * millón de pesos no se distingue en pantalla de una real, que es la misma
+ * trampa que `conControl` existe para evitar un escalón más abajo.
+ *
+ * Lo de antes **no se borra ni se pierde**: sigue entero en
+ * `caja/<plaza>.json` y se sigue pudiendo extraer. Lo único que cambia es que
+ * no se cuenta como pendiente de depositar ni se dibuja.
+ *
+ * Tiene que ser un LUNES, que es como empiezan las semanas de esta casa.
+ */
+export const INICIO_HISTORIAL = '2026-11-02'
+
+/**
  * Lo que puede pasarle al depósito de una semana.
  *
  * `SIN_CONTROL` no es un estado de dejadez: es el de una semana anterior a
@@ -117,6 +141,14 @@ const comoFecha = f => {
   return new Date(y, m - 1, d)
 }
 
+const SEMANA_MS = 7 * 24 * 60 * 60 * 1000
+
+/**
+ * Cuántas semanas hay entre dos lunes. Se redondea a propósito: `comoFecha`
+ * arma fechas locales y una hora de más o de menos no puede mover la cuenta.
+ */
+const semanasEntre = (a, b) => Math.round((comoFecha(b) - comoFecha(a)) / SEMANA_MS)
+
 /** La semana de lunes a domingo que contiene esa fecha. */
 export function semanaDe(fecha) {
   const d = comoFecha(fecha)
@@ -173,6 +205,20 @@ export const conControl = (fecha, params) => {
 export const CONCEPTOS = ['gasto', 'retiro', 'adelanto', 'proveedor', 'otra-salida']
 
 /**
+ * 🔒 `faltante` NO está en `CONCEPTOS`, y ésa es toda la regla.
+ *
+ * Un faltante registrado se cuenta, se enseña y se persigue, pero **no resta
+ * del efectivo neto**. Si restara, el esperado bajaría justo lo que falta, el
+ * depósito cuadraría al peso y el semáforo saldría verde: el único caso que
+ * esta pantalla existe para detectar sería el único invisible.
+ *
+ * Dejándolo fuera, la cuenta sale al revés y bien: el depósito viene corto
+ * por esa cantidad, el bloque sale en rojo, y la sección de faltantes dice de
+ * dónde salió la diferencia. La alarma y su explicación, a la vez.
+ */
+export const NO_RESTAN = ['faltante']
+
+/**
  * El flujo de un día, línea por línea.
  *
  * `d` es un día del archivo publicado; `movs` las entradas y salidas de ese
@@ -203,6 +249,8 @@ export function flujoDelDia(d = {}, movs = [], ajuste = null) {
     proveedores:   porTipo('proveedor'),
     otrasSalidas:  porTipo('otra-salida'),
     entradas:      porTipo('entrada'),
+    // Fuera del cálculo a propósito: ver `NO_RESTAN`.
+    faltantes:     porTipo('faltante'),
     arqueo:        d.arqueo === undefined || d.arqueo === null ? null : num(d.arqueo),
     nVentas:       num(d.nVentas),
   }
@@ -270,6 +318,7 @@ export function flujoSemana(semana, { dias = [], movimientos = [], ajustes = {},
       otrasSalidas:    sumar('otrasSalidas'),
       entradas:        sumar('entradas'),
       neto:            sumar('neto'),
+      faltantes:       sumar('faltantes'),
       nVentas:         sumar('nVentas'),
     },
     // La semana entera tiene control sólo si lo tienen sus siete días. Con uno
@@ -385,11 +434,24 @@ export function bloqueSemanal(semana, { dias, movimientos, ajustes, params = {},
  * clave con la que el bloque se marca y se guarda.
  */
 export function bloquesSemanales({
-  hasta, cuantas = 8, dias = [], movimientos = [], ajustes = {},
+  hasta, cuantas = 8, desde = INICIO_HISTORIAL, dias = [], movimientos = [], ajustes = {},
   params = {}, depositos = {}, hoy,
 } = {}) {
   const ultima = semanaDe(hasta ?? String(hoy ?? '').slice(0, 10))
-  return Array.from({ length: cuantas }, (_, i) => {
+
+  // El recorte va AQUÍ y no en las pantallas, que es donde se intentó primero
+  // y no bastó: el concentrado seguía sumando por su cuenta las semanas que
+  // la lista de bloques ya no enseñaba, y el dueño veía ocho donde la pantalla
+  // de al lado decía dos. Con un solo sitio que decida cuántas semanas
+  // existen, ninguna vista puede volver a contar de más.
+  //
+  // Y nunca devuelve vacío: la semana en curso sale siempre, aunque el inicio
+  // del historial fuera posterior. Una lista sin un solo bloque deja la
+  // pantalla en blanco, que se ve igual que un fallo.
+  const tope = desde ? semanasEntre(semanaDe(desde).desde, ultima.desde) + 1 : cuantas
+  const cuantasDeVerdad = Math.max(1, Math.min(cuantas, tope))
+
+  return Array.from({ length: cuantasDeVerdad }, (_, i) => {
     const semana = correrSemana(ultima, -i)
     return bloqueSemanal(semana, {
       dias, movimientos, ajustes, params, hoy,
@@ -462,26 +524,46 @@ export function semaforo({ estado, diferencia, dentroTolerancia, enCaja, params 
   return 'amarillo'   // pendiente
 }
 
-// ── Los faltantes que ya trae Eleventa ──────────────────────────────────────
+// ── Los faltantes ───────────────────────────────────────────────────────────
 
 /**
- * Los faltantes de caja NO son retiros, y por eso no restan del neto.
+ * 🔒 Un faltante es una SALIDA QUE ALGUIEN REGISTRÓ, no un descuadre de corte.
  *
- * Eleventa escribe sola una línea «Efectivo faltante al cerrar turno de
- * ‹nombre› del ‹fecha›» cuando lo contado no cuadra. Medido el 2026-11-05, de
- * enero a octubre: San Luis $28,300.29 · Torreón $15,310.33 · León $14,931.32
- * · Aguascalientes $8,610.18. **$67,152.12, el 2.84% del efectivo cobrado.**
+ * Lo decidió el dueño el 2026-11-06: «en la sección de faltantes viene
+ * efectivo que faltó al cerrar turno. Lo eliminaría porque realmente la
+ * información no es precisa, puesto que ellos a la hora de cerrar no
+ * consideran que siempre tiene que coincidir el monto. Lo dejaría cuando
+ * ellos registren una salida de efectivo por un faltante y no tanto por el
+ * momento del corte».
  *
- * Contarlos como salida los haría desaparecer: el neto bajaría otro tanto y la
- * caja «cuadraría» justo en el caso que esto existe para detectar. Son dinero
- * que falta, no dinero que salió, y van en su propia línea.
+ * Y tiene razón en los números. Eleventa escribe sola una línea «Efectivo
+ * faltante al cerrar turno de ‹nombre›» cada vez que lo contado no cuadra con
+ * lo cobrado, cuadre o no la caja de verdad: medido de enero a octubre de 2026
+ * eso sumaba **$67,152.12 en las cuatro plazas, el 2.84% del efectivo
+ * cobrado**, con San Luis al 4.81%. Un 5% de descuadre sostenido durante diez
+ * meses no es dinero que desaparece: es un cierre que nadie cuadra. Enseñarlo
+ * como faltante acusa de un robo a quien sólo cerró rápido.
+ *
+ * Esas líneas **se siguen extrayendo y se siguen apartando** —viven en
+ * `faltantes` de `caja/<plaza>.json`, y apartarlas sigue siendo imprescindible
+ * para que no caigan en `otra-salida` y resten del neto—. Lo que cambia es que
+ * no se enseñan ni se suman en ninguna pantalla.
+ *
+ * Lo que sí cuenta es lo que lee esta función: movimientos de tipo
+ * `faltante`, que son los que alguien tecleó a propósito porque de verdad
+ * faltó dinero.
  */
-export function faltantesDe(faltantes = [], { desde, hasta } = {}) {
-  const dentro = (faltantes ?? []).filter(x =>
-    (!desde || x.f >= desde) && (!hasta || x.f <= hasta))
+export function faltantesDe(movimientos = [], { desde, hasta } = {}) {
+  const dentro = (movimientos ?? []).filter(m =>
+    m?.tipo === 'faltante' && (!desde || m.f >= desde) && (!hasta || m.f <= hasta))
 
   const porPersona = new Map()
   for (const x of dentro) {
+    // Sólo `persona`, nunca `quien`. `quien` es el usuario que TECLEÓ el
+    // movimiento en la página —casi siempre el administrador— y agruparlo por
+    // ahí le colgaría a él todos los faltantes de las cuatro plazas. Pegar un
+    // nombre a una cantidad de dinero que falta es justo lo que no se puede
+    // hacer a la ligera, así que sin persona queda «sin identificar».
     const quien = x.persona || 'sin identificar'
     const e = porPersona.get(quien) ?? { persona: quien, veces: 0, monto: 0, fechas: [] }
     e.veces++

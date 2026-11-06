@@ -32,12 +32,16 @@ export const PLAZAS_CAJA = [
 ]
 
 /**
- * Cuántas semanas se CALCULAN. Ocho, y no se bajan.
+ * Cuántas semanas se CALCULAN como mucho. Ocho, y no se bajan.
  *
  * Es distinto de lo que se enseña. `acumuladoPorDepositar` suma las semanas
  * cargadas que nadie ha marcado como depositadas, así que recortar esto a dos
  * haría desaparecer de la cuenta una semana de hace un mes que siga sin
  * depositar —sin avisar, y es justo el dinero que hay que perseguir—.
+ *
+ * Quien manda de verdad hoy es `INICIO_HISTORIAL`: el historial arranca el
+ * 2026-11-02, así que ahora mismo esto da UNA semana y no ocho, y irá
+ * creciendo hasta toparse aquí. Este número es el techo, no la cifra.
  */
 export const SEMANAS = 8
 
@@ -51,6 +55,17 @@ export const SEMANAS = 8
  * depositar»; lo único que cambia es que no se dibujan.
  */
 export const SEMANAS_A_LA_VISTA = 2
+
+/**
+ * Tres cosas que esta pantalla NO cuenta, y conviene tenerlas juntas:
+ *
+ *   `INICIO_HISTORIAL`  nada de antes del 2026-11-02 es un pendiente
+ *   `conControl`        una semana sin control de salidas no da diferencia
+ *   `NO_RESTAN`         un faltante registrado no baja el efectivo neto
+ *
+ * Las tres son del dueño y las tres van en la misma dirección: antes de
+ * acusar a alguien de un faltante, estar seguro de que el número es suyo.
+ */
 
 export function useCaja(token, { semanas = SEMANAS, hasta = null } = {}) {
   const [datos, setDatos]       = useState(null)
@@ -122,7 +137,10 @@ export function useCaja(token, { semanas = SEMANAS, hasta = null } = {}) {
       // Lo viejo no se tira: sigue en `todos` y sigue contando arriba.
       bloques:   todos.slice(0, SEMANAS_A_LA_VISTA),
       todos,
-      faltantes: flujo?.faltantes ?? [],
+      // `flujo.faltantes` —los descuadres que escribe Eleventa sola al cerrar
+      // turno— NO se pasa a la pantalla. El dueño los quitó el 2026-11-06
+      // porque no son precisos: ver `faltantesDe` en `caja.js`. Se siguen
+      // extrayendo y apartando, que es lo que impide que resten del neto.
       respaldo:  flujo?.respaldo ?? null,
       enCaja:    efectivoEnCaja({ bloques: todos, params }),
       // Sin archivo publicado no es que no haya movimiento: es que el

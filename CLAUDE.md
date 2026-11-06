@@ -48,6 +48,7 @@ a las tiendas. Preguntar siempre.
 | `PIEZAS_MINIMAS` | `precioCobrado.js` | `3` | Piezas para que un código entre en esa cuenta |
 | `DIAS_PARA_DAR_DE_ALTA` | `surtidos.js` | `4` | Gracia antes de reclamar el alta de un surtido |
 | `TOLERANCIA` | `surtidos.js` | `0` | Piezas de diferencia que se dejan pasar |
+| `INICIO_HISTORIAL` | `caja.js` | `2026-11-02` | Desde cuándo cuenta el flujo de efectivo |
 
 ### Los cortes de clase se miden, no se copian
 
@@ -362,8 +363,10 @@ si la consola suelta un error.
 
 Hoy cubre: 3 sesiones · 11 pestañas · 12 secciones de panel · 29 cabeceras ·
 12 hallazgos de la cola de revisión, **los 4 lotes**, la bandeja de costos y
-**las 5 plazas del flujo de efectivo**. Si alguno de esos números baja, algo
-dejó de pintarse.
+**las 5 plazas del flujo de efectivo** —tres de ellas por dentro, porque desde
+que el historial arranca en ceros sólo hay una semana a la vista y las cuatro
+ramas (con control, sin control, marcado, sin marcar) ya no caben en una sola
+plaza—. Si alguno de esos números baja, algo dejó de pintarse.
 
 **Y para escribir en un campo controlado por React, el rastreador se siembra
 con algo DISTINTO de lo que se va a escribir.** `escribir()` lo sembraba
@@ -568,6 +571,39 @@ La fecha va **por plaza**, en los parámetros editables, porque una puede tardar
 en adoptarlo más que otra. Sin fecha configurada, NINGÚN día tiene control:
 equivocarse hacia el lado de no acusar a nadie es el error barato.
 
+### El historial arranca en CEROS: nada de antes del 2026-11-02 es un pendiente
+
+Lo pidió el dueño el 2026-11-06: «como es una sección nueva y técnicamente
+quiero empezar el historial en ceros, únicamente considerando la semana en
+curso, que es la semana que inicia del lunes 2 de noviembre al domingo 8».
+
+No es cosmética, y lo que arregla se vio en pantalla. «Lo que debe entrar al
+banco» decía **$411,648 en 32 semanas sin marcar**, la más vieja del 14 de
+septiembre. Ese dinero lleva meses en el banco; lo que pasa es que se depositó
+antes de que existiera el botón de marcarlo, así que ocho semanas de venta de
+Eleventa se leían como una deuda. **Una deuda inventada de medio millón de
+pesos no se distingue en pantalla de una real**, que es la misma trampa que
+`conControl` evita un escalón más abajo.
+
+Vive en `INICIO_HISTORIAL`, en `caja.js`, y el recorte va **dentro de
+`bloquesSemanales`**, no en las pantallas. Se intentó al revés y no bastó: el
+concentrado seguía sumando por su cuenta las semanas que la lista de bloques
+ya no enseñaba, y el dueño veía ocho donde la pantalla de al lado decía dos.
+
+Tres cosas que hay que saber antes de tocarlo:
+
+- **Tiene que ser un LUNES.** Cualquier otro día lo corre `semanaDe` a su
+  lunes y el historial empieza antes de lo que dice la constante. Hay prueba.
+- **Nunca devuelve una lista vacía.** La semana en curso sale siempre, aunque
+  el inicio fuera posterior: cero bloques deja la pantalla en blanco, que se
+  ve igual que un fallo.
+- **Lo de antes no se borra.** Sigue entero en `caja/<plaza>.json` y se sigue
+  extrayendo; lo único que cambia es que no cuenta como pendiente.
+
+El número de semanas crece solo cada lunes hasta toparse en las dos que se
+enseñan (`SEMANAS_A_LA_VISTA`). `verificar` lo calcula del mismo sitio en vez
+de escribirlo, o fallaría solo el lunes siguiente sin estar nada roto.
+
 ### Bloques semanales, no un acumulado
 
 Lo decidió el dueño: «maneja bloques semanales no acumuladas y en cada bloque
@@ -580,12 +616,13 @@ Con un saldo corrido no se podía saber QUÉ semana quedó sin depositar: sumaba
 bien y no servía de nada, porque la pregunta es «¿de qué semana es este
 dinero?» y un saldo de $38,000 no la contesta.
 
-### Los faltantes NO son retiros y no restan del neto
+### 🔒 Un faltante es una salida REGISTRADA, no un descuadre de corte
 
 Eleventa escribe sola una línea «Efectivo faltante al cerrar turno de ‹nombre›
-del ‹fecha›» cuando lo contado no cuadra. Medido de enero a octubre de 2026:
+del ‹fecha›» cada vez que lo contado no cuadra con lo cobrado. Medido de enero
+a octubre de 2026:
 
-| Plaza | Efectivo cobrado | Faltantes | % |
+| Plaza | Efectivo cobrado | Descuadres | % |
 |---|---|---|---|
 | León | $965,652.53 | $14,931.32 | 1.55% |
 | San Luis | $588,389.78 | **$28,300.29** | **4.81%** |
@@ -593,17 +630,65 @@ del ‹fecha›» cuando lo contado no cuadra. Medido de enero a octubre de 2026
 | Torreón | $390,645.66 | $15,310.33 | 3.92% |
 | **Total** | **$2,365,277.07** | **$67,152.12** | **2.84%** |
 
-San Luis lleva además **$134,810.01 en 51 faltantes durante 2025**.
+El dueño los quitó de la pantalla el 2026-11-06: «realmente la información no
+es precisa, puesto que ellos a la hora de cerrar no consideran que siempre
+tiene que coincidir el monto a la hora de cerrar el turno. Lo dejaría cuando
+ellos registren una salida de efectivo por un faltante y no tanto por el
+momento del corte».
 
-Contarlos como salida los haría desaparecer: el neto bajaría otro tanto y la
-caja «cuadraría» justo en el caso que esto existe para detectar. Son dinero que
-falta, no dinero que salió, y van en su propia línea.
+Y los números le dan la razón. Un 5% de descuadre sostenido durante diez meses
+no es dinero que desaparece: es un cierre que nadie cuadra. Enseñarlo como
+faltante **acusa de un robo a quien sólo cerró deprisa**, con su nombre pegado
+a una cantidad.
+
+Lo que cuenta ahora son los movimientos de tipo `faltante`: la salida que
+alguien tecleó —en Eleventa o en la página— porque de verdad faltó dinero.
+`faltantesDe()` lee eso y nada más.
+
+**Las líneas automáticas se siguen extrayendo, y apartarlas sigue siendo
+imprescindible.** No por enseñarlas —no se enseñan— sino porque si cayeran en
+`otra-salida` **restarían del efectivo neto**. Por eso `RE_DESCUADRE` no se
+toca: su trabajo de verdad es ése. Viven en `faltantes` de
+`caja/<plaza>.json`, por si alguna vez hacen falta.
+
+**Y un faltante registrado tampoco resta del neto** —`NO_RESTAN` en
+`caja.js`—. Si restara, el esperado bajaría justo lo que falta, el depósito
+cuadraría al peso y el semáforo saldría verde: el único caso que esta pantalla
+existe para detectar sería el único invisible. Dejándolo fuera sale al revés y
+bien: el depósito viene corto por esa cantidad, el bloque sale en rojo, y la
+sección de faltantes dice de dónde salió la diferencia. La alarma y su
+explicación a la vez.
+
+Se agrupa por `persona`, **nunca por `quien`**: `quien` es el usuario que
+tecleó el movimiento —casi siempre el administrador— y agrupar por ahí le
+colgaría a él los faltantes de las cuatro plazas.
+
+San Luis lleva además **$134,810.01 en 51 descuadres durante 2025**, que por
+lo mismo tampoco se enseñan.
 
 **Sólo los ve el administrador.** Lo decidió el dueño: «solo admin tiene acceso,
 ellos hacen todo directo en eleventa». Todas las rutas de `/caja` exigen
 `sesion.admin`, ni su propia plaza, porque esas líneas llevan el nombre de quien
 cerró pegado a una cantidad de dinero que falta. Y por eso `caja/` **no es
 público**: lo sirve el backend, igual que `personal/` y `revisiones/`.
+
+### El cuadro de la semana enseña dos cuentas que NO suman entre sí
+
+Lo pidió el dueño el 2026-11-06: al lado del efectivo, «pagos con tarjeta,
+transferencia o todo lo demás, y a un ladito total ventas de la sucursal», más
+las ventas totales en general.
+
+Las dos cifras gordas de cada renglón miden cosas distintas:
+
+| | qué es |
+|---|---|
+| **Efectivo neto** | lo que debe quedar en el cajón: cobrado en efectivo − devoluciones − salidas |
+| **Venta total** | todo lo que se vendió, se cobrara como se cobrara |
+
+Por eso van separadas por una línea vertical y lo dice el pie: pegadas se leen
+como una fila de números que suma, y restando una de otra no sale nada. La
+fila de abajo suma las plazas, y no se dibuja con una sola —repetiría el
+renglón de arriba—.
 
 ### Ningún parámetro trae valor por defecto
 
