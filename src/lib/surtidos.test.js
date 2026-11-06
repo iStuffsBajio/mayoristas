@@ -9,6 +9,7 @@ import assert from 'node:assert/strict'
 import {
   ESTADOS, DIAS_PARA_DAR_DE_ALTA, TOLERANCIA,
   existenciasDe, nuevoFolio, cuadrar, juntarFolios, resumirFolios, lineasDesdeSurtido,
+  PUEDE_SURTIR, puedeSurtir,
 } from './surtidos.js'
 
 const SALIO = new Date('2026-11-01T12:00:00Z')
@@ -146,4 +147,31 @@ test('las lineas salen de lo calculado, y lo mandado puede corregirlas', () => {
   // linea del folio en vez de registrar un envio que no ocurrio.
   const corregido = lineasDesdeSurtido(filas, { mandado: { A: 4, B: 0 } })
   assert.deepEqual(corregido.map(l => [l.codigo, l.piezas]), [['A', 4]])
+})
+
+test('quien puede registrar un surtido va por CAPACIDAD, no por «admin»', () => {
+  // Estaba atado a admin, y con eso el encargado de bodega -que es quien
+  // manda la mercancia- no habria podido registrar nada aunque el backend si
+  // le dejara. El panel enseñaba una puerta que el servidor cerraba.
+  assert.equal(puedeSurtir({ isAdmin: true, plaza: 'leon' }), true)
+  assert.equal(puedeSurtir({ isAdmin: false, plaza: 'bodega' }), true)
+  assert.equal(puedeSurtir({ isAdmin: false, plaza: 'leon' }), false,
+    'una tienda recibe, no manda')
+  assert.equal(puedeSurtir({ isAdmin: false, plaza: 'san-luis' }), false)
+  assert.equal(puedeSurtir({}), false)
+  assert.equal(puedeSurtir(), false, 'sin sesion no se registra nada')
+})
+
+test('el nombre de la plaza se normaliza antes de decidir', () => {
+  // La sesion guarda lo que mando el login. Un espacio o una mayuscula no
+  // pueden decidir un permiso.
+  assert.equal(puedeSurtir({ plaza: ' BODEGA ' }), true)
+})
+
+test('la lista de capacidad tiene que decir lo mismo que el backend', () => {
+  // No se pueden compartir -son dos paquetes- asi que se escriben dos veces.
+  // Esta prueba no puede leer el backend, pero deja la lista fijada: si
+  // alguien la cambia aqui sin tocar `PUEDE_SURTIR` en
+  // `backend/src/index.js`, el fallo sale en esta linea y no en produccion.
+  assert.deepEqual(PUEDE_SURTIR, ['admin', 'bodega'])
 })

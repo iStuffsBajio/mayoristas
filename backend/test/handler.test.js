@@ -401,3 +401,43 @@ test('una plaza inventada se rechaza antes de tocar S3', async () => {
 test('sin plaza no se adivina ninguna', async () => {
   assert.equal((await pedir('GET', '/ventas', { token: tokenAdmin() })).statusCode, 400)
 })
+
+// ── El usuario de bodega ────────────────────────────────────────────────────
+
+const tokenBodega = () => crearSesion({ sucursal: 'bodega', admin: false }, SECRETO)
+
+test('bodega SI puede registrar una salida, y una tienda no', async () => {
+  // El permiso va por capacidad (`PUEDE_SURTIR`), no atado a admin: el
+  // encargado de bodega es quien manda la mercancia.
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenBodega(),
+    cuerpo: { folio: 'B1', destino: 'leon', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.notEqual(r.statusCode, 403)
+})
+
+test('bodega no es un destino valido: no se surte a si misma', async () => {
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenBodega(),
+    cuerpo: { folio: 'B2', destino: 'bodega', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('bodega puede corregir y contestar la cola, como cualquiera con sesion', async () => {
+  // Importa que pueda: su panel tiene la seccion de Revisar. Y lo que
+  // escriba tiene que volver a leerse, que es lo que fallaba.
+  assert.notEqual((await pedir('POST', '/ajustes', {
+    token: tokenBodega(), cuerpo: { codigo: 'X', motivo: 'ya-no-existe' },
+  })).statusCode, 403)
+  assert.notEqual((await pedir('GET', '/revisiones', { token: tokenBodega() })).statusCode, 403)
+})
+
+test('bodega NO entra en lo que es solo del dueño', async () => {
+  // La venta linea por linea lleva la lista de mayoristas; el efectivo lleva
+  // los faltantes con nombre y apellido. Ninguna de las dos es suya.
+  assert.equal((await pedir('GET', '/ventas', {
+    token: tokenBodega(), query: { plaza: 'leon' } })).statusCode, 403)
+  assert.equal((await pedir('GET', '/caja', { token: tokenBodega() })).statusCode, 403)
+  assert.equal((await pedir('GET', '/turnos', { token: tokenBodega() })).statusCode, 403)
+})

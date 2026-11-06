@@ -32,6 +32,23 @@ const SUCURSALES = {
   torreon:          { nombre: 'Torreón',         carpeta: 'Torreon' },
 }
 
+/**
+ * Todos los que pueden ESCRIBIR algo con su nombre.
+ *
+ * Cada quien escribe solo su archivo -`revisiones/<quien>.json`,
+ * `ajustes/<quien>.json`, `surtidos/<quien>.json`- y al leer se juntan. Esta
+ * es la lista de a quienes hay que ir a buscar.
+ *
+ * Tiene que estar COMPLETA o el trabajo de quien falte desaparece sin que
+ * nadie se entere: se guarda bien, y al leer no se pide. Paso con bodega, que
+ * no estaba: su usuario podia contestar la cola de revision y corregir
+ * codigos, y nada de eso volvia nunca.
+ *
+ * Por eso vive aqui una sola vez. Estaba escrita tres, y dos de las tres se
+ * habian quedado atras.
+ */
+const QUIENES_ESCRIBEN = ['admin', 'bodega', ...Object.keys(SUCURSALES)]
+
 const MAX_IMAGEN_BYTES = 10 * 1024 * 1024
 const TIPOS_IMAGEN = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
@@ -323,8 +340,8 @@ async function rutaRevisiones(evento, origen) {
   const sesion = sesionDe(evento)
   if (!sesion) return responder(origen, 403, { error: 'Requiere sesión.' })
 
-  const quienes = ['admin', ...Object.keys(SUCURSALES)]
-  const archivos = await Promise.all(quienes.map(async q => [q, await leerJson(claveRevisiones(q))]))
+  const archivos = await Promise.all(
+    QUIENES_ESCRIBEN.map(async q => [q, await leerJson(claveRevisiones(q))]))
 
   const marcas = {}
   for (const [quien, datos] of archivos) {
@@ -399,8 +416,8 @@ async function rutaAjustes(evento, origen) {
   const sesion = sesionDe(evento)
   if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
 
-  const quienes = ['admin', ...Object.keys(SUCURSALES)]
-  const archivos = await Promise.all(quienes.map(async q => [q, await leerJson(claveAjustes(q))]))
+  const archivos = await Promise.all(
+    QUIENES_ESCRIBEN.map(async q => [q, await leerJson(claveAjustes(q))]))
 
   const ajustes = []
   for (const [quien, datos] of archivos) {
@@ -491,8 +508,8 @@ async function rutaSurtidos(evento, origen) {
   const sesion = sesionDe(evento)
   if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
 
-  const quienes = ['admin', 'bodega', ...Object.keys(SUCURSALES)]
-  const archivos = await Promise.all(quienes.map(async q => [q, await leerJson(claveSurtidos(q))]))
+  const archivos = await Promise.all(
+    QUIENES_ESCRIBEN.map(async q => [q, await leerJson(claveSurtidos(q))]))
 
   const surtidos = []
   for (const [quien, datos] of archivos) {

@@ -7,6 +7,9 @@ const SUCURSALES = [
   { name: 'San Luis Potosí', slug: 'san-luis' },
   { name: 'Aguascalientes',  slug: 'aguascalientes' },
   { name: 'Torreón',         slug: 'torreon' },
+  // El encargado de bodega entra con el suyo. No es una sucursal que venda:
+  // es quien surte, y por eso su panel es otro -ver `SucursalPanel`-.
+  { name: 'Bodega',          slug: 'bodega' },
 ]
 
 const EyeOpen = () => (

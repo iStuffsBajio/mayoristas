@@ -39,6 +39,26 @@
 // llevó. Las piezas vendidas salen del archivo por mes, igual que en el resto
 // del panel.
 
+/**
+ * 🔒 Quién puede registrar una salida de bodega.
+ *
+ * Tiene que decir LO MISMO que `PUEDE_SURTIR` en `backend/src/index.js`. No se
+ * pueden compartir -son dos paquetes- así que se escribe dos veces y se dice
+ * aquí, que es lo único que evita que se separen sin que nadie lo note.
+ *
+ * Y el que manda es el del backend: esto sólo decide si se enseña el botón.
+ * Enseñar un botón que el servidor va a rechazar es peor que no enseñarlo,
+ * pero esconderlo no protege nada por sí solo.
+ *
+ * Va por capacidad y no atado a «admin» porque el encargado de bodega entra
+ * con su propio usuario y tiene que heredarlo sin tocar ninguna pantalla.
+ */
+export const PUEDE_SURTIR = ['admin', 'bodega']
+
+/** Si esta sesión puede registrar surtidos. */
+export const puedeSurtir = ({ isAdmin, plaza } = {}) =>
+  isAdmin || PUEDE_SURTIR.includes(String(plaza ?? '').trim().toLowerCase())
+
 /** Lo que le puede pasar a un folio. */
 export const ESTADOS = {
   EN_CAMINO:  'en-camino',   // salió; el alta todavía no aparece

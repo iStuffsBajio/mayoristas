@@ -25,21 +25,41 @@ import RevisarPanel from './RevisarPanel'
  * sitio: no son suyas. El backend no se fía de esto —comprueba la sesión en
  * cada petición—, esto sólo evita enseñar puertas que no se pueden abrir.
  */
-const SECCIONES = [
+const SECCIONES_TIENDA = [
   { id: 'revisar', icono: '🔍', titulo: 'Revisar', sub: 'Códigos y nombres, uno a uno' },
   { id: 'surtido', icono: '🚚', titulo: 'Surtido', sub: 'Lo que te toca recibir' },
 ]
 
+/**
+ * Bodega no es una tienda, y enseñarle lo mismo sería un error de bulto: «lo
+ * que te toca recibir» es exactamente lo contrario de su trabajo.
+ *
+ * Lo suyo es al revés —qué mandar a cada plaza y qué comprar al proveedor— y
+ * es quien registra las salidas, que ya le deja hacer `puedeSurtir`.
+ */
+const SECCIONES_BODEGA = [
+  { id: 'surtido', icono: '🚚', titulo: 'Surtir', sub: 'Qué mandar a cada tienda, y registrarlo' },
+  { id: 'bodega',  icono: '🏬', titulo: 'Comprar', sub: 'Lo que hay que pedir al proveedor' },
+  { id: 'revisar', icono: '🔍', titulo: 'Revisar', sub: 'Códigos y nombres, uno a uno' },
+]
+
 export default function SucursalPanel() {
   const { session, branchName } = useAuth()
-  const [seccion, setSeccion] = useState('revisar')
   const plaza = session?.branch ?? null
+  const esBodega = plaza === 'bodega'
+
+  const SECCIONES = esBodega ? SECCIONES_BODEGA : SECCIONES_TIENDA
+  const [seccion, setSeccion] = useState(SECCIONES[0].id)
 
   return (
     <div className="mx-auto w-full" style={{ maxWidth: 1344, padding: '0 var(--marco) 60px' }}>
       <header className="sucursal-cabecera">
         <h2>{branchName}</h2>
-        <p>Lo que marques aquí lo ve administración al momento.</p>
+        <p>
+          {esBodega
+            ? 'Lo que registres aquí se comprueba solo contra el respaldo de la tienda que lo recibe.'
+            : 'Lo que marques aquí lo ve administración al momento.'}
+        </p>
       </header>
 
       {/* El mismo menú que el panel de administración, con dos entradas. El
@@ -68,7 +88,12 @@ export default function SucursalPanel() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
         {seccion === 'revisar' && <RevisarPanel />}
-        {seccion === 'surtido' && <SurtidoPanel ambito="sucursales" plaza={plaza} />}
+        {/* Bodega entra sin plaza fija: tiene que poder elegir a cuál manda.
+            Una tienda entra ya en la suya, que es lo único que le incumbe. */}
+        {seccion === 'surtido' && (
+          <SurtidoPanel ambito="sucursales" plaza={esBodega ? null : plaza} />
+        )}
+        {seccion === 'bodega' && esBodega && <SurtidoPanel ambito="bodega" />}
       </div>
     </div>
   )

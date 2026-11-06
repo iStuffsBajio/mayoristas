@@ -1315,6 +1315,10 @@ async function marcarUnBloque(window, donde) {
 const SESIONES = [
   ['sin sesión', null],
   ['sucursal',   { isAdmin: false, branch: 'leon', token: 'x' }],
+  // Bodega entra con la suya y ve OTRO panel: surtir y comprar, no «lo que te
+  // toca recibir». Sin recorrerla, ese panel no lo mira nadie hasta que lo
+  // abra el encargado, y lo que se rompa ahi se descubre en el mostrador.
+  ['bodega',     { isAdmin: false, branch: 'bodega', token: 'x' }],
   ['admin',      { isAdmin: true,  branch: null,   token: 'x' }],
 ]
 
@@ -1405,7 +1409,7 @@ for (const [nombre, sesion] of SESIONES) {
 
 // ── El parte ───────────────────────────────────────────────────────────────
 
-console.log(`\nsesiones 3 · pestañas ${pestanas} · secciones de admin ${secciones} · cabeceras pulsadas ${cabeceras} · hallazgos recorridos ${hallazgos}`)
+console.log(`\nsesiones ${SESIONES.length} · pestañas ${pestanas} · secciones de admin ${secciones} · cabeceras pulsadas ${cabeceras} · hallazgos recorridos ${hallazgos}`)
 console.log(`  busqueda por codigo en ventas: ${fichasDeCodigo} ficha dibujada`)
 if (fichasDeCodigo < 1) errores.push('la busqueda por codigo de ventas no se ejecuto')
 console.log(`  bandeja de costos que faltan: ${bandejasDeCosto} dibujada`)

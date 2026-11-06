@@ -1185,6 +1185,59 @@ de los respaldos.
 
 ---
 
+## 🔒 CONFIRMAR — El usuario de bodega
+
+Bodega entra con su propia contraseña y ve **otro panel**. No es una tienda:
+«lo que te toca recibir» es exactamente lo contrario de su trabajo.
+
+| | Tienda | Bodega |
+|---|---|---|
+| Surtido | lo que le toca recibir, en su plaza | **Surtir**: qué mandar a cada tienda, y registrarlo |
+| | — | **Comprar**: lo que hay que pedir al proveedor |
+| Revisar | sí | sí |
+
+### El permiso va por CAPACIDAD, y está escrito dos veces a la fuerza
+
+`PUEDE_SURTIR` vive en `backend/src/index.js` **y** en `src/lib/surtidos.js`.
+Son dos paquetes y no se puede compartir, así que las dos listas tienen que
+decir lo mismo: `['admin', 'bodega']`. Hay una prueba que la fija en el
+frontend para que el fallo salga ahí y no en producción.
+
+El que manda es **el del backend**. El del frontend sólo decide si se dibuja
+el botón: enseñar uno que el servidor va a rechazar es peor que no enseñarlo,
+pero esconderlo no protege nada por sí solo.
+
+### `QUIENES_ESCRIBEN`: la lista que no puede quedarse corta
+
+Cada quien escribe sólo su archivo —`revisiones/<quien>.json`,
+`ajustes/<quien>.json`, `surtidos/<quien>.json`— y al leer se juntan. Esa
+lista de a quién hay que ir a buscar **tiene que estar completa**, o el
+trabajo de quien falte desaparece sin que nadie se entere: se guarda bien, y
+al leer no se pide.
+
+Pasó con bodega. Estaba escrita **tres veces** y sólo una incluía a bodega, así
+que su usuario podía contestar la cola de revisión y corregir códigos, y nada
+de eso volvía nunca. Ahora vive una sola vez en `QUIENES_ESCRIBEN`.
+
+**Si algún día hay otro usuario que escriba, va ahí.** Es el único sitio.
+
+### Lo que bodega NO ve, y por qué
+
+- **Ventas línea por línea**: lleva la lista de mayoristas del negocio.
+- **Efectivo**: lleva los faltantes al cerrar turno, con nombre pegado a una
+  cantidad de dinero que falta.
+- **Personal**: lo mismo.
+
+Las tres dan 403 con su sesión, y hay pruebas que lo fijan.
+
+### Para darlo de alta
+
+Basta con **`HASH_BODEGA`** en las variables de la Lambda. No hay cambio de
+código: el login busca `HASH_<SUCURSAL>` y `quienEs()` devuelve `bodega` para
+una sesión no-administradora con esa plaza.
+
+---
+
 ## ⚠️ VERIFICAR — Despliegue
 
 - **`revisiones/` no es público y no puede serlo.** Las notas de la cola de

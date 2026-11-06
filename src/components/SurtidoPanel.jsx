@@ -16,7 +16,7 @@ import { clasePorModelo, agotadosPorUbicacion } from '../lib/clases'
 import BarrasAgotados from './BarrasAgotados'
 import { useAuth } from '../context/AuthContext'
 import { useSurtidos } from '../lib/useSurtidos'
-import { cuadrar, lineasDesdeSurtido, resumirFolios, ESTADOS as ESTADOS_SURTIDO, DIAS_PARA_DAR_DE_ALTA } from '../lib/surtidos'
+import { cuadrar, lineasDesdeSurtido, resumirFolios, puedeSurtir, ESTADOS as ESTADOS_SURTIDO, DIAS_PARA_DAR_DE_ALTA } from '../lib/surtidos'
 import { salidasEntre } from '../lib/radiografia'
 
 // Para la columna de reparto: «leon 9 · slp 4» cabe, los nombres largos no.
@@ -292,9 +292,13 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
 
   // El registro de lo que ya salio. Va por capacidad y no por «admin»: cuando
   // exista el usuario del encargado de bodega lo hereda sin tocar esto.
-  const { token, isAdmin } = useAuth()
+  const { token, isAdmin, session } = useAuth()
   const { folios, registrar, cerrar, sinRed: sinRedSurtidos } = useSurtidos(token)
-  const puedeRegistrar = isAdmin
+
+  // Por CAPACIDAD, no por «admin». Estaba atado a admin y con eso el usuario
+  // del encargado de bodega -que es quien manda la mercancía- no habría
+  // podido registrar nada, aunque el backend sí le dejara.
+  const puedeRegistrar = puedeSurtir({ isAdmin, plaza: session?.branch })
   const [registrando, setRegistrando] = useState(false)
   const [avisoSurtido, setAvisoSurtido] = useState(null)
 
@@ -1172,7 +1176,11 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
               try {
                 const lineas = lineasDesdeSurtido(porVenta)
                 const f = await registrar({
-                  destino: sel, lineas, quien: 'admin',
+                  // Quién lo registró, de verdad: el folio es una bitácora y
+                  // firmarlo todo como «admin» la vacía de la mitad de su
+                  // valor. El backend lo vuelve a resolver de la sesión, así
+                  // que esto no es el permiso: es la etiqueta.
+                  destino: sel, lineas, quien: isAdmin ? 'admin' : session?.branch,
                   inventarioDestino: datos?.[sel]?.inv,
                 })
                 setAvisoSurtido(`Registrado el folio ${f.folio}: ${lineas.length} codigos, `
