@@ -67,6 +67,14 @@
 // Y de paso resuelve una pregunta que llevaba abierta: a qué mayorista se le
 // vendió cada ticket se puede saber, y está en uso.
 
+// La clasificacion no se repite aqui: `produccion.js` conoce los stickers y
+// `familias.js` las micas y el hidrogel, los dos por CODIGO y con el nombre
+// como red de seguridad -y el patron ya acepta las erratas del catalogo de
+// verdad, HIDRIOGEL y HODROGEL-. Duplicarla era garantizar que una se quedara
+// atras.
+import { seProduce } from './produccion.js'
+import { esProtector } from './familias.js'
+
 /** El departamento que no son productos sino clientes. */
 export const DEPTO_MAYORISTAS = 'mayoristas'
 
@@ -276,4 +284,129 @@ export function pesoDelMayoreo(porCodigo) {
     }
   }
   return out
+}
+
+// ── El precio promedio por plaza ───────────────────────────────────────────
+//
+// Es el dato que pidió el dueño, y con sus palabras: «me habla precisamente de
+// cuánto vende la sucursal a público versus cuánto vende a mayoreo». No es una
+// curiosidad: una plaza que vende casi todo a mayoreo tiene otro negocio que
+// una que vende al mostrador, y hasta ahora no se podía ver.
+//
+// ── Qué queda fuera, y por qué NO es un corte de pesos ─────────────────────
+//
+// El dueño pidió excluir «los productos que su costo es menor a 100 pesos, por
+// ejemplo stickers pequeños y productos adicionales». La intención está clara;
+// el corte por pesos no la cumple, medido:
+//
+//   · **Por COSTO no se puede.** Todo el catálogo de fundas cuesta entre $55 y
+//     $60, así que un umbral de $100 por costo deja fuera absolutamente todo.
+//     Es la misma lección que ya costó una corrida en `precios.js`.
+//
+//   · **Por PRECIO deja fuera fundas de verdad.** En Aguascalientes un corte de
+//     $100 se lleva el 61% de las piezas: 595 códigos, 25,583 piezas y $1.22M.
+//     Entre ellos el IPHONE 7 PLUS a $53, el XR a $76 y el P30 LITE a $52, que
+//     son fundas liquidándose baratas, no «productos adicionales». Y al mismo
+//     tiempo DEJA DENTRO el hidrogel de privacidad, a $109.
+//
+// Lo que el dueño quiere decir -stickers y añadidos fuera, fundas dentro- es
+// exactamente lo que ya clasifican `produccion.js` y `familias.js`, por CÓDIGO
+// y con el nombre como red de seguridad. Así que se usa eso, que además acierta
+// con el hidrogel barato y con la funda vieja barata.
+//
+// El piso en pesos se queda disponible y en CERO: lo único que descarta por
+// defecto es el precio cero, que no es un precio sino una línea regalada o mal
+// capturada, y que arrastraría el promedio hacia abajo.
+
+/** 🔒 Piso de precio para el promedio. Cero: sólo descarta el precio cero. */
+export const PISO_PRECIO = 0
+
+/**
+ * El precio promedio de una plaza, separando público de mayoreo.
+ *
+ * `porCodigo` es el de `agregarVentas`. Devuelve los tres grupos por separado
+ * -fundas, protectores y producción- porque mezclarlos es justo lo que el
+ * dueño pidió evitar, y porque verlos aparte dice más que esconderlos.
+ */
+export function precioPorPlaza(porCodigo, { piso = PISO_PRECIO } = {}) {
+  const grupo = () => ({
+    codigos: 0, pz: 0, dinero: 0,
+    pzPublico: 0, dineroPublico: 0, pzMayoreo: 0, dineroMayoreo: 0,
+    // Para el descuento, que se mide POR CODIGO y luego se pondera. Ver abajo.
+    descPeso: 0, descSuma: 0, invertidos: 0,
+  })
+  const grupos = { fundas: grupo(), protectores: grupo(), produccion: grupo() }
+
+  for (const [codigo, f] of Object.entries(porCodigo ?? {})) {
+    const pz = num(f.pz)
+    const dinero = num(f.dinero)
+    if (pz <= 0) continue
+    // Un precio de cero no es un precio: es una linea regalada o mal
+    // capturada, y metida en un promedio lo arrastra sin decir nada.
+    if (dinero / pz <= piso) continue
+
+    const nombre = String(f.producto ?? '')
+    const g = seProduce(codigo, nombre) ? grupos.produccion
+      : esProtector(codigo, nombre) ? grupos.protectores
+      : grupos.fundas
+
+    g.codigos++
+    g.pz += pz
+    g.dinero += dinero
+    g.pzMayoreo += num(f.pzMayoreo)
+    g.dineroMayoreo += num(f.dineroMayoreo)
+    g.pzPublico += pz - num(f.pzMayoreo)
+    g.dineroPublico += dinero - num(f.dineroMayoreo)
+
+    // ── El descuento se mide POR CODIGO, y esto no es un detalle ───────────
+    //
+    // Dividiendo los totales de la plaza sale la paradoja de Simpson: los
+    // modelos caros se van casi todos a mayoreo y los baratos al mostrador,
+    // asi que el promedio «de mayoreo» puede salir MAS ALTO que el «de
+    // publico» sin que ningun precio este mal. Paso de verdad: San Luis
+    // aparecia con el mayoreo un 9% mas caro y en su lista de precios no hay
+    // ni un solo precio invertido, 0 de 780.
+    //
+    // Comparando cada codigo contra si mismo eso desaparece, porque es el
+    // mismo producto en los dos lados.
+    const pzMay = num(f.pzMayoreo)
+    const pzPub = pz - pzMay
+    if (pzMay > 0 && pzPub > 0) {
+      const pMay = num(f.dineroMayoreo) / pzMay
+      const pPub = (dinero - num(f.dineroMayoreo)) / pzPub
+      if (pPub > 0) {
+        g.descSuma += (1 - pMay / pPub) * pz
+        g.descPeso += pz
+        // Un codigo que se cobra MAS CARO a mayoreo que al publico. Eso si es
+        // un precio mal puesto, y hay que poder perseguirlo por codigo.
+        if (pMay > pPub) g.invertidos++
+      }
+    }
+  }
+
+  const cerrar = g => ({
+    ...g,
+    precioMedio: g.pz > 0 ? g.dinero / g.pz : null,
+    // Los dos precios que de verdad se comparan. `null` cuando esa plaza no
+    // vendio nada de ese modo: un cero diria «lo da gratis».
+    precioPublico: g.pzPublico > 0 ? g.dineroPublico / g.pzPublico : null,
+    precioMayoreo: g.pzMayoreo > 0 ? g.dineroMayoreo / g.pzMayoreo : null,
+    // La mezcla, que es lo que distingue una plaza mayorista de una de
+    // mostrador.
+    mezclaPiezas: g.pz > 0 ? g.pzMayoreo / g.pz : null,
+    mezclaDinero: g.dinero > 0 ? g.dineroMayoreo / g.dinero : null,
+    // Cuanto mas barato sale el mayoreo, medido CODIGO A CODIGO y ponderado
+    // por piezas. No se divide un total entre otro: eso da la paradoja de
+    // Simpson y un descuento negativo donde no hay ningun precio mal.
+    descuento: g.descPeso > 0 ? g.descSuma / g.descPeso : null,
+    // Y aparte, cuantos codigos se cobran mas caro a mayoreo que al publico.
+    // Ese numero si senala precios que hay que corregir.
+    invertidos: g.invertidos,
+  })
+
+  return {
+    fundas: cerrar(grupos.fundas),
+    protectores: cerrar(grupos.protectores),
+    produccion: cerrar(grupos.produccion),
+  }
 }

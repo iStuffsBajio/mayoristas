@@ -10,9 +10,42 @@
 
 import { diasDePeriodo } from './estadisticas.js'
 
-// Noviembre y diciembre: Buen Fin y Navidad. En esos meses se cubre el doble
-// de días, porque reponer a medio repunte llega tarde.
-export const MESES_ALTA = [11, 12]
+// 🔒 Los meses en los que se cubre el doble de días, porque reponer a medio
+// repunte llega tarde.
+//
+// Noviembre y diciembre estaban desde el principio: Buen Fin y Navidad. ENERO
+// lo añadió el dueño el 2026-11-05, y lo respalda la medición de los tickets
+// -años de venta, no una impresión-. Dinero por día de venta, 1.00 = el
+// promedio de cada plaza:
+//
+//                  ene    nov    dic
+//     San Luis     1.19   0.83   1.84
+//     Aguascal.    1.25   0.86   1.88
+//     León         1.49   0.64   2.11
+//
+// Enero es el SEGUNDO mes más fuerte de los tres y estaba cayendo en
+// «temporada baja», así que la cobertura bajaba a 30 días justo cuando la
+// venta corre un 20-50% por encima de lo normal.
+//
+// ── Por qué noviembre se queda, aunque venda POCO ──────────────────────────
+//
+// Mirando la tabla, noviembre está por debajo del promedio en las tres plazas
+// y parece que no debería estar aquí. Es al revés, y es el punto importante de
+// esta regla: la cobertura compra días de venta AL RITMO DE HOY, y si el mes
+// siguiente corre más rápido, esos días valen menos días.
+//
+//     60 días comprados en noviembre aguantan de diciembre:
+//         León 18 d (×3.3)   ·   San Luis 27 d (×2.2)   ·   Ags 27 d (×2.2)
+//
+// Y el pedido al proveedor tarda 40 días. Es decir: **ni con la cobertura alta
+// puesta se llega a diciembre con un pedido normal**, y quitando noviembre de
+// aquí León pasaría de 18 días a 9. La regla no es obsoleta; se queda corta.
+//
+// Lo que la arreglaría de verdad es escalar la cobertura por el factor medido
+// del mes que hay que cubrir, en vez de un interruptor de dos posiciones. Eso
+// ya se puede calcular -el dato está en `ventas/<plaza>.json`- y es decisión
+// del dueño.
+export const MESES_ALTA = [1, 11, 12]
 
 export const COBERTURA = { baja: 30, alta: 60 }
 

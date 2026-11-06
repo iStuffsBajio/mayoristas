@@ -9,7 +9,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   agregarVentas, claseDeLinea, horaDe, diaSemanaDe, pesoDelMayoreo,
-  DEPTO_MAYORISTAS, DEPTO_STICKERS,
+  DEPTO_MAYORISTAS, DEPTO_STICKERS, precioPorPlaza, PISO_PRECIO,
 } from './ventasTicket.js'
 
 const ticket = (id, extra = {}) => ({
@@ -140,4 +140,75 @@ test('las horas y los dias se agregan, y el ticket se cuenta una sola vez', () =
   assert.equal(r.hasta, '2026-10-31')
   assert.equal(r.cajeros[0].cajero, 'Ana')
   assert.equal(r.cajeros[0].tickets, 2)
+})
+
+// ── El precio promedio por plaza ───────────────────────────────────────────
+
+test('el precio promedio separa publico de mayoreo, que es para lo que se pidio', () => {
+  const r = precioPorPlaza({
+    I13T: { producto: 'IPHONE 13 TPU CASE', pz: 10, dinero: 1800, pzMayoreo: 6, dineroMayoreo: 900 },
+  })
+  const f = r.fundas
+  assert.equal(f.precioPublico, 900 / 4, 'publico: 4 piezas por $900')
+  assert.equal(f.precioMayoreo, 900 / 6, 'mayoreo: 6 piezas por $900')
+  assert.equal(f.precioMedio, 180)
+  assert.equal(f.mezclaPiezas, 0.6)
+  assert.equal(f.mezclaDinero, 0.5)
+  // El mayoreo sale un 33% mas barato por pieza.
+  assert.ok(Math.abs(f.descuento - (1 - 150 / 225)) < 1e-9)
+})
+
+test('los stickers y las micas van APARTE, no se cuelan en el promedio', () => {
+  // Es lo que pidio el dueño -«sin considerar stickers pequeños y productos
+  // adicionales»- y se hace por CODIGO, con `produccion.js` y `familias.js`,
+  // no con un corte de pesos: un corte de $100 por precio se lleva el 61% de
+  // las piezas de Aguascalientes, fundas viejas baratas incluidas, y deja
+  // dentro el hidrogel de privacidad a $109.
+  const r = precioPorPlaza({
+    I13T: { producto: 'IPHONE 13 TPU CASE', pz: 2, dinero: 400, pzMayoreo: 0, dineroMayoreo: 0 },
+    SP:   { producto: 'STIKER PEQUEÑO',     pz: 100, dinero: 1000, pzMayoreo: 0, dineroMayoreo: 0 },
+    PV:   { producto: 'HIDROGEL PRIVACIDAD', pz: 50, dinero: 5450, pzMayoreo: 0, dineroMayoreo: 0 },
+  })
+  assert.equal(r.fundas.codigos, 1)
+  assert.equal(r.fundas.precioMedio, 200, 'los 100 stickers a $10 no tiran el promedio')
+  assert.equal(r.produccion.codigos, 1)
+  assert.equal(r.protectores.codigos, 1)
+  assert.equal(r.protectores.precioMedio, 109, 'y el hidrogel se ve, en su grupo')
+})
+
+test('una errata del catalogo no saca una mica del grupo de las micas', () => {
+  // HIDRIOGEL y HODROGEL conviven con HIDROGEL en el catalogo de verdad.
+  const r = precioPorPlaza({
+    XX1: { producto: 'MICA HIDRIOGEL HD ALTA', pz: 1, dinero: 77, pzMayoreo: 0, dineroMayoreo: 0 },
+    XX2: { producto: 'MICA HODROGEL MATE',     pz: 1, dinero: 88, pzMayoreo: 0, dineroMayoreo: 0 },
+  })
+  assert.equal(r.protectores.codigos, 2)
+  assert.equal(r.fundas.codigos, 0)
+})
+
+test('un precio de CERO no entra: no es un precio, es una linea regalada', () => {
+  const r = precioPorPlaza({
+    I13T: { producto: 'IPHONE 13 TPU CASE', pz: 2, dinero: 400, pzMayoreo: 0, dineroMayoreo: 0 },
+    FBX:  { producto: 'IPHONE XR TPU CASE', pz: 8, dinero: 0, pzMayoreo: 0, dineroMayoreo: 0 },
+  })
+  assert.equal(r.fundas.codigos, 1)
+  assert.equal(r.fundas.precioMedio, 200, 'las 8 regaladas arrastrarian el promedio a $40')
+})
+
+test('sin venta de un modo, ese precio es null y no cero', () => {
+  // Un cero diria «lo da gratis», que es lo contrario de «no vendio asi».
+  const r = precioPorPlaza({
+    I13T: { producto: 'IPHONE 13 TPU CASE', pz: 5, dinero: 1000, pzMayoreo: 5, dineroMayoreo: 1000 },
+  })
+  assert.equal(r.fundas.precioPublico, null)
+  assert.equal(r.fundas.precioMayoreo, 200)
+  assert.equal(r.fundas.descuento, null, 'sin las dos patas no hay descuento que calcular')
+})
+
+test('un mayoreo MAS CARO que el publico sale como descuento negativo', () => {
+  // No es un descuento raro: es un precio mal puesto, y hay que poder verlo.
+  const r = precioPorPlaza({
+    I13T: { producto: 'IPHONE 13 TPU CASE', pz: 2, dinero: 300, pzMayoreo: 1, dineroMayoreo: 200 },
+  })
+  assert.ok(r.fundas.descuento < 0)
 })
