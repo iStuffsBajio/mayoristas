@@ -16,6 +16,9 @@ import {
 } from '../lib/estadisticas'
 import { descargarHistorial, descargarComparativo, nombreDePeriodo } from '../lib/exportarEstadisticas'
 import { descargarCostos } from '../lib/exportarCostos'
+import { useVentas } from '../lib/useVentas'
+import { useAuth } from '../context/AuthContext'
+import { precioPorPlaza } from '../lib/ventasTicket'
 import { hayBusqueda } from '../lib/buscar'
 // La regla de buscar vive en la libreria, con sus pruebas, no aqui: la
 // pastilla de la plaza y la del rango no pueden esconder un codigo que existe.
@@ -767,6 +770,117 @@ function CostosQueFaltan({ filas }) {
   )
 }
 
+/**
+ * El precio al que vende cada plaza, con los tres negocios SEPARADOS.
+ *
+ * Lo pidió el dueño así, con estas palabras: «me parece mejor que la
+ * información vaya separada, porque me hace mucho ruido la mezcla». Y la
+ * mezcla engaña de verdad: el precio medio de Ferias sale $161, pero su funda
+ * se vende a $254 —la más cara de las cuatro plazas—. Lo que tira del número
+ * es que el 21% de sus piezas son STIKER PEQUEÑO a $10: ese código solo baja
+ * el promedio 28 pesos.
+ *
+ * Por eso aquí no hay ninguna cifra que junte los tres. Cada grupo con su
+ * precio, sus piezas y su mezcla de mayoreo.
+ *
+ * Todo sale de la VENTANA de 365 días, nunca del acumulado. El historial de
+ * cada plaza arranca un año distinto —Aguascalientes 2019, León 2025— y los
+ * precios subieron un 40% en cinco años: comparar los once meses de León con
+ * los siete años de Aguascalientes decía que una vendía a mitad de precio que
+ * la otra, y no era verdad.
+ */
+function PrecioPorPlaza({ porPlaza, plazas }) {
+  const GRUPOS = [
+    { k: 'fundas',      titulo: 'Fundas',          nota: 'el negocio' },
+    { k: 'protectores', titulo: 'Micas e hidrogel', nota: 'otro control de venta' },
+    { k: 'produccion',  titulo: 'Stickers',         nota: 'sin inventario: se imprimen' },
+  ]
+
+  const filas = plazas
+    .map(p => ({ plaza: p, datos: porPlaza?.[p.slug] }))
+    .filter(x => x.datos?.ventana?.porCodigo)
+    .map(x => ({ ...x, grupos: precioPorPlaza(x.datos.ventana.porCodigo) }))
+
+  if (!filas.length) return null
+
+  const dias = filas[0].datos.ventana?.dias ?? 365
+
+  return (
+    <section data-precio-plaza style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px' }}>
+      <h3 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
+        A qué precio vende cada plaza
+      </h3>
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 16px', lineHeight: 1.55 }}>
+        Lo que de verdad se cobró en la caja, de los últimos {dias} días. No es el precio de la
+        lista: es el de los tickets, línea por línea. Los tres grupos van <strong>aparte</strong>,
+        porque mezclarlos engaña —el precio medio de una plaza con muchos stickers se desploma
+        sin que haya bajado ninguna funda—.
+      </p>
+
+      {GRUPOS.map(g => {
+        const hay = filas.some(f => f.grupos[g.k].pz > 0)
+        if (!hay) return null
+        return (
+          <div key={g.k} style={{ marginBottom: 18 }}>
+            <h4 style={{ fontSize: 12, fontWeight: 800, color: TINTA, margin: '0 0 2px' }}>
+              {g.titulo}
+              <span style={{ fontWeight: 600, color: TINTA_TENUE }}> · {g.nota}</span>
+            </h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ color: TINTA_TENUE, fontSize: 10.5, textAlign: 'right' }}>
+                  <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 0' }}>Plaza</th>
+                  <th style={{ fontWeight: 600 }}>Piezas</th>
+                  <th style={{ fontWeight: 600 }}>Al público</th>
+                  <th style={{ fontWeight: 600 }}>A mayoreo</th>
+                  <th style={{ fontWeight: 600 }}>Descuento</th>
+                  <th style={{ fontWeight: 600 }}>Piezas a mayoreo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filas.map(({ plaza, grupos }) => {
+                  const x = grupos[g.k]
+                  if (!x.pz) return null
+                  const n = (v, suf = '') => (v === null || v === undefined
+                    ? <span style={{ color: TINTA_TENUE }}>—</span>
+                    : <>{suf === '%' ? Math.round(100 * v) + '%' : pesos(v)}</>)
+                  return (
+                    <tr key={plaza.slug} style={{ borderTop: '1px solid ' + LINEA, textAlign: 'right' }}>
+                      <td style={{ textAlign: 'left', padding: '6px 0', color: TINTA, fontWeight: 700 }}>
+                        {plaza.nombre}
+                      </td>
+                      <td style={{ color: TINTA_SUAVE }}>{x.pz.toLocaleString('es-MX')}</td>
+                      <td style={{ color: TINTA, fontWeight: 800 }}>{n(x.precioPublico)}</td>
+                      <td style={{ color: TINTA }}>{n(x.precioMayoreo)}</td>
+                      <td style={{ color: TINTA_SUAVE }}>{n(x.descuento, '%')}</td>
+                      <td style={{ color: TINTA_SUAVE }}>{n(x.mezclaPiezas, '%')}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+            {/* Los codigos cobrados MAS CARO a mayoreo que al publico. No es
+                un descuento raro: es un precio mal puesto, y hay que poder
+                perseguirlo por codigo en la sucursal. */}
+            {filas.some(f => f.grupos[g.k].invertidos > 0) && (
+              <p style={{ fontSize: 11, color: '#B45309', margin: '6px 0 0' }}>
+                Cobrados más caro a mayoreo que al público:{' '}
+                {filas.filter(f => f.grupos[g.k].invertidos > 0)
+                  .map(f => `${f.plaza.nombre} ${f.grupos[g.k].invertidos}`).join(' · ')}
+              </p>
+            )}
+          </div>
+        )
+      })}
+
+      <p style={{ fontSize: 11, color: TINTA_TENUE, margin: 0, lineHeight: 1.5 }}>
+        El descuento se mide código contra sí mismo y se resume con la mediana, no promediando:
+        un código vendido una vez a $1 al público arrastraba el promedio a −63%.
+      </p>
+    </section>
+  )
+}
+
 // ── Panel ─────────────────────────────────────────────────────────────────────
 
 // ── Buscar un código ──────────────────────────────────────────────────────────
@@ -868,6 +982,12 @@ function FichaCodigo({ ficha, rango }) {
 export default function EstadisticasPanel() {
   const activas  = useMemo(() => SUCURSALES.filter(s => s.activa), [])
   const opciones = useMemo(() => [TODAS, ...activas], [activas])
+
+  // La venta linea por linea, del backend. Es de ADMINISTRADOR: lleva los
+  // nombres de los mayoristas y el de quien cobro cada ticket, asi que una
+  // sucursal recibe 403 y la seccion simplemente no se dibuja.
+  const { token } = useAuth()
+  const { porPlaza: ventasPorPlaza } = useVentas(token, activas.map(x => x.slug))
 
   const [sel, setSel]     = useState(TODAS.slug)
   const [rango, setRango] = useState(30)
@@ -1173,6 +1293,11 @@ export default function EstadisticasPanel() {
           )}
 
           {huecoCosto.length > 0 && <CostosQueFaltan filas={huecoCosto} />}
+
+          {/* A qué precio vende cada plaza, con los tres grupos SEPARADOS.
+              Va aquí arriba, no al final: es lo que el dueño mira primero
+              para saber si una plaza es de mostrador o de mayoreo. */}
+          <PrecioPorPlaza porPlaza={ventasPorPlaza} plazas={activas} />
 
           {puente && <Puente puente={puente} />}
 
