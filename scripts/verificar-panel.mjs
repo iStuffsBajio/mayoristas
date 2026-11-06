@@ -210,10 +210,16 @@ const diasDe = (n, efectivo) => {
   })
 }
 
-// El control de salidas arranca hace DOS semanas: asi las tres primeras se
-// pueden juzgar y las demas salen como techo. Las dos ramas tienen que
-// dibujarse o la mitad de esta pantalla no se ejecuta nunca.
-const DESDE_CONTROL = semanaAtras(2)
+// El control de salidas arranca ESTA semana, que es ademas lo que pasa de
+// verdad: empezo el 2026-11-05. Asi la semana en curso se puede juzgar y la
+// pasada sale como techo.
+//
+// Estaba en dos semanas atras, y con eso las ramas de «con control» y «sin
+// control» caian en bloques que ya no se dibujan: la pantalla paso a enseñar
+// solo la semana pasada y esta -lo pidio el dueño el 2026-11-06- y las dos
+// quedaban despues del corte. La comprobacion no se aflojo; se movio el dato
+// para que las dos ramas sigan cayendo DENTRO de lo que se ve.
+const DESDE_CONTROL = semanaAtras(0)
 
 const diasDeOcho = base => Array.from({ length: 8 }, (_, n) => diasDe(n, base + n * 50)).flat()
 
@@ -991,9 +997,16 @@ async function revisarEfectivo(window, donde) {
   await nuevaVuelta(window, 8)
   if (!enPie(window, `${donde} · bloques de Leon`)) return tarjetas.length
 
+  // Dos: la semana pasada y esta. Lo pidio el dueño el 2026-11-06, porque
+  // ocho eran dos meses de renglones para revisar el corte de ayer.
+  //
+  // Las otras seis se siguen CALCULANDO -y siguen contando en «lo que falta
+  // por depositar»-, asi que si esto baja de dos, lo que se rompio es el
+  // dibujo, no el calculo.
+  const SEMANAS_A_LA_VISTA = 2
   const bloques = [...doc.querySelectorAll('[data-bloque]')]
-  if (bloques.length < 8) {
-    errores.push(`${donde} · se dibujaron ${bloques.length} bloques semanales de 8`)
+  if (bloques.length < SEMANAS_A_LA_VISTA) {
+    errores.push(`${donde} · se dibujaron ${bloques.length} bloques semanales de ${SEMANAS_A_LA_VISTA}`)
   }
 
   // Marcado y sin marcar, las dos ramas. Si solo sale una, la mitad de la

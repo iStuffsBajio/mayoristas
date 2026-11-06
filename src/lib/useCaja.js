@@ -10,7 +10,7 @@ import {
   caja as pedirCaja, marcarDeposito, ajustarCaja,
   guardarParametrosCaja, guardarMovimientoCaja,
 } from './api'
-import { PARAMETROS_VACIOS, bloquesSemanales, acumuladoPorDepositar, efectivoEnCaja } from './caja'
+import { PARAMETROS_VACIOS, bloquesSemanales, acumuladoPorDepositar, efectivoEnCaja, tieneDatos } from './caja'
 
 /** Las cinco plazas que manejan efectivo, en el orden en que se miran. */
 export const PLAZAS_CAJA = [
@@ -23,8 +23,26 @@ export const PLAZAS_CAJA = [
   { slug: 'ferias',         nombre: 'Ferias', estacional: true },
 ]
 
-/** Cuántas semanas se traen. Ocho cubre dos meses, que es lo que se revisa. */
+/**
+ * Cuántas semanas se CALCULAN. Ocho, y no se bajan.
+ *
+ * Es distinto de lo que se enseña. `acumuladoPorDepositar` suma las semanas
+ * cargadas que nadie ha marcado como depositadas, así que recortar esto a dos
+ * haría desaparecer de la cuenta una semana de hace un mes que siga sin
+ * depositar —sin avisar, y es justo el dinero que hay que perseguir—.
+ */
 export const SEMANAS = 8
+
+/**
+ * 🔒 Cuántas semanas se ENSEÑAN. Dos: la pasada y ésta.
+ *
+ * Lo pidió el dueño el 2026-11-06. Ocho semanas a la vista eran dos meses de
+ * renglones para revisar un corte de ayer.
+ *
+ * Las otras seis se siguen calculando y siguen contando en «lo que falta por
+ * depositar»; lo único que cambia es que no se dibujan.
+ */
+export const SEMANAS_A_LA_VISTA = 2
 
 export function useCaja(token, { semanas = SEMANAS, hasta = null } = {}) {
   const [datos, setDatos]       = useState(null)
@@ -84,7 +102,16 @@ export function useCaja(token, { semanas = SEMANAS, hasta = null } = {}) {
       enCaja:    efectivoEnCaja({ bloques, params }),
       // Sin archivo publicado no es que no haya movimiento: es que el
       // extractor no ha corrido para esa plaza, y se dice distinto.
-      sinDatos:  !flujo,
+      //
+      // Ojo con la comprobación: `leerJson` del backend devuelve `{}` cuando
+      // la clave no existe en S3, y `{}` es VERDADERO. Mirando sólo `!flujo`
+      // la pantalla daba por buena una plaza sin archivo y pintaba la semana
+      // entera en CEROS, que se lee como «no se vendió» cuando lo que pasa es
+      // que no se pudo mirar. Pasó de verdad el 2026-11-06, antes de que el
+      // extractor corriera por primera vez.
+      //
+      // Por eso se mira el contenido: un archivo de verdad siempre trae días.
+      sinDatos:  !tieneDatos(flujo),
     }
   }), [datos, semanas, hasta, hoy])
 

@@ -518,3 +518,20 @@ export function gastosQueDuelen(movimientos = [], params = {}) {
     .filter(m => m.sinComprobante || m.pasaMaximo)
     .sort((a, b) => num(b.monto) - num(a.monto))
 }
+
+/**
+ * 🔒 Si una plaza tiene dato de caja o no.
+ *
+ * Parece de sobra y no lo es. El backend devuelve `{}` cuando la clave no
+ * existe en S3 —`leerJson` traga el error y devuelve objeto vacío— y `{}` es
+ * VERDADERO. Comprobando sólo `!flujo`, la pantalla daba por buena una plaza
+ * sin archivo y pintaba la semana entera en CEROS.
+ *
+ * Y un cero aquí no es inocente: se lee como «no se vendió nada», que es lo
+ * contrario de «no se pudo mirar». Pasó el 2026-11-06, el día que se estrenó
+ * la pantalla y antes de que el extractor hubiera corrido nunca.
+ *
+ * Un archivo de verdad siempre trae días medidos; por eso se mira eso y no la
+ * existencia del objeto.
+ */
+export const tieneDatos = flujo => Array.isArray(flujo?.dias) && flujo.dias.length > 0

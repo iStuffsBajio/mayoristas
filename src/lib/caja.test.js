@@ -12,7 +12,7 @@ import {
   semanaDe, correrSemana, diasDeSemana, diaDeSemana, nombreDia, conControl,
   flujoDelDia, flujoSemana, estadoDeposito, fechaDeDeposito, efectivoEnCaja,
   semaforo, faltantesDe, gastosQueDuelen, periodoQueCubre, pesos,
-  bloqueSemanal, bloquesSemanales, acumuladoPorDepositar,
+  bloqueSemanal, bloquesSemanales, acumuladoPorDepositar, tieneDatos,
 } from './caja.js'
 
 // Parámetros de una plaza ya configurada, para no repetirlos en cada prueba.
@@ -506,4 +506,18 @@ test('con maximo configurado, un gasto grande salta aunque traiga comprobante', 
 test('el dinero se escribe en pesos mexicanos', () => {
   assert.match(pesos(1234.5), /1,234\.50/)
   assert.match(pesos(0), /0\.00/)
+})
+
+test('LA TRAMPA: un objeto vacio no es una plaza sin ventas, es una plaza sin archivo', () => {
+  // El backend devuelve {} cuando la clave no existe en S3 -`leerJson` traga
+  // el error- y {} es VERDADERO. Comprobando solo `!flujo`, la pantalla daba
+  // por buena la plaza y pintaba la semana en CEROS, que se lee como «no se
+  // vendio nada» cuando lo que pasa es que no se pudo mirar.
+  assert.equal(tieneDatos({}), false, 'esto es lo que devuelve el backend sin archivo')
+  assert.equal(tieneDatos(null), false)
+  assert.equal(tieneDatos(undefined), false)
+  assert.equal(tieneDatos({ dias: [] }), false, 'un archivo sin dias tampoco dice nada')
+  assert.equal(tieneDatos({ respaldo: { fecha: '2026-11-05' } }), false,
+    'traer respaldo pero ningun dia sigue siendo no tener dato')
+  assert.equal(tieneDatos({ dias: [{ f: '2026-11-05', efectivo: 100 }] }), true)
 })

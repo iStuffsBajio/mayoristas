@@ -22,7 +22,7 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { apiConfigurada } from '../lib/api'
-import { useCaja } from '../lib/useCaja'
+import { useCaja, SEMANAS_A_LA_VISTA } from '../lib/useCaja'
 import {
   ESTADOS, DIAS, pesos, pesosCortos, semaforo, faltantesDe, gastosQueDuelen,
   periodoQueCubre, fechaDeDeposito, nombreDia, semanaDe,
@@ -900,7 +900,10 @@ export default function EfectivoPanel() {
             </div>
           ) : (
             <div style={{ display: 'grid', gap: 14 }}>
-              {abierta.bloques.map(b => (
+              {/* Sólo la semana pasada y ésta, que es lo que pidió el dueño.
+                  Las demás se siguen calculando y siguen contando en «lo que
+                  falta por depositar»: lo que cambia es que no se dibujan. */}
+              {abierta.bloques.slice(0, SEMANAS_A_LA_VISTA).map(b => (
                 <Bloque key={b.clave} plaza={abierta} bloque={b}
                   onMarcar={marcar} onDesmarcar={desmarcar} onAjustar={ajustar} />
               ))}
