@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 import {
   agregarVentas, claseDeLinea, horaDe, diaSemanaDe, pesoDelMayoreo,
   DEPTO_MAYORISTAS, DEPTO_STICKERS, precioPorPlaza, PISO_PRECIO,
+  preciosDeVenta, soloPrecios, cobertura,
 } from './ventasTicket.js'
 
 const ticket = (id, extra = {}) => ({
@@ -265,4 +266,55 @@ test('una linea rara no puede torcer el descuento: se resume con MEDIANA', () =>
   })
   assert.equal(r.fundas.descuento, 0.5, 'la mediana no se mueve por el bicho')
   assert.equal(r.fundas.invertidos, 1, 'pero el bicho se cuenta y se puede perseguir')
+})
+
+// ── El precio con el que se valora todo ───────────────────────────────────
+
+test('el precio sale de lo COBRADO, no de la lista', () => {
+  // Aguascalientes cobra el 75% de su lista: valorar con la lista inflaba
+  // cada peso que el panel calculaba para esa plaza.
+  const m = preciosDeVenta(
+    { aguascalientes: { I13T: { pz: 10, dinero: 1670 } } },
+    { lista: { I13T: 250 } })
+  assert.equal(m.I13T.precio, 167)
+  assert.equal(m.I13T.de, 'cobrado')
+})
+
+test('la lista queda de respaldo para lo que no se vendio en la ventana', () => {
+  // Un modelo parado un año sigue teniendo existencia que vale dinero. Sin
+  // precio saldria en CERO, que es peor que un precio viejo.
+  const m = preciosDeVenta({ leon: {} }, { lista: { VIEJO: 216 } })
+  assert.equal(m.VIEJO.precio, 216)
+  assert.equal(m.VIEJO.de, 'lista', 'y se dice de donde salio')
+})
+
+test('varias plazas se ponderan por piezas, no se promedian a secas', () => {
+  // 10 piezas a $200 en una y 90 a $100 en otra dan $110, no $150: si no,
+  // una plaza chica pesa lo mismo que una grande.
+  const m = preciosDeVenta({
+    leon: { X: { pz: 10, dinero: 2000 } },
+    ags:  { X: { pz: 90, dinero: 9000 } },
+  })
+  assert.equal(m.X.precio, 110)
+  assert.equal(m.X.piezas, 100)
+})
+
+test('un precio de cero no pisa a la lista', () => {
+  const m = preciosDeVenta({ leon: { X: { pz: 5, dinero: 0 } } }, { lista: { X: 216 } })
+  assert.equal(m.X.precio, 216, 'regalar cinco piezas no fija el precio en cero')
+})
+
+test('se puede saber cuanto del valor se apoya en lista y cuanto en ticket', () => {
+  // Importa decirlo: una cifra que se apoya en la lista a medias no es la
+  // misma cifra, y el dueño tiene que poder verlo.
+  const m = preciosDeVenta({ leon: { A: { pz: 30, dinero: 6000 } } }, { lista: { B: 100 } })
+  const c = cobertura(m, { A: 30, B: 10 })
+  assert.equal(c.conCobrado, 30)
+  assert.equal(c.conLista, 10)
+  assert.equal(c.parte, 0.75)
+})
+
+test('el mapa plano es el que esperan las cuentas de radiografia', () => {
+  const m = preciosDeVenta({ leon: { X: { pz: 2, dinero: 400 } } })
+  assert.deepEqual(soloPrecios(m), { X: 200 })
 })

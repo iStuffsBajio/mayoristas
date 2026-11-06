@@ -18,7 +18,7 @@ import { descargarHistorial, descargarComparativo, nombreDePeriodo } from '../li
 import { descargarCostos } from '../lib/exportarCostos'
 import { useVentas } from '../lib/useVentas'
 import { useAuth } from '../context/AuthContext'
-import { precioPorPlaza } from '../lib/ventasTicket'
+import { precioPorPlaza, preciosDeVenta, soloPrecios, cobertura } from '../lib/ventasTicket'
 import { brechaDeLista } from '../lib/precioCobrado'
 import { descargarPrecios } from '../lib/exportarPrecios'
 import { hayBusqueda } from '../lib/buscar'
@@ -486,7 +486,7 @@ const pesos = n => '$' + Math.round(n).toLocaleString('es-MX')
  * Se arma con frases sueltas y se saltan las que no tienen dato detrás. Un
  * párrafo con huecos -«subió un  %»- destruye la confianza en todo lo demás.
  */
-function EnTreintaSegundos({ proyeccion, puente, empuje, rendimiento, parado, sucursal, huecoCosto }) {
+function EnTreintaSegundos({ proyeccion, puente, empuje, rendimiento, parado, sucursal, huecoCosto, apoyo }) {
   const frases = []
 
   if (proyeccion?.acumulado > 0) {
@@ -549,8 +549,13 @@ function EnTreintaSegundos({ proyeccion, puente, empuje, rendimiento, parado, su
       <h3 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 8px' }}>En 30 segundos</h3>
       <p style={{ fontSize: 14, color: TINTA, lineHeight: 1.65, margin: 0 }}>{frases.join(' ')}</p>
       <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '10px 0 0', lineHeight: 1.5 }}>
-        En pesos, al promedio de precio público y mayoreo de las plazas que venden. Las piezas
-        son un piso: una salida resurtida el mismo día no se ve.
+        En pesos, al <strong>precio que de verdad se cobró</strong> en la caja, con la mezcla de
+        público y mayoreo que tenga cada plaza.
+        {apoyo?.parte !== null && apoyo?.parte < 0.95 && (
+          <> De las piezas valoradas, el {Math.round(100 * (1 - apoyo.parte))}% no tuvo venta en
+          el último año y se valora con el precio de lista, que puede no ser el que se cobra.</>
+        )}
+        {' '}Las piezas son un piso: una salida resurtida el mismo día no se ve.
       </p>
     </section>
   )
@@ -1162,7 +1167,33 @@ export default function EstadisticasPanel() {
     () => (porSucursal ? Object.fromEntries(activas.map(s => [s.slug, porSucursal[s.slug]?.inv])) : {}),
     [porSucursal, activas])
 
-  const precios = useMemo(() => promedioEntrePlazas(inventarios), [inventarios])
+  // ── El precio con el que se valora todo ──────────────────────────────
+  //
+  // Sale de lo que SE COBRO, no de la lista. La lista no es lo que se cobra
+  // -Aguascalientes cobra el 75% de la suya- y el promedio de publico y
+  // mayoreo que hacia `promedioEntrePlazas` supone una mezcla 50/50 que no
+  // existe en ninguna plaza: Leon va al 65% de piezas a mayoreo y Ferias al
+  // 0%. Dividiendo dinero entre piezas, la mezcla real viene dentro.
+  //
+  // La lista se queda de RESPALDO para los codigos sin venta en la ventana:
+  // un modelo parado un año sigue teniendo existencia que vale dinero, y sin
+  // precio saldria en cero, que es peor que un precio viejo.
+  const lista = useMemo(() => promedioEntrePlazas(inventarios), [inventarios])
+
+  // Respeta la pastilla de plaza: el precio de Ferias no vale para Leon. Con
+  // «Todas» se ponderan por piezas, que es lo que hace que una plaza chica no
+  // pese lo mismo que una grande.
+  const precioDe = useMemo(() => {
+    const cuales = sel === TODAS.slug ? activas.map(x => x.slug) : [sel]
+    const porPlaza = {}
+    for (const slug of cuales) {
+      const v = ventasPorPlaza?.[slug]?.ventana?.porCodigo
+      if (v) porPlaza[slug] = v
+    }
+    return preciosDeVenta(porPlaza, { lista })
+  }, [ventasPorPlaza, sel, activas, lista])
+
+  const precios = useMemo(() => soloPrecios(precioDe), [precioDe])
 
   // El PRECIO sale de las plazas que venden y el COSTO de bodega. No es una
   // incoherencia: cada dato lo mantiene quien lo sabe. Bodega no vende, así
@@ -1193,6 +1224,13 @@ export default function EstadisticasPanel() {
       antes: salidasEntre(datos, dia(55), dia(28)),
     }
   }, [datos])
+
+  // Cuanto del valor se apoya en precio cobrado y cuanto en lista. Se dice
+  // en pantalla: una cifra que se apoya en la lista a medias no es la misma
+  // cifra, y callarlo seria el mismo error que acabamos de arreglar.
+  const apoyo = useMemo(
+    () => (ventanas ? cobertura(precioDe, ventanas.ahora) : null),
+    [precioDe, ventanas])
 
   const puente = useMemo(
     () => (ventanas ? puenteDeVariacion({ ...ventanas, precios }) : null),
@@ -1415,7 +1453,7 @@ export default function EstadisticasPanel() {
             <EnTreintaSegundos
               proyeccion={proyeccion} puente={puente} empuje={empuje}
               rendimiento={rendimiento} parado={parado} sucursal={sucursal}
-              huecoCosto={huecoCosto} />
+              huecoCosto={huecoCosto} apoyo={apoyo} />
           )}
 
           {huecoCosto.length > 0 && <CostosQueFaltan filas={huecoCosto} />}

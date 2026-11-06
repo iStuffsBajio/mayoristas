@@ -464,3 +464,67 @@ export function precioPorPlaza(porCodigo, { piso = PISO_PRECIO } = {}) {
     produccion: cerrar(grupos.produccion),
   }
 }
+
+/**
+ * 🔒 El precio con el que se valora todo: el que de verdad se cobró.
+ *
+ * Sustituye a `promedioEntrePlazas()`, que promediaba el precio público y el
+ * de mayoreo de la LISTA del inventario. Esa lista no es lo que se cobra:
+ * Aguascalientes cobra el 75% de la suya, así que cada peso que el panel
+ * calculaba para esa plaza venía inflado. Y el promedio de público y mayoreo
+ * supone una mezcla 50/50 que no existe en ninguna plaza —León va al 65% de
+ * piezas a mayoreo, Ferias al 0%—.
+ *
+ * Aquí no se supone nada: se divide el dinero cobrado entre las piezas, que
+ * ya lleva dentro la mezcla real de cada plaza.
+ *
+ * `porPlaza` es `{ slug: porCodigo }`, y debe venir de la VENTANA, no del
+ * acumulado: los precios subieron un 40% en cinco años.
+ *
+ * `lista` es el respaldo para los códigos sin venta en la ventana. No se
+ * puede prescindir de él: un modelo que no se ha vendido en un año sigue
+ * teniendo existencia que vale dinero, y sin precio saldría en cero, que es
+ * peor que un precio viejo.
+ */
+export function preciosDeVenta(porPlaza, { lista = {} } = {}) {
+  const suma = {}
+  for (const porCodigo of Object.values(porPlaza ?? {})) {
+    for (const [codigo, f] of Object.entries(porCodigo ?? {})) {
+      const pz = num(f.pz)
+      const dinero = num(f.dinero)
+      if (pz <= 0 || dinero <= 0) continue
+      const a = (suma[codigo] ??= { pz: 0, dinero: 0 })
+      a.pz += pz
+      a.dinero += dinero
+    }
+  }
+
+  const out = {}
+  // La lista va primero para que el dato de ticket la pise donde lo haya.
+  for (const [codigo, precio] of Object.entries(lista)) {
+    const v = num(precio?.promedio ?? precio)
+    if (v > 0) out[codigo] = { precio: v, de: 'lista', piezas: 0 }
+  }
+  for (const [codigo, a] of Object.entries(suma)) {
+    out[codigo] = { precio: a.dinero / a.pz, de: 'cobrado', piezas: a.pz }
+  }
+  return out
+}
+
+/** El mapa plano que esperan las funciones de `radiografia.js`. */
+export const soloPrecios = mapa =>
+  Object.fromEntries(Object.entries(mapa ?? {}).map(([c, v]) => [c, v.precio]))
+
+/** Cuánto del valor se apoya en precio cobrado y cuánto en lista. */
+export function cobertura(mapa, salidas = {}) {
+  let conCobrado = 0, conLista = 0
+  for (const [codigo, pz] of Object.entries(salidas)) {
+    if (!(pz > 0)) continue
+    const v = mapa?.[codigo]
+    if (!v) continue
+    if (v.de === 'cobrado') conCobrado += pz
+    else conLista += pz
+  }
+  const total = conCobrado + conLista
+  return { conCobrado, conLista, total, parte: total > 0 ? conCobrado / total : null }
+}
