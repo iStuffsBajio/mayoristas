@@ -197,6 +197,20 @@ export async function galeria(carpeta) {
   }
 }
 
+// ── Venta linea por linea ────────────────────────────────────────────────────
+//
+// SOLO ADMINISTRADOR, y no por capricho: `ventas/<plaza>.json` lleva los
+// nombres de los mayoristas y el de quien cobro cada ticket. Esa es la lista
+// de clientes del negocio, asi que el prefijo es privado y lo sirve el
+// backend, igual que `personal/` y `caja/`.
+//
+// Una plaza sin extraer devuelve 404, que NO es lo mismo que «no vendio
+// nada»: quien llame tiene que distinguirlo o la pantalla pintara un cero
+// donde lo que hay es un hueco.
+
+export const ventas = (plaza, token) =>
+  pedir(`/ventas?plaza=${encodeURIComponent(plaza)}`, { token })
+
 // ── Flujo de efectivo ────────────────────────────────────────────────────────
 //
 // SOLO ADMINISTRADOR. Lo decidio el dueño: las plazas hacen todo directo en

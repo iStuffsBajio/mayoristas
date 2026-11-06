@@ -4,17 +4,8 @@
 // los nombres de los mayoristas y el de quién cobró cada ticket. Sólo
 // administrador.
 //
-// ── Por qué el fetch está aquí y no en `api.js` ───────────────────────────
-//
-// Debería estar en `api.js`, con los demás. Está aquí porque ese archivo lo
-// está editando otra sesión a la vez y meter esto dentro habría atado este
-// trabajo a un archivo que no se puede confirmar todavía. En cuanto los dos
-// árboles converjan, esto se muda a `api.js` y se borra el fetch de abajo.
-// Se deja escrito para que no parezca un descuido.
-
 import { useEffect, useMemo, useState } from 'react'
-
-const BASE = String(import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
+import { ventas as pedirVentas } from './api'
 
 /**
  * Baja la venta de varias plazas.
@@ -33,22 +24,21 @@ export function useVentas(token, plazas) {
   const clave = plazas.join(',')
 
   useEffect(() => {
-    if (!token || !BASE) { setCargando(false); return }
+    if (!token) { setCargando(false); return }
     let vivo = true
     setCargando(true)
     ;(async () => {
       const pares = await Promise.all(clave.split(',').filter(Boolean).map(async slug => {
         try {
-          const r = await fetch(`${BASE}/ventas?plaza=${encodeURIComponent(slug)}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          // Un 403 es «esta pantalla no es para ti» y hay que decirlo; un 404
-          // es «esa plaza no se ha extraido todavia», que no es lo mismo que
-          // «no vendio nada» y tampoco puede salir como un cero.
-          if (r.status === 403) { if (vivo) setSinPermiso(true); return [slug, null] }
-          if (!r.ok) return [slug, null]
-          return [slug, await r.json()]
-        } catch { return [slug, null] }
+          return [slug, await pedirVentas(slug, token)]
+        } catch (e) {
+          // Un 403 es «esta pantalla no es para ti» y hay que decirlo. Un 404
+          // es «esa plaza no se ha extraído todavía», que NO es lo mismo que
+          // «no vendió nada» y no puede acabar pintado como un cero: por eso
+          // cae en null y la sección se la salta, en vez de enseñarla vacía.
+          if (e?.codigo === 403 && vivo) setSinPermiso(true)
+          return [slug, null]
+        }
       }))
       if (!vivo) return
       setPorPlaza(Object.fromEntries(pares))

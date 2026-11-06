@@ -77,6 +77,41 @@ const GENERADO = '2026-10-19T10:00:00Z'
  * se ejecutaba. Es la misma trampa que la seccion existe para medir.
  */
 const HOY_ISO = new Date().toISOString()
+/**
+ * La venta linea por linea de una plaza, con los TRES grupos poblados.
+ *
+ * Los tres hacen falta: la seccion los pinta en tablas separadas y con uno
+ * solo las otras dos no se dibujan nunca. Y los precios estan elegidos para
+ * que el mayoreo salga mas barato que el publico, que es lo que la pantalla
+ * dice: con todo al mismo precio el descuento sale cero y no se distingue de
+ * un calculo que no corrio.
+ *
+ * Lleva ademas un codigo cobrado MAS CARO a mayoreo, para que se ejercite el
+ * aviso en ambar de los precios invertidos.
+ */
+const VENTAS_DE = plaza => ({
+  plaza,
+  generado: GENERADO,
+  respaldo: { fecha: '2026-11-04' },
+  ventana: {
+    dias: 365,
+    porCodigo: {
+      // Funda: publico $216, mayoreo $130.
+      I13T:   { producto: 'IPHONE 13 TPU CASE', pz: 100, dinero: 17300,
+                pzMayoreo: 50, dineroMayoreo: 6500 },
+      // Funda con el precio INVERTIDO: a mayoreo sale mas cara.
+      SGA16T: { producto: 'SAMSUNG A16 TPU CASE', pz: 20, dinero: 4000,
+                pzMayoreo: 10, dineroMayoreo: 2500 },
+      // Mica: su propio grupo, mucho mas barata.
+      HDB:    { producto: 'MICA HIDROGEL HD BASICA', pz: 60, dinero: 3480,
+                pzMayoreo: 0, dineroMayoreo: 0 },
+      // Sticker: sin inventario, y el que hunde cualquier promedio mezclado.
+      SP:     { producto: 'STIKER PEQUEÑO', pz: 200, dinero: 2000,
+                pzMayoreo: 0, dineroMayoreo: 0 },
+    },
+  },
+})
+
 const SURTIDOS = [
   {
     folio: 'hoy-leon-0001', destino: 'leon', quien: 'admin',
@@ -295,6 +330,7 @@ function respuesta(url) {
   // Las respuestas de la cola viven en el backend, no en S3 publico.
   if (/revisiones/i.test(u)) return { marcas: {} }
   if (/surtidos/i.test(u)) return { surtidos: SURTIDOS }
+  if (/\/ventas\b/i.test(u)) return VENTAS_DE(u.match(/plaza=([a-z-]+)/)?.[1] ?? 'leon')
   if (/\/caja/i.test(u)) return caja
   if (/site\.json|config/i.test(u)) return {}
   const plaza = u.match(/inventarios\/([a-z-]+)\/inventario\.json/)?.[1]
@@ -618,6 +654,44 @@ async function recorrerCola(window, donde) {
  * el campo vacío, se contestaría que no a doscientos casos sin decir por qué y
  * el reporte quedaría sin la mitad que importa.
  */
+/**
+ * La seccion del precio por plaza, con los tres grupos SEPARADOS.
+ *
+ * Lo que se comprueba aqui no son las cuentas -eso lo fija
+ * `ventasTicket.test.js`- sino que la seccion SE DIBUJE y que siga dibujando
+ * los tres grupos aparte. Lo pidio el dueño asi: «me parece mejor que la
+ * informacion vaya separada, porque me hace mucho ruido la mezcla».
+ *
+ * Y la mezcla no es una mania: el precio medio de Ferias sale $161 y su funda
+ * se vende a $254, la mas cara de las cuatro plazas. Lo que tira del numero es
+ * que el 21% de sus piezas son stickers a $10. Si esta seccion volviera a
+ * juntar los tres, el numero seguiria saliendo y seguiria siendo falso: nada
+ * fallaria, que es justo por lo que hace falta mirarlo aqui.
+ */
+function precioPorPlaza(window, donde) {
+  const doc = window.document
+  const sec = doc.querySelector('[data-precio-plaza]')
+  if (!sec) return 0
+
+  const txt = (sec.textContent || '').replace(/\s+/g, ' ')
+  for (const grupo of ['Fundas', 'Micas e hidrogel', 'Stickers']) {
+    if (!txt.includes(grupo)) {
+      errores.push(`${donde} · la seccion de precios no separa «${grupo}»`)
+    }
+  }
+  // Tres tablas, una por grupo. Con una sola, los grupos se habrian vuelto a
+  // mezclar en un solo renglon por plaza.
+  const tablas = sec.querySelectorAll('table')
+  if (tablas.length < 3) {
+    errores.push(`${donde} · la seccion de precios dibuja ${tablas.length} tablas de 3: los grupos se mezclaron`)
+  }
+  // El aviso de los cobrados mas caro a mayoreo que al publico.
+  if (!/mas caro a mayoreo|más caro a mayoreo/i.test(txt)) {
+    errores.push(`${donde} · no se avisa de los precios invertidos`)
+  }
+  return 1
+}
+
 /**
  * La lista de folios de surtido.
  *
@@ -1009,6 +1083,7 @@ let pestanas = 0, secciones = 0, cabeceras = 0, hallazgos = 0
 let fichasDeCodigo = 0
 let bandejasDeCosto = 0
 let foliosVistos = 0
+let preciosPorPlaza = 0
 let plazasDeEfectivo = 0
 
 // Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
@@ -1071,6 +1146,7 @@ for (const [nombre, sesion] of SESIONES) {
         if (/ventas/i.test(t)) {
           fichasDeCodigo += await buscarUnCodigo(window, `${nombre} · admin · ${t}`)
           bandejasDeCosto += bandejaDeCostos(window, `${nombre} · admin · ${t}`)
+          preciosPorPlaza += precioPorPlaza(window, `${nombre} · admin · ${t}`)
         }
         if (/surtido/i.test(t)) {
           foliosVistos += await listaDeFolios(window, `${nombre} · admin · ${t}`)
@@ -1093,6 +1169,10 @@ console.log(`  busqueda por codigo en ventas: ${fichasDeCodigo} ficha dibujada`)
 if (fichasDeCodigo < 1) errores.push('la busqueda por codigo de ventas no se ejecuto')
 console.log(`  bandeja de costos que faltan: ${bandejasDeCosto} dibujada`)
 console.log(`  folios de surtido dibujados: ${foliosVistos}`)
+console.log(`  seccion de precio por plaza: ${preciosPorPlaza} dibujada`)
+if (preciosPorPlaza < 1) {
+  errores.push('la seccion de precio por plaza no se dibujo: sin ella el precio medio vuelve a mezclar fundas, micas y stickers, y eso sale un numero que parece bueno')
+}
 console.log(`  plazas de flujo de efectivo dibujadas: ${plazasDeEfectivo}`)
 if (plazasDeEfectivo < 5) {
   errores.push(`el flujo de efectivo dibujo ${plazasDeEfectivo} plazas de 5: una semana sin depositar no saldria en ningun sitio`)
