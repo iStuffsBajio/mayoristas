@@ -1639,6 +1639,129 @@ porque el día que salga de verdad tampoco se leerá—.
 
 ---
 
+## 🔒 CONFIRMAR — El segundo factor es SÓLO del administrador
+
+Se añadió el 2026-11-07. Es TOTP estándar (RFC 6238) hecho con el `crypto` de
+Node, sin dependencias: lo lee Microsoft Authenticator, Google Authenticator,
+Authy o 1Password indistintamente.
+
+**Y es sólo del administrador, a propósito.** El administrador ve el efectivo
+de las cuatro plazas, los faltantes con el nombre de quien cerró el turno y la
+lista de mayoristas del negocio. Una tienda ve su inventario, que de todas
+formas se publica. Pedirle un código del móvil a quien está en el mostrador
+sería un estorbo diario a cambio de proteger lo que ya es público, **y un
+estorbo diario acaba en la contraseña pegada en un papel junto a la caja**.
+
+Tres decisiones que lo hacen usable y que no hay que deshacer:
+
+- **Sin `TOTP_ADMIN` en la Lambda, no se pide nada.** El día que la variable
+  exista empieza a pedirse, y ni un minuto antes. Así se puede dar de alta el
+  secreto sin riesgo de quedarse fuera por un despiste.
+- **El código va en la MISMA petición que la contraseña.** Partirlo en dos
+  llamadas obligaría a guardar en el servidor un «esta contraseña ya se
+  validó, falta el código», y ese estado es justo lo que buscaría un atacante.
+- **Un código malo cuenta como intento fallido.** Si no, el segundo factor se
+  podría probar a fuerza bruta —son seis dígitos— con la contraseña ya en la
+  mano.
+
+La tolerancia de reloj es de una ventana a cada lado (90 s en total): menos y
+falla por el desfase normal entre el móvil y el servidor, y un segundo factor
+que falla se acaba desactivando. Más, y un código visto de reojo sigue
+valiendo minutos después.
+
+Para darlo de alta: `node backend/scripts/preparar-2fa.js`. **Comprueba el
+código ANTES de publicar el secreto**, y ese orden es todo el punto: poniéndolo
+en la Lambda primero, un dedazo al teclear la clave deja al administrador fuera
+de su propio panel sin forma de entrar. El secreto no se escribe en ningún
+archivo —vive en la pantalla y en el móvil— porque un archivo con el segundo
+factor dentro, al lado del repositorio, anula el segundo factor entero.
+
+### Una variable de la Lambda se añade con su guion, nunca con el CLI a pelo
+
+`aws lambda update-function-configuration --environment` **REEMPLAZA el
+conjunto entero**. Pasar una sola variable deja la función con esa y nada más:
+sin los seis hashes no entra nadie, sin `SESION_SECRETO` ninguna sesión vale y
+sin `ORIGENES_PERMITIDOS` el dominio real deja de poder llamar al backend. Y no
+avisa: la orden sale bien y la página se cae en la siguiente petición.
+
+Para eso está `backend/scripts/anadir-variable-lambda.js`, que lee las que ya
+hay, suma la nueva, y comprueba después que no se perdió ninguna. Nunca
+imprime un valor.
+
+---
+
+## ⚠️ VERIFICAR — Lo que endureció la auditoría del 2026-11-07
+
+### El freno de intentos era un interruptor para apagarse solo
+
+Hacía `intentos.clear()` al llegar a 5.000 entradas. Eso no era un detalle de
+memoria: bastaba con lanzar cinco mil intentos desde direcciones inventadas
+para vaciar el mapa entero —el contador del propio atacante incluido— y
+recuperar ocho intentos limpios, tantas veces como hiciera falta.
+
+Cambiarlo por «desalojar lo más viejo» tampoco bastaba, y la prueba lo enseñó:
+quien lleva más rato atacando es precisamente el más antiguo del mapa, así que
+era **el primero en salir**.
+
+La regla que sí aguanta: **lo que ya está bloqueado no se desaloja nunca por
+falta de sitio**, sólo cuando se le cumple el plazo. Hay prueba que inunda con
+30.000 direcciones y comprueba que el bloqueado sigue bloqueado.
+
+### Una imagen se comprueba por sus BYTES
+
+`/diseno` es la única ruta por la que un desconocido escribe en el Dropbox del
+negocio —es el pedido del cliente, que no tiene usuario—. Se fiaba del tipo que
+mandaba el navegador, así que se podía subir cualquier cosa con nombre de
+`.png`. Ahora se miran los primeros bytes, el tamaño se comprueba **antes** de
+decodificar, y la ruta lleva freno por dirección. `/galeria`, que también es
+pública y dispara varias llamadas a Dropbox por petición, lleva el suyo.
+
+### La plaza del login se valida antes de leer ninguna variable
+
+Era `process.env[\`HASH_${sucursal}\`]`, o sea: lo que tecleaba el usuario
+elegía qué variable de entorno se leía. Entrando como `admin` se cogía
+`HASH_ADMIN` y salía una sesión **no administradora** con plaza «admin», que
+`puedeSurtir` aceptaba. Hacía falta la contraseña buena para llegar ahí, pero
+una ruta que deja elegir la variable de entorno al que llama no se deja
+abierta.
+
+### `config/site.json` es público y ahora tiene lista de claves
+
+Es el único archivo que la política del bucket abre al público además de los
+inventarios, y la ruta aceptaba **cualquier objeto**. Un descuido —pegar algo
+en el formulario equivocado— publicaba lo que fuera en una URL que lee
+cualquiera, sin que nada avisara. Sólo pasan las seis secciones que la página
+usa: `tabs`, `hero`, `colores`, `footer`, `dropboxCatalogos`, `whatsapp`.
+
+### Lo que se cambió en AWS, y lo que queda
+
+Hecho y comprobado el 2026-11-07 (el inventario público sigue dando 200 y
+`caja/` sigue dando 403):
+
+| | |
+|---|---|
+| `BlockPublicAcls` e `IgnorePublicAcls` | **activados**. No chocan con la política del bucket porque sólo afectan a las ACL, y cierran la vía de que un objeto se publique por error |
+| Versionado del bucket | **activado**. Una sobrescritura mala en `caja/` o `revisiones/` ya se puede deshacer |
+
+Los otros dos no se pueden tocar con las protecciones puestas y van a mano:
+
+- **La política del CI** (`istuffs-s3-uploader`) da hoy `GetObject` y
+  `PutObject` sobre **todo** el bucket, y su llave vive en GitHub: un
+  compromiso de ahí lee los nombres de los mayoristas y las notas con nombres
+  de empleados. La versión recortada —sólo los cuatro prefijos que de verdad
+  publica, y Deny explícito sobre `revisiones/`, `ajustes/`, `surtidos/` y
+  `config/`— está en **`infra/istuffs-s3-policy.json`**.
+- **`istuffs-admin` tiene `AdministratorAccess`, llave permanente y sin MFA.**
+  Es el riesgo más grande de todos y el más barato de cerrar.
+
+**El límite de concurrencia de la cuenta es 10**, y eso cambia el análisis:
+el gasto desbocado está acotado solo, pero diez peticiones a `/login` —cada una
+quema 210.000 iteraciones de PBKDF2— bastan para dejar el backend sin sitio.
+Reservar concurrencia dejaría cero libre, así que **no se hace**: lo que
+protege ahí es el freno de intentos.
+
+---
+
 ## Lo que está roto a sabiendas
 
 - **La galería de Dropbox.** Las carpetas configuradas
@@ -1674,8 +1797,11 @@ porque el día que salga de verdad tampoco se leerá—.
   Por sí solo el secreto no abre la cuenta: hace falta además un refresh token
   válido, y ése se cambió. Pero es material expuesto y se regenera en la
   consola de apps de Dropbox.
-- **La llave de AWS vieja, inactiva pero sin borrar.** `AKIA…(la vieja, ver consola IAM)`.
-  Desactivada el 2026-10-19; borrarla pasados unos días.
+- ~~**La llave de AWS vieja, inactiva pero sin borrar.**~~ **HECHO.**
+  Comprobado el 2026-11-07: `istuffs-admin` sólo tiene una llave, activa, del
+  2026-10-19. Queda una inactiva del 2026-05-19 en **`istuffs-s3-uploader`**,
+  que sí hay que borrar:
+  `aws iam delete-access-key --user-name istuffs-s3-uploader --access-key-id <la inactiva>`
 - **La cuenta raíz ya no tiene claves de acceso.** El CLI va con
   `istuffs-admin`. Si alguna vez `aws sts get-caller-identity` devuelve algo
   que acabe en `:root`, algo se ha rehecho mal: una clave de root se salta el

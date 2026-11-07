@@ -8,7 +8,7 @@
 
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import {
-  verificarContrasena, crearSesion, leerSesion,
+  verificarContrasena, crearSesion, leerSesion, verificarTotp, pareceImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
 } from './seguridad.js'
 
@@ -48,6 +48,25 @@ const SUCURSALES = {
  * habian quedado atras.
  */
 const QUIENES_ESCRIBEN = ['admin', 'bodega', ...Object.keys(SUCURSALES)]
+
+/**
+ * Quién puede iniciar sesión con contraseña propia.
+ *
+ * `admin` NO está, y es a propósito: el administrador entra por su propia
+ * rama, no buscando `HASH_ADMIN` a partir de lo que teclee alguien.
+ */
+const PLAZAS_CON_ACCESO = new Set(['bodega', ...Object.keys(SUCURSALES)])
+
+/**
+ * Lo único que puede ir en `config/site.json`, que es PÚBLICO.
+ *
+ * Son las seis secciones que la página lee en `SiteConfigContext`. Nada de
+ * esto es un secreto; el punto de la lista es que no se cuele algo que sí lo
+ * sea.
+ */
+const CLAVES_CONFIG = new Set([
+  'tabs', 'hero', 'colores', 'footer', 'dropboxCatalogos', 'whatsapp',
+])
 
 const MAX_IMAGEN_BYTES = 10 * 1024 * 1024
 const TIPOS_IMAGEN = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
@@ -127,11 +146,39 @@ async function rutaLogin(evento, origen, cuerpo) {
     return responder(origen, 429, { error: 'Demasiados intentos. Espera 15 minutos.' })
   }
 
-  const sucursal = String(cuerpo.sucursal || '').trim()
+  const sucursal = String(cuerpo.sucursal || '').trim().toLowerCase()
   const clave    = String(cuerpo.contrasena || '')
+  const codigo   = String(cuerpo.codigo || '')
 
   // El hash del admin abre todas las sucursales
   if (verificarContrasena(clave, process.env.HASH_ADMIN)) {
+    // ── Segundo factor, sólo para el administrador ─────────────────────
+    //
+    // Es quien ve el efectivo de las cuatro plazas, los faltantes con el
+    // nombre de quien cerró el turno y la lista de mayoristas. Una tienda ve
+    // su inventario, que de todas formas se publica: pedirle un código del
+    // móvil a quien está en el mostrador sería un estorbo diario a cambio de
+    // proteger lo que ya es público, y un estorbo diario acaba en la
+    // contraseña pegada en un papel junto a la caja.
+    //
+    // Si `TOTP_ADMIN` no está puesta, no se exige nada. Así se puede dar de
+    // alta el secreto sin riesgo de quedarse fuera por un despiste: el día
+    // que la variable exista, empieza a pedirse, y ni un minuto antes.
+    const secreto = process.env.TOTP_ADMIN
+    if (secreto) {
+      if (!codigo) {
+        // 401 con una señal, no un error: la página tiene que saber que la
+        // contraseña estaba bien y que lo que falta es el código.
+        return responder(origen, 401, { error: 'Falta el código de tu app.', pideCodigo: true })
+      }
+      if (!verificarTotp(codigo, secreto)) {
+        // Un código malo cuenta como intento fallido. Si no, el segundo
+        // factor se podría probar a fuerza bruta -son seis dígitos- con la
+        // contraseña ya en la mano.
+        registrarIntentoFallido(ip)
+        return responder(origen, 401, { error: 'Código incorrecto.', pideCodigo: true })
+      }
+    }
     limpiarIntentos(ip)
     return responder(origen, 200, {
       token:   crearSesion({ sucursal: 'all', admin: true }, SECRETO_SESION),
@@ -140,7 +187,15 @@ async function rutaLogin(evento, origen, cuerpo) {
     })
   }
 
-  const hash = process.env[`HASH_${sucursal.toUpperCase().replace(/-/g, '_')}`]
+  // La plaza se valida contra la lista ANTES de construir el nombre de la
+  // variable. Sin esto, lo que teclea el usuario elegía qué variable de
+  // entorno se leía: entrando como `admin` se cogía `HASH_ADMIN` y salía una
+  // sesión NO administradora con plaza «admin», que `puedeSurtir` aceptaba.
+  // Hacía falta la contraseña buena para llegar ahí, pero una ruta que deja
+  // elegir la variable de entorno al que llama no se deja abierta.
+  const hash = PLAZAS_CON_ACCESO.has(sucursal)
+    ? process.env[`HASH_${sucursal.toUpperCase().replace(/-/g, '_')}`]
+    : null
   if (hash && verificarContrasena(clave, hash)) {
     limpiarIntentos(ip)
     return responder(origen, 200, {
@@ -158,6 +213,14 @@ async function rutaLogin(evento, origen, cuerpo) {
 
 /** Lista las imágenes de una carpeta del catálogo, con enlaces temporales. */
 async function rutaGaleria(evento, origen) {
+  // Publica, y cada llamada dispara varias peticiones a la API de Dropbox:
+  // sin freno, un bucle agota la cuota de la cuenta entera.
+  const ip = evento.requestContext?.http?.sourceIp || 'desconocida'
+  if (demasiadosIntentos(`galeria:${ip}`)) {
+    return responder(origen, 429, { error: 'Demasiadas peticiones. Espera unos minutos.' })
+  }
+  registrarIntentoFallido(`galeria:${ip}`)
+
   const carpeta = evento.queryStringParameters?.carpeta || ''
   // Solo se permiten carpetas dentro de las rutas declaradas en la config,
   // para que nadie pueda pedir el contenido de cualquier parte del Dropbox.
@@ -184,6 +247,15 @@ async function rutaGaleria(evento, origen) {
 
 /** Guarda la imagen de un pedido en la carpeta de su sucursal. */
 async function rutaSubirDiseno(evento, origen, cuerpo) {
+  // Esta ruta es PÚBLICA a propósito -es el pedido del cliente, que no tiene
+  // usuario- y por eso es la única por la que un desconocido puede escribir
+  // en el Dropbox del negocio. Sin freno, llenarlo cuesta un bucle.
+  const ip = evento.requestContext?.http?.sourceIp || 'desconocida'
+  if (demasiadosIntentos(`diseno:${ip}`)) {
+    return responder(origen, 429, { error: 'Demasiados envíos. Espera unos minutos.' })
+  }
+  registrarIntentoFallido(`diseno:${ip}`)
+
   const slug = String(cuerpo.sucursal || '')
   const suc  = SUCURSALES[slug]
   if (!suc) return responder(origen, 400, { error: 'Sucursal desconocida.' })
@@ -191,14 +263,25 @@ async function rutaSubirDiseno(evento, origen, cuerpo) {
   const tipo = String(cuerpo.tipo || '')
   if (!TIPOS_IMAGEN.has(tipo)) return responder(origen, 400, { error: 'Tipo de imagen no permitido.' })
 
-  let binario
-  try {
-    binario = Buffer.from(String(cuerpo.datos || ''), 'base64')
-  } catch {
-    return responder(origen, 400, { error: 'Imagen ilegible.' })
+  // El tamaño se mira ANTES de decodificar. `Buffer.from(x,'base64')` nunca
+  // lanza -por eso el try/catch que había aquí era código muerto- así que lo
+  // único que hacía el orden anterior era reservar la memoria primero y
+  // quejarse después.
+  const datos = String(cuerpo.datos || '')
+  if (datos.length > Math.ceil(MAX_IMAGEN_BYTES / 3) * 4 + 16) {
+    return responder(origen, 413, { error: 'La imagen supera 10 MB.' })
   }
-  if (binario.length === 0)                 return responder(origen, 400, { error: 'Imagen vacía.' })
-  if (binario.length > MAX_IMAGEN_BYTES)    return responder(origen, 413, { error: 'La imagen supera 10 MB.' })
+  const binario = Buffer.from(datos, 'base64')
+  if (binario.length === 0)              return responder(origen, 400, { error: 'Imagen vacía.' })
+  if (binario.length > MAX_IMAGEN_BYTES) return responder(origen, 413, { error: 'La imagen supera 10 MB.' })
+
+  // Y que los BYTES digan que es lo que el cliente afirma. El tipo lo manda
+  // el navegador y no prueba nada: así se podía subir cualquier cosa -un
+  // guion, un ejecutable- con nombre de `.png`, y quedaba en el Dropbox del
+  // negocio esperando a que alguien la abriera.
+  if (!pareceImagen(binario, tipo)) {
+    return responder(origen, 400, { error: 'El archivo no es la imagen que dice ser.' })
+  }
 
   // Nombre y modelo vienen del cliente: se limpian para que no puedan salirse
   // de la carpeta ni inyectar rutas.
@@ -236,9 +319,22 @@ async function rutaGuardarConfig(evento, origen, cuerpo) {
   const sesion = sesionDe(evento)
   if (!sesion?.admin) return responder(origen, 403, { error: 'Requiere administrador.' })
 
-  if (!cuerpo || typeof cuerpo.config !== 'object') {
+  if (!cuerpo || typeof cuerpo.config !== 'object' || Array.isArray(cuerpo.config)) {
     return responder(origen, 400, { error: 'Configuración inválida.' })
   }
+
+  // `config/site.json` es el ÚNICO archivo que la política del bucket abre al
+  // público además de los inventarios. Aquí se aceptaba cualquier objeto, así
+  // que un descuido -pegar algo en el formulario equivocado- publicaba lo que
+  // fuera en una URL que lee cualquiera, sin que nada avisara. Se queda sólo
+  // lo que la página usa de verdad.
+  const sobran = Object.keys(cuerpo.config).filter(k => !CLAVES_CONFIG.has(k))
+  if (sobran.length) {
+    return responder(origen, 400, {
+      error: `Esa configuración lleva campos que no se publican: ${sobran.slice(0, 5).join(', ')}.`,
+    })
+  }
+
   const texto = JSON.stringify(cuerpo.config)
   if (texto.length > 256 * 1024) return responder(origen, 413, { error: 'Configuración demasiado grande.' })
 

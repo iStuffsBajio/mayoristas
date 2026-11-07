@@ -153,6 +153,17 @@ test('una sesion firmada con otro secreto no sirve', async () => {
 
 import { S3Client } from '@aws-sdk/client-s3'
 
+/**
+ * Unos bytes que de verdad EMPIEZAN como la imagen que dicen ser.
+ *
+ * Ya no basta con cualquier cosa: la ruta comprueba la firma del archivo,
+ * porque el tipo lo manda el navegador y no prueba nada. Estas pruebas
+ * empezaron a fallar justo cuando se añadio esa comprobacion, que es la señal
+ * de que la comprobacion sirve.
+ */
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(32, 7)])
+  .toString('base64')
+
 test('el inventario guardado conserva el codigo del producto', async () => {
   const enviados = []
   const original = S3Client.prototype.send
@@ -198,7 +209,7 @@ test('la imagen del pedido lleva el modelo en el nombre del archivo', async () =
       cuerpo: {
         sucursal: 'leon',
         tipo: 'image/jpeg',
-        datos: Buffer.from('imagen falsa').toString('base64'),
+        datos: JPEG,
         nombre: 'Juan Pérez',
         modelo: 'IPHONE 17 PRO MAX',
       },
@@ -227,7 +238,7 @@ test('un modelo con caracteres raros no puede salirse de la carpeta', async () =
     await pedir('POST', '/diseno', {
       cuerpo: {
         sucursal: 'leon', tipo: 'image/jpeg',
-        datos: Buffer.from('x').toString('base64'),
+        datos: JPEG,
         nombre: '../../../etc/passwd',
         modelo: '../../otra-carpeta',
       },
@@ -642,4 +653,225 @@ test('el catalogo de errores se guarda editado y no toca las incidencias', async
     assert.equal(todo['cfg|cat|nombre'].estado, undefined, 'la config no tiene estado')
     assert.equal(todo['cod|VIVA'].estado, 'revisando', 'la incidencia sigue intacta')
   } finally { s3.restaurar() }
+})
+
+// ── Lo que endurecio la auditoria de seguridad del 2026-11-07 ─────────────
+
+import {
+  nuevoSecretoTotp, codigoTotp, verificarTotp, pareceImagen,
+  registrarIntentoFallido, demasiadosIntentos, limpiarIntentos, olvidarIntentos,
+} from '../src/seguridad.js'
+
+test('EL FRENO DE INTENTOS NO SE PUEDE REINICIAR INUNDANDOLO', async () => {
+  // Hacia `intentos.clear()` al llegar a 5000 entradas. Eso no era un detalle
+  // de memoria: era un interruptor para apagar el freno. Cinco mil intentos
+  // desde direcciones inventadas vaciaban el mapa entero -el contador del
+  // atacante incluido- y le devolvian ocho intentos limpios, las veces que
+  // hiciera falta.
+  olvidarIntentos()
+  for (let i = 0; i < 8; i++) registrarIntentoFallido('atacante')
+  assert.equal(demasiadosIntentos('atacante'), true, 'ocho fallos bloquean')
+
+  for (let i = 0; i < 6000; i++) registrarIntentoFallido('ruido' + i)
+  assert.equal(demasiadosIntentos('atacante'), true, 'inundar con 6000 no lo libera')
+
+  // Ni treinta mil: lo bloqueado no se desaloja por falta de sitio, solo
+  // cuando se le cumple el plazo.
+  for (let i = 0; i < 30000; i++) registrarIntentoFallido('mas' + i)
+  assert.equal(demasiadosIntentos('atacante'), true, 'ni con 30000')
+
+  limpiarIntentos('atacante')
+  assert.equal(demasiadosIntentos('atacante'), false, 'un acierto si lo libera')
+  olvidarIntentos()
+})
+
+test('UNA IMAGEN SE COMPRUEBA POR SUS BYTES, no por lo que dice el navegador', async () => {
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(8)])
+  assert.equal(pareceImagen(png, 'image/png'), true)
+  assert.equal(pareceImagen(png, 'image/jpeg'), false, 'un PNG no pasa por JPEG')
+  // Lo que de verdad importa: cualquier cosa con nombre de imagen.
+  assert.equal(pareceImagen(Buffer.from('<script>alert(1)</script>!!'), 'image/png'), false)
+  assert.equal(pareceImagen(Buffer.from('MZ' + 'x'.repeat(30)), 'image/jpeg'), false, 'un ejecutable tampoco')
+  assert.equal(pareceImagen(Buffer.alloc(2), 'image/png'), false, 'ni algo mas corto que la firma')
+})
+
+test('el envio de diseños publico tiene freno', async () => {
+  // Es la unica ruta por la que un desconocido escribe en el Dropbox del
+  // negocio. Sin freno, llenarlo cuesta un bucle.
+  olvidarIntentos()
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(16)]).toString('base64')
+  const enviar = () => pedir('POST', '/diseno', {
+    cuerpo: { sucursal: 'leon', tipo: 'image/jpeg', datos: jpeg, nombre: 'x' },
+  })
+  let bloqueado = false
+  for (let i = 0; i < 12; i++) {
+    const r = await enviar()
+    if (r.statusCode === 429) { bloqueado = true; break }
+  }
+  assert.equal(bloqueado, true, 'a fuerza de enviar tiene que cortar')
+  olvidarIntentos()
+})
+
+test('UN ARCHIVO QUE NO ES LA IMAGEN QUE DICE SER se rechaza', async () => {
+  olvidarIntentos()
+  const r = await pedir('POST', '/diseno', {
+    cuerpo: {
+      sucursal: 'leon', tipo: 'image/png',
+      datos: Buffer.from('<svg onload=alert(1)>').toString('base64'),
+      nombre: 'x',
+    },
+  })
+  assert.equal(r.statusCode, 400)
+  olvidarIntentos()
+})
+
+test('LA PLAZA DEL LOGIN SE VALIDA antes de leer ninguna variable', async () => {
+  // Lo que tecleaba el usuario elegia que variable de entorno se leia:
+  // `HASH_${sucursal}`. Entrando como «admin» se cogia HASH_ADMIN y salia una
+  // sesion NO administradora con plaza «admin», que `puedeSurtir` aceptaba.
+  olvidarIntentos()
+  const r = await pedir('POST', '/login', {
+    cuerpo: { sucursal: 'admin', contrasena: 'clave-admin' },
+  })
+  // Con la contraseña del admin entra, pero por SU rama: admin de verdad,
+  // nunca una sesion con plaza «admin».
+  if (r.statusCode === 200) {
+    const d = cuerpoDe(r)
+    assert.equal(d.admin, true)
+    assert.equal(d.sucursal, 'all', 'jamas una sesion de plaza llamada «admin»')
+  }
+  olvidarIntentos()
+})
+
+test('LA CONFIGURACION PUBLICA solo admite las claves que la pagina usa', async () => {
+  // `config/site.json` es el unico archivo que la politica del bucket abre al
+  // publico ademas de los inventarios. Aqui se aceptaba cualquier objeto, asi
+  // que un descuido publicaba lo que fuera en una URL que lee cualquiera.
+  const malo = await pedir('POST', '/config', {
+    token: tokenAdmin(),
+    cuerpo: { config: { hero: { titulo: 'x' }, claveDelBanco: '1234' } },
+  })
+  assert.equal(malo.statusCode, 400)
+  assert.match(cuerpoDe(malo).error, /claveDelBanco/)
+
+  // El caso bueno SI escribe, asi que necesita el S3 de mentira: sin el la
+  // ruta falla con 500 por no poder guardar, y la prueba no diria nada de la
+  // validacion.
+  const s3 = s3ConMemoria()
+  try {
+    const bueno = await pedir('POST', '/config', {
+      token: tokenAdmin(),
+      cuerpo: { config: { hero: { titulo: 'x' }, colores: {}, whatsapp: {} } },
+    })
+    assert.equal(bueno.statusCode, 200)
+    const guardado = s3.leer('config/site.json')
+    assert.equal(guardado.hero.titulo, 'x')
+    assert.equal(guardado.claveDelBanco, undefined)
+  } finally { s3.restaurar() }
+})
+
+// ── Segundo factor del administrador ──────────────────────────────────────
+
+test('UN SECRETO TOTP SIRVE EN CUALQUIER APP de autenticacion', () => {
+  // Es RFC 6238 estandar: Microsoft Authenticator, Google Authenticator,
+  // Authy y 1Password leen el mismo codigo.
+  const secreto = nuevoSecretoTotp()
+  assert.match(secreto, /^[A-Z2-7]{32}$/, 'base32, que es lo que leen las apps')
+
+  const ahora = Date.now()
+  const codigo = codigoTotp(secreto, Math.floor(ahora / 1000 / 30))
+  assert.match(codigo, /^\d{6}$/)
+  assert.equal(verificarTotp(codigo, secreto, { ahora }), true)
+  assert.equal(verificarTotp('000000', secreto, { ahora }), false)
+  assert.equal(verificarTotp(codigo, nuevoSecretoTotp(), { ahora }), false, 'otro secreto no vale')
+})
+
+test('el codigo aguanta el desfase de reloj, pero no una ventana entera', () => {
+  // Un segundo factor que falla por diez segundos de desfase se acaba
+  // desactivando, que es peor que no tenerlo. Pero la tolerancia tiene
+  // limite: con una ventana amplia, un codigo visto de reojo sigue valiendo
+  // minutos despues.
+  const secreto = nuevoSecretoTotp()
+  const ahora = Date.now()
+  const codigo = codigoTotp(secreto, Math.floor(ahora / 1000 / 30))
+  assert.equal(verificarTotp(codigo, secreto, { ahora: ahora + 30_000 }), true, '30 s despues vale')
+  assert.equal(verificarTotp(codigo, secreto, { ahora: ahora - 30_000 }), true, '30 s antes vale')
+  assert.equal(verificarTotp(codigo, secreto, { ahora: ahora + 120_000 }), false, 'dos minutos no')
+})
+
+test('SIN TOTP_ADMIN CONFIGURADA el login no cambia', async () => {
+  // Asi se puede dar de alta el secreto sin riesgo de quedarse fuera: el dia
+  // que la variable exista, empieza a pedirse, y ni un minuto antes.
+  olvidarIntentos()
+  delete process.env.TOTP_ADMIN
+  const r = await pedir('POST', '/login', { cuerpo: { sucursal: 'all', contrasena: 'clave-admin' } })
+  assert.equal(r.statusCode, 200)
+  assert.equal(cuerpoDe(r).admin, true)
+  olvidarIntentos()
+})
+
+test('CON TOTP_ADMIN el administrador NO entra sin codigo', async () => {
+  olvidarIntentos()
+  const secreto = nuevoSecretoTotp()
+  process.env.TOTP_ADMIN = secreto
+  try {
+    const sinCodigo = await pedir('POST', '/login', {
+      cuerpo: { sucursal: 'all', contrasena: 'clave-admin' },
+    })
+    assert.equal(sinCodigo.statusCode, 401, 'la contraseña sola ya no basta')
+    assert.equal(cuerpoDe(sinCodigo).pideCodigo, true, 'y la pagina tiene que saber por que')
+
+    const malo = await pedir('POST', '/login', {
+      cuerpo: { sucursal: 'all', contrasena: 'clave-admin', codigo: '123456' },
+    })
+    assert.equal(malo.statusCode, 401)
+
+    const bueno = await pedir('POST', '/login', {
+      cuerpo: {
+        sucursal: 'all', contrasena: 'clave-admin',
+        codigo: codigoTotp(secreto, Math.floor(Date.now() / 1000 / 30)),
+      },
+    })
+    assert.equal(bueno.statusCode, 200)
+    assert.equal(cuerpoDe(bueno).admin, true)
+  } finally {
+    delete process.env.TOTP_ADMIN
+    olvidarIntentos()
+  }
+})
+
+test('un codigo malo CUENTA como intento fallido', async () => {
+  // Si no, el segundo factor se podria probar a fuerza bruta -son seis
+  // digitos- con la contraseña ya en la mano.
+  olvidarIntentos()
+  process.env.TOTP_ADMIN = nuevoSecretoTotp()
+  try {
+    let bloqueado = false
+    for (let i = 0; i < 12; i++) {
+      const r = await pedir('POST', '/login', {
+        cuerpo: { sucursal: 'all', contrasena: 'clave-admin', codigo: '000000' },
+      })
+      if (r.statusCode === 429) { bloqueado = true; break }
+    }
+    assert.equal(bloqueado, true)
+  } finally {
+    delete process.env.TOTP_ADMIN
+    olvidarIntentos()
+  }
+})
+
+test('una SUCURSAL no necesita codigo: su panel no lleva nombres ni dinero', async () => {
+  // Pedirle un codigo del movil a quien esta en el mostrador seria un estorbo
+  // diario a cambio de proteger un inventario que de todas formas se publica,
+  // y un estorbo diario acaba en la contraseña pegada en un papel.
+  olvidarIntentos()
+  process.env.TOTP_ADMIN = nuevoSecretoTotp()
+  try {
+    const r = await pedir('POST', '/login', { cuerpo: { sucursal: 'leon', contrasena: 'clave-leon' } })
+    assert.equal(r.statusCode, 200)
+    assert.equal(cuerpoDe(r).admin, false)
+  } finally {
+    delete process.env.TOTP_ADMIN
+    olvidarIntentos()
+  }
 })

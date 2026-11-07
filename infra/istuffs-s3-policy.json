@@ -1,0 +1,27 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LoQuePublicaLaAutomatizacion",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:GetObject"],
+      "Resource": [
+        "arn:aws:s3:::istuffs-inventarios/inventarios/*",
+        "arn:aws:s3:::istuffs-inventarios/caja/*",
+        "arn:aws:s3:::istuffs-inventarios/ventas/*",
+        "arn:aws:s3:::istuffs-inventarios/personal/*"
+      ]
+    },
+    {
+      "Sid": "LoQueLaAutomatizacionNoTocaJamas",
+      "Effect": "Deny",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::istuffs-inventarios/revisiones/*",
+        "arn:aws:s3:::istuffs-inventarios/ajustes/*",
+        "arn:aws:s3:::istuffs-inventarios/surtidos/*",
+        "arn:aws:s3:::istuffs-inventarios/config/*"
+      ]
+    }
+  ]
+}

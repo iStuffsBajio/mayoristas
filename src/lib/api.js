@@ -15,9 +15,14 @@ const BASE = String(import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
 export const apiConfigurada = !!BASE
 
 class ErrorApi extends Error {
-  constructor(mensaje, codigo) {
+  constructor(mensaje, codigo, datos = {}) {
     super(mensaje)
     this.codigo = codigo
+    // El cuerpo entero del error. Hace falta porque el backend contesta cosas
+    // que no caben en un texto: el login dice `pideCodigo` para distinguir
+    // «la contraseña está mal» de «la contraseña está bien y falta el código
+    // de tu app». Sin esto, las dos se veían igual.
+    this.datos = datos
   }
 }
 
@@ -56,7 +61,7 @@ async function pedir(ruta, { metodo = 'GET', cuerpo, token } = {}) {
       avisarSesionVencida()
       throw new ErrorApi('Tu sesión expiró. Vuelve a iniciar sesión.', res.status)
     }
-    throw new ErrorApi(datos.error || `Error ${res.status}.`, res.status)
+    throw new ErrorApi(datos.error || `Error ${res.status}.`, res.status, datos)
   }
   return datos
 }
@@ -85,9 +90,17 @@ export function reiniciarAvisoSesion() { avisado = false }
 
 // ── Sesión ───────────────────────────────────────────────────────────────────
 
-/** Devuelve { token, sucursal, admin }. La contraseña nunca se guarda. */
-export const login = (sucursal, contrasena) =>
-  pedir('/login', { metodo: 'POST', cuerpo: { sucursal, contrasena } })
+/**
+ * Devuelve { token, sucursal, admin }. La contraseña nunca se guarda.
+ *
+ * `codigo` es el segundo factor, y sólo se le pide al administrador. Va en la
+ * misma petición que la contraseña a propósito: partirlo en dos llamadas
+ * obligaría a guardar un estado intermedio en el servidor —«esta contraseña
+ * ya se validó, falta el código»— y ese estado es justo lo que un atacante
+ * querría encontrar.
+ */
+export const login = (sucursal, contrasena, codigo) =>
+  pedir('/login', { metodo: 'POST', cuerpo: { sucursal, contrasena, codigo } })
 
 // ── Escrituras ───────────────────────────────────────────────────────────────
 
