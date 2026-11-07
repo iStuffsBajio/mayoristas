@@ -1188,8 +1188,32 @@ suelo que el negocio ya decidió; por debajo no se está negociando, se está
 perdiendo. En Aguascalientes son 1,243 líneas y 1,367 piezas.
 
 Y `mayoreoSinMarcar()` cuenta las piezas cobradas al precio de mayoreo sin la
-casilla —1,900 en Aguascalientes—, que es la razón de que **la mezcla de
-mayoreo del panel se quede corta**.
+casilla, que es la razón de que **la mezcla de mayoreo del panel se quede
+corta**.
+
+#### Y el mayoreo sólo es un suelo si está POR DEBAJO del público
+
+Parece obvio y es la regla que salvó esta pantalla de volver a ser inútil. Sin
+ella salían dos falsos positivos enormes:
+
+- **León, $74,062**, casi todo del **STIKER PEQUEÑO**: se cobra a $9, que es
+  exactamente su precio de lista, pero su «mayoreo» figura en **$120**. Es el
+  precio invertido que ya conocíamos. No se vende barato: el dato está mal, y
+  acusarlo manda a buscar un problema que no existe.
+- **Ferias, $35,874.** Allí **745 de 816 productos tienen el mayoreo IGUAL al
+  público** —no hace mayoreo: 9 piezas de 3,959—, así que «por debajo del
+  mayoreo» volvía a significar «por debajo de la lista».
+
+Con `esSueloDeVerdad()` puesto, la lista queda en **24 códigos en toda la red**:
+
+| plaza | códigos | de los mirados | piezas | se deja de ganar |
+|---|---|---|---|---|
+| Aguascalientes | 12 | 188 | 50 | $929 |
+| San Luis | 7 | 176 | 34 | $378 |
+| León | 3 | 224 | 129 | $6,092 |
+| Ferias | 2 | 42 | 803 | $21,819 |
+
+Eso sí se puede revisar uno por uno, que es lo que hace que una lista se mire.
 
 ### ⚠️ Una línea cobrada a $1 no es un precio
 

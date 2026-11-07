@@ -207,6 +207,27 @@ export function costosInvertidos(inventario) {
 export const MARGEN_MAYOREO = 2
 
 /**
+ * 🔒 Un precio de mayoreo sólo es un SUELO si está por debajo del público.
+ *
+ * Parece obvio y es la regla que salvó esta pantalla de ser inútil otra vez.
+ * Sin ella, medido el 2026-11-06, salían dos falsos positivos enormes:
+ *
+ *   · **León, $74,062**, casi todo del STIKER PEQUEÑO: se cobra a $9, que es
+ *     EXACTAMENTE su precio de lista, pero su «mayoreo» figura en $120. Es
+ *     el precio invertido que ya conocíamos. No se vende barato: el dato está
+ *     mal capturado, y acusarlo manda a buscar un problema que no existe.
+ *
+ *   · **Ferias, $35,874.** Allí **745 de 816 productos tienen el mayoreo
+ *     IGUAL al público** —no hace mayoreo, son 9 piezas de 3,959—, así que
+ *     «por debajo del mayoreo» volvía a significar «por debajo de la lista»,
+ *     que es el ruido que esta pantalla existe para quitar.
+ *
+ * Cuando el mayoreo no está por debajo del público, esa pareja no define
+ * ningún suelo y el código no se puede juzgar aquí.
+ */
+export const esSueloDeVerdad = l => l?.mayoreo > 0 && l?.publico > 0 && l.mayoreo < l.publico
+
+/**
  * Códigos vendidos al público por debajo de su propio precio de mayoreo.
  *
  * No compara contra la lista al público —esa no es el precio— sino contra el
@@ -227,7 +248,7 @@ export function porDebajoDelMayoreo({
     if (pzPublico < minimo) continue
 
     const l = lista[codigo]
-    if (!l || !(l.mayoreo > 0)) continue
+    if (!esSueloDeVerdad(l)) continue
 
     const cobrado = (num(f.dinero) - num(f.dineroMayoreo)) / pzPublico
     if (!(cobrado > 0)) continue
@@ -274,7 +295,7 @@ export function mayoreoSinMarcar({ porCodigo, inventario, margen = MARGEN_MAYORE
     const pzPublico = num(f.pz) - pzMayoreo
     if (pzPublico <= 0) continue
     const l = lista[codigo]
-    if (!l || !(l.mayoreo > 0)) continue
+    if (!esSueloDeVerdad(l)) continue
     const cobrado = (num(f.dinero) - num(f.dineroMayoreo)) / pzPublico
     if (cobrado > 0 && cobrado <= l.mayoreo + margen) { piezas += pzPublico; codigos++ }
   }

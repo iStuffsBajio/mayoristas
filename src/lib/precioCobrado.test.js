@@ -4,7 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   brechaDeLista, costosInvertidos, listaDe, CASOS, BRECHA, PIEZAS_MINIMAS,
-  porDebajoDelMayoreo, mayoreoSinMarcar, MARGEN_MAYOREO,
+  porDebajoDelMayoreo, mayoreoSinMarcar, MARGEN_MAYOREO, esSueloDeVerdad,
 } from './precioCobrado.js'
 
 const inv = productos => ({ productos })
@@ -202,4 +202,33 @@ test('el mayoreo sin marcar explica por que la mezcla sale corta', () => {
   const r = mayoreoSinMarcar({ porCodigo, inventario })
   assert.equal(r.piezas, 20)
   assert.equal(r.codigos, 1)
+})
+
+test('un mayoreo POR ENCIMA del publico no es un suelo: esta mal capturado', () => {
+  // El caso real: el STIKER PEQUEÑO de Leon se cobra a $9 -su precio de
+  // lista- y su «mayoreo» figura en $120. Sin esta regla salia acusado de
+  // 614 piezas vendidas baratas y $74,062 «que se dejan de ganar», mandando
+  // a buscar un problema que no existe.
+  const porCodigo = { SP: { producto: 'STIKER', pz: 614, dinero: 5526, pzMayoreo: 0, dineroMayoreo: 0 } }
+  const inventario = { productos: [{ Codigo: 'SP', Producto: 'STIKER', Precio: 9, Mayoreo: 120 }] }
+  const r = porDebajoDelMayoreo({ porCodigo, inventario })
+  assert.equal(r.filas.length, 0)
+  assert.equal(r.comparados, 0, 'ni siquiera se mira: esa pareja no define ningun suelo')
+})
+
+test('una plaza que no hace mayoreo queda fuera entera', () => {
+  // Ferias tiene 745 de 816 productos con el mayoreo IGUAL al publico. Sin
+  // esta regla, «por debajo del mayoreo» volvia a ser «por debajo de la
+  // lista», que es el ruido que esta pantalla quita.
+  const porCodigo = { X: { pz: 10, dinero: 1000, pzMayoreo: 0, dineroMayoreo: 0 } }
+  const inventario = { productos: [{ Codigo: 'X', Producto: 'FUNDA', Precio: 216, Mayoreo: 216 }] }
+  assert.equal(porDebajoDelMayoreo({ porCodigo, inventario }).comparados, 0)
+})
+
+test('esSueloDeVerdad: solo cuando el mayoreo esta por debajo', () => {
+  assert.equal(esSueloDeVerdad({ publico: 250, mayoreo: 150 }), true)
+  assert.equal(esSueloDeVerdad({ publico: 216, mayoreo: 216 }), false)
+  assert.equal(esSueloDeVerdad({ publico: 9, mayoreo: 120 }), false)
+  assert.equal(esSueloDeVerdad({ publico: 250, mayoreo: 0 }), false)
+  assert.equal(esSueloDeVerdad(null), false)
 })
