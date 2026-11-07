@@ -463,6 +463,17 @@ caída de la pantalla en blanco se escapó porque la comprobación pulsaba
 cuatro y la columna rota era la octava. Falla si el cuerpo se queda vacío o
 si la consola suelta un error.
 
+También comprueba la sección de **modelos nuevos** de la pestaña de Ventas:
+que estén las dos ediciones y la comparación entre ellas, los tres montones
+—venden, ni una pieza, muy nuevos—, el ritmo en pz/mes, y que cambiar de
+edición cambie la lista de verdad. Por eso las fechas de alta de los datos de
+mentira van **en dos lotes** y relativas a hoy: con diez fechas sueltas cada
+una sería su propio grupo, ninguno llegaría al mínimo de tres y la sección
+caería al respaldo del goteo, sin segunda edición que comparar. El primer lote
+se reparte en varios días a propósito, y lleva dentro uno de 25 días que
+todavía no se puede juzgar: así se ejercita «muy nuevos» y de paso se comprueba
+que una tanda partida en días NO salga como dos ediciones.
+
 Hoy cubre: 4 sesiones · 15 pestañas · 15 secciones de panel · 42 cabeceras ·
 12 incidencias de la bandeja de revisión —con **las dos sesiones que la
 trabajan**, administrador y bodega, porque bodega escribe en ella igual y
@@ -1381,6 +1392,114 @@ Hay mucho más historial del que creíamos: **Aguascalientes desde 2019-11, San
 Luis desde 2020-03, Ferias desde 2021-06**. La nota de que «no existe
 antecedente de julio y agosto hacia abajo» era de las estadísticas propias, no
 de los respaldos.
+
+---
+
+## 🔒 CONFIRMAR — Una edición es un LOTE, no una ventana de calendario
+
+«Recién llegados» vivía en Surtido y se trasladó a **Ventas** el 2026-11-07,
+con estas palabras del dueño: «servirá para evaluar si los modelos nuevos de
+la edición anterior o de las últimas dos ediciones realmente están teniendo
+ventas».
+
+No es la misma pantalla cambiada de sitio, y la diferencia importa. En Surtido
+contestaba una pregunta de COMPRA —qué entró y todavía no se ha visto vender,
+para no volver a pedirlo— así que enseñaba **sólo los que llevan cero**. En
+Ventas la pregunta es la contraria y más grande: de todo lo que entró, **qué
+vende y qué no**. Una lista que sólo trae los fracasos no permite juzgar si la
+edición entró bien, porque le falta el denominador.
+
+### El corte no es por días: es por el lote con el que llegaron
+
+La primera versión cortaba en tramos de 120 días. Funcionaba por casualidad.
+Medido en el catálogo real el 2026-11-07, las entradas son lotes nítidos:
+
+| entrada | días | modelos |
+|---|---|---|
+| 2026-08-10 | 89 | 13 |
+| 2026-05-16 y 18 | 173-175 | 10 |
+| 2026-01-28 y 31 | 280-283 | 26 |
+| 2025-12-01 | 341 | 10 |
+| 2025-10-11 | 392 | 20 |
+
+Más **10 modelos de goteo** repartidos en ocho días sueltos.
+
+Tres cosas que la ventana hacía mal y el lote arregla:
+
+- **Una edición se reparte en varios días.** Mayo entró el 16 y el 18; enero
+  el 28 y el 31. Agrupando por día exacto, una edición sale partida en dos y
+  la comparación mide **una mitad contra la otra**: el número sale, y es
+  falso.
+- **Un lote puede quedarse fuera de la ventana.** La de enero está a 280 días:
+  con tramos de 120 no salía nunca, por muchas ediciones que se pidieran.
+- **El goteo no es una edición.** Llamar «la última edición» a un modelo suelto
+  haría que la comparación midiera un modelo contra trece. Por debajo de
+  `MINIMO_EDICION` se cuentan aparte y se dicen.
+
+Las fechas se agrupan si están a menos de `DIAS_MISMA_EDICION` (**21 días**:
+la tanda más apretada son dos días). Y una edición no puede durar más de
+`DIAS_MAXIMO_EDICION` (**45**): el agrupado encadena, y con mercancía entrando
+a goteo cada veinte días la cadena no se rompería nunca y todo el año sería
+«la última edición», un solo montón sin nada con qué compararlo. La tanda más
+larga de verdad dura 24 días, así que 45 no parte ninguna.
+
+Vive en `src/lib/estrenos.js`, con pruebas.
+
+### ⚠️ La venta sale del acumulado MENSUAL, no del detalle diario
+
+`estadisticas.json` guarda sólo los **últimos 60 días** de detalle
+(`DIAS_QUE_SE_GUARDAN`). La pregunta es sobre lotes de hace tres, seis o nueve
+meses.
+
+Midiendo con el diario, un modelo que entró hace cuatro meses **y se vendió
+entero en los dos primeros** saldría con CERO piezas, y la conclusión sería
+matar justo el modelo que mejor entró. El acumulado por mes de
+`historial.json` sí está entero, y es de donde se lee.
+
+### Tres reglas más, que cambian la respuesta
+
+**Se compara a igualdad de tiempo.** Un modelo de 115 días con 20 piezas vende
+MENOS que uno de 35 con 15. Manda el ritmo —piezas por cada 30 días desde que
+llegó— y las piezas van al lado como lo que son, un total. Ordenando por
+piezas, la lista dice lo contrario de lo que pasa.
+
+**Lo que acaba de llegar no ha fracasado.** Un modelo con dos semanas y cero
+ventas no es un fracaso, es un modelo sin medir. Se aparta en su propio montón
+—por debajo de `DIAS_PARA_OPINAR`, 30 días— y no cuenta como «no vende». Metido
+con los demás, **toda edición recién entrada parecería un desastre** y se
+dejaría de comprar lo que todavía no se ha probado. Por eso la parte que vende
+se calcula sobre los MEDIDOS.
+
+**Un «piso» no es una llegada.** Misma regla que en Surtido: `Alta` es el
+primer movimiento del historial, no la fecha de entrada, y en León 579 de 647
+productos comparten el día en que arrancó Eleventa. Incluirlos llenó la lista
+de fundas de iPhone 6 una vez.
+
+**La diferencia entre ediciones va en PUNTOS.** Del 40% al 50% son diez puntos;
+decir «un 25% mejor» de dos porcentajes es la forma más fácil de que un número
+suene al doble de lo que es. Y el ritmo de una edición se resume con la
+**mediana**: un solo modelo que se vende como churros levanta el promedio y
+hace parecer buena una edición con el resto parado.
+
+### ⚠️ El fallo que esto destapó: todo el dinero de Ventas salía en blanco
+
+`valorDe` esperaba `{ codigo: { promedio } }`, que es lo que devuelve
+`promedioEntrePlazas`. Pero la pestaña de Ventas le pasa `soloPrecios(…)`, que
+devuelve `{ codigo: 123 }`. Con un número, `e.promedio` era `undefined` y la
+función devolvía **NaN**.
+
+Y NaN es *falsy*. Así que no reventaba nada: lo facturado, la utilidad, el
+dinero parado y el puente de variación se **escondían solos**, porque se
+pintan con `if (cifra)`. Parecía que faltaba el dato cuando lo que fallaba era
+la cuenta. En vivo, «Por qué cambió la venta» pasó de no enseñar nada a decir
+$169,940 contra $185,457.
+
+Ahora `valorDe` acepta las dos formas y devuelve **cero**, nunca NaN, ante
+cualquier cosa que no sea un precio: un NaN se propaga por toda la suma y deja
+en blanco la cifra entera, no sólo ese renglón. Hay prueba.
+
+(`exportarSurtido.js` sigue bajando su hoja «Recién llegados» en el Excel de
+compras: ahí la pregunta sigue siendo de compra y el dato no estorba.)
 
 ---
 

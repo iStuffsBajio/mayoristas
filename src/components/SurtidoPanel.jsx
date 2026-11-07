@@ -54,7 +54,6 @@ const VISTAS = [
   { id: 'venta',      etiqueta: 'Pedir por venta',         ambito: 'sucursales' },
   { id: 'muestra',    etiqueta: 'Sin venta y agotados',    ambito: 'sucursales' },
   { id: 'candidatos', etiqueta: 'Se venden en tienda',     ambito: 'sucursales' },
-  { id: 'nuevos',     etiqueta: 'Recién llegados',         ambito: 'sucursales' },
   { id: 'depurar',    etiqueta: 'Depurar',                 ambito: 'sucursales' },
   { id: 'bodega',     etiqueta: 'Lo que puede surtir',     ambito: 'bodega' },
   { id: 'compras',    etiqueta: '🛒 Comprar al proveedor', ambito: 'bodega' },
@@ -1288,43 +1287,6 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
             </Tabla>
           </>)}
 
-      {/* ── Recién llegados ── */}
-      {vista === 'nuevos' && (
-        <>
-          <Aviso tono="info">
-            Modelos que entraron hace menos de {DIAS_RECIEN_LLEGADO} días y todavía no se han
-            vendido. No son inventario muerto: todavía no se han visto vender, que no es lo mismo.
-            Por eso no aparecen en Depurar. Sólo entran los que tienen fecha de entrada real: si
-            un modelo ya existía cuando arranca el historial de su sucursal, no hay forma de saber
-            cuándo llegó y no se cuenta como nuevo.
-          </Aviso>
-          {depurar.nuevos.length === 0
-            ? <p style={{ fontSize: 13, color: TINTA_TENUE }}>
-                {depurar.suficiente ? 'No hay modelos recién llegados sin venta.' : 'Hace falta más historial para separarlos.'}
-              </p>
-            : <Tabla encabezados={<>
-                <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
-                <Th campo="existencia" orden={ord} num style={{ textAlign: 'right' }}>Piezas</Th>
-                <Th campo="alta" orden={ord}>Entró</Th>
-                <Th campo="alta" orden={ord} num style={{ textAlign: 'right' }}>Lleva</Th>
-              </>}>
-                {ord.ordenar(depurar.nuevos).slice(0, TOPE).map((d, i) => {
-                  const dias = diasEnCatalogo(d.alta)
-                  return (
-                    <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
-                      <Modelo f={d} />
-                      <Celda num>{d.existencia}</Celda>
-                      <Celda color={TINTA_SUAVE}>{d.alta}</Celda>
-                      <Celda num color={dias !== null && dias < 90 ? VERDE : TINTA_SUAVE}>
-                        {dias === null ? '—' : `${dias} d`}
-                      </Celda>
-                    </tr>
-                  )
-                })}
-              </Tabla>}
-        </>
-      )}
-
       {/* ── Depurar ── */}
       {vista === 'depurar' && (!depurar.suficiente
         ? <Aviso>
@@ -1339,7 +1301,11 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
               todavía ocupando lugar. Es una propuesta para que la revises, no una orden: un modelo
               puede estar ahí por garantía o por un cliente puntual.
               Suman {depurar.filas.reduce((a, d) => a + d.existencia, 0)} piezas paradas.
-              {depurar.nuevos.length > 0 && ` Otros ${depurar.nuevos.length} tampoco se han vendido, pero llegaron hace menos de ${DIAS_RECIEN_LLEGADO} días y están en «Recién llegados».`}
+              {/* «Recién llegados» se traslado a Ventas el 2026-11-07, y alli
+                  contesta algo mas grande: de todo lo que entro, que vende y
+                  que no. Aqui solo se dice que NO estan en esta lista, para
+                  que nadie los de de baja creyendo que se le olvidaron. */}
+              {depurar.nuevos.length > 0 && ` Otros ${depurar.nuevos.length} tampoco se han vendido, pero llegaron hace menos de ${DIAS_RECIEN_LLEGADO} días: cómo les va está en Ventas, en «¿Están vendiendo los modelos nuevos?».`}
               {depurar.sinFecha > 0 && ` ${depurar.sinFecha} quedan fuera por no saber cuándo entraron.`}
             </Aviso>
             <Tabla encabezados={<>

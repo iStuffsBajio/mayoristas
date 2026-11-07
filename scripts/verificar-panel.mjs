@@ -140,6 +140,13 @@ const SURTIDOS = [
   },
 ]
 
+/** El dia de hace n dias, en ISO. */
+const diasAtras = n => {
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return d.toISOString().slice(0, 10)
+}
+
 const productos = MODELOS.map(([Codigo, Producto], i) => ({
   Codigo, Producto,
   // Dos en el tramo 1-3 a proposito: el panel de Inventarios arranca filtrado
@@ -152,7 +159,28 @@ const productos = MODELOS.map(([Codigo, Producto], i) => ({
   // «se vende mas barato que a un mayorista» no se dibujaba nunca: pasaba en
   // verde sin haber mirado un solo codigo.
   Mayoreo: 40 + i * 2,
-  Alta: `2025-${String(1 + (i % 12)).padStart(2, '0')}-14`,
+  // RELATIVAS a hoy, por lo mismo que las de venta: con fechas fijas de 2025
+  // ninguna entrada cae ya en las dos ediciones recientes, la seccion de
+  // «¿estan vendiendo los modelos nuevos?» sale diciendo que no hay nada y
+  // pasa en verde sin haber mirado un solo modelo.
+  //
+  // El reparto no es decorativo. Hacen falta las cuatro clases o la seccion
+  // se ejercita a medias: uno que VENDE y otro MUDO en la ultima edicion
+  // -sin mudo no se pinta el dinero parado-, uno de menos de 30 dias -que no
+  // puede contar como fracaso- y dos en la edicion ANTERIOR, porque la
+  // comparacion entre ediciones necesita las dos con algo medible y sin ella
+  // no se dibuja.
+  // DOS LOTES de verdad, porque una edicion es un lote y no un tramo de
+  // calendario. Con diez fechas sueltas y lejanas cada una seria su propio
+  // grupo, ninguno llegaria al minimo de tres, y la seccion caeria al
+  // respaldo del goteo: sin segunda edicion no hay comparacion que mirar, y
+  // comparar es lo que se pidio.
+  //
+  // El primer lote se reparte en varios dias -40, 36, 32 y 25- a proposito:
+  // asi comprueba de paso que una tanda partida en dias NO sale como dos
+  // ediciones, y dentro lleva uno de 25 dias que todavia no se puede juzgar,
+  // que es el contador de «muy nuevos».
+  Alta: diasAtras([400, 40, 36, 32, 25, 170, 168, 165, 500, 420][i]),
 }))
 
 // La forma la fijan `estadisticaVacia` y `historialVacio` en
@@ -176,12 +204,34 @@ const estadisticas = {
   }).map(dia),
 }
 
+/** El mes de hace n meses, como 'AAAA-MM'. */
+const mesAtras = n => {
+  const d = new Date()
+  d.setDate(1)
+  d.setMonth(d.getMonth() - n)
+  return d.toISOString().slice(0, 7)
+}
+
 const historial = {
   sucursal: 'leon', nombre: 'León', actualizado: '2026-10-19',
   catalogo: Object.fromEntries(MODELOS.map(([c, n]) => [c, n])),
-  periodos: ['2025-10', '2025-11', '2025-12', '2026-09', '2026-10'].map((p, i) => ({
+  // Los meses tambien van relativos: con meses fijos, la venta de un modelo
+  // que entro hace 45 dias caeria fuera de todos los periodos y saldria mudo
+  // siendo el que mejor entro.
+  periodos: Array.from({ length: 10 }, (_, i) => mesAtras(9 - i)).map((p, i) => ({
     p,
-    m: Object.fromEntries(MODELOS.map(([c], k) => [c, 10 + ((i + k) % 23)])),
+    // MUDOS A PROPOSITO: el segundo modelo de la ultima edicion y el segundo
+    // de la anterior no venden nunca. Con todos vendiendo, «ni una pieza» y
+    // «dinero parado» salen en cero y no se dibujan: la seccion pasaria en
+    // verde sin haber enseñado la mitad que duele.
+    // MUDOS A PROPOSITO, y los dos en la ULTIMA edicion: con todos
+    // vendiendo, «ni una pieza» y «dinero parado» salen en cero y no se
+    // dibujan, asi que la seccion pasaria en verde sin enseñar la mitad que
+    // duele. El indice 3 tiene 12 piezas de existencia, que es lo que hace
+    // que «parado» valga algo.
+    m: Object.fromEntries(MODELOS
+      .filter((_, k) => k !== 2 && k !== 3)
+      .map(([c], k) => [c, 10 + ((i + k) % 23)])),
     dias: [{ f: `${p}-05`, n: 30 }],
     desde: `${p}-01`, hasta: `${p}-28`, diasCubiertos: 28,
   })),
@@ -648,6 +698,67 @@ async function todasLasCabeceras(window, donde) {
   }
   if (n) porSitio.push(`${donde}: ${n}`)
   return n
+}
+
+/**
+ * «¿Estan vendiendo los modelos nuevos?», en la pestaña de Ventas.
+ *
+ * Lo que esto caza no son las cuentas -eso lo fija `estrenos.test.js`- sino
+ * que la seccion deje de dibujarse o se quede a medias. Y puede quedarse a
+ * medias sin que nada falle: si solo salieran los que venden, la pantalla se
+ * veria perfecta y diria que la edicion entro bien; si se perdiera la
+ * comparacion entre ediciones, se seguiria pudiendo leer una sola y nadie
+ * echaria de menos la otra. Las dos cosas son la pregunta que se hizo.
+ */
+async function modelosNuevos(window, donde) {
+  const doc = window.document
+  const sec = doc.querySelector('[data-estrenos]')
+  if (!sec) {
+    errores.push(`${donde} · no se dibujo «estan vendiendo los modelos nuevos»`)
+    return 0
+  }
+
+  // Las dos ediciones. Con una sola no hay nada que comparar, que es
+  // literalmente lo que se pidio: «la edicion anterior o las ultimas dos».
+  for (const n of ['1', '2']) {
+    if (!doc.querySelector(`[data-edicion="${n}"]`)) {
+      errores.push(`${donde} · falta la edicion ${n}`)
+    }
+  }
+  if (!doc.querySelector('[data-compara-ediciones]')) {
+    errores.push(`${donde} · no se compara una edicion con la otra`)
+  }
+
+  const filas = () => [...doc.querySelectorAll('[data-estreno]')]
+  if (!filas().length) {
+    errores.push(`${donde} · la seccion no listo ningun modelo nuevo`)
+    return 1
+  }
+
+  const txt = (sec.textContent || '').replace(/\s+/g, ' ')
+  // Los tres montones tienen que estar. «Muy nuevos» es el que evita que un
+  // modelo de dos semanas cuente como fracaso, y es el que se cae solo.
+  for (const que of ['sí venden', 'ni una pieza', 'muy nuevos']) {
+    if (!txt.includes(que)) errores.push(`${donde} · la seccion no separa «${que}»`)
+  }
+  // Y el ritmo, que es lo unico que permite comparar un modelo de 115 dias
+  // con uno de 35: sin el, la tabla ordena por piezas y dice lo contrario.
+  if (!txt.includes('pz/mes')) {
+    errores.push(`${donde} · la tabla perdio el ritmo: comparar por piezas totales miente`)
+  }
+
+  // Cambiar de edicion tiene que cambiar la tabla de verdad.
+  const antes = filas().map(f => f.dataset.estreno).join(',')
+  clic(window, doc.querySelector('[data-edicion="2"]'))
+  await nuevaVuelta(window, 5)
+  if (!enPie(window, `${donde} · edicion anterior`)) return 1
+  const despues = filas().map(f => f.dataset.estreno).join(',')
+  if (antes === despues) {
+    errores.push(`${donde} · cambiar de edicion no cambio la lista: enseña los mismos modelos`)
+  }
+  clic(window, doc.querySelector('[data-edicion="1"]'))
+  await nuevaVuelta(window, 5)
+  return 1
 }
 
 /**
@@ -1736,6 +1847,7 @@ let plazasDeEfectivo = 0
 // agrupacion sigue viva: sin ella la cola vuelve a ser una pregunta por
 // codigo, que es lo que se vino a arreglar.
 const lotesVistos = new Set()
+let nuevosVistos = 0
 
 for (const [nombre, sesion] of SESIONES) {
   const { window, dichos } = await arrancar(sesion)
@@ -1792,6 +1904,7 @@ for (const [nombre, sesion] of SESIONES) {
           fichasDeCodigo += await buscarUnCodigo(window, `${nombre} · admin · ${t}`)
           bandejasDeCosto += bandejaDeCostos(window, `${nombre} · admin · ${t}`)
           preciosPorPlaza += precioPorPlaza(window, `${nombre} · admin · ${t}`)
+          nuevosVistos += await modelosNuevos(window, `${nombre} · admin · ${t}`)
           bandejasDePrecio += preciosARevisar(window, `${nombre} · admin · ${t}`)
         }
         if (/surtido|surtir/i.test(t)) {
@@ -1876,6 +1989,8 @@ if (bandejasDeCosto < 1) {
   errores.push('la bandeja de «Costos que faltan en bodega» no se dibujo: el costo sale solo de bodega, y si el hueco no se ve la utilidad miente por omision')
 }
 for (const l of porSitio) console.log('  ' + l)
+console.log(`  seccion de modelos nuevos: ${nuevosVistos} dibujada`)
+if (!nuevosVistos) errores.push('la seccion «estan vendiendo los modelos nuevos» no se dibujo en ninguna sesion')
 console.log(`  lotes dibujados: ${lotesVistos.size}`)
 for (const l of lotesVistos) console.log('    · ' + l)
 if (lotesVistos.size < 4) errores.push(`solo se dibujaron ${lotesVistos.size} lotes de 4: la bandeja volvio a preguntar codigo por codigo`)

@@ -22,6 +22,8 @@ import { precioPorPlaza, preciosDeVenta, soloPrecios, cobertura } from '../lib/v
 import { porDebajoDelMayoreo, mayoreoSinMarcar } from '../lib/precioCobrado'
 import { descargarPrecios } from '../lib/exportarPrecios'
 import { hayBusqueda } from '../lib/buscar'
+import { mapaDeAltas } from '../lib/surtido'
+import { estrenos, comparaEdiciones, DIAS_EDICION, DIAS_PARA_OPINAR } from '../lib/estrenos'
 // La regla de buscar vive en la libreria, con sus pruebas, no aqui: la
 // pastilla de la plaza y la del rango no pueden esconder un codigo que existe.
 import { modelosQueCoinciden, fichaDeVentas } from '../lib/buscarVentas'
@@ -796,6 +798,172 @@ function CostosQueFaltan({ filas }) {
  * los siete años de Aguascalientes decía que una vendía a mitad de precio que
  * la otra, y no era verdad.
  */
+/**
+ * ¿Los modelos nuevos están vendiendo?
+ *
+ * Lo pidió el dueño el 2026-11-07. Antes esto vivía en Surtido como «Recién
+ * llegados» y contestaba una pregunta de COMPRA —qué entró y todavía no se ha
+ * visto vender, para no volver a pedirlo— así que enseñaba SÓLO los que
+ * llevan cero. Aquí la pregunta es la contraria y más grande: de todo lo que
+ * entró, qué vende y qué no. Una lista que sólo trae los fracasos no permite
+ * juzgar si la edición entró bien, porque le falta el denominador.
+ *
+ * Las reglas y las cuatro trampas están en `lib/estrenos.js`, con pruebas.
+ */
+function Estrenos({ datos, precios, plazas }) {
+  const [abierta, setAbierta] = useState(1)
+  const cmp = useMemo(() => comparaEdiciones(datos?.cohortes), [datos])
+  if (!datos?.cohortes?.length) return null
+
+  const hay = datos.cohortes.some(c => c.modelos.length > 0)
+  const cohorte = datos.cohortes.find(c => c.n === abierta) ?? datos.cohortes[0]
+  const r = cohorte.resumen
+
+  const pct = v => (v === null ? '—' : `${Math.round(v * 100)}%`)
+
+  return (
+    <section data-estrenos
+             style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px' }}>
+      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
+        ¿Están vendiendo los modelos nuevos?
+      </h4>
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px', lineHeight: 1.5 }}>
+        {datos.hayLotes
+          ? <>Una edición es el <strong>lote</strong> con el que entraron: las fechas de alta
+             pegadas se agrupan solas, porque una tanda se reparte a veces en dos o tres días y
+             partirla sería comparar una mitad con la otra.</>
+          : <>Aquí los modelos entran de uno en uno, así que no hay lotes que agrupar: se juntan
+             las entradas reales de los últimos {DIAS_EDICION} días.</>}
+        {' '}La venta se cuenta desde que entró <em>cada</em> modelo y sale del acumulado por mes,
+        no del detalle diario —ése sólo guarda 60 días, y con él un modelo que entró hace cuatro
+        meses y se vendió entero en los dos primeros saldría en cero—.
+        {datos.sueltos > 0 && (datos.sueltos === 1
+          ? ' Un modelo entró suelto y no forma edición.'
+          : ` ${datos.sueltos} modelos entraron sueltos y no forman edición.`)}
+        {datos.sinFecha > 0 && ` ${datos.sinFecha} quedan fuera por no saber cuándo entraron.`}
+      </p>
+
+      {!hay ? (
+        <p style={{ fontSize: 12.5, color: TINTA_TENUE, margin: 0 }}>
+          No hay entradas recientes de las que se pueda decir nada. Una fecha de alta que
+          coincide con el arranque del historial de su plaza no prueba que el modelo sea nuevo,
+          así que no se cuenta.
+        </p>
+      ) : (<>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          {datos.cohortes.map(c => (
+            <button key={c.n} type="button" onClick={() => setAbierta(c.n)}
+                    data-edicion={c.n}
+                    className={abierta === c.n ? 'chip-plaza activa' : 'chip-plaza'}>
+              {c.etiqueta}
+              <span style={{ marginInlineStart: 6, fontWeight: 800 }}>{c.modelos.length}</span>
+              {/* La fecha del lote: es como el dueño la reconoce -«la de
+                  agosto»- y sin ella dos ediciones se ven iguales. */}
+              <span style={{ marginInlineStart: 5, fontWeight: 400, opacity: .7 }}>
+                {c.desde === c.hasta ? c.desde : `${c.desde} a ${c.hasta}`}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* La comparación entre las dos ediciones: es lo que se preguntó.
+            Va en PUNTOS, no en porcentaje de porcentaje: pasar del 40% al
+            50% es diez puntos, y decir «un 25% mejor» de dos porcentajes
+            hace que un número suene al doble de lo que es. */}
+        {cmp && (
+          <p data-compara-ediciones
+             style={{ fontSize: 12.5, color: TINTA, margin: '0 0 12px', lineHeight: 1.5,
+                      background: 'rgba(2,136,173,0.05)', borderRadius: 12, padding: '9px 11px' }}>
+            De la última edición vende <strong>{pct(cmp.parteAhora)}</strong> de lo que ya se puede
+            medir; de la anterior, <strong>{pct(cmp.parteAntes)}</strong>.{' '}
+            {Math.abs(cmp.puntos) < 1
+              ? 'Prácticamente lo mismo.'
+              : <strong style={{ color: cmp.puntos > 0 ? C_SUBE : C_BAJA }}>
+                  {cmp.puntos > 0 ? 'Entró mejor' : 'Entró peor'}, por {Math.abs(Math.round(cmp.puntos))} puntos.
+                </strong>}
+            {cmp.ritmoAhora !== null && cmp.ritmoAntes !== null && (
+              <> El modelo de en medio hace <strong>{cmp.ritmoAhora.toFixed(1)}</strong> pz/mes
+                 contra <strong>{cmp.ritmoAntes.toFixed(1)}</strong> de la anterior.</>
+            )}
+          </p>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <Dato valor={r.venden} etiqueta="sí venden" color={C_SUBE}
+                nota={r.parte === null ? null : `${pct(r.parte)} de los medibles`} />
+          <Dato valor={r.mudos} etiqueta="ni una pieza" color={r.mudos ? C_BAJA : TINTA_TENUE} />
+          {/* Lo que acaba de llegar NO es un fracaso: es un modelo sin medir.
+              Contado con los mudos, toda edición reciente parecería un
+              desastre y se dejaría de comprar lo que no se ha probado. */}
+          <Dato valor={r.sinMedir} etiqueta="muy nuevos" color={TINTA_TENUE}
+                nota={`menos de ${DIAS_PARA_OPINAR} días`} />
+          <Dato valor={r.piezas} etiqueta="piezas vendidas" />
+          <Dato valor={pesos(r.dinero)} etiqueta="facturado" />
+          {r.dineroMudo > 0 && (
+            <Dato valor={pesos(r.dineroMudo)} etiqueta="parado" color={C_BAJA}
+                  nota={`${r.existenciaMuda} pz de los que no venden`} />
+          )}
+        </div>
+
+        {cohorte.modelos.length === 0 ? (
+          <p style={{ fontSize: 12.5, color: TINTA_TENUE, margin: 0 }}>
+            Ninguna entrada real en esta edición.
+          </p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ color: TINTA_TENUE, fontSize: 10.5 }}>
+                  <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 0' }}>Modelo</th>
+                  <th style={{ textAlign: 'left', fontWeight: 600 }}>Entró</th>
+                  <th style={{ textAlign: 'right', fontWeight: 600 }}>pz/mes</th>
+                  <th style={{ textAlign: 'right', fontWeight: 600 }}>Piezas</th>
+                  <th style={{ textAlign: 'right', fontWeight: 600 }}>Vendido</th>
+                  <th style={{ textAlign: 'right', fontWeight: 600 }}>Quedan</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cohorte.modelos.slice(0, 60).map((m, i) => (
+                  <tr key={m.codigo} data-estreno={m.codigo}
+                      style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
+                    <td style={{ padding: '5px 0' }}>
+                      <Modelo producto={m.producto} codigo={m.codigo} />
+                    </td>
+                    <td style={{ color: TINTA_SUAVE, whiteSpace: 'nowrap' }}>
+                      {m.alta} <span style={{ color: TINTA_TENUE }}>· {m.dias} d</span>
+                    </td>
+                    {/* El ritmo es lo que permite compararlos. Las piezas van
+                        al lado como lo que son, un total: uno de 115 días con
+                        20 piezas vende menos que uno de 35 con 15. */}
+                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+                                 fontWeight: 700,
+                                 color: m.sinMedir ? TINTA_TENUE : m.piezas ? C_SUBE : C_BAJA }}>
+                      {m.sinMedir ? 'sin medir' : m.ritmo.toFixed(1)}
+                    </td>
+                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{m.piezas}</td>
+                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      {m.dinero > 0 ? pesos(m.dinero) : '—'}
+                    </td>
+                    <td style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums',
+                                 color: m.piezas === 0 && m.existencia > 0 ? C_BAJA : TINTA_SUAVE }}>
+                      {m.existencia}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {cohorte.modelos.length > 60 && (
+              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '8px 0 0' }}>
+                Y {cohorte.modelos.length - 60} más.
+              </p>
+            )}
+          </div>
+        )}
+      </>)}
+    </section>
+  )
+}
+
 function PrecioPorPlaza({ porPlaza, plazas }) {
   const GRUPOS = [
     { k: 'fundas',      titulo: 'Fundas',          nota: 'el negocio' },
@@ -1215,6 +1383,26 @@ export default function EstadisticasPanel() {
     () => (datos ? proyeccionDelMes({ est: datos, precios }) : null),
     [datos, precios])
 
+  // ── Las ediciones recientes ───────────────────────────────────────────
+  //
+  // Respeta la pastilla de plaza: con una elegida se mira su catálogo y su
+  // historial, porque un modelo puede haber entrado sólo en León. `historial`
+  // ya viene acotado arriba.
+  const invsVista = useMemo(() => {
+    if (sel === TODAS.slug) return inventarios
+    return { [sel]: inventarios[sel] }
+  }, [inventarios, sel])
+
+  const estrenosDatos = useMemo(() => {
+    if (!porSucursal) return null
+    // `mapaDeAltas` recibe las LISTAS de productos, no el json entero. Es el
+    // que sabe reconocer el día en que arranca el historial de cada plaza y
+    // marcarlo como piso.
+    const altas = mapaDeAltas(Object.fromEntries(
+      Object.entries(invsVista).map(([slug, inv]) => [slug, inv?.productos ?? []])))
+    return estrenos({ altas, historial, inventarios: invsVista, precios, costos, nombres })
+  }, [porSucursal, invsVista, historial, precios, costos, nombres])
+
   // Cuatro semanas contra las cuatro anteriores: es la comparación que usa
   // quien compra, no el mes natural, que parte la tendencia por la mitad.
   const ventanas = useMemo(() => {
@@ -1460,6 +1648,11 @@ export default function EstadisticasPanel() {
           )}
 
           {huecoCosto.length > 0 && <CostosQueFaltan filas={huecoCosto} />}
+
+          {/* Si lo nuevo está vendiendo. Va arriba, antes de los precios:
+              es la pregunta que se hace al decidir la compra siguiente, y
+              antes vivía en Surtido contestando sólo la mitad. */}
+          <Estrenos datos={estrenosDatos} precios={precios} plazas={activas} />
 
           {/* A qué precio vende cada plaza, con los tres grupos SEPARADOS.
               Va aquí arriba, no al final: es lo que el dueño mira primero

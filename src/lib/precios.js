@@ -134,9 +134,28 @@ export function desviaciones(promedios, { minimo = MAYOREO_MINIMO, umbral = DESV
   return out.sort((a, b) => Math.abs(b.dif) - Math.abs(a.dif))
 }
 
-/** Valor en pesos de una cantidad de piezas de un código. */
+/**
+ * Valor en pesos de una cantidad de piezas de un código.
+ *
+ * Acepta las DOS formas que circulan por el panel, y esto arregla un fallo
+ * que no se veia: `promedioEntrePlazas` devuelve `{ codigo: { promedio } }`,
+ * pero `soloPrecios` -lo que la pestaña de Ventas pasa a toda la
+ * radiografia- devuelve `{ codigo: 123 }`. Con un numero, `e.promedio` era
+ * undefined y esto devolvia **NaN**.
+ *
+ * Y NaN es falsy. Asi que no reventaba nada: las cifras en pesos de la
+ * pestaña de Ventas -lo facturado, la utilidad, el dinero parado- se
+ * escondian solas, porque el sitio donde se pintan las enseña solo `if
+ * (cifra)`. Parecia que faltaba el dato cuando lo que fallaba era la cuenta.
+ *
+ * `preciosDeVenta` ya hacia este mismo `?? precio` por su cuenta, asi que la
+ * convencion de aceptar las dos ya estaba en la casa; lo que faltaba era
+ * aqui, que es por donde pasa todo.
+ */
 export function valorDe(codigo, piezas, promedios) {
   const e = promedios?.[String(codigo ?? '').trim()]
-  if (!e || !(piezas > 0)) return 0
-  return e.promedio * piezas
+  if (e === undefined || e === null || !(piezas > 0)) return 0
+  const precio = Number(typeof e === 'object' ? e.promedio : e)
+  if (!Number.isFinite(precio)) return 0
+  return precio * piezas
 }
