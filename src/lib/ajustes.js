@@ -38,6 +38,11 @@ export const TIPOS = {
  * se puede contar, y el reporte que va a cada sucursal se ordena por esto.
  */
 export const MOTIVOS = {
+  // «Decidí darlo de baja» no es lo mismo que «ya no existe»: el código sigue
+  // vivo en la caja y la decisión es nueva. Se separa porque el reporte que
+  // baja a cada sucursal dice qué hacer, y aquí lo que hay que hacer es
+  // borrarlo, no comprobar si se borró.
+  'dado-de-baja':      'Se decidió darlo de baja',
   'ya-no-existe':      'El código ya no existe',
   'codigo-duplicado':  'Está duplicado con otro',
   'mal-capturado':     'Está mal capturado',

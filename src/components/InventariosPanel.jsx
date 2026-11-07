@@ -3,6 +3,10 @@ import { useState, useEffect, useMemo } from 'react'
 import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA } from '../lib/sucursales'
 import { inventarioJsonUrl, estadisticasUrl, historialUrl } from '../lib/s3'
 import { clasePorModelo, CLASES } from '../lib/clases'
+import { useAuth } from '../context/AuthContext'
+import { useAjustes } from '../lib/useAjustes'
+import { sinOcultos, MOTIVOS } from '../lib/ajustes'
+import { guardarAjuste } from '../lib/api'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
 import { seProduce } from '../lib/produccion'
 import { filtrarYBuscar, hayBusqueda } from '../lib/buscar'
@@ -98,10 +102,10 @@ function Venta({ n }) {
  * las cuatro tiendas, los modelos de clase A son el 58% de la venta con el
  * 12% del catálogo.
  */
-function Contador({ n, etiqueta, color, activo, onClick, clases }) {
+function Contador({ n, etiqueta, color, activo, onClick, clases, id }) {
   const hay = clases && (clases.A || clases.B || clases.C)
   return (
-    <button type="button" onClick={onClick}
+    <button type="button" onClick={onClick} data-filtro={id}
       style={{
         flex: 1, minWidth: 108, padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
         background: activo ? 'rgba(0,188,242,0.06)' : '#fff',
@@ -185,6 +189,24 @@ export default function InventariosPanel() {
   const [inventarios, setInventarios] = useState(null)
   const [estadisticas, setEstadisticas] = useState(null)
   const [historiales, setHistoriales] = useState(null)
+
+  // Dar de baja un código desde aquí. Usa la MISMA capa de ajustes que la
+  // cola de revisión: no hay dos formas de dar de baja, hay una. Lo que se
+  // marca aquí deja de contarse en los recuadros y aparece en Revisar como
+  // pendiente de borrar en la caja de cada plaza.
+  const { token, isAdmin } = useAuth()
+  const { correcciones, ocultos, setCorrecciones } = useAjustes(token)
+  const [bajando, setBajando] = useState(null)
+  const [avisoBaja, setAvisoBaja] = useState(null)
+
+  // Filtrar por clase. Un agotado de clase A y uno de clase C son dos
+  // problemas distintos y hasta ahora caían en la misma lista.
+  const [clase, setClase] = useState('todas')
+
+  // Dar de baja es una decision de negocio: solo el administrador. Una tienda
+  // ve su inventario, pero no decide que sale del catalogo de la red. El
+  // backend lo vuelve a comprobar; esto solo evita enseñar el boton.
+  const puedeDarDeBaja = isAdmin
   const [cargando, setCargando]       = useState(true)
 
   useEffect(() => {
@@ -281,7 +303,13 @@ export default function InventariosPanel() {
 
   // Un sticker en cero no es un agotado: se imprime cuando hace falta. Si se
   // cuenta como existencia, ensucia el semaforo y la lista de resurtido.
-  const sinProduccion = useMemo(() => filas.filter(f => !seProduce(f.codigo, f.producto)), [filas])
+  const sinProduccion = useMemo(() => {
+    const vivas = filas.filter(f => !seProduce(f.codigo, f.producto))
+    // Lo dado de baja deja de contar AQUI tambien, no solo en el dashboard.
+    // Si siguiera contandose, la decision no se notaria en ningun numero y
+    // habria que acordarse de que ya se tomo.
+    return sinOcultos(vivas, ocultos)
+  }, [filas, ocultos])
 
   // La clase sale del historial de TODAS las plazas, no de la que se esté
   // mirando: un modelo es clase A del negocio, no de un mostrador. Si cambiara
@@ -314,6 +342,39 @@ export default function InventariosPanel() {
     return c
   }, [sinProduccion, esTodas, clases])
 
+  // El filtro de clase va DESPUES de los recuadros a proposito: los recuadros
+  // tienen que seguir enseñando el total y su desglose aunque haya un filtro
+  // puesto, o se pierde la referencia de sobre cuanto se esta filtrando.
+  const porClase = useMemo(() => {
+    if (clase === 'todas') return sinProduccion
+    return sinProduccion.filter(f => clases[String(f.codigo ?? '').trim().toUpperCase()] === clase)
+  }, [sinProduccion, clases, clase])
+
+  const darDeBaja = async fila => {
+    setAvisoBaja(null)
+    setBajando(fila.codigo)
+    try {
+      await guardarAjuste({
+        codigo: fila.codigo, motivo: 'dado-de-baja', producto: fila.producto,
+      }, token)
+      // Se refleja de inmediato sin esperar a recargar: la clave es la misma
+      // que arma `claveDe` en `ajustes.js`.
+      setCorrecciones(prev => ({
+        ...prev,
+        [`ocultar|${String(fila.codigo).trim().toUpperCase()}`]: {
+          clave: `ocultar|${String(fila.codigo).trim().toUpperCase()}`,
+          tipo: 'ocultar', codigo: String(fila.codigo).trim().toUpperCase(),
+          producto: fila.producto, motivo: 'dado-de-baja',
+          cuando: new Date().toISOString(),
+        },
+      }))
+      setAvisoBaja(`${fila.codigo} dado de baja. Deja de contar aquí, y en Revisar queda pendiente de borrarlo en la caja de cada plaza.`)
+    } catch (e) {
+      setAvisoBaja(e?.mensaje || 'No se pudo dar de baja. Comprueba la sesión.')
+    }
+    setBajando(null)
+  }
+
   const buscando = hayBusqueda(busqueda)
 
   // Los que cumplen el filtro de existencia, antes de mirar la venta. Sirve
@@ -321,8 +382,8 @@ export default function InventariosPanel() {
   const porExistencia = useMemo(() => {
     if (buscando) return sinProduccion
     const prueba = FILTROS.find(f => f.id === filtro)?.prueba ?? (() => true)
-    return sinProduccion.filter(f => prueba(valorDe(f)))
-  }, [sinProduccion, filtro, esTodas, buscando])
+    return porClase.filter(f => prueba(valorDe(f)))
+  }, [porClase, sinProduccion, filtro, esTodas, buscando])
 
   const visibles = useMemo(() => {
     // `filtrarYBuscar` es quien decide que al buscar NO se aplica el filtro de
@@ -330,7 +391,11 @@ export default function InventariosPanel() {
     // no aquí: se rompió tres veces por estar suelta dentro del componente.
     const prueba = FILTROS.find(f => f.id === filtro)?.prueba ?? (() => true)
     const lista = filtrarYBuscar({
-      filas: sinProduccion,
+      // Buscando se pasa la lista ENTERA, sin el filtro de clase. Es la misma
+      // regla que la del filtro de existencia y por el mismo motivo: buscar
+      // es ir por un modelo concreto, y si existe tiene que aparecer, sea de
+      // la clase que sea. Esa regla se rompio tres veces por estar suelta.
+      filas: buscando ? sinProduccion : porClase,
       busqueda,
       pasaFiltro: f => prueba(valorDe(f)),
     }).filter(f => !soloConVenta || !hayVentas || f.v30 > 0)
@@ -345,7 +410,7 @@ export default function InventariosPanel() {
     if (orden === 'vendidos') return lista.sort((a, b) => b.v30 - a.v30 || valorDe(a) - valorDe(b) || porNombre(a, b))
     const dir = orden === 'menor' ? 1 : -1
     return lista.sort((a, b) => (valorDe(a) - valorDe(b)) * dir || porNombre(a, b))
-  }, [sinProduccion, filtro, orden, busqueda, soloConVenta, hayVentas, esTodas, ord.campo, ord.dir])
+  }, [sinProduccion, porClase, buscando, filtro, orden, busqueda, soloConVenta, hayVentas, esTodas, ord.campo, ord.dir])
 
   const etiquetaFiltro = FILTROS.find(f => f.id === filtro)?.etiqueta ?? 'todos'
 
@@ -412,12 +477,39 @@ export default function InventariosPanel() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            <Contador n={conteos.agotado} etiqueta="agotados"  color={ROSA}      clases={conteos.agotado_clases} activo={filtro === 'agotado'} onClick={() => setFiltro('agotado')} />
-            <Contador n={conteos.urgente} etiqueta="urgentes"  color="#D51A7A"   clases={conteos.urgente_clases} activo={filtro === 'urgente'} onClick={() => setFiltro('urgente')} />
-            <Contador n={conteos.bajo}    etiqueta="limitados" color="#d97706"   clases={conteos.bajo_clases}    activo={filtro === 'bajo'}    onClick={() => setFiltro('bajo')} />
-            <Contador n={conteos.ok}      etiqueta="en stock"  color="#16a34a"   clases={conteos.ok_clases}      activo={filtro === 'ok'}      onClick={() => setFiltro('ok')} />
-            <Contador n={conteos.todos}   etiqueta="modelos"   color={TINTA}     clases={conteos.todos_clases}   activo={filtro === 'todos'}   onClick={() => setFiltro('todos')} />
+            <Contador id="agotado" n={conteos.agotado} etiqueta="agotados"  color={ROSA}      clases={conteos.agotado_clases} activo={filtro === 'agotado'} onClick={() => setFiltro('agotado')} />
+            <Contador id="urgente" n={conteos.urgente} etiqueta="urgentes"  color="#D51A7A"   clases={conteos.urgente_clases} activo={filtro === 'urgente'} onClick={() => setFiltro('urgente')} />
+            <Contador id="bajo" n={conteos.bajo}    etiqueta="limitados" color="#d97706"   clases={conteos.bajo_clases}    activo={filtro === 'bajo'}    onClick={() => setFiltro('bajo')} />
+            <Contador id="ok" n={conteos.ok}      etiqueta="en stock"  color="#16a34a"   clases={conteos.ok_clases}      activo={filtro === 'ok'}      onClick={() => setFiltro('ok')} />
+            <Contador id="todos" n={conteos.todos}   etiqueta="modelos"   color={TINTA}     clases={conteos.todos_clases}   activo={filtro === 'todos'}   onClick={() => setFiltro('todos')} />
           </div>
+
+          {/* Filtrar por clase. Va DESPUES de los recuadros: ellos siguen
+              enseñando el total y su desglose aunque haya filtro puesto, que
+              es la referencia de sobre cuanto se esta filtrando. */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: TINTA_TENUE }}>Clase:</span>
+            {[['todas', 'Todas'], ['A', 'A'], ['B', 'B'], ['C', 'C']].map(([k, t]) => (
+              <button key={k} type="button" onClick={() => setClase(k)}
+                      data-clase-filtro={k}
+                      className={clase === k ? 'chip-plaza activa' : 'chip-plaza'}>
+                {t}
+              </button>
+            ))}
+            {clase !== 'todas' && (
+              <span style={{ fontSize: 11, color: TINTA_SUAVE }}>
+                {porClase.length} de {sinProduccion.length} modelos
+              </span>
+            )}
+          </div>
+
+          {avisoBaja && (
+            <p style={{ fontSize: 11.5, color: '#0A5B73', background: 'rgba(2,136,173,0.07)',
+                        border: '1px solid #BAE6FD', borderRadius: 12, padding: '8px 12px',
+                        margin: '0 0 10px' }}>
+              {avisoBaja}
+            </p>
+          )}
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
             <input
@@ -502,8 +594,42 @@ export default function InventariosPanel() {
                       <td style={{ padding: '7px 12px', color: TINTA, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {f.producto}
                       </td>
-                      <td style={{ padding: '7px 8px', color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>
-                        {f.codigo}
+                      {/* El codigo, con su clase y la opcion de darlo de baja.
+                          En ROJO cuando esta agotado en todas partes -no hay
+                          nada que vender- y en AMBAR cuando es clase C, que
+                          es la que se acaba depurando. */}
+                      <td style={{ padding: '7px 8px', fontFamily: 'ui-monospace, monospace', fontSize: 11, whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const k = clases[String(f.codigo ?? '').trim().toUpperCase()]
+                          const total = valorDe(f)
+                          const color = total <= 0 ? '#DC2626' : k === 'C' ? '#B45309' : TINTA_TENUE
+                          return (
+                            <>
+                              <span style={{ color }}>{f.codigo}</span>
+                              {k && (
+                                <span style={{
+                                  marginInlineStart: 5, fontSize: 9.5, fontWeight: 800,
+                                  fontFamily: 'inherit',
+                                  color: k === 'A' ? '#5E9422' : k === 'B' ? '#0288AD' : '#B45309',
+                                }}>{k}</span>
+                              )}
+                              {puedeDarDeBaja && (
+                                <button type="button"
+                                        data-baja={f.codigo}
+                                        disabled={bajando === f.codigo}
+                                        onClick={() => darDeBaja(f)}
+                                        title={`Dar de baja ${f.codigo} en todas las plazas. Deja de contar en los recuadros y pasa a Revisar como pendiente de borrarlo en la caja.`}
+                                        style={{
+                                          marginInlineStart: 6, border: 'none', background: 'none',
+                                          cursor: bajando === f.codigo ? 'wait' : 'pointer',
+                                          color: TINTA_TENUE, fontSize: 11, padding: '0 2px',
+                                        }}>
+                                  {bajando === f.codigo ? '…' : '✕'}
+                                </button>
+                              )}
+                            </>
+                          )
+                        })()}
                       </td>
                       {esTodas
                         ? <>

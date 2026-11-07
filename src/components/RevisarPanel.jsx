@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { revisiones, guardarRevision, guardarAjuste } from '../lib/api'
 import { estadoDe, codigosDeFicha, MOTIVOS, ESTADOS } from '../lib/ajustes'
 import { useAjustes } from '../lib/useAjustes'
+import { descargarBajas } from '../lib/exportarBajas'
 import { exportarRevisiones } from '../lib/exportarRevisiones'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl } from '../lib/s3'
@@ -499,6 +500,19 @@ export default function RevisarPanel() {
           <h3>
             Corregidos aquí, pendientes en la caja
             <span className="rev-pendientes-cuenta">{pendientes.length}</span>
+            {/* El Excel, para llevarlo a la caja. La pagina NO puede borrar
+                un codigo de Eleventa -el respaldo manda- asi que lo que si
+                puede es llevar el control de lo que hay que borrar y
+                ponerlo en papel. Una hoja por plaza, porque el trabajo es
+                de cada tienda. */}
+            <button type="button" className="rev-saltar" data-bajar-excel
+                    style={{ marginInlineStart: 'auto' }}
+                    onClick={() => {
+                      const r = descargarBajas(correcciones, inv ?? {})
+                      if (!r) setSinRed(false)
+                    }}>
+              Bajar la lista en Excel
+            </button>
           </h3>
           <p>
             Ya no se reclaman en el panel. Se quitan solos de esta lista cuando el respaldo

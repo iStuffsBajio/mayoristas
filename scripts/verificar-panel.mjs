@@ -142,7 +142,11 @@ const SURTIDOS = [
 
 const productos = MODELOS.map(([Codigo, Producto], i) => ({
   Codigo, Producto,
-  Existencia: [34, 4, 0, 12, 7, 0, 91, 0, 25, 0][i],
+  // Dos en el tramo 1-3 a proposito: el panel de Inventarios arranca filtrado
+  // por «Urgente (1-3)» y sin ninguno la tabla nacia VACIA. Con la tabla
+  // vacia no hay renglones, y todo lo que vive en un renglon -el boton de
+  // dar de baja, la clase junto al codigo- no se comprobaba nunca.
+  Existencia: [34, 3, 0, 12, 2, 0, 91, 0, 25, 0][i],
   Precio: 55 + i * 3,
   // Sin precio de MAYOREO no hay suelo contra el que medir, y la bandeja de
   // «se vende mas barato que a un mayorista» no se dibujaba nunca: pasaba en
@@ -161,7 +165,15 @@ const dia = (f, i) => ({ f, m: Object.fromEntries(MODELOS.map(([c], k) => [c, 1 
 const estadisticas = {
   sucursal: 'leon', nombre: 'León', actualizado: '2026-10-19',
   catalogo: Object.fromEntries(MODELOS.map(([c, n]) => [c, n])),
-  dias: ['2026-09-28', '2026-09-29', '2026-10-01', '2026-10-05', '2026-10-12'].map(dia),
+  // RELATIVAS a hoy, no fijas. Con fechas fijas el dato caduca solo: pasados
+  // 30 dias ningun modelo tiene «venta reciente», el panel de Inventarios
+  // -que arranca filtrado por «solo los que se venden»- sale vacio, y todo lo
+  // que vive en un renglon deja de comprobarse sin que nada falle.
+  dias: [20, 16, 12, 8, 3].map(n => {
+    const f = new Date()
+    f.setDate(f.getDate() - n)
+    return f.toISOString().slice(0, 10)
+  }).map(dia),
 }
 
 const historial = {
@@ -789,6 +801,29 @@ async function clasesEnRecuadros(window, donde) {
   for (const k of ['A ', 'B ', 'C ']) {
     if (!txt.includes(k)) errores.push(`${donde} · falta la clase «${k.trim()}» en el desglose`)
   }
+
+  // Las pastillas para filtrar por clase. Sin ellas, un agotado de clase A se
+  // sigue viendo revuelto con 400 de clase C y el desglose solo sirve para
+  // mirar, no para trabajar.
+  for (const k of ['A', 'B', 'C']) {
+    if (!doc.querySelector(`[data-clase-filtro="${k}"]`)) {
+      errores.push(`${donde} · no se puede filtrar por clase ${k}`)
+    }
+  }
+
+  // Y el boton de dar de baja, que es lo que convierte la lista en una
+  // decision. Solo para administrador; una tienda no decide que sale del
+  // catalogo de la red.
+  // Se pulsa «modelos» antes de mirar: el panel arranca en «Urgente (1-3)» y
+  // en la vista consolidada las existencias se SUMAN entre plazas, asi que
+  // con el dato de mentira ese tramo sale vacio. Con la tabla vacia no hay
+  // renglones, y el boton vive en un renglon.
+  const todos = doc.querySelector('[data-filtro="todos"]')
+  if (todos) { clic(window, todos); await nuevaVuelta(window, 6) }
+
+  const baja = doc.querySelector('[data-baja]')
+  if (!baja) errores.push(`${donde} · no hay forma de dar de baja un codigo desde el inventario`)
+
   return con.length
 }
 

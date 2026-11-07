@@ -406,6 +406,10 @@ async function rutaGuardarRevision(evento, origen, cuerpo) {
 
 const TIPOS_AJUSTE = new Set(['ocultar'])
 const MOTIVOS_AJUSTE = new Set([
+  // `dado-de-baja` es la decision tomada desde el panel de Inventarios: el
+  // codigo sigue vivo en la caja y se quiere fuera. No es lo mismo que
+  // `ya-no-existe`, que es comprobar algo que ya paso.
+  'dado-de-baja',
   'ya-no-existe', 'codigo-duplicado', 'mal-capturado', 'no-se-maneja-aqui', 'otro',
 ])
 
