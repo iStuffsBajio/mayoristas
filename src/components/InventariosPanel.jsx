@@ -1,11 +1,13 @@
 import { useState, useEffect, useMemo } from 'react'
 // Aqui si entra la bodega: es inventario y el panel es solo de administrador.
 import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA } from '../lib/sucursales'
-import { inventarioJsonUrl, estadisticasUrl } from '../lib/s3'
+import { inventarioJsonUrl, estadisticasUrl, historialUrl } from '../lib/s3'
+import { clasePorModelo, CLASES } from '../lib/clases'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
 import { seProduce } from '../lib/produccion'
 import { filtrarYBuscar, hayBusqueda } from '../lib/buscar'
 import { useOrdenTabla } from '../lib/orden'
+import { diasDesde } from '../lib/fechas'
 import { nivelStock, COLOR_NIVEL, UMBRAL_VERDE, UMBRAL_NARANJA } from './StockBadge'
 import { descargarInventario, descargarInventarioConsolidado } from '../lib/exportarInventario'
 
@@ -85,17 +87,39 @@ function Venta({ n }) {
   return <span style={{ color: TINTA, fontWeight: 700, fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
 }
 
-function Contador({ n, etiqueta, color, activo, onClick }) {
+/**
+ * Un recuadro con su desglose por clase.
+ *
+ * El número solo no basta para decidir. «99 agotados» puede ser limpieza de
+ * catálogo —99 de clase C, que casi no se venden— o la venta de la semana
+ * —12 de clase A—, y en la pantalla se veían igual.
+ *
+ * La A va primero y en el color del recuadro porque es la que manda: entre
+ * las cuatro tiendas, los modelos de clase A son el 58% de la venta con el
+ * 12% del catálogo.
+ */
+function Contador({ n, etiqueta, color, activo, onClick, clases }) {
+  const hay = clases && (clases.A || clases.B || clases.C)
   return (
     <button type="button" onClick={onClick}
       style={{
-        flex: 1, minWidth: 92, padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
+        flex: 1, minWidth: 108, padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
         background: activo ? 'rgba(0,188,242,0.06)' : '#fff',
         border: `1px solid ${activo ? 'rgba(0,188,242,0.45)' : LINEA}`,
         borderRadius: 16,
       }}>
       <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{n}</div>
       <div style={{ fontSize: 11, color: TINTA_SUAVE, marginTop: 2 }}>{etiqueta}</div>
+      {hay ? (
+        <div data-clases style={{ fontSize: 10.5, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ color, fontWeight: 800 }}>A {clases.A}</span>
+          <span style={{ color: TINTA_SUAVE }}> · B {clases.B} · C {clases.C}</span>
+        </div>
+      ) : (
+        // Hueco del mismo alto: sin él, los recuadros con desglose y sin él
+        // quedan de distinta altura y la fila se ve rota.
+        <div style={{ fontSize: 10.5, marginTop: 4, color: 'transparent' }}>·</div>
+      )}
     </button>
   )
 }
@@ -104,9 +128,10 @@ function Contador({ n, etiqueta, color, activo, onClick }) {
 function antiguedad(inv) {
   const f = inv?.respaldo?.fecha
   if (!f) return null
-  const [y, m, d] = f.split('-').map(Number)
-  const dias = Math.floor((Date.now() - new Date(y, m - 1, d).getTime()) / 86400000)
-  return { dias, fecha: f }
+  // La misma cuenta que el dashboard, del mismo sitio. Esta ya era correcta
+  // -leia la fecha como local- pero estaba escrita aparte, y por eso las dos
+  // pantallas pudieron separarse sin que nadie lo notara.
+  return { dias: diasDesde(f), fecha: f }
 }
 
 function colorAntiguedad(dias) {
@@ -159,6 +184,7 @@ export default function InventariosPanel() {
   const [busqueda, setBusqueda] = useState('')
   const [inventarios, setInventarios] = useState(null)
   const [estadisticas, setEstadisticas] = useState(null)
+  const [historiales, setHistoriales] = useState(null)
   const [cargando, setCargando]       = useState(true)
 
   useEffect(() => {
@@ -173,13 +199,18 @@ export default function InventariosPanel() {
       }
       // Las estadísticas van en la misma tanda: son el archivo que ya alimenta
       // el panel de movimiento y pesan unos pocos KB.
+      // El historial entra para poder decir de qué CLASE es cada modelo
+      // agotado. «99 agotados» no dice si hay que correr: 99 de clase C es
+      // limpieza de catálogo y 12 de clase A es la venta de la semana.
       const pares = await Promise.all(activas.map(async s => [s.slug, {
         inv:  await bajar(inventarioJsonUrl(s.slug)),
         est:  await bajar(estadisticasUrl(s.slug)),
+        hist: await bajar(historialUrl(s.slug)),
       }]))
       if (cancelado) return
       setInventarios(Object.fromEntries(pares.map(([k, v]) => [k, v.inv])))
       setEstadisticas(Object.fromEntries(pares.map(([k, v]) => [k, v.est])))
+      setHistoriales(Object.fromEntries(pares.map(([k, v]) => [k, v.hist])))
       setCargando(false)
     })()
     return () => { cancelado = true }
@@ -252,11 +283,36 @@ export default function InventariosPanel() {
   // cuenta como existencia, ensucia el semaforo y la lista de resurtido.
   const sinProduccion = useMemo(() => filas.filter(f => !seProduce(f.codigo, f.producto)), [filas])
 
+  // La clase sale del historial de TODAS las plazas, no de la que se esté
+  // mirando: un modelo es clase A del negocio, no de un mostrador. Si cambiara
+  // al cambiar de pastilla, la misma funda sería A en León y C en Ferias y la
+  // palabra dejaría de significar nada.
+  const clases = useMemo(
+    () => (historiales ? clasePorModelo(Object.values(historiales)) : {}),
+    [historiales])
+
   const conteos = useMemo(() => {
     const c = {}
-    for (const f of FILTROS) c[f.id] = sinProduccion.filter(x => f.prueba(valorDe(x))).length
+    for (const f of FILTROS) {
+      const filas = sinProduccion.filter(x => f.prueba(valorDe(x)))
+      c[f.id] = filas.length
+      // El desglose por clase. Sin él, «99 agotados» no dice si hay que
+      // correr: 99 de clase C es limpieza de catálogo y 12 de clase A es la
+      // venta de la semana.
+      const porClase = Object.fromEntries(CLASES.map(k => [k, 0]))
+      let sinClase = 0
+      for (const x of filas) {
+        // `codigo` en minuscula: asi vienen las filas de este panel. Con
+        // `Codigo` salia undefined, ninguna clase casaba y el desglose no se
+        // dibujaba — sin error y sin que nada se viera roto.
+        const k = clases[String(x.codigo ?? '').trim().toUpperCase()]
+        if (k && k in porClase) porClase[k]++
+        else sinClase++
+      }
+      c[`${f.id}_clases`] = { ...porClase, sinClase }
+    }
     return c
-  }, [sinProduccion, esTodas])
+  }, [sinProduccion, esTodas, clases])
 
   const buscando = hayBusqueda(busqueda)
 
@@ -356,11 +412,11 @@ export default function InventariosPanel() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            <Contador n={conteos.agotado} etiqueta="agotados"  color={ROSA}      activo={filtro === 'agotado'} onClick={() => setFiltro('agotado')} />
-            <Contador n={conteos.urgente} etiqueta="urgentes"  color="#D51A7A"   activo={filtro === 'urgente'} onClick={() => setFiltro('urgente')} />
-            <Contador n={conteos.bajo}    etiqueta="limitados" color="#d97706"   activo={filtro === 'bajo'}    onClick={() => setFiltro('bajo')} />
-            <Contador n={conteos.ok}      etiqueta="en stock"  color="#16a34a"   activo={filtro === 'ok'}      onClick={() => setFiltro('ok')} />
-            <Contador n={conteos.todos}   etiqueta="modelos"   color={TINTA}     activo={filtro === 'todos'}   onClick={() => setFiltro('todos')} />
+            <Contador n={conteos.agotado} etiqueta="agotados"  color={ROSA}      clases={conteos.agotado_clases} activo={filtro === 'agotado'} onClick={() => setFiltro('agotado')} />
+            <Contador n={conteos.urgente} etiqueta="urgentes"  color="#D51A7A"   clases={conteos.urgente_clases} activo={filtro === 'urgente'} onClick={() => setFiltro('urgente')} />
+            <Contador n={conteos.bajo}    etiqueta="limitados" color="#d97706"   clases={conteos.bajo_clases}    activo={filtro === 'bajo'}    onClick={() => setFiltro('bajo')} />
+            <Contador n={conteos.ok}      etiqueta="en stock"  color="#16a34a"   clases={conteos.ok_clases}      activo={filtro === 'ok'}      onClick={() => setFiltro('ok')} />
+            <Contador n={conteos.todos}   etiqueta="modelos"   color={TINTA}     clases={conteos.todos_clases}   activo={filtro === 'todos'}   onClick={() => setFiltro('todos')} />
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>

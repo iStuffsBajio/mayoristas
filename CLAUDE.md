@@ -1312,6 +1312,45 @@ una sesión no-administradora con esa plaza.
 
 ---
 
+## ⚠️ VERIFICAR — Los días se cuentan por CALENDARIO, no por 24 horas
+
+El dashboard decía «el inventario de León lleva 2 días sin actualizarse» y la
+pestaña de Inventarios, en la misma sesión y leyendo la misma fecha, decía
+«León: ayer».
+
+La causa: `new Date('2026-11-05')` **no** es la medianoche del 5 aquí, es la
+medianoche del 5 **en UTC**, que en hora de México son las 18:00 del día 4.
+Restando de «ahora» y redondeando hacia abajo, el resultado dependía de la
+hora a la que se mirara:
+
+| | |
+|---|---|
+| a las 10:00 del día 6 | 1 día — bien, por casualidad |
+| a las 21:00 del día 6 | 2 días — mal |
+
+**Acertaba por la mañana y fallaba por la tarde**, que es la peor forma de
+estar roto: nadie lo reporta porque la mitad del tiempo está bien, y cuando no
+lo está parece que el respaldo falló de verdad.
+
+La cuenta vive ahora **en un solo sitio**, `src/lib/fechas.js`, y compara
+fechas de calendario a medianoche local: «ayer» es ayer tanto a las nueve de la
+mañana como a las once de la noche. La prueba lo fija comparando los dos
+extremos del mismo día, que es lo que lo caza en cualquier huso horario.
+
+Y `null` no es cero: cero significa «hoy» y null «no se sabe». Una fecha
+futura sale **negativa** y no recortada a cero, porque es un dato roto y
+conviene que se note.
+
+### 🔒 Las tiendas suben su respaldo a partir de las 20:30
+
+Por eso `DIAS_INVENTARIO_VIEJO` es **2** y no 1. Durante todo el día de
+trabajo el respaldo más fresco que puede existir es el de **ayer**, y eso es
+lo normal. Avisar a un día haría saltar la alerta en las cuatro plazas cada
+mañana, y una alerta que sale siempre deja de leerse —peor que no tenerla,
+porque el día que salga de verdad tampoco se leerá—.
+
+---
+
 ## ⚠️ VERIFICAR — Despliegue
 
 - **`revisiones/` no es público y no puede serlo.** Las notas de la cola de

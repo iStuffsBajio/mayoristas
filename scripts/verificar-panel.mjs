@@ -762,6 +762,37 @@ function precioPorPlaza(window, donde) {
 }
 
 /**
+ * El desglose por clase en los recuadros de inventario.
+ *
+ * «99 agotados» no dice si hay que correr: 99 de clase C es limpieza de
+ * catalogo y 12 de clase A es la venta de la semana. El desglose es lo unico
+ * que distingue las dos cosas, y si deja de pintarse el recuadro sigue
+ * viendose entero y correcto.
+ *
+ * La clase sale del HISTORIAL, que este panel no bajaba. Si alguien quita esa
+ * descarga, los recuadros vuelven a enseñar solo el total y nada falla.
+ */
+async function clasesEnRecuadros(window, donde) {
+  const doc = window.document
+  // La clase sale del HISTORIAL, que es una descarga mas y llega una vuelta
+  // despues que el inventario. Sin esperar, se juzga antes de que exista.
+  let con = []
+  for (let i = 0; i < 10 && !con.length; i++) {
+    await nuevaVuelta(window, 6)
+    con = [...doc.querySelectorAll('[data-clases]')]
+  }
+  if (!con.length) {
+    errores.push(`${donde} · los recuadros no desglosan por clase: un agotado de clase A se ve igual que uno de clase C`)
+    return 0
+  }
+  const txt = con.map(e => (e.textContent || '').replace(/\s+/g, ' ')).join(' | ')
+  for (const k of ['A ', 'B ', 'C ']) {
+    if (!txt.includes(k)) errores.push(`${donde} · falta la clase «${k.trim()}» en el desglose`)
+  }
+  return con.length
+}
+
+/**
  * Que la explicacion del metodo nazca PLEGADA.
  *
  * Ocupaba seis parrafos fijos encima de la tabla y cinco explicaban como se
@@ -1545,6 +1576,7 @@ let movimientoVisto = 0
 let sucursalLimpia = 0
 let celdasEditables = 0
 let metodosPlegados = 0
+let clasesVistas = 0
 let plazasDeEfectivo = 0
 
 // Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
@@ -1617,6 +1649,9 @@ for (const [nombre, sesion] of SESIONES) {
             sucursalLimpia += sucursalSinBodega(window, `${nombre} · ${t}`)
           }
         }
+        if (/inventarios/i.test(t)) {
+          clasesVistas += await clasesEnRecuadros(window, `${nombre} · ${t}`)
+        }
         if (/se mueve/i.test(t)) {
           movimientoVisto += queSeMueve(window, `${nombre} · admin · ${t}`)
         }
@@ -1649,6 +1684,8 @@ console.log(`  panel «que se mueve» de bodega: ${movimientoVisto} dibujado`)
 console.log(`  surtido de sucursal revisado por fugas: ${sucursalLimpia}`)
 console.log(`  cantidad a pedir editable: ${celdasEditables} comprobada`)
 console.log(`  metodo de compra plegado: ${metodosPlegados} comprobado`)
+console.log(`  recuadros con desglose por clase: ${clasesVistas}`)
+if (clasesVistas < 1) errores.push('los recuadros de inventario no desglosan por clase')
 if (metodosPlegados < 1) errores.push('no se comprobo que la explicacion del metodo de compra este plegada')
 if (celdasEditables < 1) {
   errores.push('no se comprobo que la cantidad a pedir se pueda cambiar a mano')

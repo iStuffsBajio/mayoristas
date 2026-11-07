@@ -10,6 +10,7 @@ import { clasePorModelo, agotadosPorUbicacion } from '../lib/clases'
 import { ritmoPonderado } from '../lib/ritmo'
 import { reservas, ESTADOS, ORIGENES, ENTREGA } from '../lib/reservas'
 import { useAjustes } from '../lib/useAjustes'
+import { diasDesde } from '../lib/fechas'
 import { sinOcultos, estadoDe, ESTADOS as ESTADOS_AJUSTE } from '../lib/ajustes'
 import { esTemporadaAlta } from '../lib/surtido'
 import { separarProtectores, esProtector } from '../lib/familias'
@@ -31,9 +32,21 @@ import BarrasAgotados from './BarrasAgotados'
 
 const FERIAS = SUCURSALES.find(s => s.estacional)
 
-// Cuántos días puede llevar un inventario sin actualizarse antes de que deje
-// de ser de fiar. La corrida automática publica cuatro veces al día, así que
-// más de un día parado significa que algo se atoró.
+/**
+ * 🔒 Días que puede llevar un inventario sin actualizarse antes de avisar.
+ *
+ * DOS, y el motivo es de la operación, no del código: **las tiendas cierran y
+ * suben su respaldo a partir de las 20:30**. Así que durante todo el día de
+ * trabajo el respaldo más fresco que puede existir es el de AYER, y eso es lo
+ * normal, no un problema.
+ *
+ * Avisar a un día haría saltar la alerta en las cuatro plazas cada mañana, y
+ * una alerta que sale siempre deja de leerse —que es peor que no tenerla,
+ * porque el día que salga de verdad tampoco se va a leer—.
+ *
+ * Dos días sí significa que algo se atoró: o la tienda no cerró, o el
+ * respaldo no subió, o la corrida falló.
+ */
 const DIAS_INVENTARIO_VIEJO = 2
 
 const bajar = async url => {
@@ -50,12 +63,12 @@ const comoNombre = s => String(s ?? '')
   .toLocaleLowerCase('es-MX')
   .replace(/(^|\s)(\p{L})/gu, (_, e, l) => e + l.toLocaleUpperCase('es-MX'))
 
-const diasDesdeISO = (iso, hoy = new Date()) => {
-  if (!iso) return null
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return null
-  return Math.floor((hoy - d) / 86400000)
-}
+// La cuenta vive en `lib/fechas.js`, compartida con la pestaña de
+// Inventarios. Estaba escrita aqui aparte y con `new Date(iso)`, que lee una
+// fecha sin hora como medianoche UTC: a las 21:00 de Mexico eso daba un dia
+// de mas, asi que esta pantalla decia «lleva 2 dias sin actualizarse» y la de
+// al lado «ayer», leyendo las dos la misma fecha.
+const diasDesdeISO = diasDesde
 
 export default function DashboardPanel({ onIrA }) {
   const { token } = useAuth()
