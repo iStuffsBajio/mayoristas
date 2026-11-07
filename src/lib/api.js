@@ -147,6 +147,22 @@ export const turnos = token => pedir('/turnos', { token })
 export const revisiones = token => pedir('/revisiones', { token })
 
 /** Guarda una respuesta. `estado` en null quita la marca. */
+/**
+ * Guarda el estado de una incidencia.
+ *
+ * `extra` lleva lo del ciclo de vida: gravedad, responsable y fecha
+ * compromiso. El backend ESCRIBE ENCIMA del registro anterior en vez de
+ * reemplazarlo, asi que cambiar solo la gravedad no borra la nota.
+ *
+ * `estado: null` retira la respuesta y la incidencia vuelve a salir como
+ * nueva, que es lo que se espera al deshacer.
+ */
+export const guardarIncidencia = (id, estado, { nota, gravedad, responsable, compromiso } = {}, token) =>
+  pedir('/revisiones', {
+    metodo: 'POST', token,
+    cuerpo: { id, estado, nota, gravedad, responsable, compromiso },
+  })
+
 export const guardarRevision = (id, estado, nota, token) =>
   pedir('/revisiones', { metodo: 'POST', cuerpo: { id, estado, nota }, token })
 

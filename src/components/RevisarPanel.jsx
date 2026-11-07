@@ -4,6 +4,9 @@ import { revisiones, guardarRevision, guardarAjuste } from '../lib/api'
 import { estadoDe, codigosDeFicha, MOTIVOS, ESTADOS } from '../lib/ajustes'
 import { useAjustes } from '../lib/useAjustes'
 import { descargarBajas } from '../lib/exportarBajas'
+import Bandeja from './Bandeja'
+import { huellaDe } from '../lib/incidencias'
+import { guardarIncidencia } from '../lib/api'
 import { exportarRevisiones } from '../lib/exportarRevisiones'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl } from '../lib/s3'
@@ -101,6 +104,36 @@ export default function RevisarPanel() {
   const [corrigiendo, setCorrigiendo] = useState(false)
   const [motivo, setMotivo] = useState('ya-no-existe')
   const [eligiendo, setEligiendo] = useState(null)   // 'si' | 'no' | null
+  // Guardar una incidencia desde la bandeja.
+  //
+  // La clave es la HUELLA, no el id del hallazgo. Para tres de las cuatro
+  // reglas son lo mismo; para un lote la huella incluye sus códigos, y ésa
+  // es la diferencia que impide que un lote con otro contenido herede la
+  // respuesta del anterior y entre a la cola ya contestado.
+  const [guardandoInc, setGuardandoInc] = useState(null)
+
+  const guardarDesdeBandeja = async (inc, campos) => {
+    const huella = inc.huella
+    setGuardandoInc(huella)
+    try {
+      await guardarIncidencia(huella, campos?.estado ?? null, campos ?? {}, token)
+      setMarcas(prev => {
+        const siguiente = { ...prev }
+        if (!campos) delete siguiente[huella]
+        else siguiente[huella] = { ...(prev[huella] ?? {}), ...campos, fecha: new Date().toISOString() }
+        guardarMarcas(siguiente)
+        return siguiente
+      })
+      setSinRed(false)
+    } catch {
+      // Sin red se deja constancia en pantalla y NO se toca el estado local:
+      // enseñar la incidencia como guardada cuando no salió seria peor que
+      // el fallo.
+      setSinRed(true)
+    }
+    setGuardandoInc(null)
+  }
+
   const [borrador, setBorrador] = useState('')
 
   const plazas = useMemo(
@@ -312,7 +345,14 @@ export default function RevisarPanel() {
 
   return (
     <div className="revisar">
-      <header className="revisar-avance">
+      {/* La bandeja va PRIMERO: es la vista del estado de todo, y el
+          recorrido de una ficha cada vez queda debajo para cuando toca
+          sentarse a contestar. Antes solo estaba el recorrido, y por eso el
+          dueño decia que la pestaña «solo genera reportes». */}
+      <Bandeja hallazgos={todos} registros={marcas}
+               onGuardar={guardarDesdeBandeja} guardando={guardandoInc} />
+
+      <header className="revisar-avance" style={{ marginTop: 18 }}>
         <span className="revisar-cuenta"><strong>{pos + 1}</strong> de {total}</span>
         <span className="revisar-barra" aria-hidden="true">
           <span style={{ width: `${(contestados / total) * 100}%` }} />

@@ -774,6 +774,59 @@ function precioPorPlaza(window, donde) {
 }
 
 /**
+ * La bandeja de incidencias de la pestaña Revisar.
+ *
+ * Lo que se comprueba es que se dibuje con sus cinco pestañas y que cada
+ * incidencia se pueda abrir y rellenar: estado, gravedad y motivo. Sin el
+ * formulario, la pestaña vuelve a ser lo que era -un reporte que no deja
+ * trabajar- y el recorrido de abajo seguiria funcionando igual, asi que
+ * nada fallaria.
+ */
+async function bandejaDeIncidencias(window, donde) {
+  const doc = window.document
+  let sec = null
+  for (let i = 0; i < 10 && !sec; i++) {
+    await nuevaVuelta(window, 6)
+    sec = doc.querySelector('[data-bandeja]')
+  }
+  if (!sec) {
+    errores.push(`${donde} · no se dibujo la bandeja de incidencias`)
+    return 0
+  }
+
+  for (const p of ['atender', 'sucursal', 'conflicto', 'cerradas']) {
+    if (!doc.querySelector(`[data-bandeja-pestana="${p}"]`)) {
+      errores.push(`${donde} · la bandeja no tiene la pestaña «${p}»`)
+    }
+  }
+
+  const filas = [...doc.querySelectorAll('[data-incidencia]')]
+  if (!filas.length) {
+    errores.push(`${donde} · la bandeja no listo ninguna incidencia`)
+    return 1
+  }
+
+  // Abrir una y comprobar que trae formulario con gravedad editable: eso es
+  // lo que el dueño pidio y lo que distingue esto de un reporte.
+  // Se pulsa la CABECERA del renglon, no el renglon: el manejador vive ahi
+  // -el formulario esta dentro y con el clic en el padre se cerraria solo- y
+  // los eventos suben, no bajan.
+  clic(window, filas[0].querySelector('[data-abrir]') ?? filas[0])
+  await nuevaVuelta(window, 6)
+  if (!doc.querySelector('[data-formulario]')) {
+    errores.push(`${donde} · una incidencia no se puede abrir para trabajarla`)
+    return 1
+  }
+  if (!doc.querySelector('[data-gravedad]')) {
+    errores.push(`${donde} · la gravedad no se puede cambiar desde la pagina`)
+  }
+  if (!doc.querySelector('[data-guardar]')) {
+    errores.push(`${donde} · el formulario no tiene con que guardar`)
+  }
+  return 1
+}
+
+/**
  * El desglose por clase en los recuadros de inventario.
  *
  * «99 agotados» no dice si hay que correr: 99 de clase C es limpieza de
@@ -1612,6 +1665,7 @@ let sucursalLimpia = 0
 let celdasEditables = 0
 let metodosPlegados = 0
 let clasesVistas = 0
+let bandejasVistas = 0
 let plazasDeEfectivo = 0
 
 // Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
@@ -1684,6 +1738,9 @@ for (const [nombre, sesion] of SESIONES) {
             sucursalLimpia += sucursalSinBodega(window, `${nombre} · ${t}`)
           }
         }
+        if (/revisar/i.test(t) && nombre === 'admin') {
+          bandejasVistas += await bandejaDeIncidencias(window, `${nombre} · ${t}`)
+        }
         if (/inventarios/i.test(t)) {
           clasesVistas += await clasesEnRecuadros(window, `${nombre} · ${t}`)
         }
@@ -1720,6 +1777,8 @@ console.log(`  surtido de sucursal revisado por fugas: ${sucursalLimpia}`)
 console.log(`  cantidad a pedir editable: ${celdasEditables} comprobada`)
 console.log(`  metodo de compra plegado: ${metodosPlegados} comprobado`)
 console.log(`  recuadros con desglose por clase: ${clasesVistas}`)
+console.log(`  bandeja de incidencias: ${bandejasVistas} dibujada`)
+if (bandejasVistas < 1) errores.push('la bandeja de incidencias no se dibujo: la pestaña vuelve a ser un reporte')
 if (clasesVistas < 1) errores.push('los recuadros de inventario no desglosan por clase')
 if (metodosPlegados < 1) errores.push('no se comprobo que la explicacion del metodo de compra este plegada')
 if (celdasEditables < 1) {

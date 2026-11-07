@@ -313,7 +313,20 @@ async function rutaSubirInventario(evento, origen, cuerpo) {
 
 // Se contesta si o no. «pendiente» e «ignorado» son como se llamaban antes:
 // se siguen aceptando para no tirar lo que ya este guardado.
-const ESTADOS = new Set(['si', 'no', 'pendiente', 'ignorado'])
+// Los estados de una incidencia. Los cuatro primeros son los viejos -«si»,
+// «no», «pendiente», «ignorado»- y se mantienen para no tirar lo ya
+// contestado: un archivo de respuestas viejo tiene que seguir leyendose.
+//
+// Los nuevos son del ciclo de vida. Ojo con los que NO estan: `cerrada` y
+// `nueva` no se pueden elegir, los decide el respaldo. Si alguien manda
+// `cerrada` por su cuenta, la siguiente carga lo vera como CONFLICTO -se dio
+// por cerrada y el respaldo la sigue produciendo- que es justo lo correcto.
+const ESTADOS = new Set([
+  'si', 'no', 'pendiente', 'ignorado',
+  'revisando', 'en-origen', 'descartada', 'cerrada',
+])
+
+const GRAVEDADES = new Set(['critica', 'alta', 'media', 'baja'])
 
 const quienEs = sesion => (sesion.admin ? 'admin' : sesion.sucursal)
 
@@ -373,7 +386,30 @@ async function rutaGuardarRevision(evento, origen, cuerpo) {
 
   const mias = await leerJson(claveRevisiones(quien))
   if (estado === null) delete mias[id]
-  else mias[id] = { estado, nota: String(cuerpo.nota ?? '').slice(0, 500), fecha: new Date().toISOString() }
+  else {
+    const gravedad = cuerpo?.gravedad == null ? null : String(cuerpo.gravedad)
+    if (gravedad !== null && !GRAVEDADES.has(gravedad)) {
+      return responder(origen, 400, { error: 'Gravedad desconocida.' })
+    }
+    // El registro anterior no se pisa entero: se escribe encima. Asi cambiar
+    // solo la gravedad no borra la nota ni el responsable, que es lo que
+    // pasaria reemplazando el objeto.
+    const previo = mias[id] ?? {}
+    mias[id] = {
+      ...previo,
+      estado,
+      nota:   String(cuerpo.nota ?? previo.nota ?? '').slice(0, 500),
+      fecha:  new Date().toISOString(),
+      ...(gravedad !== null ? { gravedad } : {}),
+      ...(cuerpo?.responsable != null
+        ? { responsable: String(cuerpo.responsable).slice(0, 80) } : {}),
+      ...(cuerpo?.compromiso != null
+        ? { compromiso: String(cuerpo.compromiso).slice(0, 10) } : {}),
+      // Quien lo dejo asi la ultima vez. El archivo ya dice de quien es, pero
+      // al juntarlos se pierde si no va dentro.
+      por: quien,
+    }
+  }
 
   // Un tope por si alguien deja el navegador marcando: el archivo lo escribe
   // una persona, no un proceso.

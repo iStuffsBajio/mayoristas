@@ -441,3 +441,43 @@ test('bodega NO entra en lo que es solo del dueño', async () => {
   assert.equal((await pedir('GET', '/caja', { token: tokenBodega() })).statusCode, 403)
   assert.equal((await pedir('GET', '/turnos', { token: tokenBodega() })).statusCode, 403)
 })
+
+// ── El ciclo de vida de una incidencia ──────────────────────────────────────
+
+test('los estados viejos se siguen aceptando: hay respuestas guardadas con ellos', async () => {
+  for (const estado of ['si', 'no', 'pendiente', 'ignorado']) {
+    const r = await pedir('POST', '/revisiones', { token: tokenAdmin(), cuerpo: { id: 'x', estado } })
+    assert.notEqual(r.statusCode, 400, estado)
+  }
+})
+
+test('los estados nuevos del ciclo de vida se aceptan', async () => {
+  for (const estado of ['revisando', 'en-origen', 'descartada']) {
+    const r = await pedir('POST', '/revisiones', { token: tokenAdmin(), cuerpo: { id: 'x', estado } })
+    assert.notEqual(r.statusCode, 400, estado)
+  }
+})
+
+test('un estado inventado se rechaza', async () => {
+  const r = await pedir('POST', '/revisiones', {
+    token: tokenAdmin(), cuerpo: { id: 'x', estado: 'resuelta-del-todo' },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('una gravedad inventada se rechaza', async () => {
+  // La lista es cerrada para que el orden de la bandeja signifique algo.
+  const r = await pedir('POST', '/revisiones', {
+    token: tokenAdmin(), cuerpo: { id: 'x', estado: 'revisando', gravedad: 'urgentisima' },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('las cuatro gravedades de verdad se aceptan', async () => {
+  for (const gravedad of ['critica', 'alta', 'media', 'baja']) {
+    const r = await pedir('POST', '/revisiones', {
+      token: tokenAdmin(), cuerpo: { id: 'x', estado: 'revisando', gravedad },
+    })
+    assert.notEqual(r.statusCode, 400, gravedad)
+  }
+})
