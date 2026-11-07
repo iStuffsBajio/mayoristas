@@ -157,11 +157,31 @@ export const revisiones = token => pedir('/revisiones', { token })
  * `estado: null` retira la respuesta y la incidencia vuelve a salir como
  * nueva, que es lo que se espera al deshacer.
  */
-export const guardarIncidencia = (id, estado, { nota, gravedad, responsable, compromiso } = {}, token) =>
+export const guardarIncidencia = (
+  id, estado,
+  { nota, gravedad, responsable, compromiso, motivo, comentario } = {}, token,
+) =>
   pedir('/revisiones', {
     metodo: 'POST', token,
-    cuerpo: { id, estado, nota, gravedad, responsable, compromiso },
+    cuerpo: { id, estado, nota, gravedad, responsable, compromiso, motivo, comentario },
   })
+
+/**
+ * Guarda una excepción o una entrada del catálogo de códigos.
+ *
+ * Va al mismo sitio que las respuestas —es el único archivo por persona que
+ * ya se junta al leer— pero con el prefijo `cfg|`, y el backend lo trata por
+ * otra rama: no lleva estado. `conciliar` lo salta, porque un registro sin
+ * hallazgo se lee como «se cerró solo» y una excepción no es un caso
+ * resuelto.
+ */
+export const guardarCfg = (id, campos, token) =>
+  pedir('/revisiones', { metodo: 'POST', token, cuerpo: { id, ...campos } })
+
+/** Revocar es BORRAR: una excepción retirada que siguiera en el archivo
+ *  seguiría tapando la alerta mientras la pantalla la enseña como retirada. */
+export const borrarCfg = (id, token) =>
+  pedir('/revisiones', { metodo: 'POST', token, cuerpo: { id, borrar: true } })
 
 export const guardarRevision = (id, estado, nota, token) =>
   pedir('/revisiones', { metodo: 'POST', cuerpo: { id, estado, nota }, token })

@@ -1,12 +1,12 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { revisiones, guardarRevision, guardarAjuste } from '../lib/api'
+import {
+  revisiones, guardarIncidencia, guardarAjuste, guardarCfg, borrarCfg,
+} from '../lib/api'
 import { estadoDe, codigosDeFicha, MOTIVOS, ESTADOS } from '../lib/ajustes'
 import { useAjustes } from '../lib/useAjustes'
 import { descargarBajas } from '../lib/exportarBajas'
 import Bandeja from './Bandeja'
-import { huellaDe } from '../lib/incidencias'
-import { guardarIncidencia } from '../lib/api'
 import { exportarRevisiones } from '../lib/exportarRevisiones'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl } from '../lib/s3'
@@ -18,47 +18,48 @@ import { patronesDeEscritura } from '../lib/patrones'
 import { fichaDeCodigo, fichaDeLote, fichaDePatron, fichaDeNombre } from '../lib/fichas'
 
 /**
- * La cola de revisión: un problema a la vez, con una pregunta que se contesta
- * sí o no.
+ * La pestaña de Revisar: una BANDEJA de incidencias.
  *
- * La primera versión era una lista de 140 renglones. La segunda ya iba de uno
- * en uno, pero sólo describía: enseñaba el hallazgo y dejaba al lector decidir
- * qué hacer con él. Describir no es preguntar, y una pantalla que describe se
- * lee y se cierra.
+ * ── Qué había antes, y por qué se quitó ─────────────────────────────────────
  *
- * Ahora cada ficha tiene cuatro partes y siempre las mismas:
+ * Un recorrido de una ficha cada vez: el problema en una frase, qué se sabe,
+ * una pregunta de sí o no, y qué pasa con cada respuesta. Funcionaba, y por
+ * eso la primera vez se dejó puesto. Esa fue la equivocación. El dueño pidió
+ * rediseñar la forma de operar, y dio las dos razones:
  *
- *   1. **El problema**, en una frase.
- *   2. **Qué se sabe**: los hechos que lo sostienen, sin adjetivos. Tres
- *      plazas tienen este código, bodega no lo tiene, bodega sí tiene este
- *      otro para el mismo teléfono.
- *   3. **La pregunta**, redactada de modo que **sí signifique «aplica la
- *      propuesta»**. Eso es lo que permite que la respuesta se convierta sola
- *      en una instrucción concreta en vez de quedarse en una opinión.
- *   4. **Qué pasa con cada respuesta**, escrito antes de contestar.
+ *   1. **«No se guardaban registros de los movimientos.»** Sólo quedaba el
+ *      último estado de cada caso, así que no había forma de saber quién lo
+ *      movió, cuándo, ni cuántas veces había vuelto. Ahora cada caso lleva su
+ *      historial, y lo escribe el BACKEND con la sesión en la mano: un
+ *      registro que el navegador pudiera redactar a gusto no probaría nada.
  *
- * ── Por qué el «no» obliga a explicar ───────────────────────────────────────
+ *   2. **«El llenado era muy obsoleto, era muy tedioso.»** Abrir la ficha,
+ *      leer, pulsar, escribir el motivo a mano, pasar a la siguiente. Ciento
+ *      doce veces. El objetivo que puso no es que funcione: es que
+ *      **cualquiera lo haga el doble de rápido**.
  *
- * Un «sí» ya lleva la solución dentro: la propuesta. Un «no» sólo dice que la
- * propuesta no vale, y eso deja el problema igual que estaba y además hace
- * que el detector vuelva a proponer lo mismo mañana. Por eso el «no» no se
- * puede guardar vacío: hace falta decir cómo se resuelve, y eso es lo que
- * convierte la cola en algo de lo que se aprende.
+ * Lo que NO se tiró fue la información. Todo lo que enseñaba la ficha —lo que
+ * se sabe, la tabla, los códigos, qué pasa si sí y si no, las otras fundas del
+ * mismo teléfono— es la EVIDENCIA, y una decisión sin la evidencia delante es
+ * la que se contesta mal. Vive ahora en el panel de detalle, al lado de la
+ * lista. Lo que se quitó fue la obligación de pasar por ella de una en una.
  *
  * ── Qué se guarda y qué no ──────────────────────────────────────────────────
  *
  * Nada de lo que se arregla: los hallazgos salen de los datos, así que al
- * corregirlo en la caja desaparecen solos. Se guardan las respuestas, que el
- * dato no puede deducir, y viven en el servidor, no en el navegador: esta cola
- * la contestan las sucursales y lo que conteste León tiene que llegar aquí.
- * Cada quien escribe sólo su archivo y al leerlos se juntan.
+ * corregirlo en la caja desaparecen solos y el caso se cierra sin que nadie lo
+ * marque. Se guarda lo que el dato no puede deducir —el estado, el motivo, de
+ * quién es, para cuándo, el historial y los comentarios— y vive en el
+ * servidor, no en el navegador: esta bandeja la trabajan las sucursales y lo
+ * que conteste León tiene que llegar aquí. Cada quien escribe sólo su archivo
+ * y al leerlos se juntan.
  */
 
 const FERIAS = SUCURSALES.find(s => s.estacional)
 const CLAVE = 'istuffs_revisar_marcas'
 const CLAVE_VIEJA = 'istuffs_revisar_ignorados'
 
-/** { id: { estado: 'si' | 'no', nota, fecha, por } } */
+/** { huella: { estado, nota, motivo, fecha, por, historial, comentarios } } */
 const leerMarcas = () => {
   try {
     const guardado = localStorage.getItem(CLAVE)
@@ -72,24 +73,10 @@ const guardarMarcas = m => {
   try { localStorage.setItem(CLAVE, JSON.stringify(m)) } catch { /* modo privado */ }
 }
 
-const comoFecha = iso => {
-  if (!iso) return ''
-  const d = new Date(iso)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' })
-}
-
 const bajar = async url => {
   const r = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' })
   if (!r.ok) throw new Error(String(r.status))
   return r.json()
-}
-
-/** Las marcas viejas hablaban de pendiente/ignorado; se leen como sí/no. */
-const respuestaDe = marca => {
-  if (!marca) return null
-  if (marca.estado === 'si' || marca.estado === 'pendiente') return 'si'
-  if (marca.estado === 'no' || marca.estado === 'ignorado') return 'no'
-  return null
 }
 
 export default function RevisarPanel() {
@@ -98,43 +85,9 @@ export default function RevisarPanel() {
 
   const [inv, setInv] = useState(null)
   const [cargando, setCargando] = useState(true)
-  const [i, setI] = useState(0)
   const [marcas, setMarcas] = useState(leerMarcas)
   const [sinRed, setSinRed] = useState(false)
-  const [corrigiendo, setCorrigiendo] = useState(false)
-  const [motivo, setMotivo] = useState('ya-no-existe')
-  const [eligiendo, setEligiendo] = useState(null)   // 'si' | 'no' | null
-  // Guardar una incidencia desde la bandeja.
-  //
-  // La clave es la HUELLA, no el id del hallazgo. Para tres de las cuatro
-  // reglas son lo mismo; para un lote la huella incluye sus códigos, y ésa
-  // es la diferencia que impide que un lote con otro contenido herede la
-  // respuesta del anterior y entre a la cola ya contestado.
   const [guardandoInc, setGuardandoInc] = useState(null)
-
-  const guardarDesdeBandeja = async (inc, campos) => {
-    const huella = inc.huella
-    setGuardandoInc(huella)
-    try {
-      await guardarIncidencia(huella, campos?.estado ?? null, campos ?? {}, token)
-      setMarcas(prev => {
-        const siguiente = { ...prev }
-        if (!campos) delete siguiente[huella]
-        else siguiente[huella] = { ...(prev[huella] ?? {}), ...campos, fecha: new Date().toISOString() }
-        guardarMarcas(siguiente)
-        return siguiente
-      })
-      setSinRed(false)
-    } catch {
-      // Sin red se deja constancia en pantalla y NO se toca el estado local:
-      // enseñar la incidencia como guardada cuando no salió seria peor que
-      // el fallo.
-      setSinRed(true)
-    }
-    setGuardandoInc(null)
-  }
-
-  const [borrador, setBorrador] = useState('')
 
   const plazas = useMemo(
     () => [BODEGA, ...SUCURSALES_ACTIVAS, ...(FERIAS ? [FERIAS] : [])], [])
@@ -163,9 +116,120 @@ export default function RevisarPanel() {
     return () => { vivo = false }
   }, [token])
 
+  /**
+   * Guarda el estado de una incidencia.
+   *
+   * La clave es la HUELLA, no el id del hallazgo. Para tres de las cuatro
+   * reglas son lo mismo; para un lote la huella incluye sus códigos, y ésa es
+   * la diferencia que impide que un lote con otro contenido herede la
+   * respuesta del anterior y entre a la bandeja ya contestado.
+   *
+   * El historial NO se arma aquí. Lo escribe el backend: el autor y la hora
+   * los pone con la sesión en la mano, y un registro de movimientos que el
+   * cliente pudiera redactar no serviría como registro.
+   */
+  const guardar = useCallback(async (inc, campos) => {
+    const huella = inc.huella
+    setGuardandoInc(huella)
+    try {
+      const r = await guardarIncidencia(huella, campos?.estado ?? null, campos ?? {}, token)
+      setMarcas(prev => {
+        const siguiente = { ...prev }
+        if (!campos) delete siguiente[huella]
+        else {
+          siguiente[huella] = {
+            ...(prev[huella] ?? {}), ...campos,
+            fecha: new Date().toISOString(), por: quien,
+            // El historial que devuelve el servidor manda sobre el local. Si
+            // no contesta con él se deja el que había: inventar un renglón
+            // aquí daría un historial que no está en el archivo.
+            ...(r?.registro?.historial ? { historial: r.registro.historial } : {}),
+            ...(r?.registro?.comentarios ? { comentarios: r.registro.comentarios } : {}),
+          }
+          delete siguiente[huella].comentario
+        }
+        guardarMarcas(siguiente)
+        return siguiente
+      })
+      setSinRed(false)
+    } catch {
+      // Sin red se deja constancia en pantalla y NO se toca el estado local:
+      // enseñar la incidencia como guardada cuando no salió sería peor que el
+      // fallo, porque al recargar manda lo del servidor y se perdería.
+      setSinRed(true)
+    }
+    setGuardandoInc(null)
+  }, [token, quien])
+
+  /**
+   * Lo mismo, para varias de golpe.
+   *
+   * Es la mitad del rediseño: marcar catorce casos y asignarlos a una persona
+   * con una fecha es un gesto, no catorce. Se manda de una en una porque cada
+   * una escribe su propio renglón de historial, que es justo lo que no se
+   * puede agrupar sin perderlo.
+   */
+  const guardarVarias = useCallback(async (incidencias, campos) => {
+    setGuardandoInc('bloque')
+    const ahora = new Date().toISOString()
+    let fallo = false
+    for (const inc of incidencias) {
+      await guardarIncidencia(inc.huella, campos.estado, campos, token)
+        .catch(() => { fallo = true })
+    }
+    setMarcas(prev => {
+      const s = { ...prev }
+      for (const inc of incidencias) {
+        s[inc.huella] = { ...(prev[inc.huella] ?? {}), ...campos, fecha: ahora, por: quien }
+      }
+      guardarMarcas(s)
+      return s
+    })
+    setSinRed(fallo)
+    setGuardandoInc(null)
+    // Se recargan del servidor para traer el historial que escribió él. Sin
+    // esto el panel de detalle enseñaría los casos del bloque sin su último
+    // movimiento, y el historial es la razón de ser de esto.
+    if (token && !fallo) {
+      revisiones(token).then(r => {
+        if (r?.marcas) { setMarcas(r.marcas); guardarMarcas(r.marcas) }
+      }).catch(() => setSinRed(true))
+    }
+  }, [token, quien])
+
+  /** Una excepción o una entrada del catálogo. */
+  const cfg = useCallback(async (id, campos) => {
+    setGuardandoInc(id)
+    try {
+      await guardarCfg(id, campos, token)
+      setMarcas(prev => {
+        const s = { ...prev, [id]: { ...(prev[id] ?? {}), ...campos, fecha: new Date().toISOString(), por: quien } }
+        guardarMarcas(s)
+        return s
+      })
+      setSinRed(false)
+    } catch { setSinRed(true) }
+    setGuardandoInc(null)
+  }, [token, quien])
+
+  const revocarCfg = useCallback(async id => {
+    setGuardandoInc(id)
+    try {
+      await borrarCfg(id, token)
+      setMarcas(prev => {
+        const s = { ...prev }
+        delete s[id]
+        guardarMarcas(s)
+        return s
+      })
+      setSinRed(false)
+    } catch { setSinRed(true) }
+    setGuardandoInc(null)
+  }, [token])
+
   // Las correcciones ya hechas. Lo ajustado deja de preguntarse: si ya
-  // dijiste que ese código no existe, volver a preguntarlo cada día es
-  // justo lo que hace que la cola deje de mirarse.
+  // dijiste que ese código no existe, volver a sacarlo mañana es justo lo que
+  // hace que la bandeja deje de mirarse.
   //
   // Se cargan con el mismo gancho que usa el dashboard. Con dos cargadores
   // distintos bastaría con que uno se quedara atrás para que el error
@@ -177,8 +241,12 @@ export default function RevisarPanel() {
    *
    * Se pinta al momento y se manda después, igual que las respuestas: el
    * trabajo va al ritmo de quien corrige, no al de la red.
+   *
+   * Al corregir se deja también el caso en «lo reviso yo» con su motivo, para
+   * que el movimiento quede en el historial. Corregir sin apuntarlo sacaba el
+   * caso de la pantalla sin dejar rastro de quién lo sacó.
    */
-  const corregir = async (codigos, producto, motivo) => {
+  const corregir = useCallback(async (codigos, producto, motivo, inc) => {
     const ahora = new Date().toISOString()
     setCorrecciones(c => {
       const s = { ...c }
@@ -188,11 +256,17 @@ export default function RevisarPanel() {
       }
       return s
     })
+    if (inc) {
+      await guardar(inc, {
+        estado: 'revisando', motivo: 'se-dio-de-baja',
+        nota: `Dado de baja aquí: ${codigos.join(', ')}`,
+      })
+    }
     if (!token) return
     for (const cod of codigos) {
       await guardarAjuste({ codigo: cod, motivo, producto }, token).catch(() => setSinRed(true))
     }
-  }
+  }, [token, quien, setCorrecciones, guardar])
 
   const deshacer = async codigo => {
     setCorrecciones(c => {
@@ -216,8 +290,8 @@ export default function RevisarPanel() {
     return { grupos: agruparPorModelo([...todos.values()]), existencias: ex }
   }, [inv])
 
-  // Todos los casos, contestados o no. El reporte sale de aquí y no de la
-  // cola: lo contestado es justo lo que hay que analizar después.
+  // Todos los casos. El reporte sale de aquí: lo contestado es justo lo que
+  // hay que analizar después.
   const todos = useMemo(() => {
     if (!inv?.[BODEGA.slug]) return []
     const tiendas = Object.fromEntries(
@@ -250,28 +324,22 @@ export default function RevisarPanel() {
     return items
   }, [inv, grupos])
 
-  // Lo contestado no se esconde —contestar no lo arregla— pero va al final:
-  // lo que no ha mirado nadie es lo que hace falta mirar.
-  const cola = useMemo(() => {
-    const hecho = x => (marcas[x.id] ? 1 : 0)
-    // Lo ya corregido no se vuelve a preguntar. Si ayer dijiste que ese
-    // código no existe, volver a sacarlo mañana es lo que hace que la cola
-    // deje de mirarse.
-    const vivos = todos.filter(x => {
-      const cs = codigosDeFicha(x)
-      return cs.length === 0 || cs.some(c => !ocultos.has(c))
-    })
-    // El orden lo decide `PASO` en fichas.js: lo que hay que hacer con cada
-    // ficha, no cuántas piezas tiene. Ordenando por peso, el lote de los que
-    // ya no tienen ni una pieza —el único que se ejecuta sin pensar— salía el
-    // último de los cuatro, y los colores que hay que ignorar, el primero.
-    //
-    // Dentro de un mismo paso sí manda el peso, que ahí sí es donde hay más
-    // dinero quieto.
-    return [...vivos].sort((a, b) => hecho(a) - hecho(b)
-      || a.orden - b.orden
-      || b.peso - a.peso)
-  }, [todos, marcas, ocultos])
+  /**
+   * Lo ya corregido no se vuelve a sacar.
+   *
+   * Va aquí y no dentro de la bandeja porque la corrección es un ajuste del
+   * dato —vive en `ajustes/`— y la bandeja sólo sabe de incidencias. Mezclarlo
+   * allí haría que un caso corregido contara como abierto en las cuentas del
+   * encabezado.
+   */
+  const vivos = useMemo(() => todos.filter(x => {
+    const cs = codigosDeFicha(x)
+    return cs.length === 0 || cs.some(c => !ocultos.has(c))
+  }), [todos, ocultos])
+
+  const alternativas = useCallback(
+    (codigo, producto) => alternativasDe(codigo, producto, grupos, existencias),
+    [grupos, existencias])
 
   // Lo corregido aquí que la caja todavía no ha tocado. No desaparece: se
   // muda de «Atención» a esta bandeja, con su antigüedad. Sin eso, corregir
@@ -291,249 +359,28 @@ export default function RevisarPanel() {
 
   if (cargando) return <p className="tablero-cargando">Leyendo el catálogo de las cinco plazas…</p>
 
-  const total = cola.length
-  if (!total) {
-    return (
-      <section className="tarjeta revisar-fin">
-        <h4>No hay nada que revisar</h4>
-        <p className="tarjeta-sub">El catálogo de las cinco plazas concuerda.</p>
-      </section>
-    )
-  }
-
-  const contestados = cola.filter(x => marcas[x.id]).length
-  const pos = Math.min(i, total - 1)
-  const item = cola[pos]
-  const marca = marcas[item.id]
-  const respuesta = respuestaDe(marca)
-
-  const irA = n => {
-    setEligiendo(null)
-    setBorrador('')
-    setI(Math.max(0, Math.min(n, total - 1)))
-  }
-
-  const elegir = sino => {
-    setEligiendo(sino)
-    setBorrador(marca?.nota ?? '')
-  }
-
-  // El «no» sin explicación no se guarda: deja el problema igual y hace que
-  // mañana se vuelva a proponer lo mismo.
-  const faltaExplicar = eligiendo === 'no' && !borrador.trim()
-
-  const guardar = () => {
-    if (faltaExplicar) return
-    const nota = borrador.trim()
-    setMarcas(m => {
-      const s = { ...m, [item.id]: { estado: eligiendo, nota, fecha: new Date().toISOString(), por: quien } }
-      guardarMarcas(s)
-      return s
-    })
-    // Se pinta ya y se manda después: contestar va al ritmo de quien contesta,
-    // no al de la red. Si el envío falla se avisa arriba, porque al recargar
-    // manda lo que haya en el servidor y esa respuesta se perdería.
-    if (token) guardarRevision(item.id, eligiendo, nota, token).catch(() => setSinRed(true))
-    setEligiendo(null)
-    setBorrador('')
-    setI(n => Math.min(n + 1, total - 1))
-  }
-
-  const alt = item.codigo
-    ? alternativasDe(item.codigo, item.producto, grupos, existencias).slice(0, 3)
-    : []
-
   return (
     <div className="revisar">
-      {/* La bandeja va PRIMERO: es la vista del estado de todo, y el
-          recorrido de una ficha cada vez queda debajo para cuando toca
-          sentarse a contestar. Antes solo estaba el recorrido, y por eso el
-          dueño decia que la pestaña «solo genera reportes». */}
-      <Bandeja hallazgos={todos} registros={marcas}
-               onGuardar={guardarDesdeBandeja} guardando={guardandoInc} />
-
-      <header className="revisar-avance" style={{ marginTop: 18 }}>
-        <span className="revisar-cuenta"><strong>{pos + 1}</strong> de {total}</span>
-        <span className="revisar-barra" aria-hidden="true">
-          <span style={{ width: `${(contestados / total) * 100}%` }} />
-        </span>
+      <header className="revisar-avance">
         {sinRed && (
           <span className="revisar-sinred" role="status">
             Sin conexión: lo que contestes no se está compartiendo
           </span>
         )}
-        <span className="revisar-pendientes">{contestados} contestados</span>
         {isAdmin && (
           <button type="button" className="revisar-bajar"
-                  onClick={() => exportarRevisiones(todos, marcas)}>
+                  style={{ marginInlineStart: 'auto' }}
+                  onClick={() => exportarRevisiones(vivos, marcas)}>
             Descargar reporte
           </button>
         )}
-        <span className={'revisar-paso paso-' + item.paso}>{item.etiqueta}</span>
-        <span className={'revisar-sello sello-' + item.bloque}>
-          {item.bloque === 'codigo' ? 'Código' : 'Nombre'}
-        </span>
       </header>
 
-      <section className={'tarjeta revisar-ficha' + (respuesta ? ' es-contestada' : '')}
-               data-paso={item.orden}>
-        {respuesta && (
-          <p className={'rev-marca marca-' + respuesta}>
-            <strong>{respuesta === 'si' ? 'Contestado: sí' : 'Contestado: no'}</strong>
-            <span>
-              {comoFecha(marca.fecha)}
-              {marca.por && ` · ${marca.por === 'admin' ? 'administración' : nombreSucursal(marca.por)}`}
-            </span>
-            <em>{respuesta === 'si' ? item.siHacer : marca.nota}</em>
-          </p>
-        )}
-
-        {item.chip && <p className="rev-chip">{item.chip}</p>}
-        <h4>{item.titulo}</h4>
-
-        <div className="rev-saber">
-          <p className="rev-subtitulo">Qué se sabe</p>
-          <ul>{item.contexto.map(c => <li key={c}>{c}</li>)}</ul>
-        </div>
-
-        {item.tabla && (
-          <table className="rev-tabla">
-            <thead>
-              <tr>
-                {item.tabla.cabeceras.map((c, n) => (
-                  <th key={n} scope="col" className={n ? 'num' : ''}>{c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {item.tabla.filas.map((f, n) => (
-                <tr key={n} className={item.tabla.destacar === n ? 'destacada' : ''}>
-                  {f.map((celda, m) => (m === 0
-                    ? <th key={m} scope="row">{celda}</th>
-                    : <td key={m} className="num">{celda}</td>))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-
-        {item.detalle && (
-          <details className="rev-detalle">
-            <summary>Ver los códigos ({item.detalle.length})</summary>
-            <ul>{item.detalle.map(d => <li key={d}>{d}</li>)}</ul>
-          </details>
-        )}
-
-        {alt.length > 0 && (
-          <div className="rev-alternativas">
-            <p className="rev-subtitulo">Otras fundas del mismo teléfono, con existencia</p>
-            <ul>
-              {alt.map(a => (
-                <li key={a.codigo}>
-                  <span className="rev-codigo">{a.codigo}</span>
-                  <span className="rev-nombre">{a.producto}</span>
-                  <span className="rev-dato">
-                    {a.total} pz · {Object.entries(a.donde).filter(([, n]) => n > 0)
-                      .map(([s, n]) => `${nombreSucursal(s)} ${n}`).join(', ')}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="rev-pregunta">
-          <h5>{item.pregunta}</h5>
-          <ul className="rev-consecuencias">
-            <li><span className="rev-si">Sí</span> {item.siHacer}</li>
-            <li><span className="rev-no">No</span> {item.noHacer}</li>
-          </ul>
-        </div>
-
-        {eligiendo ? (
-          <div className="rev-nota">
-            <label htmlFor="rev-nota-campo">
-              {eligiendo === 'si'
-                ? '¿Algo que añadir o que investigar después? (opcional)'
-                : `${item.noPide} (obligatorio)`}
-            </label>
-            <textarea
-              id="rev-nota-campo"
-              rows={eligiendo === 'si' ? 2 : 3}
-              value={borrador}
-              autoFocus
-              aria-invalid={faltaExplicar || undefined}
-              placeholder={eligiendo === 'si'
-                ? 'Ej.: lo cambia Brenda esta semana'
-                : 'Sin esto no se puede guardar: el problema se queda igual'}
-              onChange={e => setBorrador(e.target.value)} />
-            {faltaExplicar && (
-              <p className="rev-falta" role="status">
-                Un «no» sin explicación deja el problema igual y mañana se vuelve a proponer.
-              </p>
-            )}
-            <div className="rev-botones">
-              <button type="button" className="boton-tinta" onClick={guardar} disabled={faltaExplicar}>
-                Guardar respuesta
-              </button>
-              <button type="button" className="rev-saltar" onClick={() => setEligiendo(null)}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        ) : corrigiendo ? (
-          <div className="rev-corregir">
-            <p className="rev-corregir-que">
-              Se deja de reclamar
-              {' '}<strong>{codigosDeFicha(item).join(', ')}</strong>
-              {' '}en el panel, y pasa a la lista de lo que hay que corregir en la caja.
-            </p>
-            <label className="rotulo-campo" htmlFor="motivo-ajuste">¿Por qué?</label>
-            <select id="motivo-ajuste" value={motivo} onChange={e => setMotivo(e.target.value)}>
-              {Object.entries(MOTIVOS).map(([k, texto]) => (
-                <option key={k} value={k}>{texto}</option>
-              ))}
-            </select>
-            <div className="rev-botones">
-              <button type="button" className="boton-tinta"
-                      onClick={async () => {
-                        await corregir(codigosDeFicha(item), item.producto ?? '', motivo)
-                        setCorrigiendo(false)
-                      }}>
-                Corregir
-              </button>
-              <button type="button" className="rev-saltar" onClick={() => setCorrigiendo(false)}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="rev-botones">
-            <button type="button" className="rev-responde rev-es-si" onClick={() => elegir('si')}>
-              Sí
-            </button>
-            <button type="button" className="rev-responde rev-es-no" onClick={() => elegir('no')}>
-              No
-            </button>
-            <button type="button" className="rev-saltar" onClick={() => irA(pos + 1)}>
-              {respuesta ? 'Siguiente' : 'Lo veo después'}
-            </button>
-            {/* La diferencia con «Sí» y «No»: esto no es una respuesta, es
-                una corrección. Saca el caso del panel y lo pasa a la lista
-                de lo que hay que arreglar en la caja. */}
-            {codigosDeFicha(item).length > 0 && (
-              <button type="button" className="rev-saltar" onClick={() => setCorrigiendo(true)}>
-                Ya no existe
-              </button>
-            )}
-            {pos > 0 && (
-              <button type="button" className="rev-saltar" onClick={() => irA(pos - 1)}>
-                Atrás
-              </button>
-            )}
-          </div>
-        )}
-      </section>
+      <Bandeja hallazgos={vivos} registros={marcas} inventarios={inv ?? {}}
+               onGuardar={guardar} onGuardarVarias={guardarVarias}
+               onCfg={cfg} onRevocarCfg={revocarCfg} onCorregir={corregir}
+               alternativas={alternativas} quien={quien}
+               guardando={guardandoInc} />
 
       {pendientes.length > 0 && (
         <section className="rev-pendientes">
@@ -580,9 +427,10 @@ export default function RevisarPanel() {
       )}
 
       <p className="tablero-nota">
-        Contestar deja escrito el porqué; <strong>corregir</strong> saca el caso del panel y lo
-        pasa a la lista de arriba. Lo corregido no desaparece: espera ahí hasta que el respaldo
-        de la caja llegue sin el error, y entonces se retira solo.
+        Cada movimiento queda apuntado con quién y cuándo, y lo escribe el servidor.{' '}
+        <strong>Corregir</strong> saca el caso del panel y lo pasa a la lista de arriba: no
+        desaparece, espera ahí hasta que el respaldo de la caja llegue sin el error, y entonces
+        se retira solo.
       </p>
     </div>
   )

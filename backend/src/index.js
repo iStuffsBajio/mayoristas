@@ -328,6 +328,28 @@ const ESTADOS = new Set([
 
 const GRAVEDADES = new Set(['critica', 'alta', 'media', 'baja'])
 
+// Los motivos son una LISTA CERRADA, igual que los estados. Un motivo escrito
+// a mano no se puede contar ni agrupar, y la pantalla de causas se queda sin
+// de donde salir: «se corrigio», «ya se corrigio» y «corregido» serian tres
+// motivos distintos.
+const MOTIVOS = new Set([
+  'corregido-aqui', 'se-dio-de-baja', 'se-renombro', 'se-unifico',
+  'bodega-lo-dio-alta', 'no-aplica',
+  'no-es-error', 'caso-especial', 'ya-no-se-maneja', 'otro',
+])
+
+// La configuracion -excepciones y catalogo de codigos- se guarda en el mismo
+// archivo porque es el unico por persona que ya se junta al leer. Se
+// distingue por el prefijo y no es una incidencia: no lleva estado.
+const esConfig = id => String(id).startsWith('cfg|')
+
+const ALCANCES = new Set(['caso', 'codigo', 'plaza', 'regla'])
+
+/** Un tope al historial. Lo escribe una persona, pero no se deja crecer solo. */
+const HISTORIAL_MAXIMO = 40
+
+const texto = (v, n) => String(v ?? '').slice(0, n)
+
 const quienEs = sesion => (sesion.admin ? 'admin' : sesion.sucursal)
 
 const claveRevisiones = quien => `revisiones/${quien}.json`
@@ -376,15 +398,51 @@ async function rutaGuardarRevision(evento, origen, cuerpo) {
   const id = String(cuerpo?.id ?? '').slice(0, 200)
   if (!id) return responder(origen, 400, { error: 'Falta el caso.' })
 
-  const estado = cuerpo?.estado == null ? null : String(cuerpo.estado)
-  if (estado !== null && !ESTADOS.has(estado)) {
-    return responder(origen, 400, { error: 'Estado desconocido.' })
-  }
-
   const quien = quienEs(sesion)
   if (!quien) return responder(origen, 403, { error: 'Sesión sin sucursal.' })
 
   const mias = await leerJson(claveRevisiones(quien))
+
+  // Configuracion: excepciones y catalogo.
+  //
+  // Va por su propia rama porque NO lleva estado, y pasarla por la
+  // validacion de estados la rechazaria entera. Revocar es BORRAR: una
+  // excepcion revocada que se quedara en el archivo seguiria tapando la
+  // alerta mientras la pantalla la enseña como retirada.
+  if (esConfig(id)) {
+    if (cuerpo?.borrar) delete mias[id]
+    else {
+      const alcance = cuerpo?.alcance == null ? null : String(cuerpo.alcance)
+      if (alcance !== null && !ALCANCES.has(alcance)) {
+        return responder(origen, 400, { error: 'Alcance desconocido.' })
+      }
+      const previo = mias[id] ?? {}
+      mias[id] = {
+        ...previo,
+        fecha: new Date().toISOString(),
+        por: quien,
+        ...(alcance !== null ? { alcance } : {}),
+        ...(cuerpo?.regla   != null ? { regla:   texto(cuerpo.regla, 40) } : {}),
+        ...(cuerpo?.codigo  != null ? { codigo:  texto(cuerpo.codigo, 40).toUpperCase() } : {}),
+        ...(cuerpo?.plaza   != null ? { plaza:   texto(cuerpo.plaza, 40) } : {}),
+        ...(cuerpo?.huella  != null ? { huella:  texto(cuerpo.huella, 200) } : {}),
+        // Sin fecha de vencimiento la excepcion no caduca. Se permite, pero
+        // se guarda como null explicito para que la pantalla pueda decirlo.
+        ...(cuerpo?.vence   !== undefined
+          ? { vence: cuerpo.vence ? texto(cuerpo.vence, 10) : null } : {}),
+        ...(cuerpo?.motivo  != null ? { motivo:  texto(cuerpo.motivo, 300) } : {}),
+        ...(cuerpo?.significa != null ? { significa: texto(cuerpo.significa, 400) } : {}),
+        ...(cuerpo?.causa     != null ? { causa:     texto(cuerpo.causa, 400) } : {}),
+        ...(cuerpo?.hacer     != null ? { hacer:     texto(cuerpo.hacer, 400) } : {}),
+      }
+    }
+    return await escribirRevisiones(origen, quien, mias, id)
+  }
+
+  const estado = cuerpo?.estado == null ? null : String(cuerpo.estado)
+  if (estado !== null && !ESTADOS.has(estado)) {
+    return responder(origen, 400, { error: 'Estado desconocido.' })
+  }
   if (estado === null) delete mias[id]
   else {
     const gravedad = cuerpo?.gravedad == null ? null : String(cuerpo.gravedad)
@@ -394,13 +452,63 @@ async function rutaGuardarRevision(evento, origen, cuerpo) {
     // El registro anterior no se pisa entero: se escribe encima. Asi cambiar
     // solo la gravedad no borra la nota ni el responsable, que es lo que
     // pasaria reemplazando el objeto.
+    const motivo = cuerpo?.motivo == null ? null : String(cuerpo.motivo)
+    if (motivo !== null && motivo !== '' && !MOTIVOS.has(motivo)) {
+      return responder(origen, 400, { error: 'Motivo desconocido.' })
+    }
+
     const previo = mias[id] ?? {}
+    const ahora = new Date().toISOString()
+    const nota = String(cuerpo.nota ?? previo.nota ?? '').slice(0, 500)
+
+    // El HISTORIAL, que es la razon de ser de esto.
+    //
+    // La queja que pidio el rediseño fue literal: «no se guardaban registros
+    // de los movimientos». Antes solo quedaba el ULTIMO estado, asi que no
+    // habia forma de saber quien movio un caso, cuando, ni cuantas veces
+    // habia vuelto: la pantalla enseñaba una foto y no una pelicula.
+    //
+    // Se escribe AQUI y no en el navegador a proposito. El autor y la hora
+    // los pone el servidor con la sesion en la mano; dejandolo al cliente,
+    // cualquiera podria mandar un historial con el nombre de otro, y un
+    // registro que se puede escribir a gusto no prueba nada.
+    //
+    // Solo se apunta cuando algo CAMBIA. Guardar dos veces seguidas lo mismo
+    // -volver a pulsar Guardar sin tocar nada- llenaria el historial de
+    // renglones iguales y lo volveria ilegible, que es la otra forma de no
+    // tener registro.
+    const cambio = previo.estado !== estado
+      || (motivo != null && previo.motivo !== motivo)
+      || previo.nota !== nota
+      || (gravedad !== null && previo.gravedad !== gravedad)
+      || (cuerpo?.responsable != null && previo.responsable !== cuerpo.responsable)
+    const historial = [...(Array.isArray(previo.historial) ? previo.historial : [])]
+    if (cambio) {
+      historial.push({
+        cuando: ahora, quien, estado,
+        ...(motivo ? { motivo } : {}),
+        ...(nota && nota !== previo.nota ? { nota: nota.slice(0, 200) } : {}),
+      })
+    }
+
+    // Un comentario interno no cambia el estado: es lo que se dice entre
+    // quienes trabajan el caso. Va aparte de la nota, que es la razon
+    // oficial de la decision, porque mezclarlos borraria esa razon cada vez
+    // que alguien quiere apuntar algo.
+    const comentarios = [...(Array.isArray(previo.comentarios) ? previo.comentarios : [])]
+    if (cuerpo?.comentario) {
+      comentarios.push({ cuando: ahora, quien, texto: texto(cuerpo.comentario, 300) })
+    }
+
     mias[id] = {
       ...previo,
       estado,
-      nota:   String(cuerpo.nota ?? previo.nota ?? '').slice(0, 500),
-      fecha:  new Date().toISOString(),
+      nota,
+      fecha:  ahora,
+      historial:   historial.slice(-HISTORIAL_MAXIMO),
+      comentarios: comentarios.slice(-HISTORIAL_MAXIMO),
       ...(gravedad !== null ? { gravedad } : {}),
+      ...(motivo !== null ? { motivo } : {}),
       ...(cuerpo?.responsable != null
         ? { responsable: String(cuerpo.responsable).slice(0, 80) } : {}),
       ...(cuerpo?.compromiso != null
@@ -410,6 +518,12 @@ async function rutaGuardarRevision(evento, origen, cuerpo) {
       por: quien,
     }
   }
+
+  return await escribirRevisiones(origen, quien, mias, id)
+}
+
+/** Escribe el archivo de una persona. Comun a las respuestas y a la config. */
+async function escribirRevisiones(origen, quien, mias, id) {
 
   // Un tope por si alguien deja el navegador marcando: el archivo lo escribe
   // una persona, no un proceso.
@@ -424,7 +538,11 @@ async function rutaGuardarRevision(evento, origen, cuerpo) {
     ContentType:  'application/json; charset=utf-8',
     CacheControl: 'no-cache',
   }))
-  return responder(origen, 200, { ok: true, por: quien })
+  // Se devuelve el registro TAL COMO quedo, con su historial. El cliente no
+  // puede armarlo por su cuenta -la hora y el autor los pone este lado- y sin
+  // devolverlo la pantalla enseñaria el caso sin su ultimo movimiento hasta
+  // la siguiente recarga.
+  return responder(origen, 200, { ok: true, por: quien, registro: id ? (mias[id] ?? null) : null })
 }
 
 // ── Ajustes: las correcciones que se hacen en la pagina ───────────────────

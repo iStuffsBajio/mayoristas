@@ -1948,7 +1948,33 @@
    decidir. Por eso lleva los números a la derecha, alineados, y la fila que
    hace de referencia marcada. */
 @layer components {
-  .revisar { max-width: 760px; }
+  /* 760px era la medida de la cola de UNA ficha a la vez: una columna de
+     lectura. La bandeja trabaja con la lista y el panel de detalle a la vez,
+     y a 760 las dos columnas caen a 380 cada una, donde un título de dos
+     palabras parte en tres renglones y la tabla de evidencia se amontona.
+     No es un capricho de diseño: a esa anchura el panel deja de poder
+     leerse, que es justo para lo que existe. */
+  .revisar { max-width: 1180px; }
+
+  /* La lista y el panel de detalle.
+     Va en CSS y no en un estilo en linea porque hace falta una consulta de
+     medios: en un telefono, dos columnas de 1fr salen a 180px cada una y el
+     panel deja de poder leerse. Debajo de 900px se apilan, y el panel sube
+     ARRIBA -`order: -1`- porque si no, abrir un caso obliga a bajar por
+     delante de los sesenta renglones para verlo. */
+  .bandeja-dos {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .bandeja-una { display: grid; gap: 12px; grid-template-columns: 1fr; }
+
+  @media (max-width: 900px) {
+    .bandeja-dos { grid-template-columns: 1fr; }
+    .bandeja-dos > [data-detalle] { order: -1; }
+  }
 
   .revisar-avance {
     display: flex;

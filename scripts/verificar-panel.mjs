@@ -651,91 +651,6 @@ async function todasLasCabeceras(window, donde) {
 }
 
 /**
- * La cola de revisión, de principio a fin.
- *
- * Cada hallazgo pinta una ficha distinta: un patrón de escritura lleva tres
- * columnas con porcentajes, un código huérfano lleva dos con piezas, y el
- * bloque de códigos muertos lleva además una lista desplegable. Mirar sólo el
- * primero comprueba una de las tres, que es la misma trampa de las cabeceras
- * ordenables. Se pulsa «Saltar» hasta el final.
- */
-async function recorrerCola(window, donde) {
-  const doc = window.document
-  let n = 0
-  // El boton de avanzar dice «Lo veo despues» si el caso esta sin contestar y
-  // «Siguiente» si ya lo esta: las dos formas tienen que encontrarse.
-  const saltarVivo = () => [...doc.querySelectorAll('.rev-botones button')]
-    .find(b => /lo veo despu|siguiente/i.test(b.textContent))
-
-  // Qué clase de ficha se está viendo. Un lote se reconoce por su lista
-  // desplegable de códigos; sin ella la ficha es una pregunta suelta.
-  //
-  // Se apunta aparte porque el total de hallazgos no distingue: si los cuatro
-  // lotes volvieran a ser una pregunta por código el número subiría, no
-  // bajaría, y la alarma no sonaría.
-  const apuntar = () => {
-    if (!doc.querySelector('.rev-detalle summary')) return
-    lotesVistos.add(doc.querySelector('.revisar-ficha h4')?.textContent?.trim() ?? '?')
-  }
-
-  // El sitio de cada ficha en la cola viene en `data-paso`: lo que hay que
-  // hacer con ella. La cola tiene que ir de menor a mayor, y comprobarlo es la
-  // unica forma de notar que alguien volvio a ordenar por piezas, porque el
-  // total de hallazgos no se entera: no cambia cuantos hay, cambia cuales van
-  // primero, y eso no sale en ningun numero.
-  const pasos = []
-
-  while (doc.querySelector('.revisar-ficha')) {
-    if (!saltarVivo()) break
-    n++
-    apuntar()
-    const sitio = Number(doc.querySelector('.revisar-ficha').dataset.paso)
-    if (Number.isNaN(sitio)) errores.push(`SIN PASO · ${donde} · el hallazgo ${n} no dice su sitio en la cola`)
-    else pasos.push(sitio)
-    if (!enPie(window, `${donde} · hallazgo ${n}`)) return n
-
-    // El botón se vuelve a buscar aquí: contestar o avanzar repinta la ficha
-    // y el nodo de antes ya no está en el documento. Pulsarlo no hacía nada y
-    // el recorrido se cortaba en el primer hallazgo sin que nada fallara.
-    const saltar = saltarVivo()
-    if (!saltar) break
-    const antes = doc.querySelector('.revisar-cuenta')?.textContent
-    clic(window, saltar)
-    await nuevaVuelta(window, 3)
-    // El último no avanza: «Lo veo después» se queda en el mismo sitio.
-    if (doc.querySelector('.revisar-cuenta')?.textContent === antes) break
-  }
-
-  for (let k = 1; k < pasos.length; k++) {
-    if (pasos[k] < pasos[k - 1]) {
-      errores.push(`ORDEN ROTO · ${donde} · el hallazgo ${k + 1} es del paso ${pasos[k]} y va detras de uno del paso ${pasos[k - 1]}`)
-      break
-    }
-  }
-
-  // Contestar va AL FINAL, sobre la ficha que quedó a la vista.
-  //
-  // Es la única parte de la cola que escribe, y contestar reordena: lo
-  // contestado se va al fondo y lo que estaba detrás sube al primer puesto.
-  // Haciéndolo en la primera ficha, esa que subía ya no se volvía a ver, y
-  // así se escaparon dos lotes enteros. El total de hallazgos no se enteró
-  // porque seguían siendo seis fichas; lo que cambió fue CUÁLES.
-  if (n && !await contestarCaso(window, donde)) return n
-
-  if (n) porSitio.push(`${donde}: ${n} hallazgos`)
-  return n
-}
-
-/**
- * Contesta el hallazgo a la vista con «no», que es el camino con regla.
- *
- * Se elige el «no» a propósito: el «sí» sólo guarda, pero el «no» no se puede
- * guardar sin explicación, y esa regla es la única de esta pantalla que puede
- * romperse en silencio. Si el botón de guardar deja de estar deshabilitado con
- * el campo vacío, se contestaría que no a doscientos casos sin decir por qué y
- * el reporte quedaría sin la mitad que importa.
- */
-/**
  * La seccion del precio por plaza, con los tres grupos SEPARADOS.
  *
  * Lo que se comprueba aqui no son las cuentas -eso lo fija
@@ -773,16 +688,34 @@ function precioPorPlaza(window, donde) {
   return 1
 }
 
+/** Elige en un <select> controlado por React. */
+function elegir(window, select, valor) {
+  // Igual que `escribir`, pero con el prototipo de <select>: usando el de
+  // <input> el valor se escribe y React no se entera, asi que el componente
+  // se queda con la opcion anterior y la comprobacion mide otra cosa.
+  select._valueTracker?.setValue(valor === '' ? '\u0000' : '')
+  Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value')
+    .set.call(select, valor)
+  select.dispatchEvent(new window.Event('change', { bubbles: true }))
+}
+
+/** Pulsa una tecla en la ventana, como la pulsaria una persona. */
+const tecla = (window, key) =>
+  window.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true }))
+
 /**
- * La bandeja de incidencias de la pestaña Revisar.
+ * La pestaña de Revisar entera: la bandeja que sustituyo a la cola.
  *
- * Lo que se comprueba es que se dibuje con sus cinco pestañas y que cada
- * incidencia se pueda abrir y rellenar: estado, gravedad y motivo. Sin el
- * formulario, la pestaña vuelve a ser lo que era -un reporte que no deja
- * trabajar- y el recorrido de abajo seguiria funcionando igual, asi que
- * nada fallaria.
+ * Lo que esto existe para cazar NO es que las cuentas salgan mal -eso lo fijan
+ * `incidencias.test.js` y las pruebas del backend- sino que una de las piezas
+ * del rediseño deje de dibujarse. Y son justo las que pueden desaparecer sin
+ * que nada falle: si el panel de detalle se cae, la lista sigue ahi y se ve
+ * perfecta; si las acciones en bloque se van, se puede seguir contestando de
+ * una en una; si el mensaje para la sucursal no se genera, no hay error en
+ * consola. Cada una de las dos quejas que pidieron el rediseño -no habia
+ * registro de los movimientos, y llenarlo era tedioso- se vuelve invisible asi.
  */
-async function bandejaDeIncidencias(window, donde) {
+async function revisarBandeja(window, donde) {
   const doc = window.document
   let sec = null
   for (let i = 0; i < 10 && !sec; i++) {
@@ -794,36 +727,208 @@ async function bandejaDeIncidencias(window, donde) {
     return 0
   }
 
-  for (const p of ['atender', 'sucursal', 'conflicto', 'cerradas']) {
+  // Y la cola vieja NO puede seguir ahi. Se quito a proposito: dejandola
+  // debajo, todo lo de abajo seguiria pasando y el rediseño no habria
+  // cambiado la forma de operar, que era justo la queja.
+  if (doc.querySelector('.revisar-ficha')) {
+    errores.push(`${donde} · la cola de una ficha a la vez sigue dibujandose`)
+  }
+
+  for (const p of ['atender', 'sucursal', 'conflicto', 'descartadas', 'cerradas']) {
     if (!doc.querySelector(`[data-bandeja-pestana="${p}"]`)) {
       errores.push(`${donde} · la bandeja no tiene la pestaña «${p}»`)
     }
   }
 
-  const filas = [...doc.querySelectorAll('[data-incidencia]')]
-  if (!filas.length) {
+  const filas = () => [...doc.querySelectorAll('[data-incidencia]')]
+  if (!filas().length) {
     errores.push(`${donde} · la bandeja no listo ninguna incidencia`)
-    return 1
+    return 0
+  }
+  const cuantas = filas().length
+
+  // ── El orden, ANTES de escribir nada ──────────────────────────────────
+  //
+  // 🔒 Dentro de un mismo estado manda `PASO`, la escalera del dueño. Se
+  // comprueba aqui porque reordenar la bandeja no cambia cuantas incidencias
+  // hay -cambia cuales van primero- y eso no sale en ningun numero. Y va
+  // antes de cualquier guardado porque guardar cambia el estado, y el estado
+  // manda por encima de la escalera: midiendolo despues se mediria otra cosa.
+  const pasos = filas().map(f => Number(f.dataset.paso))
+  if (pasos.some(Number.isNaN)) {
+    errores.push(`SIN PASO · ${donde} · una incidencia no dice su sitio en la escalera`)
+  }
+  for (let k = 1; k < pasos.length; k++) {
+    if (pasos[k] < pasos[k - 1]) {
+      errores.push(`ORDEN ROTO · ${donde} · la incidencia ${k + 1} es del paso ${pasos[k]} y va detras de una del paso ${pasos[k - 1]} · escalera: ${pasos.join(',')} · estados: ${filas().map(f => f.dataset.estado).join(',')}`)
+      break
+    }
   }
 
-  // Abrir una y comprobar que trae formulario con gravedad editable: eso es
-  // lo que el dueño pidio y lo que distingue esto de un reporte.
-  // Se pulsa la CABECERA del renglon, no el renglon: el manejador vive ahi
-  // -el formulario esta dentro y con el clic en el padre se cerraria solo- y
-  // los eventos suben, no bajan.
-  clic(window, filas[0].querySelector('[data-abrir]') ?? filas[0])
+  // Los lotes. Se apuntan aparte porque el total NO distingue: si la
+  // agrupacion se rompiera y la bandeja volviera a preguntar codigo por
+  // codigo, el total SUBIRIA, no bajaria, y la alarma no sonaria.
+  for (const f of filas()) {
+    const h = f.dataset.incidencia ?? ''
+    if (h.startsWith('lote|')) lotesVistos.add(h.split('|')[1] ?? '?')
+  }
+
+  // ── Los filtros y las vistas ──────────────────────────────────────────
+  for (const sel of ['[data-filtro-plaza]', '[data-filtro-regla]', '[data-filtro-busca]']) {
+    if (!doc.querySelector(sel)) errores.push(`${donde} · falta el filtro ${sel}`)
+  }
+  const vistaVencidas = doc.querySelector('[data-vista="vencidas"]')
+  if (!vistaVencidas) errores.push(`${donde} · no hay vista guardada de «fuera de plazo»`)
+  else {
+    // Filtrar tiene que filtrar DE VERDAD. Un filtro que se pinta y no quita
+    // nada es la forma mas facil de que esto parezca funcionar: sin ninguna
+    // vencida, esta vista tiene que dejar la lista en cero.
+    clic(window, vistaVencidas)
+    await nuevaVuelta(window, 5)
+    if (filas().length === cuantas && cuantas > 0) {
+      errores.push(`${donde} · la vista «fuera de plazo» no filtro nada: enseña las ${cuantas} igual`)
+    }
+    clic(window, doc.querySelector('[data-vista="todo"]'))
+    await nuevaVuelta(window, 5)
+  }
+
+  // ── El tablero ────────────────────────────────────────────────────────
+  const verTablero = doc.querySelector('[data-ver-tablero]')
+  if (!verTablero) errores.push(`${donde} · no se puede ver el tablero`)
+  else {
+    clic(window, verTablero)
+    await nuevaVuelta(window, 5)
+    if (!doc.querySelector('[data-tablero]')) {
+      errores.push(`${donde} · el tablero no se dibujo`)
+    }
+    if (!enPie(window, `${donde} · tablero`)) return cuantas
+    clic(window, doc.querySelector('[data-ver-tablero]'))
+    await nuevaVuelta(window, 5)
+  }
+
+  // ── El atajo de teclado ───────────────────────────────────────────────
+  //
+  // Es la mitad de «que cualquiera lo haga el doble de rapido», y se puede
+  // romper sin que nada falle: el oyente se registra en `window`, asi que si
+  // deja de hacerlo la pantalla se dibuja perfecta y las teclas no hacen
+  // nada. `x` marca la fila del cursor, y marcar saca la barra de bloque.
+  tecla(window, 'x')
+  await nuevaVuelta(window, 5)
+  if (!doc.querySelector('[data-bloque]')) {
+    errores.push(`${donde} · el atajo «x» no marco nada: los atajos de teclado no responden`)
+  } else {
+    // ── Las acciones en bloque ──────────────────────────────────────────
+    for (const sel of ['[data-bloque-revisando]', '[data-bloque-origen]',
+                       '[data-bloque-responsable]', '[data-bloque-asignar]']) {
+      if (!doc.querySelector(sel)) errores.push(`${donde} · la barra de bloque no tiene ${sel}`)
+    }
+    // Asignar con los dos campos vacios no se puede: una asignacion sin
+    // nombre ni fecha no asigna nada y se leeria como que si.
+    const asignar = doc.querySelector('[data-bloque-asignar]')
+    if (asignar && !asignar.disabled) {
+      errores.push(`REGLA ROTA · ${donde} · se puede asignar un bloque sin nombre ni fecha`)
+    }
+    const aQuien = doc.querySelector('[data-bloque-responsable]')
+    if (aQuien) {
+      escribir(window, aQuien, 'Brenda')
+      await nuevaVuelta(window, 4)
+      if (doc.querySelector('[data-bloque-asignar]')?.disabled) {
+        errores.push(`REGLA ROTA · ${donde} · con nombre puesto sigue sin poder asignarse`)
+      }
+    }
+    tecla(window, 'x')
+    await nuevaVuelta(window, 4)
+  }
+
+  // ── El panel de detalle ───────────────────────────────────────────────
+  //
+  // Se pulsa el area de abrir del renglon, no el renglon: el manejador vive
+  // ahi -la casilla de marcar esta dentro y con el clic en el padre marcar
+  // abriria la ficha de paso- y los eventos suben, no bajan.
+  const primera = filas()[0]
+  const huella = primera.dataset.incidencia
+  clic(window, primera.querySelector('[data-abrir]') ?? primera)
   await nuevaVuelta(window, 6)
-  if (!doc.querySelector('[data-formulario]')) {
+  const panel = doc.querySelector('[data-detalle]')
+  if (!panel) {
     errores.push(`${donde} · una incidencia no se puede abrir para trabajarla`)
-    return 1
+    return cuantas
   }
-  if (!doc.querySelector('[data-gravedad]')) {
-    errores.push(`${donde} · la gravedad no se puede cambiar desde la pagina`)
+  if (!enPie(window, `${donde} · panel de detalle`)) return cuantas
+
+  // La evidencia tiene que seguir ahi. Es lo que enseñaba la ficha vieja, y
+  // quitarla al rediseñar habria convertido el panel en un formulario a
+  // ciegas: decidir sin los hechos delante es como se contesta mal.
+  const txt = (panel.textContent || '').replace(/\s+/g, ' ')
+  if (!/Qué se sabe|Si sí:|Si no:/.test(txt)) {
+    errores.push(`${donde} · el panel de detalle perdio la evidencia: ya no dice que se sabe ni que pasa con cada respuesta`)
   }
-  if (!doc.querySelector('[data-guardar]')) {
-    errores.push(`${donde} · el formulario no tiene con que guardar`)
+  if (!/Historial del caso/.test(txt)) {
+    errores.push(`${donde} · el panel no tiene historial: era la razon del rediseño`)
   }
-  return 1
+  for (const sel of ['[data-gravedad]', '[data-motivo]', '[data-responsable]',
+                     '[data-compromiso]', '[data-comentario]', '[data-guardar]']) {
+    if (!panel.querySelector(sel)) errores.push(`${donde} · el panel no tiene ${sel}`)
+  }
+
+  // ── La regla con dientes: descartar PIDE motivo ───────────────────────
+  //
+  // Es la unica de esta pantalla que puede romperse en silencio. Si el boton
+  // de guardar deja de estar deshabilitado, se descartarian doscientos casos
+  // sin decir por que, y un aviso apagado sin motivo no lo puede revisar
+  // nadie a la semana. Es la heredera de la regla del «no» de la cola vieja.
+  const elEstado = panel.querySelector('[data-estado-elegido]')
+  if (!elEstado) errores.push(`${donde} · el panel no deja elegir que hacer`)
+  else {
+    elegir(window, elEstado, 'descartada')
+    await nuevaVuelta(window, 5)
+    const guardar = doc.querySelector(`[data-guardar="${huella}"]`)
+    if (!guardar) errores.push(`${donde} · tras elegir descartar no hay con que guardar`)
+    else if (!guardar.disabled) {
+      errores.push(`REGLA ROTA · ${donde} · se puede descartar sin motivo`)
+    } else {
+      elegir(window, doc.querySelector('[data-motivo]'), 'no-es-error')
+      await nuevaVuelta(window, 5)
+      if (doc.querySelector(`[data-guardar="${huella}"]`)?.disabled) {
+        errores.push(`REGLA ROTA · ${donde} · con motivo elegido sigue sin poder descartarse`)
+      } else {
+        clic(window, doc.querySelector(`[data-guardar="${huella}"]`))
+        await nuevaVuelta(window, 6)
+        if (!enPie(window, `${donde} · tras descartar`)) return cuantas
+      }
+    }
+  }
+
+  // ── Lo que impide que esto se vacie y se vuelva a llenar igual ────────
+  for (const [sel, que] of [
+    ['[data-por-sucursal]', 'lo que le toca a cada plaza'],
+    ['[data-causa]', 'de donde sale el trabajo'],
+    ['[data-catalogo]', 'que significa cada error'],
+  ]) {
+    if (!doc.querySelector(sel)) errores.push(`${donde} · no se dibujo «${que}»`)
+  }
+
+  // El mensaje para la sucursal. Se genera y no se escribe porque escribirlo
+  // a mano es lo que no se hace nunca; si el boton desaparece, nadie lo echa
+  // de menos y se vuelve a mandar «mira la pestaña», que no es un encargo.
+  const wa = doc.querySelector('[data-whatsapp]')
+  if (!wa) errores.push(`${donde} · no hay como mandarle a la plaza lo que le toca`)
+
+  // El catalogo editable: si el boton de editar se va, la explicacion de cada
+  // regla vuelve a estar enterrada en el codigo.
+  const editar = doc.querySelector('[data-editar-catalogo]')
+  if (!editar) errores.push(`${donde} · el catalogo de errores no se puede editar`)
+  else {
+    clic(window, editar)
+    await nuevaVuelta(window, 5)
+    if (!doc.querySelector('[data-guardar-catalogo]')) {
+      errores.push(`${donde} · el catalogo se abre pero no se puede guardar`)
+    }
+    if (!enPie(window, `${donde} · catalogo`)) return cuantas
+  }
+
+  porSitio.push(`${donde}: ${cuantas} incidencias`)
+  return cuantas
 }
 
 /**
@@ -1256,47 +1361,6 @@ async function buscarUnCodigo(window, donde) {
   return 1
 }
 
-async function contestarCaso(window, donde) {
-  const doc = window.document
-  const boton = txt => [...doc.querySelectorAll('.revisar-ficha button')]
-    .find(b => new RegExp(txt, 'i').test(b.textContent))
-
-  const no = boton('^no$')
-  if (!no) { errores.push(`SIN BOTÓN · ${donde} · «No»`); return false }
-  clic(window, no)
-  await nuevaVuelta(window, 3)
-
-  const campo = doc.querySelector('.rev-nota textarea')
-  if (!campo) { errores.push(`SIN CAMPO · ${donde} · la explicación del «no»`); return false }
-
-  const guardar = boton('guardar respuesta')
-  if (!guardar) { errores.push(`SIN BOTÓN · ${donde} · «Guardar respuesta»`); return false }
-  if (!guardar.disabled) {
-    errores.push(`REGLA ROTA · ${donde} · un «no» sin explicación se puede guardar`)
-    return false
-  }
-
-  escribir(window, campo, 'lo sigue pidiendo un cliente, lo ve Brenda')
-  await nuevaVuelta(window, 2)
-
-  const guardar2 = boton('guardar respuesta')
-  if (guardar2?.disabled) {
-    errores.push(`REGLA ROTA · ${donde} · con explicación sigue sin poder guardarse`)
-    return false
-  }
-  clic(window, guardar2)
-  await nuevaVuelta(window, 4)
-
-  if (!enPie(window, `${donde} · tras contestar`)) return false
-
-  // La explicación tiene que haber quedado guardada: al contestar, el caso baja
-  // al final de la cola y otro ocupa su sitio.
-  if (!/Brenda/.test(doc.body.textContent) && !notaGuardada(window)) {
-    errores.push(`NOTA PERDIDA · ${donde} · se contestó y no quedó rastro`)
-    return false
-  }
-  return true
-}
 
 const notaGuardada = window => /Brenda/.test(window.localStorage.getItem('istuffs_revisar_marcas') ?? '')
 
@@ -1724,7 +1788,6 @@ for (const [nombre, sesion] of SESIONES) {
         if (!enPie(window, `${nombre} · admin · «${t}»`)) break
         revisarConsola(dichos, `${nombre} · admin · «${t}»`)
         cabeceras += await todasLasCabeceras(window, `${nombre} · admin · ${t}`)
-        hallazgos += await recorrerCola(window, `${nombre} · admin · ${t}`)
         if (/ventas/i.test(t)) {
           fichasDeCodigo += await buscarUnCodigo(window, `${nombre} · admin · ${t}`)
           bandejasDeCosto += bandejaDeCostos(window, `${nombre} · admin · ${t}`)
@@ -1738,8 +1801,14 @@ for (const [nombre, sesion] of SESIONES) {
             sucursalLimpia += sucursalSinBodega(window, `${nombre} · ${t}`)
           }
         }
-        if (/revisar/i.test(t) && nombre === 'admin') {
-          bandejasVistas += await bandejaDeIncidencias(window, `${nombre} · ${t}`)
+        // La bandeja se mira con las DOS sesiones que la trabajan. Bodega
+        // escribe en la cola igual que el administrador -esta en
+        // `QUIENES_ESCRIBEN`- y comprobarla solo con admin dejaria sin mirar
+        // justo la sesion a la que ya se le perdio el trabajo una vez.
+        if (/revisar/i.test(t) && (nombre === 'admin' || nombre === 'bodega')) {
+          const cuantas = await revisarBandeja(window, `${nombre} · ${t}`)
+          hallazgos += cuantas
+          if (cuantas) bandejasVistas++
         }
         if (/inventarios/i.test(t)) {
           clasesVistas += await clasesEnRecuadros(window, `${nombre} · ${t}`)
@@ -1765,7 +1834,7 @@ for (const [nombre, sesion] of SESIONES) {
 
 // ── El parte ───────────────────────────────────────────────────────────────
 
-console.log(`\nsesiones ${SESIONES.length} · pestañas ${pestanas} · secciones de admin ${secciones} · cabeceras pulsadas ${cabeceras} · hallazgos recorridos ${hallazgos}`)
+console.log(`\nsesiones ${SESIONES.length} · pestañas ${pestanas} · secciones de admin ${secciones} · cabeceras pulsadas ${cabeceras} · incidencias listadas ${hallazgos}`)
 console.log(`  busqueda por codigo en ventas: ${fichasDeCodigo} ficha dibujada`)
 if (fichasDeCodigo < 1) errores.push('la busqueda por codigo de ventas no se ejecuto')
 console.log(`  bandeja de costos que faltan: ${bandejasDeCosto} dibujada`)
@@ -1809,7 +1878,7 @@ if (bandejasDeCosto < 1) {
 for (const l of porSitio) console.log('  ' + l)
 console.log(`  lotes dibujados: ${lotesVistos.size}`)
 for (const l of lotesVistos) console.log('    · ' + l)
-if (lotesVistos.size < 4) errores.push(`solo se dibujaron ${lotesVistos.size} lotes de 4: la cola volvio a preguntar codigo por codigo`)
+if (lotesVistos.size < 4) errores.push(`solo se dibujaron ${lotesVistos.size} lotes de 4: la bandeja volvio a preguntar codigo por codigo`)
 if (avisos.length) console.log(`avisos de React: ${avisos.length}`)
 
 if (errores.length) {

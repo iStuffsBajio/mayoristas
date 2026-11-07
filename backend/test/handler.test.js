@@ -481,3 +481,165 @@ test('las cuatro gravedades de verdad se aceptan', async () => {
     assert.notEqual(r.statusCode, 400, gravedad)
   }
 })
+
+// ── El HISTORIAL de una incidencia ─────────────────────────────────────────
+//
+// Es la razon por la que se rediseño la pestaña de Revisar. Palabras del
+// dueño: «no se guardaban registros de los movimientos». Antes solo quedaba
+// el ULTIMO estado de cada caso, asi que no habia forma de saber quien lo
+// movio, cuando, ni cuantas veces habia vuelto.
+//
+// Se escribe en el SERVIDOR a proposito: el autor y la hora los pone este lado
+// con la sesion en la mano. Dejandoselo al navegador, cualquiera podria mandar
+// un historial con el nombre de otro, y un registro que se puede escribir a
+// gusto no prueba nada.
+
+/**
+ * Un S3 de mentira que RECUERDA lo que se le escribio.
+ *
+ * Hace falta que recuerde: el historial se acumula sobre el registro anterior,
+ * y con un S3 que siempre devuelve vacio cada guardado empezaria de cero y la
+ * prueba pasaria sin comprobar lo unico que importa.
+ */
+function s3ConMemoria() {
+  const archivos = new Map()
+  const original = S3Client.prototype.send
+  S3Client.prototype.send = async function (cmd) {
+    const clave = cmd.input?.Key
+    const nombre = cmd.constructor?.name ?? ''
+    if (nombre.startsWith('Put')) {
+      archivos.set(clave, Buffer.from(cmd.input.Body).toString('utf8'))
+      return {}
+    }
+    if (nombre.startsWith('Get')) {
+      if (!archivos.has(clave)) throw new Error('NoSuchKey')
+      const texto = archivos.get(clave)
+      return { Body: { transformToString: async () => texto } }
+    }
+    return {}
+  }
+  return {
+    leer: clave => JSON.parse(archivos.get(clave) ?? '{}'),
+    restaurar: () => { S3Client.prototype.send = original },
+  }
+}
+
+const guardarCaso = (cuerpo, token = tokenAdmin()) =>
+  pedir('POST', '/revisiones', { token, cuerpo })
+
+test('CADA MOVIMIENTO deja un renglon en el historial, con quien y cuando', async () => {
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cod|A', estado: 'revisando' })
+    await guardarCaso({ id: 'cod|A', estado: 'en-origen', responsable: 'Brenda' })
+    const r = await guardarCaso({ id: 'cod|A', estado: 'descartada', motivo: 'no-es-error' })
+
+    const h = s3.leer('revisiones/admin.json')['cod|A'].historial
+    assert.equal(h.length, 3, 'un renglon por movimiento')
+    assert.deepEqual(h.map(x => x.estado), ['revisando', 'en-origen', 'descartada'])
+    for (const x of h) {
+      assert.equal(x.quien, 'admin', 'el autor lo pone el servidor, no el cliente')
+      assert.ok(!Number.isNaN(Date.parse(x.cuando)), 'y la hora tambien')
+    }
+    assert.equal(h[2].motivo, 'no-es-error')
+    // Se devuelve el registro para que la pantalla pueda enseñar el ultimo
+    // movimiento sin esperar a la siguiente recarga.
+    assert.equal(JSON.parse(r.body).registro.historial.length, 3)
+  } finally { s3.restaurar() }
+})
+
+test('GUARDAR LO MISMO DOS VECES no apunta dos renglones', async () => {
+  // Volver a pulsar Guardar sin tocar nada llenaria el historial de renglones
+  // identicos y lo volveria ilegible, que es la otra forma de no tener
+  // registro.
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cod|B', estado: 'revisando', nota: 'la veo yo' })
+    await guardarCaso({ id: 'cod|B', estado: 'revisando', nota: 'la veo yo' })
+    assert.equal(s3.leer('revisiones/admin.json')['cod|B'].historial.length, 1)
+
+    // Pero un cambio de verdad SI se apunta.
+    await guardarCaso({ id: 'cod|B', estado: 'revisando', nota: 'la ve Brenda' })
+    assert.equal(s3.leer('revisiones/admin.json')['cod|B'].historial.length, 2)
+  } finally { s3.restaurar() }
+})
+
+test('la nota oficial y los comentarios NO se pisan entre si', async () => {
+  // La nota es la razon de la decision; el comentario es lo que se dicen entre
+  // quienes trabajan el caso. Mezclandolos, apuntar algo borraria la razon.
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cod|C', estado: 'revisando', nota: 'lo pide un cliente' })
+    await guardarCaso({ id: 'cod|C', estado: 'revisando', comentario: 'hablado con bodega' })
+    const g = s3.leer('revisiones/admin.json')['cod|C']
+    assert.equal(g.nota, 'lo pide un cliente', 'la nota sigue entera')
+    assert.equal(g.comentarios.length, 1)
+    assert.equal(g.comentarios[0].texto, 'hablado con bodega')
+    assert.equal(g.comentarios[0].quien, 'admin')
+  } finally { s3.restaurar() }
+})
+
+test('un motivo inventado se rechaza: la lista es cerrada', async () => {
+  // Un motivo a mano no se puede contar ni agrupar, y la pantalla de causas se
+  // queda sin de donde salir: «se corrigio», «ya se corrigio» y «corregido»
+  // serian tres motivos distintos.
+  assert.equal((await guardarCaso(
+    { id: 'x', estado: 'descartada', motivo: 'porque-yo-lo-digo' })).statusCode, 400)
+  for (const motivo of ['corregido-aqui', 'se-dio-de-baja', 'no-es-error', 'otro']) {
+    assert.notEqual((await guardarCaso(
+      { id: 'x', estado: 'descartada', motivo })).statusCode, 400, motivo)
+  }
+})
+
+// ── Las excepciones y el catalogo ──────────────────────────────────────────
+
+test('UNA EXCEPCION NO LLEVA ESTADO y se guarda igual', async () => {
+  // Va por su propia rama: pasandola por la validacion de estados se
+  // rechazaria entera, porque no tiene ninguno.
+  const s3 = s3ConMemoria()
+  try {
+    const r = await guardarCaso({
+      id: 'cfg|exc|1', alcance: 'codigo', codigo: 'i13t',
+      regla: 'codigo-huerfano', motivo: 'se liquida', vence: '2026-12-31',
+    })
+    assert.equal(r.statusCode, 200)
+    const e = s3.leer('revisiones/admin.json')['cfg|exc|1']
+    assert.equal(e.alcance, 'codigo')
+    assert.equal(e.codigo, 'I13T', 'el codigo se guarda en mayusculas, como el catalogo')
+    assert.equal(e.vence, '2026-12-31')
+    assert.equal(e.por, 'admin')
+  } finally { s3.restaurar() }
+})
+
+test('un alcance inventado se rechaza', async () => {
+  assert.equal((await guardarCaso(
+    { id: 'cfg|exc|2', alcance: 'todo-el-negocio', motivo: 'x' })).statusCode, 400)
+})
+
+test('REVOCAR UNA EXCEPCION LA BORRA, no la marca', async () => {
+  // Una excepcion revocada que se quedara en el archivo seguiria tapando la
+  // alerta mientras la pantalla la enseña como retirada: el peor de los dos
+  // mundos, porque nadie volveria a mirarla.
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cfg|exc|3', alcance: 'caso', huella: 'cod|A', motivo: 'x' })
+    assert.ok(s3.leer('revisiones/admin.json')['cfg|exc|3'])
+    await guardarCaso({ id: 'cfg|exc|3', borrar: true })
+    assert.equal(s3.leer('revisiones/admin.json')['cfg|exc|3'], undefined)
+  } finally { s3.restaurar() }
+})
+
+test('el catalogo de errores se guarda editado y no toca las incidencias', async () => {
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cod|VIVA', estado: 'revisando' })
+    await guardarCaso({
+      id: 'cfg|cat|nombre', regla: 'nombre',
+      significa: 'otra explicacion', causa: 'otra causa', hacer: 'otra cosa',
+    })
+    const todo = s3.leer('revisiones/admin.json')
+    assert.equal(todo['cfg|cat|nombre'].significa, 'otra explicacion')
+    assert.equal(todo['cfg|cat|nombre'].estado, undefined, 'la config no tiene estado')
+    assert.equal(todo['cod|VIVA'].estado, 'revisando', 'la incidencia sigue intacta')
+  } finally { s3.restaurar() }
+})

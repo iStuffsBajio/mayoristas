@@ -168,6 +168,108 @@ Los pasos 4 y 5 son dos fichas, así que da igual que vayan al final: se
 contestan de una vez. Lo que no puede quedar detrás son los casos vivos, que
 son uno por uno y son los únicos que **no** se agrupan.
 
+La escalera está escrita **dos veces a la fuerza**: `PASO` en `fichas.js` y
+`ORDEN_PASO` en `incidencias.js`. No se puede compartir porque un hallazgo
+puede llegar sin `orden` —los de prueba, y los que vienen de un registro viejo
+sin ficha— y entonces no habría con qué ordenarlo. Las dos tienen que decir lo
+mismo y **hay prueba que falla si se separan**: sin ella, añadir un paso en un
+sitio dejaría la bandeja ordenando por una escalera que ya no es la del dueño,
+y eso no se nota —sigue habiendo las mismas incidencias—.
+
+En la bandeja, lo **vencido** y el **estado** van por encima de la escalera, y
+eso es a propósito: un plazo pasado y un caso que nadie ha mirado son hechos
+del trabajo, no un reordenamiento de la prioridad del negocio. Dentro de un
+mismo estado manda `PASO`.
+
+### La pestaña de Revisar es una BANDEJA, y la cola vieja se quitó
+
+Antes era un recorrido de una ficha cada vez. Funcionaba, y por eso la primera
+vez se dejó puesta debajo de la bandeja nueva. **Eso fue un error**, y el dueño
+lo dijo con todas las letras: la instrucción era «reconstruye y rediseña la
+manera de operar», no añadir una capa encima. Dejándola debajo, la forma de
+operar no cambiaba, que era justo la queja.
+
+Las dos razones que dio, que son con las que se mide si esto sirve:
+
+1. **«No se guardaban registros de los movimientos.»** Sólo quedaba el último
+   estado de cada caso. No había forma de saber quién lo movió, cuándo, ni
+   cuántas veces había vuelto: la pantalla enseñaba una foto y no una película.
+2. **«El llenado era muy obsoleto, era muy tedioso.»** Abrir la ficha, leer,
+   pulsar, escribir el motivo a mano, pasar a la siguiente. Ciento doce veces.
+   El objetivo que puso no es que funcione: es que **cualquiera lo haga el
+   doble de rápido y le resulte intuitivo**.
+
+**El historial lo escribe el BACKEND, no el navegador.** El autor y la hora los
+pone el servidor con la sesión en la mano. Dejándoselo al cliente, cualquiera
+podría mandar un historial con el nombre de otro, y un registro que se puede
+escribir a gusto no prueba nada. Sólo se apunta renglón cuando algo **cambia**:
+volver a pulsar Guardar sin tocar nada llenaría el historial de renglones
+iguales, que es la otra forma de no tener registro.
+
+**La nota y los comentarios son cosas distintas y no se pisan.** La nota es la
+razón oficial de la decisión; el comentario es lo que se dicen entre quienes
+trabajan el caso. Mezclándolos, apuntar algo borraría la razón.
+
+**Los motivos son lista cerrada**, como los estados. Dos ventajas y las dos
+hacían falta: se eligen en un gesto en vez de escribirse, y «se corrigió», «ya
+se corrigió» y «corregido» dejan de ser tres motivos distintos cuando hay que
+contarlos en la pantalla de causas.
+
+Lo que **no** se tiró fue la información. Todo lo que enseñaba la ficha —lo que
+se sabe, la tabla, los códigos, qué pasa si sí y si no, las otras fundas del
+mismo teléfono— es la EVIDENCIA, y una decisión sin la evidencia delante es la
+que se contesta mal. Vive en el panel de detalle, al lado de la lista. Lo que
+se quitó fue la obligación de pasar por ella de una en una.
+
+#### La configuración va en el mismo archivo y NO es una incidencia
+
+Las excepciones y el catálogo de códigos de error se guardan en
+`revisiones/<quien>.json`, que es el único archivo por persona que ya se junta
+al leer. Llevan el prefijo **`cfg|`** y `conciliar` las salta.
+
+Hace falta saltarlas: `conciliar` convierte todo registro **sin hallazgo** en
+una CERRADA —ésa es la verificación automática— así que cada excepción y cada
+entrada del catálogo salía en la bandeja como una **cerrada fantasma** y
+contaba en el encabezado. Una excepción no es un caso resuelto.
+
+**Revocar una excepción la BORRA, no la marca.** Una revocada que se quedara en
+el archivo seguiría tapando la alerta mientras la pantalla la enseña como
+retirada: el peor de los dos mundos, porque nadie volvería a mirarla.
+
+Y una excepción **sin fecha de caducidad se permite pero se lista**: una alerta
+apagada para siempre que nadie recuerda haber apagado es exactamente lo que
+esto existe para evitar.
+
+#### Las ocurrencias salen del historial, no de un contador
+
+Un contador hay que acordarse de subirlo. Cada vez que un caso se dio por
+cerrado y el respaldo lo volvió a producir queda un renglón de CONFLICTO, y eso
+**es** «ha vuelto». Se cuentan de ahí.
+
+#### La salud se mide sobre el catálogo de cada plaza
+
+Veinte casos en una plaza de 800 códigos y veinte en una de 100 no son lo
+mismo, y contándolos a secas se ven iguales.
+
+#### El mensaje para la sucursal se genera, no se escribe
+
+Catorce códigos con su nombre y lo que hay que hacer con cada uno es media hora
+de teclear, y media hora de teclear **no ocurre nunca**. Sale con lo que hay que
+HACER —`siHacer`, o el catálogo si la ficha no lo trae—, nunca con el nombre
+interno de la regla, que a la tienda no le dice nada. Y nunca promete un plazo
+que nadie fijó. Con cero casos abiertos sale **vacío**: mandarle a una tienda
+que mire una pantalla donde no hay nada suyo hace que la siguiente ya no la
+mire.
+
+#### Y 760px era la medida de la cola, no de la bandeja
+
+`.revisar` estaba a `max-width: 760px`, que es una columna de lectura. Con la
+lista y el panel de detalle a la vez, eso deja dos columnas de 380 donde un
+título de dos palabras parte en tres renglones. Está en **1180px**, y por
+debajo de 900px las dos columnas **se apilan con el panel arriba**: si no,
+abrir un caso obliga a bajar por delante de los sesenta renglones para verlo.
+Eso no lo caza `verificar` —jsdom no maqueta— lo cazó abrir la página.
+
 ---
 
 ## 🔒 CONFIRMAR — El registro de surtidos se comprueba con el respaldo
@@ -361,8 +463,11 @@ caída de la pantalla en blanco se escapó porque la comprobación pulsaba
 cuatro y la columna rota era la octava. Falla si el cuerpo se queda vacío o
 si la consola suelta un error.
 
-Hoy cubre: 3 sesiones · 11 pestañas · 12 secciones de panel · 29 cabeceras ·
-12 hallazgos de la cola de revisión, **los 4 lotes**, la bandeja de costos y
+Hoy cubre: 4 sesiones · 15 pestañas · 15 secciones de panel · 42 cabeceras ·
+12 incidencias de la bandeja de revisión —con **las dos sesiones que la
+trabajan**, administrador y bodega, porque bodega escribe en ella igual y
+comprobarla sólo con admin dejaba fuera justo la sesión a la que ya se le
+perdió el trabajo una vez—, **los 4 lotes**, la bandeja de costos y
 **las 5 plazas del flujo de efectivo** —tres de ellas por dentro, porque desde
 que el historial arranca en ceros sólo hay una semana a la vista y las cuatro
 ramas (con control, sin control, marcado, sin marcar) ya no caben en una sola
