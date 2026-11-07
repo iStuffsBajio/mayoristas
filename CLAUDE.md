@@ -441,6 +441,26 @@ Tres cosas que hacen falta para que la comprobación sea de verdad:
   el cursor sale del CSS y jsdom no maqueta. Toda columna ordenable nueva
   tiene que llevarlo, o la comprobación la salta en silencio.
 
+### Y `verificar` no sustituye MIRAR: `node scripts/mirar-panel.mjs`
+
+jsdom no maqueta. `verificar` comprueba que las cosas se dibujen y que las
+reglas se cumplan —y eso es mucho— pero no ve si algo se encima, si una lista
+es ilegible, o si la consola está llena de avisos.
+
+La primera vez que se corrió `mirar-panel.mjs`, en **una sola pasada**,
+encontró tres cosas que `verificar` daba por buenas:
+
+- El desglose por clase decía «99 agotados · A 0 · B 2 · C 32». Treinta y
+  cuatro de noventa y nueve: faltaban los 65 **sin clase**, y un desglose que
+  no suma se lee como un error de la página.
+- La bandeja de incidencias enseñaba **diecisiete renglones con la misma
+  frase**, sin código ni plaza. Se dibujaba perfecta y no se podía usar.
+- Cada cabecera numerica soltaba un aviso de React en consola, porque `num`
+  caía en el `...resto` y acababa escupido al `<th>`.
+
+**Ninguna de las tres rompe nada. Por eso ninguna prueba las veía.** Antes de
+dar por buena una pantalla nueva, hay que abrirla.
+
 **jsdom NO aplica la política de seguridad de contenido.** Un guion en línea
 bloqueado en el navegador aquí corre tan campante; eso fue lo que dejó la
 página de mockups en «cargando…». Esta comprobación no sustituye mirar la

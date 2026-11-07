@@ -118,6 +118,16 @@ function Contador({ n, etiqueta, color, activo, onClick, clases, id }) {
         <div data-clases style={{ fontSize: 10.5, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
           <span style={{ color, fontWeight: 800 }}>A {clases.A}</span>
           <span style={{ color: TINTA_SUAVE }}> · B {clases.B} · C {clases.C}</span>
+          {/* Los que no tienen clase TIENEN que decirse. Sin esto salia
+              «99 agotados · A 0 · B 2 · C 32»: treinta y cuatro de noventa y
+              nueve. Un desglose que no suma el total se lee como un error de
+              la pagina, y de paso esconde el dato bueno -que 65 modelos no
+              tienen venta con la que clasificarlos-. */}
+          {clases.sinClase > 0 && (
+            <span style={{ color: TINTA_TENUE }} title="Sin venta registrada con la que clasificarlos">
+              {' · '}{clases.sinClase} sin clase
+            </span>
+          )}
         </div>
       ) : (
         // Hueco del mismo alto: sin él, los recuadros con desglose y sin él

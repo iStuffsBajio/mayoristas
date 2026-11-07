@@ -194,8 +194,19 @@ function Fila({ inc, abierta, onAbrir, onGuardar, guardando }) {
         <span style={{ fontSize: 10.5, fontWeight: 700, color: COLOR_ESTADO[inc.estado] }}>
           {TEXTO_ESTADO[inc.estado]}
         </span>
-        <span style={{ fontSize: 12.5, color: TINTA, flex: 1, minWidth: 180 }}>
-          {h?.titulo || h?.pregunta || inc.registro?.nota || inc.huella}
+        {/* Lo que IDENTIFICA el caso va primero, no la etiqueta del tipo.
+            La primera version enseñaba solo el titulo del paso, y con eso
+            salian diecisiete renglones diciendo «Se vende y bodega no lo
+            tiene de alta» sin que se pudiera distinguir cual era cual: una
+            lista en la que no se puede elegir no sirve para trabajar.
+            `chip` es la linea de identidad que ya traia cada ficha. */}
+        <span style={{ fontSize: 12.5, color: TINTA, flex: 1, minWidth: 200 }}>
+          <strong>{h?.chip || h?.titulo || inc.registro?.nota || inc.huella}</strong>
+          {h?.chip && (h?.titulo || h?.etiqueta) && (
+            <span style={{ color: TINTA_TENUE, fontWeight: 400 }}>
+              {' — '}{h.titulo || h.etiqueta}
+            </span>
+          )}
         </span>
         {inc.vencida && (
           <span style={{ fontSize: 10.5, fontWeight: 800, color: ROSA }}>fuera de plazo</span>

@@ -95,7 +95,11 @@ function Aviso({ tono = AMBAR, children }) {
   )
 }
 
-const Th = ({ children, campo, valor, orden, ...r }) => {
+// `num` se saca del resto a proposito: si cae en `...r` acaba escupido al
+// <th> como atributo del DOM y React avisa en consola de cada cabecera
+// numerica. No rompe nada, pero llena la consola de ruido y el dia que haya
+// un error de verdad no se va a ver. Solo se nota mirando un navegador.
+const Th = ({ children, campo, valor, orden, num, ...r }) => {
   const activa = orden && campo && orden.campo === campo
   const puedeOrdenar = !!(orden && campo)
 
@@ -105,7 +109,7 @@ const Th = ({ children, campo, valor, orden, ...r }) => {
       aria-sort={!puedeOrdenar ? undefined : activa ? (orden.dir === -1 ? 'descending' : 'ascending') : 'none'}
       title={puedeOrdenar ? 'Clic para ordenar' : r.title}
       style={{
-        textAlign: r.num ? 'right' : 'left', padding: '9px 10px', fontWeight: 700,
+        textAlign: num ? 'right' : 'left', padding: '9px 10px', fontWeight: 700,
         color: activa ? TINTA : TINTA_SUAVE, fontSize: 11,
         borderBottom: '1px solid ' + LINEA, whiteSpace: 'nowrap',
         cursor: puedeOrdenar ? 'pointer' : 'default',
