@@ -1155,6 +1155,56 @@ Aguascalientes**.
 365 días y no 90: una ventana corta tomada en octubre —el mes más flojo— diría
 que el negocio vale un 30% menos de lo que vale.
 
+### 🔒 La lista de precios NO es el precio, y por eso no se compara contra ella
+
+Esta pantalla comparaba lo cobrado contra el precio de lista y marcaba **116
+códigos de Aguascalientes** como desviados. El dueño lo miró en el kárdex y
+dijo que algo no se estaba interpretando bien. Tenía razón, aunque la causa no
+fuera la que él suponía.
+
+**Lo que NO era.** Pensaba que los ajustes de inventario —faltantes y
+movimientos que bajan existencia— ensuciaban la cuenta. No la tocan: esto lee
+líneas de ticket, y un ajuste no crea una línea de ticket. Comprobado en
+Aguascalientes: **0 líneas con cantidad negativa, 0 en cero, 0 devueltas**.
+
+**Lo que sí era.** En Aguascalientes, de **7,792 líneas al público**:
+
+| | líneas | |
+|---|---|---|
+| al precio de **lista** | 921 | **12%** |
+| al precio de **mayoreo**, sin marcar la casilla | 1,030 | |
+| a otro precio negociado | ~5,841 | |
+
+Allí la lista es un punto de partida y casi todo se negocia. El iPhone 13
+tiene lista 250, se vende sin descuento a 230 y la mayoría sale a **150 o 140**
+—que es justo su precio de mayoreo—. **El mostrador da precio de mayoreo sin
+marcar la casilla.**
+
+Así que marcar lo que se aparta de la lista era marcar casi todo.
+
+**Lo que se mide ahora:** lo que se cobra a un cliente de mostrador **por
+debajo de su propio precio de mayoreo** (`porDebajoDelMayoreo`). Ése es el
+suelo que el negocio ya decidió; por debajo no se está negociando, se está
+perdiendo. En Aguascalientes son 1,243 líneas y 1,367 piezas.
+
+Y `mayoreoSinMarcar()` cuenta las piezas cobradas al precio de mayoreo sin la
+casilla —1,900 en Aguascalientes—, que es la razón de que **la mezcla de
+mayoreo del panel se quede corta**.
+
+### ⚠️ Una línea cobrada a $1 no es un precio
+
+Medido el 2026-11-06: **255 líneas con el 100% de descuento, cobradas a $1**.
+No son ventas a un precio —son regalos, reposiciones de garantía o
+correcciones metidas por caja— y en un promedio lo hunden: el iPhone 13 pasaba
+de **$175 a $167**, un 5%, por 2 piezas de 44.
+
+`DESCUENTO_MAXIMO = 80` las deja fuera de cualquier promedio de precio. Por
+debajo de ese 80% sí cuentan: en Aguascalientes **la mitad de las líneas
+llevan descuento** y son ventas de verdad.
+
+No se tiran en silencio: se cuentan en `resumen.noSonPrecio` y en
+`pzRegalada` por código. Un montón de ventas a un peso es un dato por sí solo.
+
 ### Los costos invertidos están en BODEGA, no en las tiendas
 
 `costosInvertidos()` busca productos cuyo costo supera su precio de venta. Eso
@@ -1291,11 +1341,32 @@ una sesión no-administradora con esa plaza.
 - **Los turnos ya no se congelan.** El paso «Extraer turnos del personal»
   entró en la corrida de GitHub Actions y `personal/turnos.json` se publica
   solo. Comprobado el 2026-10-19.
-- **Las cinco contraseñas sin rotar.** León, San Luis, Aguascalientes, Torreón
-  y administrador siguen siendo las que estuvieron publicadas en el
-  JavaScript. Se cambian con `backend/scripts/generar-credenciales.js` y las
-  variables de la Lambda; de paso hay que cambiar `SESION_SECRETO`, que tira
-  cualquier sesión abierta. **Es lo último que queda de la fuga.**
+- ~~**Las cinco contraseñas sin rotar.**~~ **HECHO el 2026-11-06.** Las cinco
+  —más la de bodega, que es nueva— se rotaron con
+  `backend/scripts/generar-credenciales.js` y se subieron con
+  `backend/scripts/subir-variables-lambda.js --aplicar`. `SESION_SECRETO`
+  también es nuevo, así que las sesiones viejas murieron. Comprobado: 14
+  variables en la Lambda, los seis hashes presentes, una contraseña inventada
+  da 401 y el dominio real sigue en `ORIGENES_PERMITIDOS`.
+
+- **El SECRETO de la app de Dropbox sigue siendo el expuesto.** Medido el
+  2026-11-06 comparando `.env` contra `.env.respaldo-seguridad`, que es la
+  foto de antes de arreglar la fuga:
+
+  | | |
+  |---|---|
+  | `DROPBOX_REFRESH_TOKEN` | **rotado** |
+  | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | **rotadas** |
+  | `DROPBOX_APP_SECRET` | **el mismo que se expuso** |
+  | `DROPBOX_APP_KEY` | el mismo, pero es un identificador, no un secreto |
+
+  Así que las dos frases que había en este archivo estaban a medias: una decía
+  que el token de Dropbox ya se había rotado —cierto— y la otra que seguía
+  pendiente —cierto también, pero del SECRETO, no del token—.
+
+  Por sí solo el secreto no abre la cuenta: hace falta además un refresh token
+  válido, y ése se cambió. Pero es material expuesto y se regenera en la
+  consola de apps de Dropbox.
 - **La llave de AWS vieja, inactiva pero sin borrar.** `AKIA…(la vieja, ver consola IAM)`.
   Desactivada el 2026-10-19; borrarla pasados unos días.
 - **La cuenta raíz ya no tiene claves de acceso.** El CLI va con

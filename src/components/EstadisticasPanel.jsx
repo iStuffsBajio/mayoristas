@@ -19,7 +19,7 @@ import { descargarCostos } from '../lib/exportarCostos'
 import { useVentas } from '../lib/useVentas'
 import { useAuth } from '../context/AuthContext'
 import { precioPorPlaza, preciosDeVenta, soloPrecios, cobertura } from '../lib/ventasTicket'
-import { brechaDeLista } from '../lib/precioCobrado'
+import { porDebajoDelMayoreo, mayoreoSinMarcar } from '../lib/precioCobrado'
 import { descargarPrecios } from '../lib/exportarPrecios'
 import { hayBusqueda } from '../lib/buscar'
 // La regla de buscar vive en la libreria, con sus pruebas, no aqui: la
@@ -889,41 +889,40 @@ function PrecioPorPlaza({ porPlaza, plazas }) {
 }
 
 /**
- * Los precios que no cuadran con su lista, por sucursal.
+ * Lo que se vende más barato que el propio precio de mayoreo.
  *
- * Lo pidió el dueño: «los modelos que tengan un precio diferente posiblemente
- * sea un error, esos también aislarlos y ponerlo dentro de la lista de cosas a
- * modificar por sucursal».
+ * ── Por qué ya no se compara contra la lista ──────────────────────────────
  *
- * Se enseña aquí y no en el panel de la sucursal porque la sucursal **no
- * puede verlo**: sale de `ventas/<plaza>.json`, que es privado de
- * administrador. El dueño lo baja en Excel y se lo manda, igual que el
- * reporte de la cola de revisión.
+ * Esta pantalla comparaba lo cobrado contra el precio de lista y marcaba 116
+ * códigos de Aguascalientes como «desviados». El dueño vio que eso no decía
+ * nada, y midiéndolo tenía razón: de 7,792 líneas al público en esa plaza,
+ * **sólo 921 —el 12%— se cobraron al precio de lista**. Allí la lista es un
+ * punto de partida y casi todo se negocia en el mostrador, así que marcar lo
+ * que se aparta de ella es marcar casi todo.
  *
- * ── Lo que la cifra NO es ─────────────────────────────────────────────────
+ * Lo que sí es accionable es el suelo que el propio negocio ya decidió: el
+ * precio de MAYOREO. El iPhone 13 tiene lista 250 y mayoreo 150, y muchas de
+ * sus ventas «al público» salen justo a 150 o 140 —el mostrador da precio de
+ * mayoreo sin marcar la casilla—. Cuando baja de ahí, se le está vendiendo a
+ * un cliente suelto más barato que a un mayorista.
  *
- * No es dinero perdido. Es lo que separa el precio de la lista del que se
- * cobró, y puede ser que la lista esté alta o que se esté descontando en el
- * mostrador. Se dice en pantalla y también dentro del Excel, porque es donde
- * se va a leer sin contexto.
- *
- * Y sale de la VENTANA de 365 días, nunca del acumulado: con todo el historial
- * la cifra de San Luis salía en $1,582,316 cuando la de verdad es $9,657,
- * porque se comparaban ventas de 2021 contra la lista de hoy.
+ * Eso no es negociar: es perder, y es poco y concreto, que es lo que hace
+ * que una lista se mire.
  */
 function PreciosARevisar({ porPlaza }) {
-  const conAlgo = Object.entries(porPlaza).filter(([, x]) => x.brecha.filas.length)
+  const conAlgo = Object.entries(porPlaza).filter(([, x]) => x.bajo.filas.length)
+  const [abierta, setAbierta] = useState(null)
   if (!conAlgo.length) return null
 
-  const [abierta, setAbierta] = useState(conAlgo[0][0])
-  const actual = porPlaza[abierta] ?? conAlgo[0][1]
+  const slug = (abierta && porPlaza[abierta]?.bajo.filas.length) ? abierta : conAlgo[0][0]
+  const actual = porPlaza[slug]
 
   return (
     <section data-precios-revisar
              style={{ border: '1px solid #FCD34D', borderRadius: 22, padding: '18px 20px', background: 'rgba(252,211,77,0.10)' }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 6 }}>
         <h3 style={{ fontSize: 13, fontWeight: 800, color: '#92400E', margin: 0, flex: 1 }}>
-          Precios a revisar por sucursal
+          Se vende más barato que a un mayorista
         </h3>
         <button type="button" className="boton-tinta" style={{ fontSize: 11.5, padding: '6px 12px' }}
                 onClick={() => descargarPrecios(porPlaza)}>
@@ -932,30 +931,35 @@ function PreciosARevisar({ porPlaza }) {
       </div>
 
       <p style={{ fontSize: 11.5, color: '#92400E', margin: '0 0 12px', lineHeight: 1.55 }}>
-        Códigos donde lo que cobra la caja se aparta de lo que dice su lista de precios, de los
-        últimos 365 días. <strong>La diferencia no es dinero perdido</strong>: puede ser que la
-        lista esté alta o que se esté descontando en el mostrador. Las dos se arreglan en la
-        sucursal, y las dos empiezan por verlas.
+        Códigos que se cobran a un cliente de mostrador <strong>por debajo de su propio precio de
+        mayoreo</strong>, de los últimos 365 días. No se compara contra la lista al público: en las
+        plazas que negocian, casi ninguna venta sale a ese precio y marcarlas todas no dice nada.
       </p>
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-        {conAlgo.map(([slug, x]) => (
-          <button key={slug} type="button" onClick={() => setAbierta(slug)}
-                  className={slug === abierta ? 'chip-plaza activa' : 'chip-plaza'}>
+        {conAlgo.map(([s, x]) => (
+          <button key={s} type="button" onClick={() => setAbierta(s)}
+                  className={s === slug ? 'chip-plaza activa' : 'chip-plaza'}>
             {x.nombre}
-            <span style={{ marginInlineStart: 6, fontWeight: 800 }}>{x.brecha.filas.length}</span>
+            <span style={{ marginInlineStart: 6, fontWeight: 800 }}>{x.bajo.filas.length}</span>
           </button>
         ))}
       </div>
 
-      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 8px' }}>
-        {actual.nombre} cobra <strong style={{ color: TINTA }}>
-          {Math.round(100 * actual.brecha.razonTipica)}%
-        </strong> de lo que dice su lista, mirando {actual.brecha.comparados} códigos.
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 8px', lineHeight: 1.5 }}>
+        {actual.nombre}: <strong style={{ color: TINTA }}>{actual.bajo.filas.length}</strong> códigos
+        de {actual.bajo.comparados} mirados, {actual.bajo.piezas} piezas,
+        {' '}<strong style={{ color: TINTA }}>{pesos(actual.bajo.pesos)}</strong> por debajo de lo que
+        habría dado cobrando al menos el mayoreo.
+        {actual.sinMarcar.piezas > 0 && (
+          <> Además, <strong>{actual.sinMarcar.piezas} piezas</strong> se cobraron justo al precio de
+          mayoreo sin marcar la casilla, así que cuentan como mostrador y la mezcla de mayoreo que
+          ves más arriba se queda corta.</>
+        )}
       </p>
 
       <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        {actual.brecha.filas.slice(0, 8).map(f => (
+        {actual.bajo.filas.slice(0, 8).map(f => (
           <li key={f.codigo} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto auto', gap: 10, alignItems: 'baseline', fontSize: 12 }}>
             {/* El CODIGO delante: esto se corrige en Eleventa, y ahi se busca
                 por codigo. El nombre va de apoyo. */}
@@ -965,22 +969,20 @@ function PreciosARevisar({ porPlaza }) {
             <span style={{ color: TINTA, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
                   title={f.producto}>
               {f.producto}
-              {f.familia !== 'funda' && (
-                <span style={{ color: TINTA_TENUE }}> · {f.familia}</span>
-              )}
+              {f.familia !== 'funda' && <span style={{ color: TINTA_TENUE }}> · {f.familia}</span>}
             </span>
             <span style={{ color: TINTA_SUAVE, whiteSpace: 'nowrap' }}>
-              cobra {pesos(f.cobrado)} de {pesos(f.lista)}
+              cobra {pesos(f.cobrado)} · mayoreo {pesos(f.mayoreo)}
             </span>
-            <span style={{ fontWeight: 800, color: TINTA, whiteSpace: 'nowrap', minWidth: '5ch', textAlign: 'right' }}>
-              {Math.round(100 * f.razon)}%
+            <span style={{ fontWeight: 800, color: TINTA, whiteSpace: 'nowrap', minWidth: '6ch', textAlign: 'right' }}>
+              {pesos(f.pesos)}
             </span>
           </li>
         ))}
       </ul>
-      {actual.brecha.filas.length > 8 && (
+      {actual.bajo.filas.length > 8 && (
         <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '10px 0 0' }}>
-          Y {actual.brecha.filas.length - 8} más. La lista entera va en el Excel.
+          Y {actual.bajo.filas.length - 8} más. La lista entera va en el Excel.
         </p>
       )}
     </section>
@@ -1259,7 +1261,8 @@ export default function EstadisticasPanel() {
         // Sobre la VENTANA, nunca el acumulado: con todo el historial se
         // comparan ventas de 2021 contra la lista de hoy y la cifra sale 164
         // veces mayor de lo que es.
-        brecha: brechaDeLista({ porCodigo: v, inventario }),
+        bajo: porDebajoDelMayoreo({ porCodigo: v, inventario }),
+        sinMarcar: mayoreoSinMarcar({ porCodigo: v, inventario }),
       }
     }
     return out

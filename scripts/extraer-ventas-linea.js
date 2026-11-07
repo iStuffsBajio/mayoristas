@@ -132,6 +132,7 @@ SELECT a.TICKET_ID || '${SEP}' || COALESCE(a.PRODUCTO_CODIGO, '')
        || '${SEP}' || COALESCE(a.TOTAL_ARTICULO, 0)
        || '${SEP}' || COALESCE(a.GANANCIA, 0)
        || '${SEP}' || COALESCE(a.USA_MAYOREO, 'f')
+       || '${SEP}' || COALESCE(a.PORCENTAJE_DESCUENTO, 0)
 FROM VENTATICKETS_ARTICULOS a
 LEFT JOIN PRODUCTOS p ON p.CODIGO = a.PRODUCTO_CODIGO
 LEFT JOIN DEPARTAMENTOS d ON d.ID = p.DEPT;
@@ -170,8 +171,8 @@ async function procesar(slug) {
         ({ id, folio, cuando, cancelado, cajero, formaPago, credito: Number(credito) || 0 }))
 
     const lineas = (await filasDe(fdb, workDir, SQL_LINEAS, 'lineas'))
-      .map(([ticket, codigo, producto, depto, cantidad, total, ganancia, mayoreo]) =>
-        ({ ticket, codigo, producto, depto, cantidad, total, ganancia, mayoreo }))
+      .map(([ticket, codigo, producto, depto, cantidad, total, ganancia, mayoreo, descuento]) =>
+        ({ ticket, codigo, producto, depto, cantidad, total, ganancia, mayoreo, descuento }))
 
     log(`[${slug}] ${tickets.length} tickets · ${lineas.length} lineas`)
 
@@ -217,6 +218,10 @@ for (const slug of slugs) {
 
   const r = datos.resumen
   const v = datos.ventana.resumen
+  if (r.noSonPrecio) {
+    log(`[${slug}] ${r.noSonPrecio} lineas cobradas con mas del 80% de descuento `
+      + `(${r.piezasNoPrecio} pz): no son un precio y quedan fuera de los promedios`)
+  }
   log(`[${slug}] ventana ${DIAS_VENTANA} d: ${v.piezas} pz · `
     + `$${Math.round(v.dinero).toLocaleString('es-MX')} · `
     + `precio medio $${v.piezas > 0 ? Math.round(v.dinero / v.piezas) : 0}`)

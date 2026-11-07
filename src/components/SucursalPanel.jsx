@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { BotonSeccion } from './AdminPanel'
 import SurtidoPanel from './SurtidoPanel'
 import RevisarPanel from './RevisarPanel'
+import MovimientoPanel from './MovimientoPanel'
 
 /**
  * Lo que ve una sucursal con su sesión.
@@ -39,7 +40,10 @@ const SECCIONES_TIENDA = [
  */
 const SECCIONES_BODEGA = [
   { id: 'surtido', icono: '🚚', titulo: 'Surtir', sub: 'Qué mandar a cada tienda, y registrarlo' },
-  { id: 'bodega',  icono: '🏬', titulo: 'Comprar', sub: 'Lo que hay que pedir al proveedor' },
+  // «Comprar» estuvo aquí y se quitó: bodega NO compra, sólo surte. Tener
+  // ahí una sección de compras al proveedor era enseñar una decisión que no
+  // es suya. En su sitio va lo que sí necesita antes de armar una caja.
+  { id: 'movimiento', icono: '📈', titulo: 'Qué se mueve', sub: 'Lo que vuela y lo que sobra, por tienda' },
   { id: 'revisar', icono: '🔍', titulo: 'Revisar', sub: 'Códigos y nombres, uno a uno' },
 ]
 
@@ -93,7 +97,7 @@ export default function SucursalPanel() {
         {seccion === 'surtido' && (
           <SurtidoPanel ambito="sucursales" plaza={esBodega ? null : plaza} />
         )}
-        {seccion === 'bodega' && esBodega && <SurtidoPanel ambito="bodega" />}
+        {seccion === 'movimiento' && esBodega && <MovimientoPanel />}
       </div>
     </div>
   )

@@ -38,23 +38,23 @@ const COLUMNAS = [
   { titulo: 'Familia',  valor: f => f.familia, ancho: 12 },
   { titulo: 'Piezas al público', valor: f => f.piezasPublico, num: true, ancho: 16 },
   { titulo: 'Se cobra', valor: f => Math.round(f.cobrado), num: true, ancho: 11 },
+  { titulo: 'Su mayoreo', valor: f => Math.round(f.mayoreo), num: true, ancho: 12 },
   { titulo: 'Dice la lista', valor: f => Math.round(f.lista), num: true, ancho: 13 },
-  { titulo: '% de la lista', valor: f => Math.round(100 * f.razon), num: true, ancho: 13 },
-  { titulo: 'Diferencia', valor: f => f.pesos, num: true, ancho: 13 },
+  { titulo: 'Se deja de ganar', valor: f => f.pesos, num: true, ancho: 16 },
 ]
 
 /**
  * El libro. Una hoja por plaza, y dentro lo que más dinero mueve primero.
  *
- * `porPlaza` es `{ slug: { nombre, brecha } }`, con `brecha` lo que devuelve
- * `brechaDeLista()`.
+ * `porPlaza` es `{ slug: { nombre, bajo } }`, con `bajo` lo que devuelve
+ * `porDebajoDelMayoreo()`.
  */
 export function libroDePrecios(porPlaza, { hoy = new Date(), dias = 365 } = {}) {
   const libro = XLSX.utils.book_new()
   let alguna = false
 
-  for (const [, { nombre, brecha }] of Object.entries(porPlaza ?? {})) {
-    const filas = brecha?.filas ?? []
+  for (const [, { nombre, bajo }] of Object.entries(porPlaza ?? {})) {
+    const filas = bajo?.filas ?? []
     if (!filas.length) continue
     alguna = true
 
@@ -64,9 +64,11 @@ export function libroDePrecios(porPlaza, { hoy = new Date(), dias = 365 } = {}) 
     // creer que falta ese dinero.
     const fin = filas.length + 3
     celda(hoja, `A${fin}`,
-      `Cifras de los últimos ${dias} días. La diferencia NO es dinero perdido: `
-      + `es lo que separa el precio de la lista del que se cobró en la caja. `
-      + `Puede ser que la lista esté alta o que se esté descontando en el mostrador.`,
+      `Cifras de los últimos ${dias} días. Estos códigos se cobraron a un cliente de `
+      + `mostrador POR DEBAJO de su propio precio de mayoreo. No se comparan contra la `
+      + `lista al público: en las plazas que negocian, casi ninguna venta sale a ese `
+      + `precio. «Se deja de ganar» es la diferencia contra haber cobrado al menos el `
+      + `mayoreo, no dinero que falte de la caja.`,
       estiloNota)
 
     XLSX.utils.book_append_sheet(libro, hoja, nombreHoja(nombre))

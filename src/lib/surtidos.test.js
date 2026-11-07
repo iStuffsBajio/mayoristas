@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import {
   ESTADOS, DIAS_PARA_DAR_DE_ALTA, TOLERANCIA,
   existenciasDe, nuevoFolio, cuadrar, juntarFolios, resumirFolios, lineasDesdeSurtido,
-  PUEDE_SURTIR, puedeSurtir,
+  PUEDE_SURTIR, puedeSurtir, veBodega,
 } from './surtidos.js'
 
 const SALIO = new Date('2026-11-01T12:00:00Z')
@@ -174,4 +174,26 @@ test('la lista de capacidad tiene que decir lo mismo que el backend', () => {
   // alguien la cambia aqui sin tocar `PUEDE_SURTIR` en
   // `backend/src/index.js`, el fallo sale en esta linea y no en produccion.
   assert.deepEqual(PUEDE_SURTIR, ['admin', 'bodega'])
+})
+
+test('una TIENDA no ve informacion de bodega, y no era solo una columna', () => {
+  // El dueño entro como Leon y se lo encontro. Una sucursal tenia a mano la
+  // existencia de bodega en su tabla y, pulsando «Bajar el reporte completo
+  // en Excel», el plan de compra al proveedor, los «agotados que duelen» con
+  // su dinero perdido y el stock entero de bodega. El boton decia «completo»
+  // y lo era.
+  assert.equal(veBodega({ isAdmin: false, plaza: 'leon' }), false)
+  assert.equal(veBodega({ isAdmin: false, plaza: 'san-luis' }), false)
+  assert.equal(veBodega({ isAdmin: false, plaza: 'ferias' }), false)
+})
+
+test('el administrador y bodega si lo ven', () => {
+  // Y esto NO se puede atar al ambito de la pantalla: el administrador mira
+  // el surtido de las sucursales con `ambito="sucursales"` y ahi debe verlo
+  // todo. Lo decide la SESION, no la vista.
+  assert.equal(veBodega({ isAdmin: true, plaza: 'leon' }), true)
+  assert.equal(veBodega({ isAdmin: false, plaza: 'bodega' }), true)
+  assert.equal(veBodega({ isAdmin: false, plaza: ' BODEGA ' }), true)
+  assert.equal(veBodega({}), false)
+  assert.equal(veBodega(), false, 'sin sesion no se ve nada')
 })

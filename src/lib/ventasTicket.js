@@ -75,6 +75,22 @@
 import { seProduce } from './produccion.js'
 import { esProtector } from './familias.js'
 
+/**
+ * 🔒 Descuento a partir del cual una línea deja de ser un precio.
+ *
+ * 80%. Por debajo es una venta negociada —en Aguascalientes la mitad lo
+ * son— y cuenta. Por encima no es una venta a un precio: es un regalo, una
+ * reposición de garantía o una corrección metida por caja.
+ *
+ * Medido el 2026-11-06 en Aguascalientes: **255 líneas cobradas a $1 con el
+ * 100% de descuento**. En el iPhone 13 son 2 piezas de 44 y bajan su precio
+ * medio de $175 a $167, un 5%. Lo detectó el dueño mirando el kárdex.
+ *
+ * No se tiran en silencio: se cuentan en `resumen.noSonPrecio`, porque un
+ * montón de ventas a un peso es un dato por sí solo.
+ */
+export const DESCUENTO_MAXIMO = 80
+
 /** El departamento que no son productos sino clientes. */
 export const DEPTO_MAYORISTAS = 'mayoristas'
 
@@ -212,6 +228,12 @@ export function agregarVentas({ tickets, lineas, desdeDia = null }) {
       continue
     }
 
+    // Una línea con descuento extremo no es un precio. Entra en el conteo de
+    // piezas -se vendió de verdad- pero no en ningún promedio de precio, que
+    // es donde hace daño.
+    const descuento = num(l.descuento)
+    const esPrecio = descuento < DESCUENTO_MAXIMO
+
     const clase = claseDeLinea(l)
     const piezas = num(l.cantidad)
     const dinero = num(l.total)
@@ -234,6 +256,10 @@ export function agregarVentas({ tickets, lineas, desdeDia = null }) {
     resumen.piezas += piezas
     resumen.dinero += dinero
     resumen.ganancia += ganancia
+    if (!esPrecio) {
+      resumen.noSonPrecio = (resumen.noSonPrecio ?? 0) + 1
+      resumen.piezasNoPrecio = (resumen.piezasNoPrecio ?? 0) + piezas
+    }
 
     const h = horaDe(t.cuando)
     if (h) {
@@ -262,10 +288,19 @@ export function agregarVentas({ tickets, lineas, desdeDia = null }) {
     const fp = porCodigo.get(c) ?? {
       producto: limpio(l.producto), sinStock: clase === 'sin-stock',
       pz: 0, dinero: 0, ganancia: 0, pzMayoreo: 0, dineroMayoreo: 0,
+      pzRegalada: 0,
+    }
+    fp.ganancia += ganancia
+    if (!esPrecio) {
+      // Se apunta aparte para poder decirlo, y NO entra en pz ni en dinero:
+      // si entrara, el precio medio del codigo saldria hundido por dos
+      // piezas que nadie vendio a ese precio.
+      fp.pzRegalada += piezas
+      porCodigo.set(c, fp)
+      continue
     }
     fp.pz += piezas
     fp.dinero += dinero
-    fp.ganancia += ganancia
     if (may) { fp.pzMayoreo += piezas; fp.dineroMayoreo += dinero }
     porCodigo.set(c, fp)
   }

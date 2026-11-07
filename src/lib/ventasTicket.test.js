@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import {
   agregarVentas, claseDeLinea, horaDe, diaSemanaDe, pesoDelMayoreo,
   DEPTO_MAYORISTAS, DEPTO_STICKERS, precioPorPlaza, PISO_PRECIO,
-  preciosDeVenta, soloPrecios, cobertura,
+  preciosDeVenta, soloPrecios, cobertura, DESCUENTO_MAXIMO,
 } from './ventasTicket.js'
 
 const ticket = (id, extra = {}) => ({
@@ -317,4 +317,44 @@ test('se puede saber cuanto del valor se apoya en lista y cuanto en ticket', () 
 test('el mapa plano es el que esperan las cuentas de radiografia', () => {
   const m = preciosDeVenta({ leon: { X: { pz: 2, dinero: 400 } } })
   assert.deepEqual(soloPrecios(m), { X: 200 })
+})
+
+test('LA QUINTA TRAMPA: una linea cobrada a $1 no es un precio', () => {
+  // Medido en Aguascalientes: 255 lineas a $1 con el 100% de descuento. No
+  // son ventas a un precio -son regalos, garantias o correcciones metidas
+  // por caja- y metidas en el promedio lo hunden. En el iPhone 13 eran 2
+  // piezas de 44 y bajaban su precio medio de $175 a $167.
+  //
+  // Lo olio el dueño mirando el kardex, y tenia razon en que algo se estaba
+  // interpretando mal, aunque la causa no fueran los ajustes de inventario.
+  const tickets = [{ id: 1, cuando: '2026-10-01 12:00:00.0000', cancelado: 'f' }]
+  const lineas = [
+    { ticket: 1, codigo: 'I13T', depto: 'FUNDAS', cantidad: 10, total: 2300, mayoreo: 'f', descuento: 0 },
+    { ticket: 1, codigo: 'I13T', depto: 'FUNDAS', cantidad: 1, total: 1, mayoreo: 'f', descuento: 100 },
+  ]
+  const r = agregarVentas({ tickets, lineas })
+  assert.equal(r.porCodigo.I13T.pz, 10, 'la de $1 no entra en el precio')
+  assert.equal(r.porCodigo.I13T.dinero, 2300)
+  assert.equal(r.porCodigo.I13T.dinero / r.porCodigo.I13T.pz, 230, 'sin ella serian 209')
+  assert.equal(r.porCodigo.I13T.pzRegalada, 1, 'pero se apunta: no se tira en silencio')
+  assert.equal(r.resumen.noSonPrecio, 1)
+  assert.equal(r.resumen.piezas, 11, 'y en el conteo de piezas si cuenta: se vendio de verdad')
+})
+
+test('una venta negociada normal SI cuenta', () => {
+  // En Aguascalientes la mitad de las lineas llevan descuento y son ventas
+  // de verdad: el mostrador negocia. Solo lo extremo queda fuera.
+  const tickets = [{ id: 1, cuando: '2026-10-01 12:00:00.0000', cancelado: 'f' }]
+  const lineas = [
+    { ticket: 1, codigo: 'X', depto: 'FUNDAS', cantidad: 1, total: 140, mayoreo: 'f', descuento: 39 },
+    { ticket: 1, codigo: 'X', depto: 'FUNDAS', cantidad: 1, total: 150, mayoreo: 'f', descuento: 34.8 },
+  ]
+  const r = agregarVentas({ tickets, lineas })
+  assert.equal(r.porCodigo.X.pz, 2)
+  assert.equal(r.porCodigo.X.dinero, 290)
+  assert.equal(r.resumen.noSonPrecio, undefined)
+})
+
+test('el umbral del descuento es el acordado', () => {
+  assert.equal(DESCUENTO_MAXIMO, 80)
 })

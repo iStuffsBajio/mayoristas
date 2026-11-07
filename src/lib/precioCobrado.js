@@ -184,3 +184,99 @@ export function costosInvertidos(inventario) {
   }
   return filas.sort((a, b) => b.perdida - a.perdida)
 }
+
+// ── Lo que de verdad hay que revisar: vender por debajo del mayoreo ────────
+//
+// Esta parte sustituye a `brechaDeLista` como pantalla. La brecha contra la
+// lista no sirve donde la lista no es el precio, y medido el 2026-11-06 en
+// Aguascalientes no lo es: de 7,792 líneas al público, sólo **921 —el 12%—**
+// se cobraron al precio de lista. El resto se negocia en el mostrador.
+//
+// Con eso, marcar 116 códigos como «desviados» era marcar casi todos, y el
+// dueño lo vio enseguida: «no se está interpretando de la mejor manera».
+//
+// Lo que sí es accionable es otra cosa. El iPhone 13 tiene lista 250 y
+// mayoreo 150, y buena parte de sus ventas «al público» salen justo a 150 o
+// a 140: **el mostrador está dando precio de mayoreo sin marcar la casilla**.
+// Cuando el precio baja de ahí, se está vendiendo a un cliente suelto más
+// barato que a un mayorista, y eso es margen que se va.
+//
+// En Aguascalientes son 1,243 líneas y 1,367 piezas.
+
+/** 🔒 Pesos por debajo del mayoreo a partir de los cuales se mira. */
+export const MARGEN_MAYOREO = 2
+
+/**
+ * Códigos vendidos al público por debajo de su propio precio de mayoreo.
+ *
+ * No compara contra la lista al público —esa no es el precio— sino contra el
+ * de mayoreo, que es el suelo que el negocio ya decidió para quien compra en
+ * cantidad. Vender por debajo de él a un cliente de mostrador no es negociar:
+ * es perder.
+ */
+export function porDebajoDelMayoreo({
+  porCodigo, inventario, minimo = PIEZAS_MINIMAS, margen = MARGEN_MAYOREO,
+}) {
+  const lista = listaDe(inventario)
+  const filas = []
+  let comparados = 0
+
+  for (const [codigo, f] of Object.entries(porCodigo ?? {})) {
+    const pzMayoreo = num(f.pzMayoreo)
+    const pzPublico = num(f.pz) - pzMayoreo
+    if (pzPublico < minimo) continue
+
+    const l = lista[codigo]
+    if (!l || !(l.mayoreo > 0)) continue
+
+    const cobrado = (num(f.dinero) - num(f.dineroMayoreo)) / pzPublico
+    if (!(cobrado > 0)) continue
+    comparados++
+    if (cobrado >= l.mayoreo - margen) continue
+
+    filas.push({
+      codigo,
+      producto: l.producto || String(f.producto ?? ''),
+      familia: seProduce(codigo, l.producto) ? 'produccion'
+        : esProtector(codigo, l.producto) ? 'hidrogel' : 'funda',
+      piezas: num(f.pz),
+      piezasPublico: pzPublico,
+      cobrado,
+      mayoreo: l.mayoreo,
+      lista: l.publico,
+      // Lo que se deja de ganar frente a haber cobrado al menos el mayoreo.
+      // Es lo que convierte «vende barato» en una cantidad.
+      pesos: Math.round((l.mayoreo - cobrado) * pzPublico),
+    })
+  }
+
+  filas.sort((a, b) => b.pesos - a.pesos)
+  return {
+    filas,
+    comparados,
+    pesos: filas.reduce((a, f) => a + f.pesos, 0),
+    piezas: filas.reduce((a, f) => a + f.piezasPublico, 0),
+  }
+}
+
+/**
+ * Cuánto de la venta «al público» va en realidad a precio de mayoreo.
+ *
+ * Explica por qué la mezcla de mayoreo que enseña el panel se queda corta:
+ * esas piezas se cobraron al precio de mayoreo pero sin marcar la casilla, así
+ * que cuentan como mostrador. En Aguascalientes son 1,900 piezas.
+ */
+export function mayoreoSinMarcar({ porCodigo, inventario, margen = MARGEN_MAYOREO }) {
+  const lista = listaDe(inventario)
+  let piezas = 0, codigos = 0
+  for (const [codigo, f] of Object.entries(porCodigo ?? {})) {
+    const pzMayoreo = num(f.pzMayoreo)
+    const pzPublico = num(f.pz) - pzMayoreo
+    if (pzPublico <= 0) continue
+    const l = lista[codigo]
+    if (!l || !(l.mayoreo > 0)) continue
+    const cobrado = (num(f.dinero) - num(f.dineroMayoreo)) / pzPublico
+    if (cobrado > 0 && cobrado <= l.mayoreo + margen) { piezas += pzPublico; codigos++ }
+  }
+  return { piezas, codigos }
+}

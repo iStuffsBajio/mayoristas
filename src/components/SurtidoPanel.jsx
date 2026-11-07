@@ -16,8 +16,12 @@ import { clasePorModelo, agotadosPorUbicacion } from '../lib/clases'
 import BarrasAgotados from './BarrasAgotados'
 import { useAuth } from '../context/AuthContext'
 import { useSurtidos } from '../lib/useSurtidos'
-import { cuadrar, lineasDesdeSurtido, resumirFolios, puedeSurtir, ESTADOS as ESTADOS_SURTIDO, DIAS_PARA_DAR_DE_ALTA } from '../lib/surtidos'
+import { cuadrar, lineasDesdeSurtido, resumirFolios, puedeSurtir, veBodega, ESTADOS as ESTADOS_SURTIDO, DIAS_PARA_DAR_DE_ALTA } from '../lib/surtidos'
 import { salidasEntre } from '../lib/radiografia'
+import {
+  interpretar, conAjuste, aplicarAjustes, resumirAjustes, limpiarAmbito,
+  leerGuardado, guardar,
+} from '../lib/ajusteCompra'
 
 // Para la columna de reparto: «leon 9 · slp 4» cabe, los nombres largos no.
 const NOMBRE_CORTO = {
@@ -138,6 +142,133 @@ const Celda = ({ children, num, fuerte, color, title }) => (
     {children}
   </td>
 )
+
+/**
+ * La cantidad a pedir, editable con doble clic.
+ *
+ * Doble clic y no un clic: la tabla se ordena y se recorre a golpe de ratón,
+ * y con un solo clic se abriría una celda cada vez que alguien quiere mirar.
+ * El doble clic es deliberado, que es lo que tiene que ser cambiar una
+ * compra.
+ *
+ * Tres cosas que parecen detalle y no lo son:
+ *
+ *   · **Escape cancela.** Sin salida, el único camino para deshacer un
+ *     tecleo a medias es escribir el número viejo de memoria.
+ *   · **Vaciar quita el ajuste**, no pone cero. Un cero escrito sí es cero
+ *     -«de éste no pidas ninguno»-, y los dos casos existen.
+ *   · **La sugerencia original se sigue viendo** cuando hay ajuste. Un número
+ *     cambiado sin referencia no se puede revisar.
+ */
+/**
+ * Lo que llevas cambiado a mano, y cómo deshacerlo.
+ *
+ * Importa que esté a la vista. Los ajustes se guardan en el navegador y
+ * sobreviven a cerrar la pestaña, así que sin este aviso alguien puede bajar
+ * dentro de dos semanas un Excel con los ajustes de hoy puestos y no
+ * entender por qué los números no son los que calcula la pantalla. La cifra
+ * de al lado -cuánto suma o resta sobre lo sugerido- es la que lo delata de
+ * un vistazo.
+ */
+function AvisoAjustes({ filas, ambito, onLimpiar }) {
+  const r = resumirAjustes(filas)
+  if (!r.cuantos) return null
+
+  const signo = r.diferencia > 0 ? '+' : ''
+  return (
+    <div style={{
+      display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap',
+      border: '1px solid #BAE6FD', background: 'rgba(2,136,173,0.07)',
+      borderRadius: 14, padding: '10px 14px', marginBottom: 12,
+    }}>
+      <span style={{ fontSize: 12, color: '#0A5B73', flex: 1 }}>
+        <strong>{r.cuantos} {r.cuantos === 1 ? 'cantidad cambiada' : 'cantidades cambiadas'} a mano</strong>
+        {r.subidas > 0 && <> · {r.subidas} {r.subidas === 1 ? 'subida' : 'subidas'}</>}
+        {r.bajadas > 0 && <> · {r.bajadas} {r.bajadas === 1 ? 'bajada' : 'bajadas'}</>}
+        {r.diferencia !== 0 && (
+          <> · <strong>{signo}{r.diferencia} piezas</strong> sobre lo sugerido</>
+        )}
+        . El Excel sale con estos números.
+      </span>
+      <button type="button" onClick={() => onLimpiar(ambito)}
+              style={{ fontSize: 11, color: '#0A5B73', background: 'none', border: 'none',
+                       cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }}>
+        Volver a lo sugerido
+      </button>
+    </div>
+  )
+}
+
+function CeldaPedir({ fila, ambito, onCambiar, color = VERDE }) {
+  const [editando, setEditando] = useState(false)
+  const [texto, setTexto] = useState('')
+  const [error, setError] = useState(null)
+
+  const abrir = () => {
+    setTexto(String(fila.sugerido ?? ''))
+    setError(null)
+    setEditando(true)
+  }
+
+  const cerrar = guardando => {
+    if (!guardando) { setEditando(false); setError(null); return }
+    const r = interpretar(texto)
+    if (!r.ok) { setError(r.porque); return }
+    onCambiar(ambito, fila.codigo, r.quitar ? null : r.valor)
+    setEditando(false)
+    setError(null)
+  }
+
+  if (editando) {
+    return (
+      <td style={{ padding: '4px 6px', textAlign: 'right' }}>
+        <input
+          autoFocus
+          value={texto}
+          onChange={e => { setTexto(e.target.value); setError(null) }}
+          onBlur={() => cerrar(true)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); cerrar(true) }
+            if (e.key === 'Escape') { e.preventDefault(); cerrar(false) }
+          }}
+          title={error || 'Enter para guardar · Escape para cancelar · vacío quita el ajuste'}
+          style={{
+            width: 72, textAlign: 'right', fontWeight: 800, fontSize: 13,
+            padding: '3px 6px', borderRadius: 8,
+            border: '1.5px solid ' + (error ? ROSA : '#0288AD'),
+            fontVariantNumeric: 'tabular-nums', color: TINTA,
+          }} />
+        {error && (
+          <div style={{ fontSize: 10, color: ROSA, maxWidth: 150, lineHeight: 1.3 }}>{error}</div>
+        )}
+      </td>
+    )
+  }
+
+  return (
+    <td onDoubleClick={abrir}
+        data-pedir={fila.codigo}
+        data-ajustado={fila.ajustado ? '1' : '0'}
+        title={fila.ajustado
+          ? `Lo cambiaste tú. La cuenta decía ${fila.sugeridoOriginal}. Doble clic para volver a cambiarlo; vacío lo deja como estaba.`
+          : 'Doble clic para cambiar la cantidad'}
+        style={{
+          padding: '7px 10px', textAlign: 'right', cursor: 'pointer',
+          color: fila.ajustado ? '#0288AD' : color, fontWeight: 800,
+          fontVariantNumeric: 'tabular-nums',
+          // Un subrayado punteado: dice «esto se puede tocar» sin gritar.
+          textDecoration: 'underline dotted',
+          textUnderlineOffset: 3,
+        }}>
+      {fila.sugerido || (fila.sugerido === 0 ? '0' : '—')}
+      {fila.ajustado && (
+        <span style={{ display: 'block', fontSize: 10, fontWeight: 600, color: TINTA_TENUE }}>
+          antes {fila.sugeridoOriginal}
+        </span>
+      )}
+    </td>
+  )
+}
 
 const Modelo = ({ f }) => (
   <>
@@ -299,6 +430,33 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   // del encargado de bodega -que es quien manda la mercancía- no habría
   // podido registrar nada, aunque el backend sí le dejara.
   const puedeRegistrar = puedeSurtir({ isAdmin, plaza: session?.branch })
+
+  // Una tienda no ve lo de bodega. Va por SESION y no por el ambito de la
+  // pantalla: el administrador mira el surtido de las sucursales con
+  // `ambito="sucursales"` y ahi si debe verlo todo.
+  const conBodega = veBodega({ isAdmin, plaza: session?.branch })
+  // Los ajustes a mano sobre lo que se va a pedir. Se leen del navegador una
+  // sola vez: si se leyeran en cada dibujo, escribir una cifra la pisaria con
+  // la guardada en el dibujo siguiente.
+  const [ajustes, setAjustes] = useState(() =>
+    leerGuardado(typeof window === 'undefined' ? null : window.localStorage))
+
+  const cambiarAjuste = (ambito, codigo, valor) => {
+    setAjustes(previos => {
+      const nuevos = conAjuste(previos, ambito, codigo, valor)
+      guardar(typeof window === 'undefined' ? null : window.localStorage, nuevos)
+      return nuevos
+    })
+  }
+
+  const quitarAjustes = ambito => {
+    setAjustes(previos => {
+      const nuevos = limpiarAmbito(previos, ambito)
+      guardar(typeof window === 'undefined' ? null : window.localStorage, nuevos)
+      return nuevos
+    })
+  }
+
   const [registrando, setRegistrando] = useState(false)
   const [avisoSurtido, setAvisoSurtido] = useState(null)
 
@@ -487,8 +645,18 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     if (!datos || !bodegaInv) return null
     const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
     const inventarios = Object.fromEntries(sucursales.map(s => [s.slug, datos[s.slug]?.inv]))
-    return calcularCompraBodega({ historiales, inventarios, productosBodega: bodegaInv.productos })
-  }, [datos, sucursales, bodegaInv])
+    const r = calcularCompraBodega({ historiales, inventarios, productosBodega: bodegaInv.productos })
+    // Lo mismo aqui: el ajuste entra antes de la tabla y del Excel.
+    const conAjustes = aplicarAjustes(r.filas, ajustes, 'compra')
+    // Y el total se vuelve a sumar de las filas AJUSTADAS. La libreria lo
+    // calculo con las originales, asi que dejarlo tal cual ponia la cabecera
+    // a decir una cifra y la tabla otra, sin que nada avisara.
+    return {
+      ...r,
+      filas: conAjustes,
+      totalPiezas: conAjustes.reduce((a, f) => a + (Number(f.sugerido) || 0), 0),
+    }
+  }, [datos, sucursales, bodegaInv, ajustes])
 
   // Modelos en cero que siguen vendiéndose y siguen vigentes. No es lo mismo
   // que algo se acabe porque ya nadie lo pide que porque se surtió mal.
@@ -544,7 +712,20 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     [compras],
   )
 
-  const porVenta  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.VENTA && f.sugerido > 0).sort((a, b) => b.sugerido - a.sugerido || a.cobertura - b.cobertura), [filas])
+  // El ambito del surtido es la PLAZA: «mandar 50 a Leon» y «mandar 50 a San
+  // Luis» son dos decisiones distintas y no pueden pisarse.
+  const ambitoSurtido = `surtido:${sel}`
+
+  const porVenta = useMemo(() => {
+    const base = filas
+      .filter(f => f.motivo === MOTIVOS.VENTA && f.sugerido > 0)
+      .sort((a, b) => b.sugerido - a.sugerido || a.cobertura - b.cobertura)
+    // El ajuste se aplica ANTES de que las filas lleguen a ningun sitio: asi
+    // la tabla, los totales y el Excel salen del mismo numero. Ajustando solo
+    // la tabla, el Excel seguiria bajando la sugerencia y nadie lo notaria
+    // hasta tener el pedido delante.
+    return aplicarAjustes(base, ajustes, ambitoSurtido)
+  }, [filas, ajustes, ambitoSurtido])
   const muestras  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.SIN_VENTA_CERO).sort((a, b) => a.producto.localeCompare(b.producto)), [filas])
   const candidatos = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.CANDIDATO).sort((a, b) => b.enTiendas - a.enTiendas), [filas])
 
@@ -560,15 +741,21 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
       : { cobertura, esAlta, diasHistorial },
     porVenta,
     muestras,
-    bodega,
     depurar: depurar.filas,
     nuevos: depurar.nuevos,
-    agotados: agotados?.filas ?? [],
-    compras: compras?.filas ?? [],
     candidatos: esFeria ? candidatos : null,
-    bodegaStock,
     esFeria,
-    fuga: agotados ?? null,
+    // Todo lo de bodega sale del libro para una sucursal. El boton dice
+    // «completo» y lo era: se llevaba el plan de compra al proveedor, los
+    // agotados con su dinero perdido y el stock entero de bodega.
+    //
+    // Van en LISTA VACIA y no en null: `descargarSurtido` hace `bodega.length`
+    // sin mirar, y un null le reventaria en la cara a quien pulse el boton.
+    bodega:      conBodega ? bodega : [],
+    agotados:    conBodega ? (agotados?.filas ?? []) : [],
+    compras:     conBodega ? (compras?.filas ?? []) : [],
+    bodegaStock: conBodega ? bodegaStock : null,
+    fuga:        conBodega ? (agotados ?? null) : null,
   })
 
   // Cada folio, cuadrado contra el respaldo de su destino.
@@ -690,6 +877,8 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
         </Aviso>
       )}
 
+      <AvisoAjustes filas={porVenta} ambito={ambitoSurtido} onLimpiar={quitarAjustes} />
+
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <Dato valor={porVenta.length} etiqueta="modelos a pedir" nota="porque se venden" color={VERDE} />
         <Dato valor={piezasVenta} etiqueta="piezas en total" />
@@ -722,7 +911,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
               <Th campo="sugerido" orden={ord} num style={{ textAlign: 'right' }}>Pedir</Th>
               {esTodas && <Th title="De dónde sale cada pieza del total">Para quién</Th>}
               {esFeria && <Th campo="esteMes" orden={ord} num style={{ textAlign: 'right' }} title="Piezas vendidas en lo que va de esta feria">Este mes</Th>}
-              {bodegaStock && !esFeria && <Th campo="enBodega" valor={f => bodegaStock[f.codigo] ?? null} orden={ord} num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
+              {conBodega && bodegaStock && !esFeria && <Th campo="enBodega" valor={f => bodegaStock[f.codigo] ?? null} orden={ord} num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
             </>}>
               {ord.ordenar(porVenta).slice(0, TOPE).map((f, i) => (
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
@@ -732,7 +921,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
                   <Celda num color={f.cobertura !== null && f.cobertura < 7 ? ROSA : TINTA_SUAVE}>
                     {f.cobertura === null ? '—' : `${Math.floor(f.cobertura)} d`}
                   </Celda>
-                  <Celda num fuerte color={VERDE}>{f.sugerido}</Celda>
+                  <CeldaPedir fila={f} ambito={ambitoSurtido} onCambiar={cambiarAjuste} />
                   {esTodas && (
                     <Celda color={TINTA_SUAVE}>
                       {(f.plazas ?? []).map(p => `${NOMBRE_CORTO[p.slug] ?? p.slug} ${p.piezas}`).join(' · ') || '—'}
@@ -915,51 +1104,78 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
       {vista === 'compras' && (!compras
         ? <Aviso>Hace falta el inventario de bodega para calcular la compra.</Aviso>
         : <>
-            <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 16, background: 'rgba(94,148,34,0.05)', border: '1px solid rgba(94,148,34,0.25)' }}>
-              <p style={{ fontSize: 13, color: TINTA, margin: '0 0 4px', fontWeight: 700 }}>
-                Compra para que bodega aguante {compras.nMeses} meses
-                {compras.alta && <span style={{ color: ROSA }}> · temporada alta</span>}
+            {/* Una línea, y el método debajo sólo si se pide.
+                Esto ocupaba seis párrafos fijos. Cinco de los seis explicaban
+                CÓMO se calcula, y eso no cambia de un día para otro: se lee
+                una vez y a partir de ahí es un muro que hay que saltar para
+                llegar a la tabla. Lo que sí es noticia -un mes sin dato- se
+                queda fuera del plegable, porque avisa de que la cuenta de hoy
+                vale menos. */}
+            <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 16, background: 'rgba(94,148,34,0.05)', border: '1px solid rgba(94,148,34,0.25)' }}>
+              <p style={{ fontSize: 12.5, color: TINTA, margin: 0, lineHeight: 1.5 }}>
+                <strong>Compra para que bodega aguante {compras.nMeses} meses</strong>
+                {compras.alta && <span style={{ color: ROSA, fontWeight: 700 }}> · temporada alta</span>}
+                <span style={{ color: TINTA_SUAVE }}>
+                  {' '}— cubre {compras.objetivo.join(' y ')}, con la referencia
+                  de {compras.referencia.join(' y ')}.
+                </span>
               </p>
-              <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: 0, lineHeight: 1.55 }}>
-                Cubre <strong style={{ color: TINTA }}>{compras.objetivo.join(' y ')}</strong>, y la referencia
-                es lo que se vendió en <strong style={{ color: TINTA }}>{compras.referencia.join(' y ')}</strong> —
-                los mismos meses del año pasado, en todas las plazas y ferias juntas. Comparar contra el mes
-                pasado no diría nada sobre diciembre.
-              </p>
+
+              {/* Esto NO se pliega: dice que la cuenta de hoy sale coja. */}
               {compras.faltantes.length > 0 && (
                 <p style={{ fontSize: 11, color: AMBAR, margin: '6px 0 0' }}>
                   Sin dato para {compras.faltantes.join(', ')}: la referencia de esos meses sale incompleta.
                 </p>
               )}
-              {compras.estimadas.length > 0 && (
-                <p style={{ fontSize: 11, color: AMBAR, margin: '6px 0 0', lineHeight: 1.5 }}>
-                  {compras.estimadas.map(e => (
-                    <span key={e.plaza}>
-                      <strong>{e.plaza}</strong> no tiene dato de {e.meses.join(', ')} —empezó a medirse
-                      en {e.desde}— así que su aporte va <strong>estimado en unas {e.piezas} piezas</strong>:
-                      su propio ritmo, corregido por la temporada
-                      (×{compras.factorTemporada.toFixed(2)}) que midieron las plazas que sí tienen esos meses.
-                      Dejarla en cero sería decir que no vendió nada, y es la plaza que más vende.{' '}
-                    </span>
-                  ))}
-                </p>
-              )}
-              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
-                Cada modelo se compra por lo que vendió él, no por lo que vendió su familia: una funda de
-                iPhone 13 no se sustituye con una de iPhone 17.
-                Se detectaron <strong style={{ color: TINTA_SUAVE }}>{compras.cambios.length} relevos</strong> de
-                generación en el propio catálogo, confirmados con la fecha de alta, y sirven para dos cosas:
-                estimar un modelo recién llegado y avisar de cuáles conviene vigilar.
-              </p>
-              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
-                Un modelo recién llegado no tiene historial propio y el cálculo lo daría por cero, así que
-                nadie lo compraría hasta que ya se hubiera agotado. Para esos se usa lo que vendió la
-                generación inmediatamente anterior —una sola, no todas sumadas— y sólo si consta su fecha
-                real de entrada. Y se marca con ⚡ lo que se está agotando más rápido de lo que la
-                referencia predecía: ahí es donde la cuenta se queda corta sola, y suele pasar justo con
-                lo nuevo.
-              </p>
+
+              <details data-metodo-compra style={{ marginTop: 6 }}>
+                <summary style={{ fontSize: 11, color: TINTA_SUAVE, cursor: 'pointer', listStyle: 'revert' }}>
+                  Cómo se calcula esta compra
+                </summary>
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <p style={{ fontSize: 11, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+                    La referencia son los mismos meses del año pasado, en todas las plazas y ferias juntas.
+                    Comparar contra el mes pasado no diría nada sobre diciembre.
+                  </p>
+
+                  {/* La plaza sin historial entra aquí y no arriba: es una
+                      condición que lleva meses igual y seguirá igual hasta
+                      que cumpla el año. Enseñarla fija cada día la convertía
+                      en ruido, y el dueño pidió ocultarla. */}
+                  {compras.estimadas.length > 0 && (
+                    <p style={{ fontSize: 11, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+                      {compras.estimadas.map(e => (
+                        <span key={e.plaza}>
+                          <strong>{e.plaza}</strong> no tiene dato de {e.meses.join(', ')} —empezó a medirse
+                          en {e.desde}— así que su aporte va estimado en unas <strong>{e.piezas} piezas</strong>:
+                          su propio ritmo, corregido por la temporada
+                          (×{compras.factorTemporada.toFixed(2)}) que midieron las plazas que sí tienen esos
+                          meses. Dejarla en cero sería decir que no vendió nada, y es la plaza que más vende.{' '}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+
+                  <p style={{ fontSize: 11, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+                    Cada modelo se compra por lo que vendió él, no por lo que vendió su familia: una funda de
+                    iPhone 13 no se sustituye con una de iPhone 17.
+                    Se detectaron <strong>{compras.cambios.length} relevos</strong> de generación en el propio
+                    catálogo, confirmados con la fecha de alta, y sirven para dos cosas: estimar un modelo
+                    recién llegado y avisar de cuáles conviene vigilar.
+                  </p>
+                  <p style={{ fontSize: 11, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+                    Un modelo recién llegado no tiene historial propio y el cálculo lo daría por cero, así que
+                    nadie lo compraría hasta que ya se hubiera agotado. Para esos se usa lo que vendió la
+                    generación inmediatamente anterior —una sola, no todas sumadas— y sólo si consta su fecha
+                    real de entrada. Y se marca con ⚡ lo que se está agotando más rápido de lo que la
+                    referencia predecía: ahí es donde la cuenta se queda corta sola, y suele pasar justo con
+                    lo nuevo.
+                  </p>
+                </div>
+              </details>
             </div>
+
+            <AvisoAjustes filas={compras.filas} ambito="compra" onLimpiar={quitarAjustes} />
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
               <Dato valor={compras.filas.filter(f => f.sugerido > 0).length} etiqueta="modelos a comprar" color={VERDE} />
@@ -991,7 +1207,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
                     {f.enCatalogo ? f.existencia : '—'}
                   </Celda>
                   <Celda num color={'#0288AD'}>{f.vendidas2m || '—'}</Celda>
-                  <Celda num fuerte color={VERDE}>{f.sugerido || '—'}</Celda>
+                  <CeldaPedir fila={f} ambito="compra" onCambiar={cambiarAjuste} />
                   <Celda num color={f.plazasEnCero === f.plazasTotal && f.plazasTotal > 0 ? ROSA : AMBAR}>
                     {f.plazasTotal ? `${f.plazasEnCero}/${f.plazasTotal}` : '—'}
                   </Celda>

@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   brechaDeLista, costosInvertidos, listaDe, CASOS, BRECHA, PIEZAS_MINIMAS,
+  porDebajoDelMayoreo, mayoreoSinMarcar, MARGEN_MAYOREO,
 } from './precioCobrado.js'
 
 const inv = productos => ({ productos })
@@ -146,4 +147,59 @@ test('listaDe normaliza el codigo como lo escriba la caja', () => {
 
 test('el umbral es del 20% y conviene saberlo', () => {
   assert.equal(BRECHA, 0.20)
+})
+
+// ── Vender por debajo del propio precio de mayoreo ────────────────────────
+
+const invM = (codigo, publico, mayoreo, producto = 'FUNDA') =>
+  ({ productos: [{ Codigo: codigo, Producto: producto, Precio: publico, Mayoreo: mayoreo }] })
+
+test('se compara contra el MAYOREO, no contra la lista al publico', () => {
+  // La lista al publico no es el precio: en Aguascalientes solo el 12% de las
+  // lineas se cobran a ella. El mayoreo si es un suelo que el negocio decidio.
+  const porCodigo = { I13T: { producto: 'IPHONE 13', pz: 10, dinero: 1400, pzMayoreo: 0, dineroMayoreo: 0 } }
+  const r = porDebajoDelMayoreo({ porCodigo, inventario: invM('I13T', 250, 150) })
+  assert.equal(r.filas.length, 1, 'cobra 140 y su mayoreo es 150')
+  assert.equal(r.filas[0].cobrado, 140)
+  assert.equal(r.filas[0].mayoreo, 150)
+  assert.equal(r.filas[0].pesos, (150 - 140) * 10, 'lo que se deja de ganar')
+})
+
+test('vender a precio de mayoreo NO es un problema: es el suelo, no un error', () => {
+  const porCodigo = { X: { pz: 10, dinero: 1500, pzMayoreo: 0, dineroMayoreo: 0 } }
+  assert.equal(porDebajoDelMayoreo({ porCodigo, inventario: invM('X', 250, 150) }).filas.length, 0)
+})
+
+test('vender por debajo de la LISTA pero por encima del mayoreo tampoco salta', () => {
+  // Es justo el caso que llenaba la pantalla de ruido: casi todo Ags.
+  const porCodigo = { X: { pz: 10, dinero: 1800, pzMayoreo: 0, dineroMayoreo: 0 } }
+  const r = porDebajoDelMayoreo({ porCodigo, inventario: invM('X', 250, 150) })
+  assert.equal(r.filas.length, 0, 'cobra 180: por debajo de 250 pero por encima de 150')
+  assert.equal(r.comparados, 1, 'pero si se miro')
+})
+
+test('las piezas marcadas mayoreo no entran: esas ya son mayoreo', () => {
+  const porCodigo = { X: { pz: 10, dinero: 1000, pzMayoreo: 10, dineroMayoreo: 1000 } }
+  assert.equal(porDebajoDelMayoreo({ porCodigo, inventario: invM('X', 250, 150) }).comparados, 0)
+})
+
+test('sin precio de mayoreo capturado no hay suelo contra el que medir', () => {
+  const porCodigo = { X: { pz: 10, dinero: 500, pzMayoreo: 0, dineroMayoreo: 0 } }
+  assert.equal(porDebajoDelMayoreo({ porCodigo, inventario: invM('X', 250, 0) }).comparados, 0)
+})
+
+test('el mayoreo sin marcar explica por que la mezcla sale corta', () => {
+  // Esas piezas se cobraron al precio de mayoreo pero sin tocar la casilla,
+  // asi que el panel las cuenta como mostrador. En Ags son 1,900 piezas.
+  const porCodigo = {
+    X: { pz: 20, dinero: 3000, pzMayoreo: 0, dineroMayoreo: 0 },   // 150 = su mayoreo
+    Y: { pz: 5, dinero: 1250, pzMayoreo: 0, dineroMayoreo: 0 },    // 250 = su lista
+  }
+  const inventario = { productos: [
+    { Codigo: 'X', Producto: 'A', Precio: 250, Mayoreo: 150 },
+    { Codigo: 'Y', Producto: 'B', Precio: 250, Mayoreo: 150 },
+  ] }
+  const r = mayoreoSinMarcar({ porCodigo, inventario })
+  assert.equal(r.piezas, 20)
+  assert.equal(r.codigos, 1)
 })

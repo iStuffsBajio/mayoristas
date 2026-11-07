@@ -59,6 +59,30 @@ export const PUEDE_SURTIR = ['admin', 'bodega']
 export const puedeSurtir = ({ isAdmin, plaza } = {}) =>
   isAdmin || PUEDE_SURTIR.includes(String(plaza ?? '').trim().toLowerCase())
 
+/**
+ * 🔒 Si esta sesión puede ver información de BODEGA.
+ *
+ * Una tienda no. Lo decidió el dueño el 2026-11-06, al entrar como León y
+ * encontrarse con ello: «ellos en realidad no tienen por qué saber ese tipo
+ * de información».
+ *
+ * Y no era sólo una columna. Una sucursal tenía a mano:
+ *
+ *   · la existencia de bodega de cada modelo, en su tabla;
+ *   · y, pulsando «Bajar el reporte completo en Excel», el plan de compra al
+ *     proveedor, los «agotados que duelen» con su dinero perdido y el stock
+ *     entero de bodega.
+ *
+ * Es la misma lista que usa quien decide las compras. El botón decía
+ * «completo» y lo era.
+ *
+ * Ojo: esto NO se puede atar al ámbito de la pantalla. El administrador mira
+ * el surtido de las sucursales con `ambito="sucursales"` y ahí sí debe verlo
+ * todo. Lo que decide es la SESIÓN, no la vista.
+ */
+export const veBodega = ({ isAdmin, plaza } = {}) =>
+  isAdmin || String(plaza ?? '').trim().toLowerCase() === 'bodega'
+
 /** Lo que le puede pasar a un folio. */
 export const ESTADOS = {
   EN_CAMINO:  'en-camino',   // salió; el alta todavía no aparece

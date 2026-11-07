@@ -96,9 +96,15 @@ const VENTAS_DE = plaza => ({
   ventana: {
     dias: 365,
     porCodigo: {
-      // Funda: publico $216, mayoreo $130.
+      // Funda: publico $216, mayoreo $130. La lista del inventario falso dice
+      // $55, asi que esta por ENCIMA de todo: sirve para el precio por plaza.
       I13T:   { producto: 'IPHONE 13 TPU CASE', pz: 100, dinero: 17300,
                 pzMayoreo: 50, dineroMayoreo: 6500 },
+      // Y esta se cobra POR DEBAJO de su propio mayoreo, que es lo que la
+      // bandeja tiene que cazar. Sin una asi, la seccion no se dibuja y la
+      // comprobacion pasaria en verde sin haber mirado nada.
+      MTG24T: { producto: 'MOTO G24 TPU CASE', pz: 20, dinero: 400,
+                pzMayoreo: 0, dineroMayoreo: 0 },
       // Funda con el precio INVERTIDO: a mayoreo sale mas cara.
       SGA16T: { producto: 'SAMSUNG A16 TPU CASE', pz: 20, dinero: 4000,
                 pzMayoreo: 10, dineroMayoreo: 2500 },
@@ -138,6 +144,10 @@ const productos = MODELOS.map(([Codigo, Producto], i) => ({
   Codigo, Producto,
   Existencia: [34, 4, 0, 12, 7, 0, 91, 0, 25, 0][i],
   Precio: 55 + i * 3,
+  // Sin precio de MAYOREO no hay suelo contra el que medir, y la bandeja de
+  // «se vende mas barato que a un mayorista» no se dibujaba nunca: pasaba en
+  // verde sin haber mirado un solo codigo.
+  Mayoreo: 40 + i * 2,
   Alta: `2025-${String(1 + (i % 12)).padStart(2, '0')}-14`,
 }))
 
@@ -752,6 +762,198 @@ function precioPorPlaza(window, donde) {
 }
 
 /**
+ * Que la explicacion del metodo nazca PLEGADA.
+ *
+ * Ocupaba seis parrafos fijos encima de la tabla y cinco explicaban como se
+ * calcula, que no cambia de un dia para otro. El dueño lo pidio retractil.
+ *
+ * Lo que se comprueba, y es lo facil de perder: que siga PLEGADO. Un
+ * `<details open>` se ve exactamente igual de util en una captura y deja el
+ * muro donde estaba.
+ *
+ * Y que el aviso de un mes SIN DATO se quede FUERA del plegable: eso no es
+ * metodo, es que la cuenta de hoy vale menos, y plegarlo seria esconderlo.
+ */
+function metodoPlegado(window, donde) {
+  const doc = window.document
+  const det = doc.querySelector('[data-metodo-compra]')
+  if (!det) {
+    errores.push(`${donde} · no esta el plegable del metodo de compra`)
+    return 0
+  }
+  if (det.hasAttribute('open')) {
+    errores.push(`${donde} · el metodo de compra nace ABIERTO: vuelve a ser un muro sobre la tabla`)
+  }
+  if (!det.querySelector('summary')) {
+    errores.push(`${donde} · el plegable no tiene de donde tirar`)
+  }
+  // El aviso de meses sin dato, si lo hay, no puede estar dentro.
+  const dentro = (det.textContent || '')
+  if (/la referencia de esos meses sale incompleta/.test(dentro)) {
+    errores.push(`${donde} · el aviso de meses sin dato quedo DENTRO del plegable: eso no es metodo, es una alerta`)
+  }
+  return 1
+}
+
+/**
+ * Que la cantidad a pedir se pueda cambiar a mano.
+ *
+ * Lo pidio el dueño: «necesito que me permita dar doble clic y cambiar lo que
+ * quiero comprar». Se comprueba el camino entero -doble clic, escribir,
+ * Enter- y no solo que exista la celda, porque las tres piezas se rompen por
+ * separado y las tres dejan la pantalla con el mismo aspecto.
+ *
+ * Y lo que de verdad importa: que el numero nuevo llegue al TOTAL. Si el
+ * ajuste se quedara solo en la celda, la tabla diria una cosa, la cabecera
+ * otra y el Excel bajaria la sugerencia; nadie lo notaria hasta tener el
+ * pedido del proveedor delante.
+ */
+async function pedirEditable(window, donde) {
+  const doc = window.document
+  const celda = doc.querySelector('[data-pedir]')
+  if (!celda) {
+    errores.push(`${donde} · la cantidad a pedir no se puede cambiar: no hay celda editable`)
+    return 0
+  }
+
+  const antes = (celda.textContent || '').trim()
+
+  // Doble clic, que es como se abre. Un clic normal no debe abrirla: la tabla
+  // se recorre a golpe de raton y se abriria una celda al mirar.
+  celda.dispatchEvent(new window.MouseEvent('click', { bubbles: true }))
+  await nuevaVuelta(window, 4)
+  if (doc.querySelector('[data-pedir] input, input[title*="Enter"]')) {
+    errores.push(`${donde} · un clic simple abre la celda: deberia hacer falta doble clic`)
+  }
+
+  celda.dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true }))
+  await nuevaVuelta(window, 4)
+
+  const campo = [...doc.querySelectorAll('input')].find(i => /Enter para guardar/.test(i.title || ''))
+  if (!campo) {
+    errores.push(`${donde} · el doble clic no abrio el campo para escribir`)
+    return 0
+  }
+
+  // Se usa `escribir`, que ya existe en este archivo y lo hace BIEN: pasa por
+  // el descriptor del prototipo en vez de asignar `el.value`. Mi primera
+  // version asignaba directo y React no se enteraba, asi que el campo se veia
+  // con el numero nuevo y el estado seguia con el viejo. Dos vueltas.
+  escribir(window, campo, '7777')
+  // Hay que ESPERAR antes del Enter. React procesa el cambio de texto en su
+  // propio turno, y disparando la tecla en el mismo bloque sincrono el
+  // manejador lee el texto viejo y guarda la cifra que ya estaba: el ajuste
+  // se creaba con el mismo valor y la prueba decia «no quedo guardada».
+  // En un navegador de verdad median milisegundos entre teclear y pulsar
+  // Enter, asi que el fallo era solo de la comprobacion.
+  await nuevaVuelta(window, 3)
+  campo.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  await nuevaVuelta(window, 6)
+
+  const texto = (doc.body.textContent || '').replace(/\s+/g, ' ')
+  if (!/7777/.test(texto)) {
+    errores.push(`${donde} · se escribio una cantidad nueva y no quedo guardada`)
+  }
+  // El aviso tiene que salir: sin el, un ajuste de hace dos semanas sigue
+  // puesto y nadie entiende por que el Excel no cuadra con la pantalla.
+  if (!/cambiada a mano|cambiadas a mano/i.test(texto)) {
+    errores.push(`${donde} · se cambio una cantidad y no se avisa de que hay ajustes a mano`)
+  }
+  if (!/Volver a lo sugerido/i.test(texto)) {
+    errores.push(`${donde} · no hay forma de deshacer los ajustes`)
+  }
+
+  // Y se deja como estaba, que si no el resto del recorrido mide con 7777
+  // piezas dentro.
+  const celda2 = doc.querySelector('[data-pedir]')
+  celda2?.dispatchEvent(new window.MouseEvent('dblclick', { bubbles: true }))
+  await nuevaVuelta(window, 4)
+  const campo2 = [...doc.querySelectorAll('input')].find(i => /Enter para guardar/.test(i.title || ''))
+  if (campo2) {
+    escribir(window, campo2, '')
+    await nuevaVuelta(window, 3)
+    campo2.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await nuevaVuelta(window, 6)
+  }
+  const ahora = (doc.querySelector('[data-pedir]')?.textContent || '').trim()
+  if (ahora !== antes) {
+    errores.push(`${donde} · vaciar la celda no devolvio la sugerencia («${antes}» → «${ahora}»)`)
+  }
+  return 1
+}
+
+/**
+ * Que una SUCURSAL no vea lo de bodega.
+ *
+ * Es la unica comprobacion de este archivo que mira lo que NO esta, y por eso
+ * es la mas facil de perder: nadie reclama una columna que no deberia ver.
+ *
+ * El dueño entro como Leon y se encontro la existencia de bodega en su tabla.
+ * Y debajo habia mas: el boton «Bajar el reporte completo en Excel» le daba
+ * el plan de compra al proveedor, los agotados con su dinero perdido y el
+ * stock entero de bodega. El Excel no se puede mirar desde aqui -lo escribe
+ * una libreria-, asi que lo que se fija en pantalla es la columna, y el libro
+ * queda cubierto por `veBodega` y sus pruebas.
+ */
+function sucursalSinBodega(window, donde) {
+  const doc = window.document
+  // Solo tiene sentido dentro del surtido, que es donde vivia la columna.
+  const enSurtido = [...doc.querySelectorAll('button')]
+    .some(b => /reporte completo en excel/i.test(b.textContent || ''))
+  if (!enSurtido) return 0
+
+  // Ojo con la coincidencia exacta: una cabecera ordenable arrastra su flecha
+  // pegada al texto -«En bodega▲»- asi que `^...$` no casa nunca y la
+  // comprobacion pasaba en verde con la fuga puesta. Costo una vuelta.
+  const cabeceras = [...doc.querySelectorAll('th')].map(t => (t.textContent || '').trim())
+  if (cabeceras.some(t => /en bodega/i.test(t))) {
+    errores.push(`${donde} · una sucursal esta viendo la columna «En bodega»`)
+  }
+  // Las vistas de bodega tampoco pueden estar como pestaña.
+  const txt = (doc.body.textContent || '').replace(/\s+/g, ' ')
+  for (const prohibido of ['Comprar al proveedor', 'Lo que puede surtir', 'Agotados que duelen']) {
+    if (txt.includes(prohibido)) {
+      errores.push(`${donde} · una sucursal ve «${prohibido}», que es de bodega`)
+    }
+  }
+  return 1
+}
+
+/**
+ * «Que se mueve», el panel de bodega que sustituyo a «Comprar».
+ *
+ * Son cuatro listas y las cuatro tienen que estar. Si una deja de pintarse,
+ * las otras tres siguen y la pantalla parece entera: lo que desaparece es
+ * justo la mitad de la decision. La que mas se echaria de menos sin notarlo
+ * es «no hace falta mandar», porque nadie reclama una lista que no pidio.
+ *
+ * No se comprueban las cuentas -eso lo fija `movimiento.test.js`- sino que la
+ * seccion se dibuje y siga teniendo sus cuatro bloques.
+ */
+function queSeMueve(window, donde) {
+  const doc = window.document
+  const sec = doc.querySelector('[data-movimiento]')
+  if (!sec) return 0
+
+  const txt = (sec.textContent || '').replace(/\s+/g, ' ')
+  for (const bloque of [
+    'Se están agotando',
+    'Lo que más se mueve',
+    'No hace falta mandar',
+  ]) {
+    if (!txt.includes(bloque)) {
+      errores.push(`${donde} · «Que se mueve» perdio el bloque «${bloque}»`)
+    }
+  }
+  // Bodega no compra: si vuelve a aparecer el proveedor aqui, alguien
+  // deshizo la decision del dueño sin querer.
+  if (/proveedor/i.test(txt)) {
+    errores.push(`${donde} · «Que se mueve» habla del proveedor: bodega no compra`)
+  }
+  return 1
+}
+
+/**
  * La bandeja de precios a revisar por sucursal.
  *
  * Se rompe en silencio de dos formas: dejando de dibujarse -y entonces el
@@ -770,8 +972,19 @@ function preciosARevisar(window, donde) {
     return 0
   }
   const txt = (sec.textContent || '').replace(/\s+/g, ' ')
-  if (!/no es dinero perdido/i.test(txt)) {
-    errores.push(`${donde} · la bandeja de precios no avisa de que la diferencia no es dinero perdido`)
+  // Contra QUE se compara no se comprueba por la prosa -la frase «precio de
+  // mayoreo» sale en cuatro sitios de la seccion y cualquiera la daba por
+  // buena-, sino porque CADA RENGLON enseñe los dos numeros: lo que se cobra
+  // y el mayoreo contra el que se mide. Si alguien vuelve a compararlo contra
+  // la lista al publico, ese par desaparece.
+  //
+  // Importa: comparando contra la lista, Aguascalientes marcaba 116 codigos
+  // -casi todos- y la pantalla dejaba de decir nada.
+  if (!/cobra \$[\d,]+ · mayoreo \$[\d,]+/.test(txt)) {
+    errores.push(`${donde} · los renglones no enseñan «cobra X · mayoreo Y»: se perdio contra que se compara`)
+  }
+  if (!/m[aá]s barato que a un mayorista/i.test(txt)) {
+    errores.push(`${donde} · la bandeja perdio su titulo: ya no dice que mide`)
   }
   if (!/Bajar el Excel/i.test(txt)) {
     errores.push(`${donde} · la bandeja de precios no tiene como bajarse`)
@@ -1328,6 +1541,10 @@ let bandejasDeCosto = 0
 let foliosVistos = 0
 let preciosPorPlaza = 0
 let bandejasDePrecio = 0
+let movimientoVisto = 0
+let sucursalLimpia = 0
+let celdasEditables = 0
+let metodosPlegados = 0
 let plazasDeEfectivo = 0
 
 // Las cuatro clases de lote, por su titulo. Es la comprobacion de que la
@@ -1393,8 +1610,20 @@ for (const [nombre, sesion] of SESIONES) {
           preciosPorPlaza += precioPorPlaza(window, `${nombre} · admin · ${t}`)
           bandejasDePrecio += preciosARevisar(window, `${nombre} · admin · ${t}`)
         }
-        if (/surtido/i.test(t)) {
+        if (/surtido|surtir/i.test(t)) {
           foliosVistos += await listaDeFolios(window, `${nombre} · admin · ${t}`)
+          // Solo para una sesion de TIENDA: admin y bodega si deben verlo.
+          if (nombre === 'sucursal') {
+            sucursalLimpia += sucursalSinBodega(window, `${nombre} · ${t}`)
+          }
+        }
+        if (/se mueve/i.test(t)) {
+          movimientoVisto += queSeMueve(window, `${nombre} · admin · ${t}`)
+        }
+        // Solo con sesion de administrador: es su pantalla de compras.
+        if (nombre === 'admin' && /bodega/i.test(t)) {
+          celdasEditables += await pedirEditable(window, `${nombre} · ${t}`)
+          metodosPlegados += metodoPlegado(window, `${nombre} · ${t}`)
         }
         if (/efectivo/i.test(t)) {
           plazasDeEfectivo += await revisarEfectivo(window, `${nombre} · admin · ${t}`)
@@ -1416,6 +1645,20 @@ console.log(`  bandeja de costos que faltan: ${bandejasDeCosto} dibujada`)
 console.log(`  folios de surtido dibujados: ${foliosVistos}`)
 console.log(`  seccion de precio por plaza: ${preciosPorPlaza} dibujada`)
 console.log(`  bandeja de precios a revisar: ${bandejasDePrecio} dibujada`)
+console.log(`  panel «que se mueve» de bodega: ${movimientoVisto} dibujado`)
+console.log(`  surtido de sucursal revisado por fugas: ${sucursalLimpia}`)
+console.log(`  cantidad a pedir editable: ${celdasEditables} comprobada`)
+console.log(`  metodo de compra plegado: ${metodosPlegados} comprobado`)
+if (metodosPlegados < 1) errores.push('no se comprobo que la explicacion del metodo de compra este plegada')
+if (celdasEditables < 1) {
+  errores.push('no se comprobo que la cantidad a pedir se pueda cambiar a mano')
+}
+if (sucursalLimpia < 1) {
+  errores.push('no se llego a comprobar que una sucursal no ve lo de bodega: esa comprobacion mira lo que NO esta, y si no corre nadie la echa de menos')
+}
+if (movimientoVisto < 1) {
+  errores.push('el panel «que se mueve» de bodega no se dibujo: sin el, quien arma las cajas no ve que vuela ni que sobra en cada tienda')
+}
 if (bandejasDePrecio < 1) {
   errores.push('la bandeja de precios a revisar no se dibujo: un precio torcido no saldria en ningun sitio')
 }
