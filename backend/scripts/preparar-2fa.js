@@ -22,6 +22,28 @@ import { nuevoSecretoTotp, verificarTotp, urlTotp } from '../src/seguridad.js'
 
 const CUENTA = process.argv[2] || 'administrador'
 
+// Se comprueba ANTES de generar nada.
+//
+// Sin una terminal de verdad no hay forma de teclear el código, así que el
+// guion se quedaba colgado esperando una respuesta que no iba a llegar. Y lo
+// peor no era el cuelgue: para entonces ya había impreso la clave secreta, y
+// en una tubería eso acaba en un archivo de registro o en el historial de
+// otra herramienta. Una clave que nadie llegó a usar sigue siendo una clave
+// impresa donde no debía.
+if (!stdin.isTTY) {
+  console.error(`
+  Esto hay que correrlo en una TERMINAL, no por una tubería ni dentro de otra
+  herramienta: hace falta que puedas teclear el código que te enseñe la app.
+
+  Abre una terminal en la carpeta del proyecto y lanza:
+
+      node backend/scripts/preparar-2fa.js
+
+  No se ha generado ninguna clave, así que no hay nada que tirar.
+`)
+  process.exit(1)
+}
+
 const secreto = nuevoSecretoTotp()
 // En grupos de cuatro: se teclea a mano en el móvil y de corrido se falla.
 const legible = secreto.match(/.{1,4}/g).join(' ')
@@ -52,9 +74,17 @@ PASO 2 · Comprobarlo AQUÍ, antes de publicarlo
 
 const rl = readline.createInterface({ input: stdin, output: stdout })
 let confirmado = false
+let cortado = false
+// Si cierran la entrada —Ctrl+D, o la terminal se va— se sale en vez de
+// esperar para siempre.
+rl.on('close', () => { cortado = true })
 
-for (let intento = 1; intento <= 5 && !confirmado; intento++) {
-  const codigo = (await rl.question(`  Código (intento ${intento} de 5): `)).trim()
+for (let intento = 1; intento <= 5 && !confirmado && !cortado; intento++) {
+  let codigo = ''
+  try {
+    codigo = (await rl.question(`  Código (intento ${intento} de 5): `)).trim()
+  } catch { cortado = true; break }
+  if (!codigo) { cortado = true; break }
   if (verificarTotp(codigo, secreto)) {
     confirmado = true
   } else if (intento < 5) {

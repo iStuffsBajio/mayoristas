@@ -25,23 +25,38 @@ import path from 'node:path'
 
 const FUNCION = process.env.LAMBDA_FUNCION || 'istuffs-backend'
 const APLICAR = process.argv.includes('--aplicar')
-const par = process.argv.slice(2).find(a => a.includes('=') && !a.startsWith('--'))
+const BORRAR  = process.argv.includes('--borrar')
+const par = process.argv.slice(2).find(a => !a.startsWith('--'))
 
 if (!par) {
-  console.error('Uso: node backend/scripts/anadir-variable-lambda.js NOMBRE=valor [--aplicar]')
+  console.error(`Uso:
+  node backend/scripts/anadir-variable-lambda.js NOMBRE=valor [--aplicar]
+  node backend/scripts/anadir-variable-lambda.js NOMBRE --borrar [--aplicar]`)
   process.exit(1)
 }
 
 const i = par.indexOf('=')
-const nombre = par.slice(0, i).trim()
-const valor  = par.slice(i + 1)
+const nombre = (i > 0 ? par.slice(0, i) : par).trim()
+const valor  = i > 0 ? par.slice(i + 1) : ''
+
+// ── La salida de emergencia ─────────────────────────────────────────────
+//
+// `--borrar` existe sobre todo por una razón concreta: si se pierde el móvil
+// con el segundo factor y no se guardó la clave de respaldo, quitar
+// `TOTP_ADMIN` es la ÚNICA forma de volver a entrar al panel. Un guion que
+// promete esa salida y no la tiene es peor que no prometerla, porque se
+// descubre el día que hace falta.
+if (BORRAR && i > 0) {
+  console.error('Con --borrar va sólo el NOMBRE, sin «=valor».')
+  process.exit(1)
+}
 
 if (!/^[A-Z][A-Z0-9_]*$/.test(nombre)) {
   console.error(`«${nombre}» no parece un nombre de variable (MAYUSCULAS_CON_GUION_BAJO).`)
   process.exit(1)
 }
-if (!valor.trim()) {
-  console.error(`${nombre} llegaría vacía. Para quitarla, usa --borrar.`)
+if (!BORRAR && !valor.trim()) {
+  console.error(`${nombre} llegaría vacía. Para quitarla: ${nombre} --borrar`)
   process.exit(1)
 }
 // `VITE_` es la regla de la casa: Vite incrusta en el JavaScript público toda
@@ -72,12 +87,42 @@ const nombres = Object.keys(actuales)
 const yaEstaba = nombre in actuales
 const cambia = yaEstaba && actuales[nombre] !== valor
 
+const despuesCuantas = BORRAR
+  ? (yaEstaba ? nombres.length - 1 : nombres.length)
+  : (yaEstaba ? nombres.length : nombres.length + 1)
+
 console.log(`Función   : ${FUNCION}`)
-console.log(`Variables : ${nombres.length} ahora → ${yaEstaba ? nombres.length : nombres.length + 1} después`)
-console.log(`Acción    : ${yaEstaba ? (cambia ? `cambiar ${nombre}` : `${nombre} ya tiene ese valor`) : `añadir ${nombre}`}`)
+console.log(`Variables : ${nombres.length} ahora → ${despuesCuantas} después`)
+console.log(`Acción    : ${BORRAR
+  ? (yaEstaba ? `QUITAR ${nombre}` : `${nombre} no está: nada que quitar`)
+  : yaEstaba ? (cambia ? `cambiar ${nombre}` : `${nombre} ya tiene ese valor`) : `añadir ${nombre}`}`)
 console.log(`Se conservan: ${nombres.filter(n => n !== nombre).sort().join(', ')}`)
 
-if (yaEstaba && !cambia) {
+// Las que, si faltan, dejan el backend inservible sin decir por qué: sin los
+// hashes no entra nadie, sin `SESION_SECRETO` ninguna sesión vale, sin
+// `ORIGENES_PERMITIDOS` el dominio real deja de poder llamar, y sin bucket ni
+// región no se lee ni se escribe nada. Quitarlas tiene que costar más que un
+// dedazo, porque la orden sale bien y la página se cae en la siguiente
+// petición.
+const IMPRESCINDIBLES = new Set([
+  'HASH_ADMIN', 'HASH_LEON', 'HASH_SAN_LUIS', 'HASH_AGUASCALIENTES',
+  'HASH_TORREON', 'HASH_BODEGA',
+  'SESION_SECRETO', 'S3_BUCKET', 'S3_REGION', 'ORIGENES_PERMITIDOS',
+])
+
+if (BORRAR && IMPRESCINDIBLES.has(nombre) && !process.argv.includes('--si-se-lo-que-hago')) {
+  console.error(`\n✗ ${nombre} es imprescindible: sin ella el backend deja de funcionar`)
+  console.error('  y la página se cae en la siguiente petición, sin decir por qué.')
+  console.error('  Si de verdad es lo que quieres, repite con --si-se-lo-que-hago')
+  process.exit(1)
+}
+
+if (BORRAR && nombre === 'TOTP_ADMIN' && yaEstaba) {
+  console.log('\n⚠ Quitar TOTP_ADMIN APAGA el segundo factor: el panel volverá a')
+  console.log('  entrar sólo con la contraseña. Es la salida si perdiste el móvil.')
+}
+
+if ((BORRAR && !yaEstaba) || (!BORRAR && yaEstaba && !cambia)) {
   console.log('\nNada que hacer.')
   process.exit(0)
 }
@@ -90,8 +135,12 @@ if (!APLICAR) {
 // Por archivo temporal y no en la línea de órdenes: un valor en `argv` queda
 // en el historial del intérprete y lo puede leer cualquier proceso de la
 // máquina mientras corre.
+const siguientes = { ...actuales }
+if (BORRAR) delete siguientes[nombre]
+else siguientes[nombre] = valor
+
 const tmp = path.join(os.tmpdir(), `lambda-env-${Date.now()}.json`)
-fs.writeFileSync(tmp, JSON.stringify({ Variables: { ...actuales, [nombre]: valor } }), { mode: 0o600 })
+fs.writeFileSync(tmp, JSON.stringify({ Variables: siguientes }), { mode: 0o600 })
 try {
   aws('lambda', 'update-function-configuration',
       '--function-name', FUNCION,
@@ -100,7 +149,7 @@ try {
     'lambda', 'get-function-configuration',
     '--function-name', FUNCION,
     '--query', 'Environment.Variables', '--output', 'json')) || {}
-  const faltan = nombres.filter(n => !(n in despues))
+  const faltan = nombres.filter(n => !(n in despues) && n !== nombre)
   if (faltan.length) {
     console.error(`\n⚠ SE PERDIERON variables: ${faltan.join(', ')}. Hay que reponerlas YA.`)
     process.exit(1)
