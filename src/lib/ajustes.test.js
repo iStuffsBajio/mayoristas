@@ -10,6 +10,7 @@ import {
   TIPOS, MOTIVOS, ESTADOS, DIAS_PARA_INSISTIR,
   nuevoAjuste, juntarAjustes, dondeSigue, estadoDe,
   codigosOcultos, sinOcultos, pendientesPorPlaza, resumirAjustes, codigosDeFicha,
+  historialDeBajas, resumenDeBajas,
 } from './ajustes.js'
 
 const HOY = new Date('2026-11-05T12:00:00Z')
@@ -112,4 +113,55 @@ test('los códigos de una ficha salen como texto, venga como venga', () => {
   assert.deepEqual(codigosDeFicha({ codigos: ['x', { codigo: 'y' }, null] }), ['X', 'Y'])
   assert.deepEqual(codigosDeFicha({}), [])
   assert.deepEqual(codigosDeFicha(null), [])
+})
+
+test('EL ARCHIVO DE BAJAS no pierde lo ya resuelto', () => {
+  // Es el agujero que lo pidio: la unica pantalla que enseñaba estas notas
+  // filtra por PENDIENTE, asi que en cuanto el codigo desaparecia del
+  // respaldo el renglon se caia de la vista. El registro seguia en el
+  // archivo -nada lo borra- pero no habia donde mirarlo: el control se
+  // perdia justo cuando el trabajo se habia hecho bien.
+  const inventarios = { leon: { productos: [{ Codigo: 'SIGUE', Existencia: 2 }] } }
+  const correcciones = {
+    'ocultar|SIGUE': { clave: 'ocultar|SIGUE', codigo: 'SIGUE', producto: 'A',
+                       motivo: 'dado-de-baja', cuando: '2026-11-01T10:00:00Z', quien: 'admin' },
+    'ocultar|FUE':   { clave: 'ocultar|FUE', codigo: 'FUE', producto: 'B',
+                       motivo: 'ya-no-existe', cuando: '2026-10-01T10:00:00Z', quien: 'leon' },
+  }
+  const hoy = new Date('2026-11-08T12:00:00Z')
+  const filas = historialDeBajas(correcciones, inventarios, hoy)
+
+  assert.equal(filas.length, 2, 'los dos, el resuelto tambien')
+  assert.equal(filas[0].codigo, 'SIGUE', 'lo pendiente va arriba: es lo que pide hacer algo hoy')
+  assert.equal(filas[0].resuelto, false)
+  assert.deepEqual(filas[0].plazas, ['leon'], 'y dice donde sigue, para saber a quien reclamar')
+  assert.equal(filas[1].codigo, 'FUE')
+  assert.equal(filas[1].resuelto, true)
+})
+
+test('el resumen del archivo cuenta por autor y por motivo', () => {
+  const filas = historialDeBajas({
+    a: { codigo: 'A', motivo: 'dado-de-baja', cuando: '2026-11-01T10:00:00Z', quien: 'admin' },
+    b: { codigo: 'B', motivo: 'dado-de-baja', cuando: '2026-11-02T10:00:00Z', quien: 'admin' },
+    c: { codigo: 'C', motivo: 'mal-capturado', cuando: '2026-11-03T10:00:00Z', quien: 'leon' },
+  }, {}, new Date('2026-11-08T12:00:00Z'))
+
+  const r = resumenDeBajas(filas)
+  assert.equal(r.total, 3)
+  assert.equal(r.pendientes, 0, 'sin inventarios, nada sigue vivo')
+  assert.equal(r.resueltas, 3)
+  assert.deepEqual(r.porQuien[0], ['admin', 2], 'lo mas frecuente primero')
+  assert.deepEqual(r.porMotivo[0], ['Se decidió darlo de baja', 2])
+})
+
+test('un pendiente de mas de tres semanas se marca, y el archivo lo cuenta', () => {
+  // Un pendiente que nadie toca deja de ser un problema del dato y pasa a ser
+  // un problema de que nadie lo corrige. Son cosas distintas y se dicen
+  // distinto.
+  const filas = historialDeBajas(
+    { a: { codigo: 'VIEJO', motivo: 'otro', cuando: '2026-10-01T10:00:00Z', quien: 'admin' } },
+    { leon: { productos: [{ Codigo: 'VIEJO', Existencia: 1 }] } },
+    new Date('2026-11-08T12:00:00Z'))
+  assert.equal(filas[0].insiste, true)
+  assert.equal(resumenDeBajas(filas).insisten, 1)
 })

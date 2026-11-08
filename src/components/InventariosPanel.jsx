@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 // Aqui si entra la bodega: es inventario y el panel es solo de administrador.
-import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA } from '../lib/sucursales'
+import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl, estadisticasUrl, historialUrl } from '../lib/s3'
 import { clasePorModelo, CLASES } from '../lib/clases'
 import { useAuth } from '../context/AuthContext'
 import { useAjustes } from '../lib/useAjustes'
+import { historialDeBajas, resumenDeBajas } from '../lib/ajustes'
+import { descargarArchivoDeBajas } from '../lib/exportarBajas'
 import { sinOcultos, MOTIVOS } from '../lib/ajustes'
 import { guardarAjuste } from '../lib/api'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
@@ -20,6 +22,8 @@ const TINTA_SUAVE = '#4A5A61'
 const TINTA_TENUE = '#8598A1'
 const LINEA       = '#D6E0E4'
 const ROSA        = '#C4156F'
+const AMBAR       = '#B45309'
+const VERDE       = '#5E9422'
 
 const TODAS = { slug: 'todas', nombre: 'Todas las sucursales' }
 
@@ -175,6 +179,150 @@ function ThOrd({ children, campo, valor, orden, num, title, extra }) {
         {activa ? (orden.dir === -1 ? '▼' : '▲') : '⇅'}
       </span>
     </th>
+  )
+}
+
+/**
+ * El archivo de bajas: todo lo que se ha quitado desde aquí.
+ *
+ * Lo pidió el dueño el 2026-11-08: «quisiera saber si lo borro, a dónde se va
+ * o dónde queda ese registro… me gustaría tener un archivo o un lugar para
+ * consultar eso».
+ *
+ * La primera parte de la respuesta está en la propia pantalla, y había que
+ * decirla: **la ✕ no borra nada**. No puede. `inventario.json` se regenera
+ * desde el respaldo de Eleventa cuatro veces al día, así que lo que la página
+ * escribiera encima se borraría esa misma tarde. Lo que hace es dejar una
+ * nota al lado, y la nota es lo que se consulta aquí.
+ *
+ * La segunda parte era un agujero de verdad. La única pantalla que enseñaba
+ * estas notas —«Corregidos aquí, pendientes en la caja», en Revisar— filtra
+ * por pendiente, así que en cuanto el código desaparecía del respaldo el
+ * renglón **se caía de la vista**. El registro seguía entero en el archivo,
+ * porque nada lo borra nunca, pero no había dónde mirarlo: el control se
+ * perdía justo cuando el trabajo se había hecho bien.
+ *
+ * Va aquí y no en Revisar porque aquí es donde se pulsa la ✕. Una lista que
+ * vive en otra pestaña es una lista que nadie abre.
+ */
+function ArchivoDeBajas({ correcciones, inventarios, onDeshacer }) {
+  const [abierto, setAbierto] = useState(false)
+  const [verTodo, setVerTodo] = useState(false)
+
+  const filas = useMemo(
+    () => historialDeBajas(correcciones, inventarios ?? {}),
+    [correcciones, inventarios])
+  const r = useMemo(() => resumenDeBajas(filas), [filas])
+
+  if (!filas.length) return null
+
+  const visibles = verTodo ? filas : filas.slice(0, 25)
+
+  return (
+    <section data-archivo-bajas
+             style={{ marginTop: 16, border: '1px solid ' + LINEA, borderRadius: 18, padding: '12px 14px' }}>
+      <button type="button" onClick={() => setAbierto(v => !v)}
+              data-abrir-archivo
+              style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap',
+                       width: '100%', background: 'none', border: 'none', padding: 0,
+                       cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: TINTA }}>
+          Lo que has dado de baja
+        </span>
+        <span style={{ fontSize: 12, color: TINTA_SUAVE }}>
+          <strong>{r.total}</strong> {r.total === 1 ? 'código' : 'códigos'} ·{' '}
+          <strong style={{ color: r.pendientes ? AMBAR : VERDE }}>{r.pendientes}</strong>{' '}
+          {r.pendientes === 1 ? 'sigue' : 'siguen'} en la caja ·{' '}
+          {r.resueltas} ya no {r.resueltas === 1 ? 'está' : 'están'}
+          {r.insisten > 0 && (
+            <strong style={{ color: ROSA }}>
+              {' '}· {r.insisten} {r.insisten === 1 ? 'lleva' : 'llevan'} más de 3 semanas
+            </strong>
+          )}
+        </span>
+        <span style={{ marginInlineStart: 'auto', fontSize: 11, color: TINTA_TENUE }}>
+          {abierto ? 'Ocultar ▲' : 'Ver ▼'}
+        </span>
+      </button>
+
+      {abierto && (<>
+        <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '9px 0 0', lineHeight: 1.55 }}>
+          La <strong>✕</strong> no borra nada de Eleventa, y no puede: el respaldo se regenera
+          cuatro veces al día y cualquier cosa escrita encima se borraría esa misma tarde. Lo que
+          hace es apuntar la decisión aquí y dejar de contar ese código en los recuadros. Un
+          renglón pasa a <strong>«ya no está»</strong> solo, cuando el respaldo llega sin él;
+          nadie marca nada.
+        </p>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '10px 0' }}>
+          <button type="button" className="rev-saltar" data-bajar-archivo
+                  onClick={() => descargarArchivoDeBajas(correcciones, inventarios ?? {})}>
+            Bajar el archivo en Excel
+          </button>
+          {filas.length > 25 && (
+            <button type="button" className="rev-saltar" onClick={() => setVerTodo(v => !v)}>
+              {verTodo ? 'Ver sólo los 25 primeros' : `Ver los ${filas.length}`}
+            </button>
+          )}
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ color: TINTA_TENUE, fontSize: 10.5 }}>
+                <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 0' }}>Código</th>
+                <th style={{ textAlign: 'left', fontWeight: 600 }}>Modelo</th>
+                <th style={{ textAlign: 'left', fontWeight: 600 }}>Por qué</th>
+                <th style={{ textAlign: 'left', fontWeight: 600 }}>Se marcó</th>
+                <th style={{ textAlign: 'left', fontWeight: 600 }}>Estado</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {visibles.map(f => (
+                <tr key={f.clave ?? f.codigo}
+                    data-baja-archivada={f.codigo}
+                    style={{ borderTop: '1px solid ' + LINEA }}>
+                  <td style={{ padding: '5px 0', fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>
+                    {f.codigo}
+                  </td>
+                  <td style={{ color: TINTA_SUAVE, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      title={f.producto}>
+                    {f.producto || '—'}
+                  </td>
+                  <td style={{ color: TINTA_SUAVE }}>{MOTIVOS[f.motivo] ?? f.motivo}</td>
+                  <td style={{ color: TINTA_TENUE, whiteSpace: 'nowrap' }}>
+                    {String(f.cuando ?? '').slice(0, 10)}
+                    {f.quien && <span> · {f.quien}</span>}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {f.resuelto
+                      ? <span style={{ color: VERDE }}>ya no está</span>
+                      : <span style={{ color: f.insiste ? ROSA : AMBAR }}>
+                          sigue en {(f.plazas ?? []).map(nombreSucursal).join(', ')}
+                          {f.insiste && ` · ${f.dias} d`}
+                        </span>}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    {/* Deshacer sólo tiene sentido mientras el código sigue
+                        ahí: devolverlo a los recuadros cuando ya no existe no
+                        devolvería nada, y el renglón es historia. */}
+                    {!f.resuelto && onDeshacer && (
+                      <button type="button" className="rev-saltar"
+                              data-deshacer-baja={f.codigo}
+                              onClick={() => onDeshacer(f.codigo)}
+                              style={{ fontSize: 10.5 }}>
+                        Deshacer
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>)}
+    </section>
   )
 }
 
@@ -427,6 +575,24 @@ export default function InventariosPanel() {
   const exportar = () => {
     if (esTodas) descargarInventarioConsolidado(visibles, tiendas, etiquetaFiltro)
     else descargarInventario(visibles, sucursal.nombre, etiquetaFiltro)
+  }
+
+  /**
+   * Devuelve un código a los recuadros.
+   *
+   * Se pinta al momento y se manda después, igual que la baja: el trabajo va
+   * al ritmo de quien decide, no al de la red.
+   */
+  const deshacerBaja = async codigo => {
+    const clave = `ocultar|${String(codigo).toUpperCase()}`
+    setCorrecciones(prev => {
+      const s = { ...prev }
+      delete s[clave]
+      return s
+    })
+    // Sin motivo, el backend retira el ajuste. Es la misma puerta por la que
+    // se dio de baja, al revés.
+    if (token) await guardarAjuste({ codigo, motivo: null }, token).catch(() => {})
   }
 
   const faltantes = inventarios ? tiendas.filter(s => !inventarios[s.slug]).map(s => s.nombre) : []
@@ -695,6 +861,9 @@ export default function InventariosPanel() {
               </p>
             )}
           </div>
+
+          <ArchivoDeBajas correcciones={correcciones} inventarios={inventarios}
+                          onDeshacer={deshacerBaja} />
         </>
       )}
     </div>

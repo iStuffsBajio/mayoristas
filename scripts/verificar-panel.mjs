@@ -449,6 +449,38 @@ const caja = {
   },
 }
 
+/**
+ * Bajas dadas desde la pagina, para que el archivo tenga algo que enseñar.
+ *
+ * Hacen falta LAS DOS CLASES. Con solo pendientes no se ejercita el renglon
+ * «ya no esta», que es justo lo que el archivo existe para conservar: la
+ * pantalla vieja los perdia de vista en cuanto desaparecian del respaldo. Y
+ * con solo resueltas no sale el boton de deshacer, que solo tiene sentido
+ * mientras el codigo sigue ahi.
+ *
+ * `NOEXISTE` no esta en ningun inventario de mentira a proposito: por eso
+ * cuenta como resuelta sin que nadie marque nada.
+ */
+const BAJAS = [
+  {
+    clave: `ocultar|${MODELOS[0][0]}`, codigo: MODELOS[0][0], producto: MODELOS[0][1],
+    motivo: 'dado-de-baja', quien: 'admin',
+    cuando: new Date(Date.now() - 3 * 864e5).toISOString(),
+  },
+  {
+    // De hace mas de tres semanas: enciende el aviso de que nadie lo corrige,
+    // que es una alerta distinta -ya no del dato, sino de que nadie lo toca-.
+    clave: `ocultar|${MODELOS[1][0]}`, codigo: MODELOS[1][0], producto: MODELOS[1][1],
+    motivo: 'mal-capturado', quien: 'leon', nota: 'se captura con dos nombres',
+    cuando: new Date(Date.now() - 40 * 864e5).toISOString(),
+  },
+  {
+    clave: 'ocultar|NOEXISTE', codigo: 'NOEXISTE', producto: 'MODELO QUE YA SE BORRO',
+    motivo: 'ya-no-existe', quien: 'admin',
+    cuando: new Date(Date.now() - 90 * 864e5).toISOString(),
+  },
+]
+
 /** Lo que devuelve cada ruta, según lo que pida. */
 function respuesta(url) {
   const u = String(url)
@@ -460,6 +492,7 @@ function respuesta(url) {
   if (/turnos/i.test(u)) return turnos
   // Las respuestas de la cola viven en el backend, no en S3 publico.
   if (/revisiones/i.test(u)) return { marcas: {} }
+  if (/\/ajustes/i.test(u)) return { ajustes: BAJAS }
   if (/surtidos/i.test(u)) return { surtidos: SURTIDOS }
   if (/\/ventas\b/i.test(u)) return VENTAS_DE(u.match(/plaza=([a-z-]+)/)?.[1] ?? 'leon')
   if (/\/caja/i.test(u)) return caja
@@ -1040,6 +1073,63 @@ async function revisarBandeja(window, donde) {
 
   porSitio.push(`${donde}: ${cuantas} incidencias`)
   return cuantas
+}
+
+/**
+ * El archivo de bajas, en la pestaña de Inventarios.
+ *
+ * Lo que esto caza es que el archivo vuelva a perder de vista lo ya resuelto,
+ * que es el agujero que lo pidio: la pantalla vieja filtraba por pendiente,
+ * asi que en cuanto un codigo desaparecia del respaldo el renglon se caia y
+ * no quedaba donde mirarlo. Si alguien vuelve a filtrar aqui, la seccion se
+ * seguira dibujando perfecta —con menos renglones— y nada fallaria.
+ */
+async function archivoDeBajas(window, donde) {
+  const doc = window.document
+  const sec = doc.querySelector('[data-archivo-bajas]')
+  if (!sec) {
+    errores.push(`${donde} · no se dibujo el archivo de bajas`)
+    return 0
+  }
+
+  const abrir = doc.querySelector('[data-abrir-archivo]')
+  if (!abrir) {
+    errores.push(`${donde} · el archivo de bajas no se puede abrir`)
+    return 1
+  }
+  clic(window, abrir)
+  await nuevaVuelta(window, 6)
+  if (!enPie(window, `${donde} · archivo de bajas`)) return 1
+
+  const filas = [...doc.querySelectorAll('[data-baja-archivada]')]
+  if (filas.length !== BAJAS.length) {
+    errores.push(`${donde} · el archivo enseña ${filas.length} bajas de ${BAJAS.length}: volvio a perder las resueltas`)
+  }
+
+  const txt = (sec.textContent || '').replace(/\s+/g, ' ')
+  // Las dos clases tienen que distinguirse. Sin esto, enseñarlas todas
+  // mezcladas no diria cual sigue pendiente de borrar en la caja.
+  if (!/ya no está/.test(txt)) {
+    errores.push(`${donde} · el archivo no marca lo que YA desaparecio del respaldo`)
+  }
+  if (!/sigue en/.test(txt)) {
+    errores.push(`${donde} · el archivo no dice donde sigue vivo lo pendiente`)
+  }
+  // Y la frase que contesta la pregunta que lo origino: a donde va lo que
+  // se borra. Si se cae, la pantalla vuelve a no explicarse sola.
+  if (!/no borra nada de Eleventa/.test(txt)) {
+    errores.push(`${donde} · el archivo ya no explica que la ✕ no borra nada`)
+  }
+  if (!doc.querySelector('[data-bajar-archivo]')) {
+    errores.push(`${donde} · el archivo no se puede bajar en Excel`)
+  }
+  // Deshacer solo en lo pendiente: devolver a los recuadros un codigo que ya
+  // no existe no devolveria nada.
+  const deshacer = doc.querySelectorAll('[data-deshacer-baja]').length
+  if (deshacer !== BAJAS.length - 1) {
+    errores.push(`${donde} · «deshacer» sale en ${deshacer} renglones y deberia salir en los ${BAJAS.length - 1} pendientes`)
+  }
+  return 1
 }
 
 /**
@@ -1848,6 +1938,7 @@ let plazasDeEfectivo = 0
 // codigo, que es lo que se vino a arreglar.
 const lotesVistos = new Set()
 let nuevosVistos = 0
+let archivosDeBaja = 0
 
 for (const [nombre, sesion] of SESIONES) {
   const { window, dichos } = await arrancar(sesion)
@@ -1925,6 +2016,7 @@ for (const [nombre, sesion] of SESIONES) {
         }
         if (/inventarios/i.test(t)) {
           clasesVistas += await clasesEnRecuadros(window, `${nombre} · ${t}`)
+          archivosDeBaja += await archivoDeBajas(window, `${nombre} · ${t}`)
         }
         if (/se mueve/i.test(t)) {
           movimientoVisto += queSeMueve(window, `${nombre} · admin · ${t}`)
@@ -1989,6 +2081,8 @@ if (bandejasDeCosto < 1) {
   errores.push('la bandeja de «Costos que faltan en bodega» no se dibujo: el costo sale solo de bodega, y si el hueco no se ve la utilidad miente por omision')
 }
 for (const l of porSitio) console.log('  ' + l)
+console.log(`  archivo de bajas: ${archivosDeBaja} dibujado`)
+if (!archivosDeBaja) errores.push('el archivo de bajas no se dibujo en ninguna sesion')
 console.log(`  seccion de modelos nuevos: ${nuevosVistos} dibujada`)
 if (!nuevosVistos) errores.push('la seccion «estan vendiendo los modelos nuevos» no se dibujo en ninguna sesion')
 console.log(`  lotes dibujados: ${lotesVistos.size}`)

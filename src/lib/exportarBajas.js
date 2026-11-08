@@ -22,7 +22,9 @@
 
 import XLSX from 'xlsx-js-style'
 import { hojaDeTabla, nombreHoja, celda, estiloNota } from './excelEstilo.js'
-import { MOTIVOS, pendientesPorPlaza } from './ajustes.js'
+import {
+  MOTIVOS, pendientesPorPlaza, historialDeBajas, resumenDeBajas,
+} from './ajustes.js'
 import { nombreSucursal } from './sucursales.js'
 
 const COLUMNAS = [
@@ -69,6 +71,57 @@ export function libroDeBajas(ajustes, inventarios, { hoy = new Date() } = {}) {
 
 export function descargarBajas(ajustes, inventarios, opciones) {
   const r = libroDeBajas(ajustes, inventarios, opciones)
+  if (!r) return null
+  XLSX.writeFile(r.libro, r.archivo)
+  return r.archivo
+}
+
+// ── El archivo completo: todo lo que se ha dado de baja alguna vez ────────
+//
+// El libro de arriba lleva sólo lo PENDIENTE, porque es una lista de tareas
+// para la tienda. Este lleva TODO, incluido lo que ya desapareció del
+// respaldo, porque contesta otra pregunta: «¿qué he quitado yo?».
+//
+// Sin él, la única pantalla que enseñaba estas notas las perdía de vista en
+// cuanto el código desaparecía de verdad —se caía de «pendientes» y ya no
+// salía en ningún sitio—, así que llevar el control acababa justo cuando el
+// trabajo se había hecho bien.
+
+const COLUMNAS_ARCHIVO = [
+  { titulo: 'Estado',   valor: f => (f.resuelto ? 'Ya no está' : 'Sigue en la caja'), ancho: 17 },
+  { titulo: 'Código',   valor: f => f.codigo, fuerte: true, ancho: 16 },
+  { titulo: 'Producto', valor: f => f.producto || '', ancho: 38 },
+  { titulo: 'Por qué',  valor: f => MOTIVOS[f.motivo] ?? f.motivo, ancho: 26 },
+  { titulo: 'Se marcó', valor: f => String(f.cuando ?? '').slice(0, 10), ancho: 13 },
+  { titulo: 'Lo marcó', valor: f => f.quien ?? '', ancho: 14 },
+  { titulo: 'Dónde sigue', valor: f => (f.plazas ?? []).map(nombreSucursal).join(', '), ancho: 30 },
+  { titulo: 'Días',     valor: f => f.dias, num: true, ancho: 9 },
+  { titulo: 'Nota',     valor: f => f.nota || '', ancho: 34 },
+]
+
+export function libroArchivoDeBajas(ajustes, inventarios, { hoy = new Date() } = {}) {
+  const filas = historialDeBajas(ajustes, inventarios, hoy)
+  if (!filas.length) return null
+
+  const libro = XLSX.utils.book_new()
+  const hoja = hojaDeTabla(COLUMNAS_ARCHIVO, filas)
+  const r = resumenDeBajas(filas)
+
+  const fin = filas.length + 3
+  celda(hoja, `A${fin}`,
+    `${r.total} códigos dados de baja desde la página: ${r.pendientes} siguen `
+    + `en la caja de alguna plaza y ${r.resueltas} ya no están en ningún `
+    + 'respaldo. La página no borra nada de Eleventa —el respaldo manda— así '
+    + 'que esto es el registro de lo que se decidió, no de lo que se ejecutó: '
+    + 'un renglón pasa a «Ya no está» solo, cuando el respaldo llega sin él.',
+    estiloNota)
+
+  XLSX.utils.book_append_sheet(libro, hoja, nombreHoja('Archivo de bajas'))
+  return { libro, archivo: `archivo-de-bajas-${hoy.toISOString().slice(0, 10)}.xlsx` }
+}
+
+export function descargarArchivoDeBajas(ajustes, inventarios, opciones) {
+  const r = libroArchivoDeBajas(ajustes, inventarios, opciones)
   if (!r) return null
   XLSX.writeFile(r.libro, r.archivo)
   return r.archivo

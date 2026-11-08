@@ -201,3 +201,70 @@ export function resumirAjustes(ajustes, inventarios, hoy = new Date()) {
   }
   return { pendientes, resueltos, insistiendo, total: pendientes + resueltos }
 }
+
+// ── El archivo de bajas ───────────────────────────────────────────────────
+//
+// Lo pidió el dueño el 2026-11-08: «quisiera saber si lo borro, a dónde se va
+// o dónde queda ese registro… me gustaría tener un archivo o un lugar para
+// consultar eso».
+//
+// La respuesta a la primera parte es que NO SE BORRA NADA. La ✕ de Inventarios
+// no toca el inventario —`inventario.json` se regenera desde el respaldo de
+// Eleventa cuatro veces al día, así que escribir encima sería borrarlo esa
+// misma tarde— sino que deja una nota al lado, en `ajustes/<quien>.json`.
+//
+// Lo que faltaba es la segunda parte, y era un agujero de verdad: la única
+// pantalla que enseñaba esas notas —«Corregidos aquí, pendientes en la caja»,
+// en Revisar— filtra por PENDIENTE. En cuanto el código desaparece de verdad
+// del respaldo, el ajuste pasa a resuelto y **se cae de la pantalla**. El
+// registro seguía entero en el archivo, porque nada lo borra nunca, pero no
+// había forma de consultarlo: justo lo contrario de llevar un control.
+
+/**
+ * Todo lo que se ha dado de baja, resuelto o no.
+ *
+ * Lo RESUELTO va primero en la cabeza de quien pregunta -«¿qué he quitado?»-
+ * pero en la lista va detrás: lo que todavía sigue en la caja es lo que pide
+ * hacer algo hoy.
+ */
+export function historialDeBajas(correcciones, inventarios, hoy = new Date()) {
+  const filas = Object.values(correcciones ?? {}).map(a => {
+    const e = estadoDe(a, inventarios ?? {}, hoy)
+    return {
+      ...a,
+      ...e,
+      // El día en que el respaldo llegó sin él no se sabe: lo que se guarda es
+      // cuándo se DECIDIÓ. Inventar una fecha de desaparición sería peor que
+      // no darla, así que se dice lo que se sabe y nada más.
+      resuelto: e.estado === ESTADOS.RESUELTO,
+    }
+  })
+
+  return filas.sort((a, b) =>
+    // Lo pendiente arriba, y dentro de cada grupo lo más viejo primero: es lo
+    // que lleva más tiempo esperando a que alguien lo borre de la caja.
+    (a.resuelto ? 1 : 0) - (b.resuelto ? 1 : 0)
+    || String(b.cuando ?? '').localeCompare(String(a.cuando ?? '')))
+}
+
+/** Las cuentas del archivo, para el encabezado. */
+export function resumenDeBajas(filas) {
+  const pendientes = filas.filter(f => !f.resuelto)
+  return {
+    total:      filas.length,
+    pendientes: pendientes.length,
+    resueltas:  filas.length - pendientes.length,
+    insisten:   pendientes.filter(f => f.insiste).length,
+    // Por quién, para saber de dónde salen las decisiones.
+    porQuien: Object.entries(filas.reduce((m, f) => {
+      const k = f.quien || 'sin autor'
+      m[k] = (m[k] || 0) + 1
+      return m
+    }, {})).sort((a, b) => b[1] - a[1]),
+    porMotivo: Object.entries(filas.reduce((m, f) => {
+      const k = MOTIVOS[f.motivo] ?? f.motivo ?? 'sin motivo'
+      m[k] = (m[k] || 0) + 1
+      return m
+    }, {})).sort((a, b) => b[1] - a[1]),
+  }
+}

@@ -1639,6 +1639,50 @@ porque el día que salga de verdad tampoco se leerá—.
 
 ---
 
+## ⚠️ VERIFICAR — La ✕ de Inventarios NO borra nada, y hay que poder consultarlo
+
+Lo preguntó el dueño el 2026-11-08: «quisiera saber si lo borro, a dónde se va
+o dónde queda ese registro… me gustaría tener un archivo o un lugar para
+consultar eso».
+
+**La ✕ no borra nada de Eleventa, y no puede.** `inventario.json` se regenera
+desde el respaldo cuatro veces al día, así que cualquier cosa que la página
+escribiera encima se borraría esa misma tarde. Lo que hace es dejar una nota
+en `ajustes/<quien>.json` —prefijo privado— y dejar de contar ese código en
+los recuadros.
+
+### Lo que faltaba era un agujero de verdad
+
+La única pantalla que enseñaba esas notas —«Corregidos aquí, pendientes en la
+caja», en Revisar— **filtra por PENDIENTE**. En cuanto el código desaparecía
+del respaldo, el ajuste pasaba a resuelto y el renglón **se caía de la vista**.
+
+El registro seguía entero en el archivo, porque nada lo borra nunca, pero no
+había dónde mirarlo: el control se perdía **justo cuando el trabajo se había
+hecho bien**, que es el peor momento posible para perderlo.
+
+Ahora `historialDeBajas()` en `ajustes.js` devuelve TODO —resuelto o no— y la
+sección «Lo que has dado de baja» vive en **Inventarios**, no en Revisar,
+porque ahí es donde se pulsa la ✕: una lista que vive en otra pestaña es una
+lista que nadie abre. Baja en Excel con `descargarArchivoDeBajas()`.
+
+Tres detalles que no son cosméticos:
+
+- **El estado no lo marca nadie.** Mientras el código siga vivo en alguna
+  plaza queda pendiente; cuando desaparece de todas pasa a «ya no está» solo.
+- **No se inventa la fecha en que desapareció.** Lo que se guarda es cuándo se
+  DECIDIÓ. Dar una fecha de desaparición que nadie midió sería peor que no
+  darla.
+- **«Deshacer» sólo sale en lo pendiente.** Devolver a los recuadros un código
+  que ya no existe no devolvería nada, y ese renglón ya es historia.
+
+El Excel de Revisar sigue llevando **sólo lo pendiente**, y así tiene que
+seguir: es una lista de tareas para la tienda, no un archivo histórico. Son
+dos preguntas distintas —«qué me falta borrar» y «qué he quitado»— y
+mezclarlas haría que ninguna de las dos se pudiera contestar de un vistazo.
+
+---
+
 ## 🔒 CONFIRMAR — El segundo factor es SÓLO del administrador
 
 Se añadió el 2026-11-07. Es TOTP estándar (RFC 6238) hecho con el `crypto` de
