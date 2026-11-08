@@ -254,20 +254,32 @@ export const urlTotp = (secreto, cuenta = 'admin', emisor = 'iStuffs Bajio') =>
 // ── Firma de los bytes de una imagen ───────────────────────────────────────
 
 /**
- * Si los PRIMEROS BYTES dicen que es la imagen que el cliente afirma.
+ * QUE IMAGEN ES, segun sus primeros bytes. `null` si no es ninguna.
  *
- * El tipo lo manda el navegador y no prueba nada: se puede subir cualquier
- * cosa diciendo que es un PNG. Los bytes si lo prueban.
+ * Se DEDUCE, no se comprueba contra lo que diga el cliente, y la diferencia
+ * importa en las dos direcciones:
+ *
+ *   - Por seguridad: el tipo lo manda el navegador y no prueba nada. Se podia
+ *     subir cualquier cosa -un guion, un ejecutable- diciendo que era un PNG.
+ *   - Por no perder pedidos: `file.type` viene VACIO cuando el archivo no
+ *     trae una extension que el navegador reconozca, y entonces la pagina
+ *     mandaba «image/jpeg» por defecto. Comparando contra esa etiqueta, un
+ *     PNG de verdad con el nombre raro se habria rechazado, y eso es un
+ *     pedido de un cliente que se pierde sin que nadie se entere.
+ *
+ * Deduciendolo, lo que no es una imagen no pasa, y lo que si lo es pasa
+ * aunque venga mal etiquetado.
  */
-export function pareceImagen(buf, tipo) {
-  if (!Buffer.isBuffer(buf) || buf.length < 12) return false
+export function tipoDeImagen(buf) {
+  if (!Buffer.isBuffer(buf) || buf.length < 12) return null
   const empieza = (...b) => b.every((v, i) => buf[i] === v)
-  switch (tipo) {
-    case 'image/jpeg': return empieza(0xff, 0xd8, 0xff)
-    case 'image/png':  return empieza(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
-    case 'image/gif':  return buf.subarray(0, 6).toString('latin1').match(/^GIF8[79]a$/) !== null
-    case 'image/webp': return buf.subarray(0, 4).toString('latin1') === 'RIFF'
-      && buf.subarray(8, 12).toString('latin1') === 'WEBP'
-    default: return false
-  }
+  if (empieza(0xff, 0xd8, 0xff)) return 'image/jpeg'
+  if (empieza(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png'
+  if (/^GIF8[79]a$/.test(buf.subarray(0, 6).toString('latin1'))) return 'image/gif'
+  if (buf.subarray(0, 4).toString('latin1') === 'RIFF'
+    && buf.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp'
+  return null
 }
+
+/** Si los bytes son los de ese tipo en concreto. */
+export const pareceImagen = (buf, tipo) => tipoDeImagen(buf) === tipo

@@ -733,12 +733,21 @@ test('LA PLAZA DEL LOGIN SE VALIDA antes de leer ninguna variable', async () => 
   const r = await pedir('POST', '/login', {
     cuerpo: { sucursal: 'admin', contrasena: 'clave-admin' },
   })
-  // Con la contraseña del admin entra, pero por SU rama: admin de verdad,
-  // nunca una sesion con plaza «admin».
-  if (r.statusCode === 200) {
-    const d = cuerpoDe(r)
-    assert.equal(d.admin, true)
-    assert.equal(d.sucursal, 'all', 'jamas una sesion de plaza llamada «admin»')
+  // «Administrador» es lo que el desplegable del login ofrece como plaza, asi
+  // que ESTO ES EL CAMINO NORMAL y tiene que seguir funcionando: la rama del
+  // admin se evalua antes de mirar ninguna plaza.
+  //
+  // Sin este aserto estricto, la lista blanca podria dejar fuera al
+  // administrador y la prueba pasaria igual. Es el guardian de ese despliegue.
+  assert.equal(r.statusCode, 200, 'elegir «Administrador» tiene que seguir entrando')
+  const d = cuerpoDe(r)
+  assert.equal(d.admin, true)
+  assert.equal(d.sucursal, 'all', 'jamas una sesion de plaza llamada «admin»')
+
+  // Y la plaza inventada no alcanza NINGUNA variable de entorno.
+  for (const falsa of ['admin', 'SESION_SECRETO', 'bodega-x', '../admin']) {
+    const q = await pedir('POST', '/login', { cuerpo: { sucursal: falsa, contrasena: 'clave-leon' } })
+    assert.equal(q.statusCode, 401, `«${falsa}» no puede entrar con la clave de Leon`)
   }
   olvidarIntentos()
 })
@@ -874,4 +883,51 @@ test('una SUCURSAL no necesita codigo: su panel no lleva nombres ni dinero', asy
     delete process.env.TOTP_ADMIN
     olvidarIntentos()
   }
+})
+
+test('UN PNG MAL ETIQUETADO no pierde el pedido', async () => {
+  // `file.type` llega VACIO cuando el navegador no reconoce la extension, y
+  // la pagina manda «image/jpeg» por defecto. Si el tipo se comprobara contra
+  // esa etiqueta, un PNG de verdad con el nombre raro se rechazaria: eso es
+  // un pedido de un cliente que se pierde sin que nadie se entere.
+  //
+  // El tipo se DEDUCE de los bytes, asi que pasa igual, y ademas se guarda
+  // con la extension correcta -si no, en la tienda no abriria-.
+  olvidarIntentos()
+  const llamadas = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, opciones) => {
+    llamadas.push({ url: String(url), arg: opciones?.headers?.['Dropbox-API-Arg'] })
+    if (String(url).includes('oauth2/token')) return { ok: true, json: async () => ({ access_token: 'x', expires_in: 3600 }) }
+    return { ok: true, json: async () => ({ name: 'a.png' }) }
+  }
+  try {
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 3),
+    ]).toString('base64')
+    const r = await pedir('POST', '/diseno', {
+      cuerpo: { sucursal: 'leon', tipo: 'image/jpeg', datos: png, nombre: 'Ana' },
+    })
+    assert.equal(r.statusCode, 200, 'un PNG de verdad entra aunque diga ser JPEG')
+    const ruta = JSON.parse(llamadas.find(l => l.url.includes('files/upload')).arg).path
+    assert.match(ruta, /\.png$/, 'y se guarda como .png, no como .jpg')
+  } finally {
+    globalThis.fetch = original
+    olvidarIntentos()
+  }
+})
+
+test('y lo que NO es una imagen sigue sin pasar, diga lo que diga', async () => {
+  olvidarIntentos()
+  for (const tipo of ['image/png', 'image/jpeg', '']) {
+    const r = await pedir('POST', '/diseno', {
+      cuerpo: {
+        sucursal: 'leon', tipo,
+        datos: Buffer.from('MZ\x90\x00\x03\x00\x00\x00ejecutable').toString('base64'),
+        nombre: 'x',
+      },
+    })
+    assert.equal(r.statusCode, 400, `con tipo «${tipo}»`)
+  }
+  olvidarIntentos()
 })

@@ -8,7 +8,7 @@
 
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import {
-  verificarContrasena, crearSesion, leerSesion, verificarTotp, pareceImagen,
+  verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
 } from './seguridad.js'
 
@@ -260,8 +260,13 @@ async function rutaSubirDiseno(evento, origen, cuerpo) {
   const suc  = SUCURSALES[slug]
   if (!suc) return responder(origen, 400, { error: 'Sucursal desconocida.' })
 
-  const tipo = String(cuerpo.tipo || '')
-  if (!TIPOS_IMAGEN.has(tipo)) return responder(origen, 400, { error: 'Tipo de imagen no permitido.' })
+  // El tipo que manda el cliente ya no decide nada: se mira abajo, en los
+  // bytes. Aqui solo se corta pronto lo que ni siquiera dice ser una imagen,
+  // para no decodificar diez megas de algo que se va a rechazar igual.
+  const tipoDicho = String(cuerpo.tipo || '')
+  if (tipoDicho && !TIPOS_IMAGEN.has(tipoDicho)) {
+    return responder(origen, 400, { error: 'Tipo de imagen no permitido.' })
+  }
 
   // El tamaño se mira ANTES de decodificar. `Buffer.from(x,'base64')` nunca
   // lanza -por eso el try/catch que había aquí era código muerto- así que lo
@@ -275,12 +280,13 @@ async function rutaSubirDiseno(evento, origen, cuerpo) {
   if (binario.length === 0)              return responder(origen, 400, { error: 'Imagen vacía.' })
   if (binario.length > MAX_IMAGEN_BYTES) return responder(origen, 413, { error: 'La imagen supera 10 MB.' })
 
-  // Y que los BYTES digan que es lo que el cliente afirma. El tipo lo manda
-  // el navegador y no prueba nada: así se podía subir cualquier cosa -un
-  // guion, un ejecutable- con nombre de `.png`, y quedaba en el Dropbox del
-  // negocio esperando a que alguien la abriera.
-  if (!pareceImagen(binario, tipo)) {
-    return responder(origen, 400, { error: 'El archivo no es la imagen que dice ser.' })
+  // Y el tipo sale de los BYTES, no de lo que afirme el cliente. Así no se
+  // puede colar un guion o un ejecutable con nombre de `.png`, y tampoco se
+  // pierde el pedido de quien suba un PNG de verdad que el navegador no supo
+  // etiquetar -`file.type` llega vacío con una extensión que no reconoce-.
+  const tipo = tipoDeImagen(binario)
+  if (!tipo || !TIPOS_IMAGEN.has(tipo)) {
+    return responder(origen, 400, { error: 'El archivo no es una imagen.' })
   }
 
   // Nombre y modelo vienen del cliente: se limpian para que no puedan salirse
@@ -294,6 +300,8 @@ async function rutaSubirDiseno(evento, origen, cuerpo) {
   // corresponde cada imagen sin tener que abrirlas una por una.
   const modelo = limpiar(cuerpo.modelo, 50)
 
+  // La extension sale del tipo DEDUCIDO: si se tomara del que dijo el
+  // cliente, un PNG acabaria guardado como `.jpg` y en la tienda no abriria.
   const ext   = tipo === 'image/png' ? 'png' : tipo === 'image/webp' ? 'webp' : tipo === 'image/gif' ? 'gif' : 'jpg'
   const fecha = new Date().toISOString().slice(0, 10)
   const ruta  = `${CARPETA_PEDIDOS}/${suc.carpeta}/${fecha}_${nombre}${modelo ? `_${modelo}` : ''}.${ext}`
