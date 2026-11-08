@@ -658,7 +658,7 @@ test('el catalogo de errores se guarda editado y no toca las incidencias', async
 // ── Lo que endurecio la auditoria de seguridad del 2026-11-07 ─────────────
 
 import {
-  nuevoSecretoTotp, codigoTotp, verificarTotp, pareceImagen,
+  nuevoSecretoTotp, codigoTotp, verificarTotp, pareceImagen, desdeBase32,
   registrarIntentoFallido, demasiadosIntentos, limpiarIntentos, olvidarIntentos,
 } from '../src/seguridad.js'
 
@@ -930,4 +930,26 @@ test('y lo que NO es una imagen sigue sin pasar, diga lo que diga', async () => 
     assert.equal(r.statusCode, 400, `con tipo «${tipo}»`)
   }
   olvidarIntentos()
+})
+
+test('LOS CODIGOS COINCIDEN CON EL ESTANDAR (vectores del RFC 6238)', () => {
+  // Esta es la prueba que decide si el segundo factor sirve de algo. Todo lo
+  // demas puede estar bien -el secreto, la base32, el reloj- y aun asi dar
+  // numeros que la app del movil no muestra. Entonces el administrador no
+  // entra NUNCA a su propio panel, y el fallo parece del telefono.
+  //
+  // Son los vectores oficiales: el secreto es el ASCII '12345678901234567890'
+  // y los codigos estan publicados en el RFC. Si estos seis salen, cualquier
+  // app que cumpla el estandar -Microsoft Authenticator, Google, Authy,
+  // 1Password- enseña lo mismo que calcula el servidor.
+  const SECRETO = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
+  assert.equal(desdeBase32(SECRETO).toString('ascii'), '12345678901234567890',
+    'la base32 tiene que decodificar al secreto del RFC')
+
+  for (const [t, esperado] of [
+    [59, '287082'], [1111111109, '081804'], [1111111111, '050471'],
+    [1234567890, '005924'], [2000000000, '279037'], [20000000000, '353130'],
+  ]) {
+    assert.equal(codigoTotp(SECRETO, Math.floor(t / 30)), esperado, `en T=${t}`)
+  }
 })
