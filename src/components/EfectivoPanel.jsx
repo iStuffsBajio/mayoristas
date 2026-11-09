@@ -1130,7 +1130,19 @@ function Calendario({ plazas }) {
   const [indice, setIndice] = useState(0)
 
   if (!conDatos.length) return null
-  const semanas = conDatos[0].bloques ?? []
+
+  // Para MIRAR ATRAS se usan `todos` -las ocho que se calculan- y no
+  // `bloques` -las dos que se trabajan-, y la diferencia no es un descuido.
+  //
+  // El dueño bajo la lista de trabajo de ocho a dos el 2026-11-06, con esta
+  // razon: «ocho semanas a la vista eran dos meses de renglones para revisar
+  // un corte de ayer». Eso sigue valiendo: la lista con los botones de
+  // «marcar como depositado» es para HACER, y larga estorba.
+  //
+  // Pero el 2026-11-08 pidio poder elegir la semana en el calendario, que es
+  // otra cosa: ahi no se hace nada, se MIRA. Subir la lista de trabajo para
+  // poder consultar habria vuelto a romper justo lo que el arreglo.
+  const semanas = conDatos[0].todos ?? conDatos[0].bloques ?? []
   const semana = semanas[indice] ?? semanas[0]
   if (!semana) return null
 

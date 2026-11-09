@@ -757,10 +757,21 @@ El calendario enseñaba `bloques[0]` y punto, así que el domingo por la tarde
 —con la semana recién cerrada— no había forma de volver a mirarla. Ahora hay
 botones.
 
-Lo que no hay todavía es entre qué elegir: `INICIO_HISTORIAL` es el
-**2026-11-02** y el tope son las `SEMANAS_A_LA_VISTA` (**2**). Con una sola
-semana de historia los botones no se dibujan, porque un único botón que no
-lleva a ningún sitio es ruido. Crece solo cada lunes.
+🔒 **MIRAR y TRABAJAR no son la misma lista, y conviene que sigan separadas.**
+
+| | cuántas | para qué |
+|---|---|---|
+| `bloques` | `SEMANAS_A_LA_VISTA` = **2** | la lista con los botones de «marcar como depositado»: es para HACER |
+| `todos` | `SEMANAS` = **8** | los botones del calendario: ahí no se hace nada, se MIRA |
+
+El dueño bajó la lista de trabajo de ocho a dos el 2026-11-06 —«ocho semanas a
+la vista eran dos meses de renglones para revisar un corte de ayer»— y el
+2026-11-08 pidió poder elegir la semana en el calendario. Las dos cosas valen
+a la vez **porque son listas distintas**: subir la de trabajo para poder
+consultar habría vuelto a romper justo lo que él arregló dos días antes.
+
+Con una sola semana de historia los botones no se dibujan: un único botón que
+no lleva a ningún sitio es ruido. Crece solo cada lunes hasta las ocho.
 
 ### El historial arranca en CEROS: nada de antes del 2026-11-02 es un pendiente
 
