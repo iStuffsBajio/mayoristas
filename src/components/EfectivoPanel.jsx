@@ -713,8 +713,18 @@ function FormaAjuste({ plaza, fecha, clave, fila, onGuardar, onCerrar }) {
 
   return (
     <div style={{ marginTop: 14, padding: '14px 16px', borderRadius: 20, background: '#F9FBFC', border: '1.5px solid ' + LINEA }}>
-      <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 800, color: TINTA }}>
-        Ajustar «{titulo}» del {fecha}
+      <p style={{ margin: '0 0 4px', fontSize: 13, fontWeight: 800, color: TINTA }}>
+        Corregir «{titulo}» del {fecha}
+      </p>
+      {/* El dueño abrió esto sin saber para qué era: «no sé si es para yo
+          hacer un movimiento». Es para corregir lo que Eleventa calculó mal,
+          y lo importante es que NO lo borra. Decirlo aquí cuesta dos líneas y
+          ahorra abrirlo con miedo. */}
+      <p style={{ margin: '0 0 12px', fontSize: 11.5, color: TINTA_SUAVE, lineHeight: 1.5 }}>
+        Para cuando el número de Eleventa está mal y sabes el bueno. <strong>Lo de Eleventa no
+        se borra</strong>: se guarda al lado y se puede volver a él cuando quieras. La celda
+        queda marcada con ✏️ y al pasar el ratón dice qué decía antes, quién lo cambió y por qué.
+        No registra una salida ni mueve dinero: para eso está «Registrar movimiento».
       </p>
 
       {esTotal ? (

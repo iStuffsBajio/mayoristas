@@ -34,6 +34,7 @@ import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { agregarVentas } from '../src/lib/ventasTicket.js'
+import { reemplazosDeCancelados, resumirReemplazos } from '../src/lib/reemplazos.js'
 // La resolucion del respaldo se comparte con los otros extractores: del disco
 // en tu maquina y de Dropbox en la nube, que no tiene la A: montada.
 // Duplicarla era garantizar que el paso de la nube buscara donde no hay nada.
@@ -187,12 +188,50 @@ async function procesar(slug) {
     const corte = new Date(Date.now() - DIAS_VENTANA * 86400000).toISOString().slice(0, 10)
     const reciente = agregarVentas({ tickets, lineas, desdeDia: corte })
 
+    // ── Las cancelaciones y lo que se vendió justo después ──
+    //
+    // Lo propuso el dueño el 2026-11-08: «cancelo un iPhone 14 en 3 piezas y
+    // después doy de alta un iPhone 14 en TPU… en realidad nadie dice que es
+    // el reemplazo, pero si el modelo coincide sí es posible hacer una
+    // especie de regla».
+    //
+    // Es una SOSPECHA y sale etiquetada como tal. No alimenta ninguna cifra:
+    // las piezas y el dinero siguen saliendo de `agregarVentas`, que excluye
+    // los cancelados. Si esto entrara en una cuenta, la cuenta pasaría a
+    // apoyarse en una suposición sin que se notara.
+    //
+    // Sólo la ventana reciente: emparejar cancelaciones de hace cinco años no
+    // le sirve a nadie y multiplicaría el tamaño del archivo.
+    const lineasPorTicket = {}
+    for (const l of lineas) {
+      if (String(l.cantidad) === '0') continue
+      ;(lineasPorTicket[l.ticket] ??= []).push({
+        codigo: l.codigo, producto: l.producto,
+        piezas: Number(l.cantidad) || 0, importe: Number(l.total) || 0,
+      })
+    }
+    const recientes = tickets.filter(t => String(t.cuando ?? '').slice(0, 10) >= corte)
+    const cancelaciones = reemplazosDeCancelados({
+      tickets: recientes.map(t => ({
+        id: t.id, folio: t.folio, cuando: t.cuando, cajero: t.cajero,
+        // Eleventa guarda los booleanos como 't'/'f', nunca 1/0.
+        cancelado: String(t.cancelado).trim().toLowerCase() === 't',
+      })),
+      lineasPorTicket,
+    })
+    const resumenCancel = resumirReemplazos(cancelaciones)
+    log(`[${slug}] ${resumenCancel.cancelados} cancelaciones · `
+      + `${resumenCancel.conReemplazoProbable} con reemplazo probable · `
+      + `${resumenCancel.sinNadaDespues} sin nada después`)
+
     return {
       plaza: slug,
       nombre: suc.nombre,
       generado: new Date().toISOString(),
       respaldo: { fecha: respaldo.fecha },
       ...agregado,
+      // 🔒 Sospechas, nunca cifras. Ver `reemplazos.js`.
+      cancelaciones: { dias: DIAS_VENTANA, resumen: resumenCancel, filas: cancelaciones.slice(0, 300) },
       // La ventana va aparte y completa: quien valore en pesos usa esta y
       // quien cuente piezas o mida temporada usa la de arriba.
       ventana: { dias: DIAS_VENTANA, ...reciente },

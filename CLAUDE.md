@@ -820,6 +820,51 @@ Cuando un movimiento viene sin concepto **se dice** —«sin concepto en la
 caja»— en vez de dejar el hueco: un hueco se lee como que no cargó, y lo que
 pasa es que nadie lo escribió al registrarlo.
 
+### 🔒 Las cancelaciones y su «reemplazo» son una SOSPECHA, nunca un dato
+
+Lo propuso el dueño el 2026-11-08, y lo propuso con la trampa ya vista:
+
+> «Cancelo un iPhone 14 en 3 piezas. Y después doy de alta un iPhone 14 en
+> TPU. Pero es el ticket exactamente siguiente después de cancelar. **En
+> realidad nadie dice que es el reemplazo. Pero si el modelo coincide**, sí es
+> posible hacer una especie de regla.»
+
+Esa frase es todo el diseño. Eleventa **no enlaza** una cancelación con la
+venta que la sustituyó: ese dato no existe en ninguna tabla. Lo que sí existe
+es la hora, el cajero y los productos.
+
+La regla vive en `reemplazos.js`, con pruebas, y empareja una cancelación con
+el **siguiente ticket no cancelado del MISMO cajero** dentro de
+`MINUTOS_PARA_REEMPLAZO` (**30**). El cajero importa: dos mostradores atienden
+a la vez, y el ticket siguiente en el reloj puede ser de otro cliente.
+
+Tres niveles, y los tres se dicen en pantalla con su motivo:
+
+| | cuándo | qué es |
+|---|---|---|
+| **probable** | el siguiente ticket toca el mismo teléfono (`claveModelo`) | sospecha fundada |
+| **dudosa** | hay venta después, pero de otro modelo | se enseña para que lo juzgue una persona |
+| **ninguna** | no se vendió nada en la ventana | **esto no es sospecha: es venta que se fue** |
+
+**No alimenta ninguna cifra.** Las piezas y el dinero siguen saliendo de
+`agregarVentas`, que excluye los cancelados. Si esto entrara en una cuenta,
+la cuenta pasaría a apoyarse en una suposición sin que se notara —que es la
+clase de error que este archivo lleva entero documentando—. La única que sí es
+un hecho, y por eso va en pesos, es `importeSinReemplazo`.
+
+Y el emparejado **falla hacia no emparejar**: cuando no hay nada que
+sospechar, se dice que no lo hay. Un emparejado falso es peor que ninguno
+—enseña con seguridad algo que no pasó y nadie lo revisa, porque la pantalla
+se ve perfecta—. Ya costó caro con las fotos de los mockups.
+
+### El formulario de ajuste no borra lo de Eleventa, y ahora lo dice
+
+El dueño lo abrió sin saber para qué era: «no sé si es para yo hacer un
+movimiento». Es para corregir un número que Eleventa calculó mal, y lo que
+había que decir es que **lo de Eleventa se guarda al lado** y se puede volver
+a él. La celda queda con ✏️ y el motivo. No registra una salida ni mueve
+dinero: para eso está «Registrar movimiento».
+
 ### Las salidas se ven en LOS DOS sitios
 
 Primero sólo estaban en el calendario del tablero, y el dueño las buscó en el

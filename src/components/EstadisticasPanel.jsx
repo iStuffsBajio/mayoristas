@@ -964,6 +964,138 @@ function Estrenos({ datos, precios, plazas }) {
   )
 }
 
+/**
+ * Las cancelaciones y lo que se vendió justo después.
+ *
+ * Lo propuso el dueño el 2026-11-08, y lo propuso con la trampa ya vista:
+ * «en realidad nadie dice que es el reemplazo, pero si el modelo coincide sí
+ * es posible hacer una especie de regla».
+ *
+ * Eleventa NO enlaza una cancelación con la venta que la sustituyó. Esto es
+ * una SOSPECHA, y la pantalla tiene que decirlo en cada renglón o se leerá
+ * como un hecho. Por eso cada fila trae su motivo —el mismo teléfono, otro
+ * tipo de funda, cuántos minutos después— y no sólo un «sí» o un «no».
+ *
+ * La única cifra que NO es sospecha es la última: lo cancelado sin nada
+ * después. Eso es venta que se fue por la puerta, y es un hecho.
+ */
+function Cancelaciones({ porPlaza, plazas, sel }) {
+  const [abierta, setAbierta] = useState(null)
+
+  const cuales = sel === TODAS.slug ? plazas.map(p => p.slug) : [sel]
+  const grupos = cuales
+    .map(slug => ({
+      slug,
+      nombre: plazas.find(p => p.slug === slug)?.nombre ?? slug,
+      datos: porPlaza?.[slug]?.cancelaciones ?? null,
+    }))
+    .filter(g => g.datos?.filas?.length)
+
+  if (!grupos.length) return null
+
+  const r = grupos.reduce((a, g) => ({
+    cancelados: a.cancelados + g.datos.resumen.cancelados,
+    probables:  a.probables + g.datos.resumen.conReemplazoProbable,
+    sinNada:    a.sinNada + g.datos.resumen.sinNadaDespues,
+    dinero:     a.dinero + g.datos.resumen.importeSinReemplazo,
+  }), { cancelados: 0, probables: 0, sinNada: 0, dinero: 0 })
+
+  const COLOR = { probable: C_SUBE, dudosa: '#B45309', ninguna: C_BAJA }
+  const TEXTO = { probable: 'Probable reemplazo', dudosa: 'Dudoso', ninguna: 'Sin reemplazo' }
+
+  return (
+    <section data-cancelaciones
+             style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px' }}>
+      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
+        Tickets cancelados, y qué se vendió después
+      </h4>
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px', lineHeight: 1.5 }}>
+        <strong>Esto es una sospecha, no un dato.</strong> Eleventa no enlaza una cancelación con
+        la venta que la sustituyó: ese dato no existe en ninguna tabla. Lo que se mira es el
+        siguiente ticket del mismo cajero dentro de media hora, y si toca el mismo teléfono.
+        Cada renglón dice por qué se sospecha, para que puedas no estar de acuerdo.
+      </p>
+
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+        <Dato valor={r.cancelados} etiqueta="cancelados" />
+        <Dato valor={r.probables} etiqueta="con reemplazo probable" color={C_SUBE} />
+        {/* La única que es un hecho, y por eso va en pesos. */}
+        <Dato valor={r.sinNada} etiqueta="sin nada después" color={r.sinNada ? C_BAJA : TINTA_TENUE}
+              nota={r.dinero > 0 ? `${pesos(r.dinero)} que se fueron` : null} />
+      </div>
+
+      {grupos.map(g => (
+        <div key={g.slug} data-cancelaciones-de={g.slug} style={{ marginTop: 10 }}>
+          {grupos.length > 1 && (
+            <p style={{ margin: '0 0 5px', fontSize: 11.5, fontWeight: 800, color: TINTA }}>
+              {g.nombre}
+            </p>
+          )}
+          <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {g.datos.filas.slice(0, 25).map(f => {
+              const clave = `${g.slug}-${f.cancelado.id}`
+              const vale = abierta === clave
+              return (
+                <li key={clave} data-cancelacion={f.cancelado.folio || f.cancelado.id}
+                    style={{ border: '1px solid ' + LINEA, borderRadius: 12, padding: '8px 10px' }}>
+                  <button type="button" onClick={() => setAbierta(vale ? null : clave)}
+                          style={{ display: 'flex', gap: 9, alignItems: 'baseline', flexWrap: 'wrap',
+                                   width: '100%', background: 'none', border: 'none', padding: 0,
+                                   cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, color: COLOR[f.confianza] }}>
+                      {TEXTO[f.confianza]}
+                    </span>
+                    <span style={{ fontSize: 12, color: TINTA_TENUE, whiteSpace: 'nowrap' }}>
+                      {String(f.cancelado.cuando).slice(0, 16).replace('T', ' ')}
+                    </span>
+                    <span style={{ fontSize: 12.5, color: TINTA, flex: 1, minWidth: 160 }}>
+                      {f.cancelado.productos.map(x => x.producto).join(', ') || 'sin productos'}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: TINTA, whiteSpace: 'nowrap' }}>
+                      {pesos(f.cancelado.importe)}
+                    </span>
+                    <span style={{ fontSize: 10.5, color: TINTA_TENUE }}>{vale ? '▲' : '▼'}</span>
+                  </button>
+
+                  <p style={{ margin: '5px 0 0', fontSize: 11.5, color: TINTA_SUAVE, lineHeight: 1.45 }}>
+                    {f.porque}
+                  </p>
+
+                  {vale && f.reemplazo && (
+                    <div data-reemplazo style={{ marginTop: 8, paddingTop: 8,
+                                                 borderTop: '1px dashed ' + LINEA }}>
+                      <p style={{ margin: 0, fontSize: 11, fontWeight: 800, color: TINTA_TENUE,
+                                  textTransform: 'uppercase', letterSpacing: .4 }}>
+                        Lo que se vendió {f.reemplazo.minutosDespues} min después
+                      </p>
+                      <ul style={{ listStyle: 'none', margin: '5px 0 0' }}>
+                        {f.reemplazo.productos.map((x, i) => (
+                          <li key={i} style={{ fontSize: 12, color: TINTA, display: 'flex',
+                                               justifyContent: 'space-between', gap: 10 }}>
+                            <span>{x.piezas} × {x.producto} <span style={{ color: TINTA_TENUE }}>{x.codigo}</span></span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p style={{ margin: '5px 0 0', fontSize: 11.5, color: TINTA }}>
+                        Ticket {f.reemplazo.folio} · {pesos(f.reemplazo.importe)}
+                      </p>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          {g.datos.filas.length > 25 && (
+            <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '8px 0 0' }}>
+              Y {g.datos.filas.length - 25} más.
+            </p>
+          )}
+        </div>
+      ))}
+    </section>
+  )
+}
+
 function PrecioPorPlaza({ porPlaza, plazas }) {
   const GRUPOS = [
     { k: 'fundas',      titulo: 'Fundas',          nota: 'el negocio' },
@@ -1653,6 +1785,10 @@ export default function EstadisticasPanel() {
               es la pregunta que se hace al decidir la compra siguiente, y
               antes vivía en Surtido contestando sólo la mitad. */}
           <Estrenos datos={estrenosDatos} precios={precios} plazas={activas} />
+
+          {/* Las cancelaciones, con lo que se vendió después. Va aquí porque
+              es dato de TICKET, como todo lo de esta pestaña. */}
+          <Cancelaciones porPlaza={ventasPorPlaza} plazas={activas} sel={sel} />
 
           {/* A qué precio vende cada plaza, con los tres grupos SEPARADOS.
               Va aquí arriba, no al final: es lo que el dueño mira primero
