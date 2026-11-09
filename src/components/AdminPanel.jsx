@@ -427,7 +427,7 @@ export function BotonSeccion({ s, activa, onClick }) {
     <button type="button" onClick={onClick}
       className={'menu-seccion' + (activa ? ' activa' : '')}
       aria-current={activa ? 'page' : undefined}>
-      <span className="menu-seccion-icono" aria-hidden="true">{s.icono}</span>
+      <span className="menu-seccion-icono">{s.icono}</span>
       <span className="chip-plaza-texto">{s.titulo}</span>
     </button>
   )
@@ -485,7 +485,6 @@ export default function AdminPanel() {
             márgenes automáticos en el CSS: centra cuando caben y deja llegar a
             las dos puntas cuando no. */}
         <nav className="admin-menu-barra flex gap-1 overflow-x-auto"
-             aria-label="Secciones del panel administrativo"
              style={{ scrollbarWidth: 'none' }}>
           {SECCIONES.map(s => (
             <BotonSeccion key={s.id} s={s} activa={seccion === s.id} onClick={() => irA(s.id)} />
