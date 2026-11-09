@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Reglas de esta casa
 
 Esto no es documentación de arquitectura. Es la lista de lo que **ya se rompió
@@ -2054,9 +2056,8 @@ protege ahí es el freno de intentos.
   consola de apps de Dropbox.
 - ~~**La llave de AWS vieja, inactiva pero sin borrar.**~~ **HECHO.**
   Comprobado el 2026-11-07: `istuffs-admin` sólo tiene una llave, activa, del
-  2026-10-19. Queda una inactiva del 2026-05-19 en **`istuffs-s3-uploader`**,
-  que sí hay que borrar:
-  `aws iam delete-access-key --user-name istuffs-s3-uploader --access-key-id <la inactiva>`
+  2026-10-19. La inactiva del 2026-05-19 de **`istuffs-s3-uploader`** se borró
+  el 2026-11-08; comprobado el 2026-11-09, sólo queda su llave activa.
 - **La cuenta raíz ya no tiene claves de acceso.** El CLI va con
   `istuffs-admin`. Si alguna vez `aws sts get-caller-identity` devuelve algo
   que acabe en `:root`, algo se ha rehecho mal: una clave de root se salta el

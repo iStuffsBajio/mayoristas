@@ -689,6 +689,7 @@ export default function InventariosPanel() {
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
             <input
+              aria-label="Buscar productos por nombre, modelo o código"
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
               placeholder="Buscar: a16, iphone 15, tpu..."
