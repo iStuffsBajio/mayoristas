@@ -1068,12 +1068,31 @@
   .menu-seccion:active { transform: scale(0.97); }
   .menu-seccion-icono { font-size: 13px; line-height: 1; }
 
+  .admin-menu-barra {
+    padding: 5px;
+    border: 1px solid rgba(13, 17, 20, 0.06);
+    border-radius: 16px;
+    background: rgba(242, 246, 248, 0.78);
+  }
+  .menu-seccion:not(.activa) .chip-plaza-texto {
+    background-image: none;
+    color: var(--muted);
+  }
+
+  .menu-seccion:focus-visible,
+  .alerta button:focus-visible,
+  .reservas-mas:focus-visible {
+    outline: 3px solid rgba(0, 188, 242, 0.55);
+    outline-offset: 2px;
+  }
+
   /* Los márgenes automáticos centran la barra cuando cabe entera y se
      anulan solos cuando no: así nunca queda una sección fuera de alcance. */
   .admin-menu-barra > :first-child { margin-inline-start: auto; }
   .admin-menu-barra > :last-child  { margin-inline-end: auto; }
 
   @media (hover: hover) and (pointer: fine) {
+    .menu-seccion:hover:not(.activa) .chip-plaza-texto { color: var(--ink); }
     .menu-seccion:hover:not(.activa) {
       background:
         linear-gradient(var(--bg), var(--bg)) padding-box,
@@ -1473,21 +1492,74 @@
    decisión hoy, después las cifras, y al final el detalle. Un tablero que
    empieza por el gráfico bonito obliga a buscar el problema. */
 @layer components {
-  .tablero { display: grid; gap: 16px; }
+  .tablero { display: grid; gap: 18px; min-width: 0; }
   .tablero-cargando { font-size: var(--step-body); color: var(--muted); padding: 40px 0; }
+
+  .tablero-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    padding: 22px 26px;
+    border: 1px solid rgba(13, 17, 20, 0.07);
+    border-radius: 20px;
+    background: linear-gradient(112deg, #fff 0%, #fff 72%, rgba(0, 188, 242, 0.055) 100%);
+    box-shadow: 0 4px 18px rgba(13, 17, 20, 0.035);
+  }
+  .tablero-ceja {
+    margin: 0 0 5px;
+    color: var(--magenta);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .tablero-cabecera h2 {
+    margin: 0;
+    color: var(--ink);
+    font-size: clamp(1.45rem, 1.12rem + 1vw, 1.9rem);
+    font-weight: 800;
+    letter-spacing: -0.045em;
+    line-height: 1.1;
+  }
+  .tablero-descripcion {
+    margin: 7px 0 0;
+    color: var(--muted);
+    font-size: var(--step-small);
+    line-height: 1.45;
+  }
 
   /* ── Lo que pide una decisión ──────────────────────────────────────── */
   .tablero-alertas {
     background: #fff;
     border-radius: 18px;
     padding: 20px 22px;
+    border: 1px solid rgba(13, 17, 20, 0.07);
+    box-shadow: 0 4px 18px rgba(13, 17, 20, 0.035);
+  }
+  .tablero-alertas-cabecera {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
   }
   .tablero-alertas h3 {
-    margin: 0 0 14px;
-    font-size: var(--step-body);
-    font-weight: 600;
+    margin: 0;
+    font-size: 16px;
+    font-weight: 800;
     letter-spacing: -0.02em;
     color: var(--ink);
+  }
+  .tablero-alertas-total {
+    flex: 0 0 auto;
+    padding: 4px 9px;
+    border: 1px solid rgba(213, 26, 122, 0.16);
+    border-radius: 999px;
+    background: rgba(213, 26, 122, 0.07);
+    color: var(--magenta);
+    font-size: 11px;
+    font-weight: 800;
   }
   .tablero-alertas ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
   .tablero-ok { margin: 0; font-size: var(--step-small); color: var(--muted); }
@@ -1601,10 +1673,11 @@
 
   .tablero-reservas {
     background: #fff;
-    border: 1px solid rgba(13, 17, 20, 0.10);
-    border-radius: 22px;
+    border: 1px solid rgba(13, 17, 20, 0.08);
+    border-radius: 20px;
     padding: 18px 20px;
     margin-block-end: 18px;
+    box-shadow: 0 4px 18px rgba(13, 17, 20, 0.035);
   }
   .tablero-reservas header h3 {
     font-size: var(--step-lead);
@@ -1705,20 +1778,50 @@
     /* En el teléfono no caben seis columnas: el modelo se lleva su renglón
        y debajo van los datos, que es como se lee una ficha. */
     .reservas-lista li {
-      grid-template-columns: 58px 16px 1fr;
-      row-gap: 4px;
+      grid-template-columns: 58px 16px minmax(0, 1fr);
+      grid-template-areas:
+        "estado clase modelo"
+        ". pedir plaza"
+        ". . origen";
+      row-gap: 5px;
+      column-gap: 8px;
     }
-    .reservas-plaza  { grid-column: 3; }
-    .reservas-pedir  { grid-column: 2 / 3; }
-    .reservas-origen { grid-column: 3; justify-self: start; }
+    .reservas-chip    { grid-area: estado; }
+    .reservas-clase   { grid-area: clase; }
+    .reservas-modelo  { grid-area: modelo; min-width: 0; }
+    .reservas-pedir   { grid-area: pedir; }
+    .reservas-plaza   { grid-area: plaza; min-width: 0; }
+    .reservas-origen  { grid-area: origen; justify-self: start; }
   }
 
   .tablero-cifras {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
+    gap: 14px;
   }
-  .cifra { background: #fff; border-radius: 18px; padding: 18px 20px 16px; }
+  .cifra {
+    position: relative;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(13, 17, 20, 0.07);
+    border-radius: 18px;
+    padding: 21px 20px 17px;
+    box-shadow: 0 4px 16px rgba(13, 17, 20, 0.035);
+    transition: box-shadow 180ms ease, border-color 180ms ease;
+  }
+  .cifra::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 3px;
+    background: var(--cifra-acento, var(--cian));
+  }
+  .cifra[data-acento="lima"] { --cifra-acento: var(--lima); }
+  .cifra[data-acento="naranja"] { --cifra-acento: var(--naranja); }
+  .cifra[data-acento="magenta"] { --cifra-acento: var(--magenta); }
+  @media (hover: hover) and (pointer: fine) {
+    .cifra:hover { border-color: rgba(13, 17, 20, 0.12); box-shadow: 0 8px 24px rgba(13, 17, 20, 0.07); }
+  }
   .cifra-n {
     margin: 0;
     font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.5rem);
@@ -1735,12 +1838,19 @@
   /* ── La rejilla de tarjetas ────────────────────────────────────────── */
   .tablero-rejilla {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
     gap: 16px;
     align-items: start;
   }
 
-  .tarjeta { background: #fff; border-radius: 18px; padding: 22px 24px 18px; }
+  .tarjeta {
+    min-width: 0;
+    background: #fff;
+    border: 1px solid rgba(13, 17, 20, 0.07);
+    border-radius: 18px;
+    padding: 22px 24px 18px;
+    box-shadow: 0 4px 16px rgba(13, 17, 20, 0.035);
+  }
   .tarjeta h4 {
     margin: 0;
     font-size: var(--step-body);
@@ -1832,6 +1942,7 @@
   .plaza-dias.viejo { color: var(--magenta); font-weight: 600; }
 
   @media (max-width: 640px) {
+    .tablero-cabecera { padding: 19px 18px; }
     .tarjeta, .tablero-alertas { padding: 18px 16px 14px; }
     .ranking li { grid-template-columns: minmax(0, 1fr) 54px auto; gap: 8px; }
   }

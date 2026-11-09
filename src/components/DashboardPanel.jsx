@@ -290,9 +290,26 @@ export default function DashboardPanel({ onIrA }) {
   return (
     <div className="tablero">
 
+      <header className="tablero-cabecera">
+        <div>
+          <p className="tablero-ceja">Panel administrativo</p>
+          <h2>Resumen operativo</h2>
+          <p className="tablero-descripcion">
+            Alertas y señales de venta, inventario y operación para priorizar el trabajo de hoy.
+          </p>
+        </div>
+      </header>
+
       {/* ── Lo que pide una decisión ────────────────────────────────── */}
       <section className="tablero-alertas">
-        <h3>Atención</h3>
+        <div className="tablero-alertas-cabecera">
+          <h3>Atención</h3>
+          {alertas.length > 0 && (
+            <span className="tablero-alertas-total">
+              {alertas.length} {alertas.length === 1 ? 'alerta' : 'alertas'}
+            </span>
+          )}
+        </div>
         {alertas.length === 0 ? (
           <p className="tablero-ok">Nada urgente. Los inventarios están al día y no hay modelos de clase A en cero.</p>
         ) : (
@@ -367,12 +384,12 @@ export default function DashboardPanel({ onIrA }) {
 
       {/* ── Las cifras de la semana ─────────────────────────────────── */}
       <div className="tablero-cifras">
-        <Cifra n={ventas?.totalSalidas} que="piezas vendidas" nota="últimos 30 días" />
-        <Cifra n={ventas?.modelosConMovimiento} que="modelos con salida" nota="últimos 30 días" />
-        <Cifra n={agotadosFunda.length} que="fundas en cero" nota="en alguna tienda" />
+        <Cifra n={ventas?.totalSalidas} que="piezas vendidas" nota="últimos 30 días" acento="cian" />
+        <Cifra n={ventas?.modelosConMovimiento} que="modelos con salida" nota="últimos 30 días" acento="lima" />
+        <Cifra n={agotadosFunda.length} que="fundas en cero" nota="en alguna tienda" acento="naranja" />
         {perdidoEnPesos
-          ? <Cifra n={perdidoEnPesos} pesos que="perdidos" nota={`${agotados.perdidas} piezas que se habrían vendido`} tono="alerta" />
-          : <Cifra n={agotados?.perdidas} que="piezas perdidas" nota="por estar agotado" tono="alerta" />}
+          ? <Cifra n={perdidoEnPesos} pesos que="perdidos" nota={`${agotados.perdidas} piezas que se habrían vendido`} tono="alerta" acento="magenta" />
+          : <Cifra n={agotados?.perdidas} que="piezas perdidas" nota="por estar agotado" tono="alerta" acento="magenta" />}
       </div>
 
       <div className="tablero-rejilla">
@@ -484,9 +501,9 @@ export default function DashboardPanel({ onIrA }) {
 
 // ── Piezas sueltas ────────────────────────────────────────────────────────
 
-function Cifra({ n, que, nota, tono, pesos }) {
+function Cifra({ n, que, nota, tono, pesos, acento = 'cian' }) {
   return (
-    <div className={'cifra' + (tono ? ` cifra-${tono}` : '')}>
+    <div className={'cifra' + (tono ? ` cifra-${tono}` : '')} data-acento={acento}>
       <p className="cifra-n">
         {n == null ? '—' : (pesos ? '$' : '') + Math.round(n).toLocaleString('es-MX')}
       </p>
