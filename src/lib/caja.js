@@ -689,3 +689,30 @@ export function cortesQueFaltan(filas = [], respaldo = null) {
   }
   return { faltan, porLlegar, sinRespaldo: false }
 }
+
+/**
+ * 🔒 Las devoluciones con su concepto, SÓLO PARA ENSEÑAR.
+ *
+ * Nunca entran en una suma. El número que resta del efectivo sale de
+ * `DEVOLUCIONES_VENTAS_EFECTIVO` del corte y de ningún otro sitio; esto es la
+ * misma devolución anotada en `CORTE_MOVIMIENTOS`, que es donde está el
+ * CONCEPTO y la HORA. Sumando las dos, cada devolución se restaría dos veces
+ * y el esperado saldría por debajo de lo que hay: un faltante inventado, que
+ * en pantalla no se distingue de uno real.
+ *
+ * Es la misma regla que `NO_RESTAN` con los faltantes, y por lo mismo.
+ */
+export function devolucionesDelDia(devoluciones = [], f) {
+  return (devoluciones ?? [])
+    .filter(d => d.f === f)
+    .sort((a, b) => String(a.hora ?? '').localeCompare(String(b.hora ?? '')))
+}
+
+/** Las salidas y entradas de un día concreto, de un tipo concreto. */
+export function movimientosDelDia(filas = [], f, tipos = null) {
+  const fila = filas.find(r => r.f === f)
+  const lista = (fila?.movs ?? []).filter(m => m.tipo !== 'faltante')
+  if (!tipos) return lista
+  const quiero = new Set([].concat(tipos))
+  return lista.filter(m => quiero.has(m.tipo))
+}

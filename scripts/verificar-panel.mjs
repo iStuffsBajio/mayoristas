@@ -1833,6 +1833,31 @@ async function revisarEfectivo(window, donde) {
         errores.push(`${donde} · falta la linea «${necesaria}» de la tabla diaria`)
       }
     }
+
+    // ── El detalle de un renglon ──────────────────────────────────────
+    //
+    // El dueño podia ver que salieron $750 y no en que: «solo veo la salida,
+    // no puedo ver el concepto que pusieron». Si el desplegable se cae, la
+    // tabla se sigue viendo perfecta -con sus cifras- y la pregunta vuelve a
+    // no tener respuesta, sin que nada falle.
+    const desplegables = [...doc.querySelectorAll('[data-ver-detalle]')]
+    if (desplegables.length < 6) {
+      errores.push(`${donde} · solo ${desplegables.length} renglones se pueden desplegar: se esperan al menos 6 (devoluciones y las cinco salidas)`)
+    }
+    const verGastos = doc.querySelector('[data-ver-detalle="gastos"]')
+    if (!verGastos) {
+      errores.push(`${donde} · la linea de gastos no se puede desplegar`)
+    } else {
+      clic(window, verGastos)
+      await nuevaVuelta(window, 5)
+      if (!enPie(window, `${donde} · detalle de una linea`)) return tarjetas.length
+      const det = doc.querySelector('[data-detalle="gastos"], [data-detalle-vacio="gastos"]')
+      if (!det) {
+        errores.push(`${donde} · desplegar la linea no enseño nada`)
+      } else if (!/papeleria sin ticket/.test(det.textContent || '')) {
+        errores.push(`${donde} · el detalle no trae el CONCEPTO, que es para lo unico que se abre`)
+      }
+    }
   }
 
   // ── Los faltantes registrados ──

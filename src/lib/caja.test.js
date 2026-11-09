@@ -14,7 +14,7 @@ import {
   semaforo, faltantesDe, gastosQueDuelen, periodoQueCubre, pesos,
   bloqueSemanal, bloquesSemanales, acumuladoPorDepositar, tieneDatos,
   INICIO_HISTORIAL, cortesQueFaltan,
-} from './caja.js'
+ devolucionesDelDia, movimientosDelDia,} from './caja.js'
 
 // Parámetros de una plaza ya configurada, para no repetirlos en cada prueba.
 const CONFIGURADA = {
@@ -654,4 +654,44 @@ test('sin fecha de respaldo NO se opina', () => {
   const r = cortesQueFaltan([{ f: '2026-11-06', hayDato: false }], null)
   assert.equal(r.sinRespaldo, true)
   assert.equal(r.faltan.length, 0)
+})
+
+test('LAS DEVOLUCIONES CON CONCEPTO no entran en ninguna suma', () => {
+  // Son el mismo suceso que ya viene en DEVOLUCIONES_VENTAS_EFECTIVO del
+  // corte. Sumando las dos fuentes, cada devolucion se restaria dos veces y
+  // el esperado saldria por debajo de lo que hay: un faltante inventado, que
+  // en pantalla no se distingue de uno real.
+  //
+  // Lo que aportan es lo unico que el agregado NO tiene: el concepto y la
+  // hora. Sin ellos, una devolucion de $750 es una cifra que no se puede
+  // revisar ni preguntar a nadie.
+  const devoluciones = [
+    { f: '2026-11-08', hora: '17:40', monto: 750, concepto: 'funda rayada, cliente cambio por otra' },
+    { f: '2026-11-08', hora: '11:05', monto: 230, concepto: '' },
+    { f: '2026-11-07', hora: '19:00', monto: 100, concepto: 'otro dia' },
+  ]
+  const d = devolucionesDelDia(devoluciones, '2026-11-08')
+  assert.equal(d.length, 2)
+  assert.equal(d[0].hora, '11:05', 'por hora, para poder mirar el ticket de al lado')
+  assert.equal(d[1].concepto, 'funda rayada, cliente cambio por otra')
+
+  // Y la cuenta del dia NO las toca: sale del corte.
+  const dia = flujoDelDia({ f: '2026-11-08', efectivo: 1000, devEfectivo: 980 }, [])
+  assert.equal(dia.devoluciones, 980, 'el que resta es el del corte, no la suma de la lista')
+  assert.equal(dia.neto, 20)
+})
+
+test('los movimientos de UN DIA se pueden pedir por tipo, y el faltante nunca sale', () => {
+  const filas = [{
+    f: '2026-11-08',
+    movs: [
+      { tipo: 'gasto', monto: 250, concepto: 'agua' },
+      { tipo: 'otra-salida', monto: 750, concepto: 'compra de cajas' },
+      { tipo: 'faltante', monto: 95, persona: 'daniela' },
+    ],
+  }]
+  assert.equal(movimientosDelDia(filas, '2026-11-08').length, 2, 'el faltante nunca')
+  assert.deepEqual(movimientosDelDia(filas, '2026-11-08', 'otra-salida').map(m => m.concepto),
+    ['compra de cajas'])
+  assert.deepEqual(movimientosDelDia(filas, '2026-11-09'), [], 'otro dia no trae nada')
 })

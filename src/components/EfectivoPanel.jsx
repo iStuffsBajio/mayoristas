@@ -25,7 +25,7 @@ import { apiConfigurada } from '../lib/api'
 import { useCaja } from '../lib/useCaja'
 import {
   ESTADOS, DIAS, pesos, pesosCortos, semaforo, faltantesDe, gastosQueDuelen,
-  movimientosDeSemana, cortesQueFaltan,
+  movimientosDeSemana, cortesQueFaltan, devolucionesDelDia, movimientosDelDia,
   periodoQueCubre, fechaDeDeposito, nombreDia, semanaDe, INICIO_HISTORIAL,
 } from '../lib/caja'
 
@@ -212,6 +212,112 @@ const LINEAS = [
   ['neto',            '= EFECTIVO NETO',                  'total', 'Efectivo cobrado menos devoluciones y salidas, más entradas'],
   ['faltantes',       '· Faltantes registrados',          'nota',  'Salidas que alguien registró porque faltó dinero. Van aparte y NO restan del efectivo neto: si restaran, el depósito cuadraría al peso justo cuando falta dinero, y el único caso que esta pantalla existe para detectar sería el único invisible'],
 ]
+
+/**
+ * Qué renglones se pueden abrir para ver el detalle, y de dónde sale.
+ *
+ * Lo pidió el dueño el 2026-11-08: «en la sucursal de San Luis estuvo la
+ * salida de efectivo de 750 del domingo, pero sólo veo la salida, no puedo
+ * ver el concepto que pusieron».
+ *
+ * Las dos fuentes son distintas y conviene saberlo:
+ *
+ *   · Las SALIDAS y entradas ya traían su concepto en `movs`. Sólo faltaba
+ *     enseñarlo: la tabla sumaba por tipo y tiraba el detalle.
+ *   · Las DEVOLUCIONES no. El extractor las descartaba a propósito —ya vienen
+ *     sumadas en el corte y traerlas otra vez las restaría dos veces— y con
+ *     ellas se iba el concepto. Ahora se extraen aparte, sólo para enseñar.
+ */
+const CON_DETALLE = {
+  devoluciones: 'devoluciones',
+  gastos:       ['gasto'],
+  retiros:      ['retiro'],
+  adelantos:    ['adelanto'],
+  proveedores:  ['proveedor'],
+  otrasSalidas: ['otra-salida'],
+  entradas:     ['entrada'],
+}
+
+/**
+ * El detalle de un renglón, día a día.
+ *
+ * Se enseña la SEMANA entera y no sólo un día: el dueño mira la fila, ve una
+ * cifra rara en una columna, y lo que quiere es el concepto. Obligarle a
+ * acertar la celda exacta para verlo es pedirle puntería a cambio de nada.
+ */
+function DetalleDeLinea({ plaza, bloque, clave }) {
+  const que = CON_DETALLE[clave]
+  const filas = []
+
+  for (const f of bloque.filas ?? []) {
+    const items = que === 'devoluciones'
+      ? devolucionesDelDia(plaza.devoluciones, f.f).map(d => ({
+          hora: d.hora, concepto: d.concepto, monto: d.monto, origen: 'eleventa',
+        }))
+      : movimientosDelDia(bloque.filas, f.f, que).map(m => ({
+          hora: null, concepto: m.concepto, monto: m.monto, origen: m.origen,
+          comprobante: m.comprobante,
+        }))
+    for (const it of items) filas.push({ ...it, f: f.f, dia: f.dia })
+  }
+
+  if (!filas.length) {
+    return (
+      <tr data-detalle-vacio={clave}>
+        <td colSpan={(bloque.filas?.length ?? 7) + 2}
+            style={{ padding: '8px 14px', fontSize: 11.5, color: TINTA_TENUE,
+                     background: 'rgba(16,22,25,0.015)' }}>
+          {que === 'devoluciones'
+            ? `Esta semana no hay ninguna devolución con detalle en ${plaza.nombre}. Si la
+               cifra de arriba no es cero, es que el respaldo todavía no trae los conceptos:
+               se extraen desde el 2026-11-08 y aparecen en la siguiente sincronización.`
+            : 'Ningún movimiento de este tipo esta semana.'}
+        </td>
+      </tr>
+    )
+  }
+
+  return (
+    <tr data-detalle={clave}>
+      <td colSpan={(bloque.filas?.length ?? 7) + 2}
+          style={{ padding: '4px 14px 10px', background: 'rgba(16,22,25,0.015)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+          <tbody>
+            {filas.map((x, i) => (
+              <tr key={`${x.f}-${i}`} data-detalle-fila={x.f}>
+                <td style={{ padding: '4px 10px 4px 0', color: TINTA_TENUE, whiteSpace: 'nowrap' }}>
+                  {x.dia} {String(x.f).slice(8, 10)}{x.hora ? ` · ${x.hora}` : ''}
+                </td>
+                {/* El concepto es lo único por lo que se abre esto. Cuando
+                    viene vacío se DICE: un hueco se lee como que no cargó, y
+                    lo que pasa es que en la caja nadie lo escribió. */}
+                <td style={{ padding: '4px 10px 4px 0', color: TINTA }}>
+                  {x.concepto || <span style={{ color: ROSA }}>sin concepto en la caja</span>}
+                </td>
+                <td style={{ padding: '4px 0', textAlign: 'right', whiteSpace: 'nowrap',
+                             fontVariantNumeric: 'tabular-nums', fontWeight: 700 }}>
+                  {pesos(x.monto)}
+                </td>
+                <td style={{ padding: '4px 0 4px 10px', textAlign: 'right', whiteSpace: 'nowrap',
+                             fontSize: 10.5, color: TINTA_TENUE }}>
+                  {x.origen === 'pagina' ? 'capturado aquí' : 'de Eleventa'}
+                  {x.comprobante === false && ' · sin ticket'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {que === 'devoluciones' && (
+          <p style={{ margin: '8px 0 0', fontSize: 10.5, color: TINTA_TENUE, lineHeight: 1.5 }}>
+            La hora está para poder mirar el ticket de al lado. <strong>Eleventa no enlaza una
+            devolución con la venta que la sustituyó</strong> —ese dato no existe en ninguna
+            tabla— así que la página no puede decirlo sin inventárselo.
+          </p>
+        )}
+      </td>
+    </tr>
+  )
+}
 
 function Bloque({ plaza, bloque, onMarcar, onDesmarcar, onAjustar }) {
   const [abierto, setAbierto]   = useState(false)
@@ -439,6 +545,9 @@ function CortesQueFaltan({ plaza, bloque }) {
 /** La tabla diaria: las trece líneas del cálculo, por día y sumadas. */
 function TablaDias({ plaza, bloque, cubre, onAjustar }) {
   const [ajustando, setAjustando] = useState(null)
+  // Qué renglón está desplegado. Uno a la vez: con varios abiertos la tabla
+  // deja de leerse de arriba abajo, que es para lo que existe.
+  const [detalle, setDetalle] = useState(null)
 
   return (
     <div style={{ borderTop: '1px solid ' + LINEA, padding: '14px 18px', overflowX: 'auto' }}>
@@ -484,10 +593,25 @@ function TablaDias({ plaza, bloque, cubre, onAjustar }) {
             return (
               <tr key={clave} data-linea={clave}
                 style={{ background: esTotal ? 'rgba(16,22,25,0.025)' : undefined }}>
+                {/* El NOMBRE abre el detalle; las celdas siguen abriendo el
+                    ajuste, que es lo que hacían. Dos cosas distintas en el
+                    mismo renglón, y cada una donde se espera. */}
                 <td style={{ padding: '6px 8px', color: esTotal ? TINTA : esNota ? AMBAR : TINTA_SUAVE,
                   fontWeight: esTotal ? 800 : 500, whiteSpace: 'nowrap',
                   position: 'sticky', left: 0, background: esTotal ? '#F7F8F9' : '#fff' }}>
-                  {titulo}<DeDonde texto={deDonde} />
+                  {CON_DETALLE[clave] ? (
+                    <button type="button" data-ver-detalle={clave}
+                            onClick={() => setDetalle(d => (d === clave ? null : clave))}
+                            title="Ver el concepto de cada movimiento"
+                            style={{ background: 'none', border: 'none', padding: 0, font: 'inherit',
+                                     color: 'inherit', cursor: 'pointer', textAlign: 'start' }}>
+                      {titulo}
+                      <span style={{ marginInlineStart: 5, fontSize: 9.5, color: TINTA_TENUE }}>
+                        {detalle === clave ? '▲' : '▼'}
+                      </span>
+                    </button>
+                  ) : titulo}
+                  <DeDonde texto={deDonde} />
                 </td>
                 {bloque.filas.map(f => {
                   const ajustado = f.ajustado && Object.prototype.hasOwnProperty.call(f.ajustado.valores ?? {}, clave)
@@ -511,6 +635,11 @@ function TablaDias({ plaza, bloque, cubre, onAjustar }) {
                 </td>
               </tr>
             )
+          }).flatMap((tr, i) => {
+            const clave = LINEAS[i][0]
+            return detalle === clave
+              ? [tr, <DetalleDeLinea key={`${clave}-detalle`} plaza={plaza} bloque={bloque} clave={clave} />]
+              : [tr]
           })}
 
           {/* El arqueo va separado: no es una línea del cálculo, es la

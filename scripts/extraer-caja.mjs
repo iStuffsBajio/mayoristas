@@ -127,6 +127,40 @@ ORDER BY cm.CUANDO_FUE;
 `
 
 /**
+ * 🔒 Las devoluciones, SÓLO PARA ENSEÑARLAS. Nunca para sumarlas.
+ *
+ * Es el mismo suceso que ya viene en `DEVOLUCIONES_VENTAS_EFECTIVO` del
+ * corte, y de ahí sale el número que resta. Si esto se sumara también, cada
+ * devolución se restaría dos veces y el efectivo esperado saldría por debajo
+ * de lo que de verdad hay: un faltante inventado, que en pantalla no se
+ * distingue de uno real.
+ *
+ * Por eso van en su propia lista, igual que los faltantes y por la misma
+ * razón. Lo que aportan es lo único que el agregado del corte NO tiene: **el
+ * concepto y la hora**. Sin ellos, una devolución de $750 es una cifra que no
+ * se puede revisar ni preguntar a nadie.
+ *
+ * Lo pidió el dueño el 2026-11-08: «me gustaría poder ver todos esos
+ * movimientos importantes, sobre todo en las devoluciones, que se devolvió».
+ *
+ * La HORA se trae a propósito. No hay forma de saber qué venta sustituyó a
+ * una devolución —Eleventa no las enlaza y no existe ese dato en ninguna
+ * tabla— pero sabiendo a qué hora ocurrió se puede mirar el ticket de al
+ * lado. Es lo más cerca que se puede llegar sin inventar la relación.
+ */
+const SQL_DEVOLUCIONES = `
+SET HEADING OFF;
+SELECT EXTRACT(YEAR FROM cm.CUANDO_FUE) || '${SEP}' || EXTRACT(MONTH FROM cm.CUANDO_FUE) || '${SEP}' ||
+       EXTRACT(DAY FROM cm.CUANDO_FUE) || '${SEP}' ||
+       EXTRACT(HOUR FROM cm.CUANDO_FUE) || '${SEP}' || EXTRACT(MINUTE FROM cm.CUANDO_FUE) || '${SEP}' ||
+       CAST(cm.MONTO AS NUMERIC(14,2)) || '${SEP}' ||
+       TRIM(COALESCE(SUBSTRING(cm.DESCRIPCION FROM 1 FOR 160), ''))
+FROM CORTE_MOVIMIENTOS cm
+WHERE cm.TIPO = 'Devolucion' AND cm.BORRADO_EL IS NULL
+ORDER BY cm.CUANDO_FUE;
+`
+
+/**
  * El arqueo: lo que se contó al cerrar cada turno.
  *
  * `EFECTIVO_AL_CIERRE` está lleno —2,057 de 2,195 turnos en Aguascalientes— y
@@ -264,6 +298,37 @@ async function unaPlaza(suc, workDir) {
     }
   }
 
+  // ── Las devoluciones, sólo para enseñarlas ──
+  //
+  // No entran en ninguna suma. Van aparte para que no haya forma de que se
+  // cuelen por descuido: el número que resta sale del corte y de ningún otro
+  // sitio.
+  // Va en try/catch, y no por manía: `EXTRACT(HOUR …)` no tiene precedente en
+  // este proyecto y si `CUANDO_FUE` no fuera un TIMESTAMP la consulta
+  // reventaría. Sin el guardia, eso tumbaría la extracción ENTERA de la caja
+  // de esa plaza —días, movimientos, arqueos— por una lista que sólo sirve
+  // para enseñar un concepto. Lo accesorio no puede tirar lo principal.
+  const devoluciones = []
+  try {
+    for (const linea of await isql(fdb, SQL_DEVOLUCIONES, workDir, `v-${suc.slug}`)) {
+      const [a, m, d, hh, mm, monto, descripcion] = linea.split(SEP).map(x => x.trim())
+      const f = fecha(a, m, d)
+      if (f.slice(0, 7) < DESDE) continue
+      devoluciones.push({
+        f,
+        // `EXTRACT` rellena con espacios, así que las horas de un dígito
+        // salen como ' 9'. Ya costó una vez con los meses: `2024- 10`.
+        hora: `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`,
+        monto: n(monto),
+        concepto: descripcion || '',
+      })
+    }
+  } catch (e) {
+    console.log(`  AVISO: no se pudieron leer las devoluciones (${String(e.message).slice(0, 90)})`)
+    console.log('         El resto de la caja sale igual; lo único que falta es el')
+    console.log('         concepto de cada devolución, que es de consulta.')
+  }
+
   // ── El arqueo ──
   const arqueoPorDia = new Map()
   const cajeroPorDia = new Map()
@@ -284,6 +349,11 @@ async function unaPlaza(suc, workDir) {
   console.log(`  ${dias.length} días · efectivo ${efectivo.toFixed(2)}`)
   console.log(`  ${movimientos.length} movimientos capturados por el personal`)
   console.log(`  ${faltantes.length} descuadres al cerrar turno · ${faltanteTotal.toFixed(2)}`)
+  console.log(`  ${devoluciones.length} devoluciones con concepto (sólo para enseñar, NO se suman)`)
+  const sinConcepto = devoluciones.filter(d => !d.concepto).length
+  if (sinConcepto) {
+    console.log(`         de ellas ${sinConcepto} sin concepto: la caja no anotó qué se devolvió`)
+  }
   if (!movimientos.length) {
     console.log('  AVISO: ninguna entrada ni salida registrada. El esperado de estas')
     console.log('         semanas es un TECHO, no una cifra, y la página lo dice.')
@@ -294,7 +364,7 @@ async function unaPlaza(suc, workDir) {
     nombre:   suc.nombre,
     generado: new Date().toISOString(),
     respaldo: { archivo: respaldo.nombre, fecha: respaldo.fecha },
-    dias, movimientos, faltantes,
+    dias, movimientos, faltantes, devoluciones,
   }
 }
 

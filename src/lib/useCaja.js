@@ -147,6 +147,9 @@ export function useCaja(token, { semanas = SEMANAS, hasta = null } = {}) {
       // porque no son precisos: ver `faltantesDe` en `caja.js`. Se siguen
       // extrayendo y apartando, que es lo que impide que resten del neto.
       respaldo:  flujo?.respaldo ?? null,
+      // 🔒 Sólo para enseñar el concepto y la hora. NO entran en ninguna
+      // suma: el número que resta sale del corte. Ver `devolucionesDelDia`.
+      devoluciones: flujo?.devoluciones ?? [],
       enCaja:    efectivoEnCaja({ bloques: todos, params }),
       // Sin archivo publicado no es que no haya movimiento: es que el
       // extractor no ha corrido para esa plaza, y se dice distinto.

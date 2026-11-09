@@ -777,6 +777,49 @@ enseñaba del 2 al 8. Era cierto —el depósito de una semana cubre la venta de
 la anterior— pero colocado ahí se leía como si la tabla fuera de esas fechas.
 El dueño lo leyó así. Ahora dice de quién habla.
 
+### 🔒 Las devoluciones se EXTRAEN para enseñarlas, y nunca se suman
+
+`extraer-caja.mjs` las descartaba con `WHERE cm.TIPO <> 'Devolucion'`, y por
+una razón buena: ya vienen en `DEVOLUCIONES_VENTAS_EFECTIVO` del corte, y
+sumar las dos fuentes las restaría dos veces. Pero con ellas se iba **el
+concepto y la hora**, que es lo único que el agregado no tiene.
+
+El dueño lo pidió el 2026-11-08: «sólo veo la salida, no puedo ver el concepto
+que pusieron». Una devolución de $750 sin concepto es una cifra que no se
+puede revisar ni preguntar a nadie.
+
+Ahora se extraen **en su propia lista**, igual que los faltantes y por lo
+mismo: el número que resta sale del corte y de ningún otro sitio. Si esa lista
+entrara en una suma, cada devolución se restaría dos veces y el esperado
+saldría por debajo de lo que hay —un faltante inventado, que en pantalla no se
+distingue de uno real—.
+
+**La consulta va en `try/catch`, y no por manía.** `EXTRACT(HOUR …)` no tenía
+precedente en este proyecto y si `CUANDO_FUE` no fuera un TIMESTAMP reventaría;
+sin el guardia, eso tumbaría la extracción ENTERA de la caja de esa plaza
+—días, movimientos, arqueos— por una lista que sólo sirve para consultar. Lo
+accesorio no puede tirar lo principal. Si falla, lo dice en el registro y el
+resto sale igual.
+
+**Y la hora está para mirar el ticket de al lado, nada más.** Eleventa **no
+enlaza una devolución con la venta que la sustituyó** —ese dato no existe en
+ninguna tabla— así que la página no puede decirlo sin inventárselo, y lo dice
+en pantalla en vez de callarlo.
+
+### Cada renglón del cálculo se despliega: cuánto, y EN QUÉ
+
+El nombre del renglón abre el detalle; las celdas siguen abriendo el ajuste,
+que es lo que ya hacían. Dos cosas distintas en el mismo renglón, cada una
+donde se espera.
+
+Se despliega la **semana entera**, no sólo un día: quien mira la fila ve una
+cifra rara en una columna y lo que quiere es el concepto. Obligarle a acertar
+la celda exacta es pedirle puntería a cambio de nada.
+
+Cuando un movimiento viene sin concepto **se dice** —«sin concepto en la
+caja»— en vez de dejar el hueco: un hueco se lee como que no cargó, y lo que
+pasa es que nadie lo escribió al registrarlo.
+
 ### Las salidas se ven en LOS DOS sitios
 
 Primero sólo estaban en el calendario del tablero, y el dueño las buscó en el
