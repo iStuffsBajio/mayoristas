@@ -166,6 +166,26 @@ export function correrSemana({ desde }, n) {
   return semanaDe(iso(d))
 }
 
+/**
+ * Las salidas y entradas de una semana, con su concepto, de la más reciente a
+ * la más vieja.
+ *
+ * Los faltantes NO entran: no restan del neto -ver `NO_RESTAN`- y llevan el
+ * nombre de quien cerró el turno pegado a una cantidad de dinero. Tienen su
+ * propia sección y su propia regla.
+ */
+export function movimientosDeSemana(filas = []) {
+  const out = []
+  for (const r of filas) {
+    for (const m of r.movs ?? []) {
+      if (m.tipo === 'faltante') continue
+      out.push({ ...m, f: m.f ?? r.f, dia: r.dia })
+    }
+  }
+  return out.sort((a, b) => String(b.f).localeCompare(String(a.f))
+    || num(b.monto) - num(a.monto))
+}
+
 /** Los siete días de una semana, en orden, hayan tenido venta o no. */
 export function diasDeSemana({ desde }) {
   const d = comoFecha(desde)
@@ -253,6 +273,13 @@ export function flujoDelDia(d = {}, movs = [], ajuste = null) {
     faltantes:     porTipo('faltante'),
     arqueo:        d.arqueo === undefined || d.arqueo === null ? null : num(d.arqueo),
     nVentas:       num(d.nVentas),
+    // Los movimientos TAL CUAL, no sólo sumados por tipo.
+    //
+    // Lo de arriba contesta «cuánto salió»; esto contesta «en qué se fue», y
+    // es la pregunta que de verdad se hace quien mira el cajón. Un total de
+    // salidas de $1,200 sin conceptos no se puede revisar ni discutir: no se
+    // sabe si fue el garrafón, un adelanto o un pago a proveedor.
+    movs,
   }
 
   calculado.neto = calculado.efectivoCobrado

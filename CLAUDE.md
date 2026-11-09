@@ -707,6 +707,61 @@ La fecha va **por plaza**, en los parámetros editables, porque una puede tardar
 en adoptarlo más que otra. Sin fecha configurada, NINGÚN día tiene control:
 equivocarse hacia el lado de no acusar a nadie es el error barato.
 
+### ⚠️ «Hoy» NUNCA sale de `toISOString()`
+
+`new Date().toISOString().slice(0, 10)` da la fecha en **UTC**, y en hora de
+México eso ya es **el día siguiente a partir de las 18:00**.
+
+No es teoría: tumbó esta pantalla. El **domingo 8 de noviembre de 2026 a las
+18:11**, el panel preguntó la fecha y le contestaron «9 de noviembre». Como el
+9 era lunes, la semana en curso pasó a ser la del **9 al 15 —que todavía no
+había ocurrido—** y la tabla entera salió en ceros, con la venta real de esa
+misma semana escondida en el bloque anterior.
+
+Tiene la peor firma posible, la misma que ya costó una vuelta con «lleva 2
+días sin actualizarse» contra «ayer»: **por la mañana acierta y por la tarde
+falla**. Nadie lo reporta, porque la mitad del tiempo está bien, y cuando no
+lo está parece que simplemente no hubo ventas.
+
+La fecha de calendario sale de **`hoyLocal()` en `fechas.js`**, que es donde
+vive esta regla. Hay prueba que compara los dos extremos del mismo día.
+
+Ojo con la distinción: `toISOString()` sigue siendo lo correcto para un
+INSTANTE —cuándo se guardó algo, con hora— y está bien en todos esos sitios.
+Lo que no vale es usarlo como «qué día es hoy».
+
+### El detalle de salidas: cuánto salió y EN QUÉ se fue
+
+Lo pidió el dueño el 2026-11-08: «si hubo salidas, que me aparezcan en un menú
+desplegable o algo parecido… no sé exactamente dónde pueda ver la descripción
+de salidas que se han registrado».
+
+La tabla de la semana sumaba por tipo y tiraba el detalle, así que un total de
+salidas de $1,200 no se podía revisar ni discutir: no se sabía si fue el
+garrafón, un adelanto o un pago a proveedor. Ahora `flujoDelDia` conserva los
+movimientos tal cual en `movs`, y `movimientosDeSemana()` los junta.
+
+Va **plegado**, porque la mayoría de las semanas no tiene ninguna y un bloque
+vacío desplegado todos los días enseña a no mirarlo. Y cuando no hay ninguna
+**se dice**, en vez de dejar el hueco: un hueco se lee como que no cargó.
+
+🔒 **Los faltantes NO salen en esa lista.** No restan del efectivo neto —ver
+`NO_RESTAN`— y llevan el nombre de quien cerró el turno pegado a una cantidad
+de dinero que falta. Metido entre las salidas se leería como una salida más,
+cuadraría la cuenta que esta pantalla existe para descuadrar, y de paso
+acusaría a alguien en una lista donde no toca. `verificar` lo comprueba.
+
+### Los botones de semana, y por qué hoy casi no se ven
+
+El calendario enseñaba `bloques[0]` y punto, así que el domingo por la tarde
+—con la semana recién cerrada— no había forma de volver a mirarla. Ahora hay
+botones.
+
+Lo que no hay todavía es entre qué elegir: `INICIO_HISTORIAL` es el
+**2026-11-02** y el tope son las `SEMANAS_A_LA_VISTA` (**2**). Con una sola
+semana de historia los botones no se dibujan, porque un único botón que no
+lleva a ningún sitio es ruido. Crece solo cada lunes.
+
 ### El historial arranca en CEROS: nada de antes del 2026-11-02 es un pendiente
 
 Lo pidió el dueño el 2026-11-06: «como es una sección nueva y técnicamente

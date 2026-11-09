@@ -25,6 +25,7 @@ import { apiConfigurada } from '../lib/api'
 import { useCaja } from '../lib/useCaja'
 import {
   ESTADOS, DIAS, pesos, pesosCortos, semaforo, faltantesDe, gastosQueDuelen,
+  movimientosDeSemana,
   periodoQueCubre, fechaDeDeposito, nombreDia, semanaDe, INICIO_HISTORIAL,
 } from '../lib/caja'
 
@@ -1008,10 +1009,129 @@ export default function EfectivoPanel() {
  * lo que se vendió, se cobrara como se cobrara. Van separadas por una línea
  * para que nadie intente cuadrar la una con la otra.
  */
+const NOMBRE_SALIDA = {
+  gasto:         'Gasto',
+  retiro:        'Retiro',
+  adelanto:      'Adelanto',
+  proveedor:     'Proveedor',
+  'otra-salida': 'Otra salida',
+  entrada:       'Entrada',
+}
+
+/**
+ * Las salidas de una semana, con su concepto.
+ *
+ * Lo pidió el dueño el 2026-11-08: «si hubo salidas, que me aparezcan en un
+ * menú desplegable o algo parecido… no sé exactamente dónde pueda ver la
+ * descripción de salidas que se han registrado».
+ *
+ * La tabla de arriba contesta CUÁNTO salió. Ésta contesta EN QUÉ se fue, que
+ * es la pregunta que de verdad se hace quien mira el cajón: un total de
+ * salidas sin conceptos no se puede revisar ni discutir con nadie.
+ *
+ * Va plegada porque la mayoría de las semanas no tiene ninguna, y un bloque
+ * vacío desplegado todos los días enseña a no mirarlo.
+ *
+ * Los FALTANTES no salen aquí: no restan del neto y llevan el nombre de
+ * quien cerró el turno pegado a una cantidad de dinero que falta. Tienen su
+ * propia sección y su propia regla.
+ */
+function SalidasDeLaSemana({ plazas, indice }) {
+  const [abierto, setAbierto] = useState(false)
+
+  const porPlaza = plazas.map(p => ({
+    plaza: p,
+    movs: movimientosDeSemana(p.bloques?.[indice]?.filas ?? []),
+  })).filter(x => x.movs.length)
+
+  const cuantas = porPlaza.reduce((a, x) => a + x.movs.length, 0)
+  const total = porPlaza.reduce((a, x) => a + x.movs
+    .reduce((b, m) => b + (m.tipo === 'entrada' ? 0 : Number(m.monto) || 0), 0), 0)
+
+  if (!cuantas) {
+    return (
+      <p data-sin-salidas style={{ margin: '12px 0 0', fontSize: 11.5, color: TINTA_TENUE }}>
+        Esta semana no hay ninguna salida de caja registrada en ninguna plaza.
+      </p>
+    )
+  }
+
+  return (
+    <div data-salidas-semana style={{ marginTop: 14, borderTop: '1px solid ' + LINEA, paddingTop: 12 }}>
+      <button type="button" onClick={() => setAbierto(v => !v)} data-abrir-salidas
+              style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap',
+                       width: '100%', background: 'none', border: 'none', padding: 0,
+                       cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
+        <span style={{ fontSize: 12.5, fontWeight: 800, color: TINTA }}>
+          Salidas de caja de esta semana
+        </span>
+        <span style={{ fontSize: 12, color: TINTA_SUAVE }}>
+          {cuantas} {cuantas === 1 ? 'movimiento' : 'movimientos'} · {pesos(total)} en{' '}
+          {porPlaza.length === 1 ? '1 plaza' : `${porPlaza.length} plazas`}
+        </span>
+        <span style={{ marginInlineStart: 'auto', fontSize: 11, color: TINTA_TENUE }}>
+          {abierto ? 'Ocultar ▲' : 'Ver el detalle ▼'}
+        </span>
+      </button>
+
+      {abierto && porPlaza.map(({ plaza, movs }) => (
+        <div key={plaza.slug} data-salidas-de={plaza.slug} style={{ marginTop: 12 }}>
+          <p style={{ margin: '0 0 5px', fontSize: 11.5, fontWeight: 800, color: TINTA }}>
+            {plaza.nombre}
+          </p>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <tbody>
+              {movs.map(m => (
+                <tr key={m.id ?? `${m.f}-${m.concepto}-${m.monto}`}
+                    data-salida={m.id ?? m.f}
+                    style={{ borderTop: '1px solid ' + LINEA }}>
+                  <td style={{ padding: '5px 8px 5px 0', color: TINTA_TENUE, whiteSpace: 'nowrap' }}>
+                    {m.dia} {String(m.f).slice(8, 10)}
+                  </td>
+                  <td style={{ padding: '5px 8px 5px 0', color: TINTA_SUAVE, whiteSpace: 'nowrap' }}>
+                    {NOMBRE_SALIDA[m.tipo] ?? m.tipo}
+                  </td>
+                  {/* El concepto es lo que teclea quien cobra, y es la única
+                      columna por la que esta tabla existe. Cuando viene
+                      vacío se DICE: un renglón en blanco se lee como que no
+                      se cargó, y es que nadie lo escribió. */}
+                  <td style={{ padding: '5px 8px 5px 0', color: TINTA }}>
+                    {m.concepto || <span style={{ color: ROSA }}>sin concepto</span>}
+                  </td>
+                  <td style={{ padding: '5px 0', textAlign: 'right', whiteSpace: 'nowrap',
+                               fontVariantNumeric: 'tabular-nums', fontWeight: 700,
+                               color: m.tipo === 'entrada' ? VERDE : TINTA }}>
+                    {m.tipo === 'entrada' ? '+' : '−'}{pesos(Math.abs(Number(m.monto) || 0))}
+                  </td>
+                  <td style={{ padding: '5px 0 5px 10px', textAlign: 'right', whiteSpace: 'nowrap',
+                               fontSize: 10.5, color: TINTA_TENUE }}>
+                    {m.comprobante ? 'con ticket' : 'sin ticket'}
+                    {m.origen === 'pagina' && ' · capturado aquí'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 function Calendario({ plazas }) {
   const conDatos = plazas.filter(p => !p.sinDatos)
+
+  // Qué semana se está mirando: 0 es la en curso, 1 la anterior…
+  //
+  // Lo pidió el dueño: «quiero que me aparezcan botones de la semana para
+  // elegir». Antes esta tabla enseñaba `bloques[0]` y punto, así que el
+  // domingo por la tarde —con la semana recién cerrada— no había forma de
+  // volver a mirarla desde aquí.
+  const [indice, setIndice] = useState(0)
+
   if (!conDatos.length) return null
-  const semana = conDatos[0].bloques[0]
+  const semanas = conDatos[0].bloques ?? []
+  const semana = semanas[indice] ?? semanas[0]
   if (!semana) return null
 
   // Las cuatro de la derecha, en orden. `ventaTotal` cierra porque es la suma
@@ -1024,12 +1144,12 @@ function Calendario({ plazas }) {
     ['ventaTotal',      'Venta total'],
   ]
 
-  const suma = k => conDatos.reduce((a, p) => a + (p.bloques[0]?.total?.[k] ?? 0), 0)
+  const suma = k => conDatos.reduce((a, p) => a + (p.bloques[indice]?.total?.[k] ?? 0), 0)
   const sumaDia = i => conDatos.reduce((a, p) => {
-    const f = p.bloques[0]?.filas?.[i]
+    const f = p.bloques[indice]?.filas?.[i]
     return a + (f?.hayDato ? f.neto : 0)
   }, 0)
-  const hayDia = i => conDatos.some(p => p.bloques[0]?.filas?.[i]?.hayDato)
+  const hayDia = i => conDatos.some(p => p.bloques[indice]?.filas?.[i]?.hayDato)
 
   const th = extra => ({
     textAlign: 'right', padding: '6px 8px', fontSize: 10, fontWeight: 700, color: TINTA_TENUE,
@@ -1043,8 +1163,24 @@ function Calendario({ plazas }) {
   return (
     <div data-calendario style={{ ...caja, overflowX: 'auto' }}>
       <h3 style={{ margin: '0 0 4px', fontSize: 14.5, fontWeight: 800, color: TINTA }}>
-        📅 La semana en curso, plaza por plaza
+        📅 {indice === 0 ? 'La semana en curso' : 'Una semana anterior'}, plaza por plaza
       </h3>
+
+      {semanas.length > 1 && (
+        <div data-semanas style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '8px 0 10px' }}>
+          {semanas.map((b, i) => (
+            <button key={b.clave} type="button" onClick={() => setIndice(i)}
+                    data-semana={b.clave}
+                    className={i === indice ? 'chip-plaza activa' : 'chip-plaza'}
+                    style={{ fontSize: 11, padding: '4px 11px' }}>
+              {i === 0 ? 'En curso' : rangoCorto(b)}
+              {/* Una semana ya depositada se marca: es la diferencia entre
+                  «falta por revisar» y «esto ya se cerró». */}
+              {b.depositado && <span style={{ marginInlineStart: 5, color: VERDE }}>✓</span>}
+            </button>
+          ))}
+        </div>
+      )}
       <p style={{ margin: '0 0 14px', fontSize: 11.5, color: TINTA_TENUE, lineHeight: 1.6 }}>
         {rangoCorto(semana)} · el día de depósito de cada plaza va marcado con ▲.
         Los siete días y «efectivo neto» son lo que debe quedar en el cajón;
@@ -1121,6 +1257,11 @@ function Calendario({ plazas }) {
           </tfoot>
         )}
       </table>
+
+      {/* El detalle de las salidas va DEBAJO de la tabla y plegado: la tabla
+          dice cuánto salió, esto dice en qué se fue. Son dos preguntas y la
+          segunda sólo se hace cuando la primera sorprende. */}
+      <SalidasDeLaSemana plazas={conDatos} indice={indice} />
     </div>
   )
 }

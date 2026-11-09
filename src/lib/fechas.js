@@ -63,3 +63,24 @@ export function hace(dias) {
   if (dias === 1) return 'ayer'
   return `hace ${dias} días`
 }
+
+/**
+ * HOY, en el calendario de aquí. Nunca `toISOString()`.
+ *
+ * `new Date().toISOString().slice(0, 10)` da la fecha en UTC, y en hora de
+ * México eso es **el día siguiente a partir de las 18:00**. No es teoría:
+ * tumbó la pantalla de efectivo.
+ *
+ * El domingo 8 de noviembre de 2026, a las 18:11 de la tarde, el panel
+ * preguntó la fecha y le contestaron «9 de noviembre». Como el 9 era lunes,
+ * la semana en curso pasó a ser la del 9 al 15 —que todavía no había
+ * ocurrido— y la tabla entera salió en ceros, con la venta real de esa misma
+ * semana escondida en el bloque anterior.
+ *
+ * Es el mismo fallo que ya costó una vuelta con «lleva 2 días sin
+ * actualizarse» contra «ayer», y tiene la misma firma, que es la peor: **por
+ * la mañana acierta y por la tarde falla**. Nadie lo reporta porque la mitad
+ * del tiempo está bien, y cuando no lo está parece que no hubo ventas.
+ */
+export const hoyLocal = (ahora = new Date()) =>
+  `${ahora.getFullYear()}-${String(ahora.getMonth() + 1).padStart(2, '0')}-${String(ahora.getDate()).padStart(2, '0')}`

@@ -1076,6 +1076,57 @@ async function revisarBandeja(window, donde) {
 }
 
 /**
+ * El detalle de salidas de caja, en la pestaña de Efectivo.
+ *
+ * La tabla de la semana dice CUANTO salio; esto dice EN QUE se fue, que es la
+ * pregunta que de verdad se hace quien mira el cajon. Lo pidio el dueño el
+ * 2026-11-08 porque no habia ningun sitio donde leer el concepto.
+ *
+ * Y lo que esto caza de verdad es que se cuele un FALTANTE en la lista. Un
+ * faltante no resta del efectivo neto -ver `NO_RESTAN`- y lleva el nombre de
+ * quien cerro el turno pegado a una cantidad de dinero que falta. Metido
+ * entre las salidas se leeria como una salida mas, cuadraria la cuenta que no
+ * debe cuadrar, y de paso acusaria a alguien en una lista donde no toca.
+ */
+async function salidasDeCaja(window, donde) {
+  const doc = window.document
+  const sec = doc.querySelector('[data-salidas-semana]')
+  if (!sec) {
+    // Puede no haber ninguna salida esa semana, y entonces se DICE en vez de
+    // dejar el hueco: un hueco se lee como que no cargo.
+    if (doc.querySelector('[data-sin-salidas]')) return 1
+    errores.push(`${donde} · ni detalle de salidas ni aviso de que no hay`)
+    return 0
+  }
+
+  const abrir = doc.querySelector('[data-abrir-salidas]')
+  if (!abrir) {
+    errores.push(`${donde} · el detalle de salidas no se puede abrir`)
+    return 1
+  }
+  clic(window, abrir)
+  await nuevaVuelta(window, 6)
+  if (!enPie(window, `${donde} · salidas de caja`)) return 1
+
+  const filas = [...doc.querySelectorAll('[data-salida]')]
+  if (!filas.length) {
+    errores.push(`${donde} · el detalle se abrio vacio`)
+    return 1
+  }
+
+  const txt = (sec.textContent || '').replace(/\s+/g, ' ')
+  // El concepto es la unica columna por la que esta tabla existe.
+  if (!/papeleria sin ticket/.test(txt)) {
+    errores.push(`${donde} · el detalle no enseña el concepto de la salida`)
+  }
+  // Y el faltante NO puede estar.
+  if (/falto en el corte/.test(txt)) {
+    errores.push(`FALTANTE EN LAS SALIDAS · ${donde} · un faltante no resta del neto y lleva un nombre pegado`)
+  }
+  return 1
+}
+
+/**
  * El archivo de bajas, en la pestaña de Inventarios.
  *
  * Lo que esto caza es que el archivo vuelva a perder de vista lo ya resuelto,
@@ -1939,6 +1990,7 @@ let plazasDeEfectivo = 0
 const lotesVistos = new Set()
 let nuevosVistos = 0
 let archivosDeBaja = 0
+let salidasVistas = 0
 
 for (const [nombre, sesion] of SESIONES) {
   const { window, dichos } = await arrancar(sesion)
@@ -2027,6 +2079,11 @@ for (const [nombre, sesion] of SESIONES) {
           metodosPlegados += metodoPlegado(window, `${nombre} · ${t}`)
         }
         if (/efectivo/i.test(t)) {
+          // El detalle de salidas va ANTES: vive en el calendario del
+          // tablero, y `revisarEfectivo` se mete dentro de una plaza, que es
+          // otra vista. Comprobandolo despues se buscaba algo que ya no
+          // estaba en pantalla.
+          salidasVistas += await salidasDeCaja(window, `${nombre} · admin · ${t}`)
           plazasDeEfectivo += await revisarEfectivo(window, `${nombre} · admin · ${t}`)
         }
       }
@@ -2081,6 +2138,8 @@ if (bandejasDeCosto < 1) {
   errores.push('la bandeja de «Costos que faltan en bodega» no se dibujo: el costo sale solo de bodega, y si el hueco no se ve la utilidad miente por omision')
 }
 for (const l of porSitio) console.log('  ' + l)
+console.log(`  detalle de salidas de caja: ${salidasVistas} dibujado`)
+if (!salidasVistas) errores.push('el detalle de salidas de caja no se dibujo en ninguna sesion')
 console.log(`  archivo de bajas: ${archivosDeBaja} dibujado`)
 if (!archivosDeBaja) errores.push('el archivo de bajas no se dibujo en ninguna sesion')
 console.log(`  seccion de modelos nuevos: ${nuevosVistos} dibujada`)

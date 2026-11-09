@@ -11,6 +11,7 @@ import {
   guardarParametrosCaja, guardarMovimientoCaja,
 } from './api'
 import { PARAMETROS_VACIOS, bloquesSemanales, acumuladoPorDepositar, efectivoEnCaja, tieneDatos } from './caja'
+import { hoyLocal } from './fechas'
 
 /** Las cinco plazas que manejan efectivo, en el orden en que se miran. */
 export const PLAZAS_CAJA = [
@@ -91,7 +92,11 @@ export function useCaja(token, { semanas = SEMANAS, hasta = null } = {}) {
   // `hoy` se congela por vuelta y no se lee en cada render: con `new Date()`
   // suelto, cada repintado daba una hora distinta y un bloque podía pasar de
   // «pendiente» a «atrasado» sin que nadie tocara nada.
-  const hoy = useMemo(() => new Date().toISOString(), [vuelta])
+  // La fecha de HOY sale del calendario de aquí, no de UTC. Con
+  // `toISOString()`, a partir de las 18:00 hora de México ya era mañana: un
+  // domingo por la tarde la semana en curso saltaba a la siguiente y la
+  // pantalla salía entera en ceros. Ver `hoyLocal` en `fechas.js`.
+  const hoy = useMemo(() => `${hoyLocal()}T00:00:00`, [vuelta])
 
   const plazas = useMemo(() => PLAZAS_CAJA.map(p => {
     const flujo  = datos?.flujos?.[p.slug] ?? null

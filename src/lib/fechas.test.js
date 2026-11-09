@@ -6,7 +6,7 @@
 
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { diasDesde, hace } from './fechas.js'
+import { diasDesde, hace , hoyLocal} from './fechas.js'
 
 test('LA TRAMPA: la hora del dia NO puede cambiar la cuenta', () => {
   // `new Date('2026-11-05')` es la medianoche del 5 en UTC, que en Mexico son
@@ -64,4 +64,23 @@ test('el texto dice lo que se lee en pantalla', () => {
   assert.equal(hace(5), 'hace 5 días')
   assert.equal(hace(null), 'sin fecha')
   assert.equal(hace(-2), 'con fecha futura')
+})
+
+test('HOY ES HOY AQUI, no en UTC, y esto tumbo la pantalla de efectivo', () => {
+  // El domingo 8 de noviembre de 2026 a las 18:11 de la tarde en Mexico, la
+  // fecha en UTC ya era el 9 -lunes-. La pantalla de efectivo dio por
+  // empezada la semana del 9 al 15, que todavia no habia pasado, y lo enseño
+  // todo en ceros con la venta real escondida en el bloque anterior.
+  //
+  // Se construye la hora como LOCAL a proposito: es lo que ve el navegador de
+  // la tienda.
+  const domingoTarde = new Date(2026, 10, 8, 18, 11, 0)
+  assert.equal(hoyLocal(domingoTarde), '2026-11-08')
+  // Y lo que hacia antes, para que se vea la diferencia:
+  assert.notEqual(domingoTarde.toISOString().slice(0, 10), '2026-11-08')
+
+  // Por la mañana del mismo dia acertaban los dos. Por eso no se reportaba.
+  const domingoManana = new Date(2026, 10, 8, 9, 0, 0)
+  assert.equal(hoyLocal(domingoManana), '2026-11-08')
+  assert.equal(domingoManana.toISOString().slice(0, 10), '2026-11-08')
 })
