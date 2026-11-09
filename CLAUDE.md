@@ -1686,6 +1686,28 @@ Y `null` no es cero: cero significa «hoy» y null «no se sabe». Una fecha
 futura sale **negativa** y no recortada a cero, porque es un dato roto y
 conviene que se note.
 
+### La sincronización corre CINCO veces al día, y el cron va en UTC
+
+`inventarios.yml` dispara a las **18:17, 21:17, 03:17, 09:17 y 15:17** hora de
+México. Son varias y no una porque GitHub no respeta la hora exacta en repos
+públicos —con una sola corrida las reales cayeron entre dos y cuatro horas
+tarde, y algún día no disparó— y porque las sucursales suben a una hora
+parecida: el 16 de septiembre la corrida entró a las 19:29 y los respaldos
+llegaron entre 19:30 y 20:05, perdidos por un minuto.
+
+La de las **18:17 la pidió el dueño el 2026-11-08**: los domingos cierran
+antes y la venta del día no aparecía hasta las 21:17. Va todos los días y no
+sólo el domingo, decisión suya: una corrida de más no hace daño —si el
+respaldo no ha llegado, esa pasada no trae nada nuevo— y una corrida que sólo
+existe un día de la semana es la que nadie revisa cuando falla.
+
+**⚠️ El cron va en UTC y México va seis horas detrás, lo que cruza la
+medianoche.** `17 0` no es «las 00:17 de México»: son **las 18:17 del día
+anterior**. Por eso un cron con día de la semana cae en el día equivocado:
+pedir «domingo a las 18:17» con `17 0 * * 0` daría el **sábado** por la tarde.
+Hoy todas son diarias y no se nota; el día que se ponga un día concreto, hay
+que correrlo uno hacia adelante.
+
 ### 🔒 Las tiendas suben su respaldo a partir de las 20:30
 
 Por eso `DIAS_INVENTARIO_VIEJO` es **2** y no 1. Durante todo el día de
