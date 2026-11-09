@@ -751,6 +751,41 @@ de dinero que falta. Metido entre las salidas se leería como una salida más,
 cuadraría la cuenta que esta pantalla existe para descuadrar, y de paso
 acusaría a alguien en una lista donde no toca. `verificar` lo comprueba.
 
+### ⚠️ Un día en blanco: «falta el corte» NO es «aún no llega»
+
+La pantalla pintaba los dos casos igual, con un guion, y el dueño leyó el
+domingo vacío como un fallo. Son cosas muy distintas:
+
+| | qué es | ¿alarma? |
+|---|---|---|
+| **Aún no llega** | Las tiendas suben su respaldo **a partir de las 20:30**, así que durante toda la jornada el día más fresco que puede existir es el de AYER | No. Es lo normal |
+| **Falta el corte** | El respaldo llegó, cubre ese día, y viene vacío: o nadie cerró turno, o se subió a medias | **Sí.** Lo vendido ese día no está contado en ningún sitio |
+
+🔒 **La frontera es la fecha del RESPALDO, no «hoy».** Con «hoy» saltaría la
+alerta cada tarde en las cinco plazas, y una alerta que sale siempre deja de
+leerse —peor que no tenerla, porque el día que salga de verdad tampoco se
+leerá—. Es la misma razón por la que `DIAS_INVENTARIO_VIEJO` es 2 y no 1.
+
+Y **sin fecha de respaldo no se opina**: marcar días en rojo a ciegas manda a
+buscar un corte que quizá nunca faltó. Vive en `cortesQueFaltan()`, con
+pruebas.
+
+### El renglón que hablaba del depósito encima de la tabla diaria
+
+Decía «Cubre la venta del 26 de oct al 1 de nov» justo encima de una tabla que
+enseñaba del 2 al 8. Era cierto —el depósito de una semana cubre la venta de
+la anterior— pero colocado ahí se leía como si la tabla fuera de esas fechas.
+El dueño lo leyó así. Ahora dice de quién habla.
+
+### Las salidas se ven en LOS DOS sitios
+
+Primero sólo estaban en el calendario del tablero, y el dueño las buscó en el
+bloque de su plaza: «no sé dónde puedo ver las salidas de efectivo». Es lo
+lógico —ahí están los renglones de gastos, retiros y adelantos, pero sumados—
+así que el detalle con conceptos va también dentro de cada plaza, y ahí
+**abierto por defecto**: si hay salidas en la semana de una plaza concreta, es
+lo que se vino a ver.
+
 ### Los botones de semana, y por qué hoy casi no se ven
 
 El calendario enseñaba `bloques[0]` y punto, así que el domingo por la tarde

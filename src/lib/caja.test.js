@@ -13,7 +13,7 @@ import {
   flujoDelDia, flujoSemana, estadoDeposito, fechaDeDeposito, efectivoEnCaja,
   semaforo, faltantesDe, gastosQueDuelen, periodoQueCubre, pesos,
   bloqueSemanal, bloquesSemanales, acumuladoPorDepositar, tieneDatos,
-  INICIO_HISTORIAL,
+  INICIO_HISTORIAL, cortesQueFaltan,
 } from './caja.js'
 
 // Parámetros de una plaza ya configurada, para no repetirlos en cada prueba.
@@ -620,4 +620,38 @@ test('recortar lo que se VE no puede recortar lo que se DEBE', () => {
   assert.equal(soloVisibles.semanas, 1, 'recortando, desaparece')
   assert.ok(completo.total > soloVisibles.total,
     'y con ella desaparece su dinero: por eso el gancho guarda las ocho')
+})
+
+test('UN DIA EN BLANCO: «falta el corte» NO es lo mismo que «aun no llega»', () => {
+  // La pantalla los pintaba igual, con un guion, y el dueño leyo el domingo
+  // sin datos como un fallo. Las tiendas suben su respaldo a partir de las
+  // 20:30, asi que durante toda la jornada el dia mas fresco que puede
+  // existir es el de AYER: un hueco en el dia de hoy es lo normal.
+  const filas = [
+    { f: '2026-11-05', hayDato: true },
+    { f: '2026-11-06', hayDato: false },   // el respaldo lo cubre y no trae nada
+    { f: '2026-11-07', hayDato: true },
+    { f: '2026-11-08', hayDato: false },   // posterior al respaldo: aun no llega
+  ]
+  const r = cortesQueFaltan(filas, '2026-11-07')
+  assert.deepEqual(r.faltan.map(x => x.f), ['2026-11-06'], 'solo el que el respaldo deberia cubrir')
+  assert.deepEqual(r.porLlegar.map(x => x.f), ['2026-11-08'])
+  assert.equal(r.sinRespaldo, false)
+})
+
+test('LA FRONTERA ES EL RESPALDO, no «hoy»', () => {
+  // Con «hoy» como limite, cada tarde se marcaria el dia en curso como
+  // corte faltante en las cinco plazas. Una alerta que sale siempre deja de
+  // leerse, que es peor que no tenerla.
+  const filas = [{ f: '2026-11-08', hayDato: false }]
+  assert.equal(cortesQueFaltan(filas, '2026-11-07').faltan.length, 0, 'el respaldo no llega a ese dia')
+  assert.equal(cortesQueFaltan(filas, '2026-11-08').faltan.length, 1, 'el respaldo si lo cubre y viene vacio')
+})
+
+test('sin fecha de respaldo NO se opina', () => {
+  // Marcar dias en rojo a ciegas manda a buscar un corte que quiza nunca
+  // falto. Es la misma regla que `Alta`: sirve de cota, nunca de prueba.
+  const r = cortesQueFaltan([{ f: '2026-11-06', hayDato: false }], null)
+  assert.equal(r.sinRespaldo, true)
+  assert.equal(r.faltan.length, 0)
 })

@@ -644,3 +644,48 @@ export function gastosQueDuelen(movimientos = [], params = {}) {
  * existencia del objeto.
  */
 export const tieneDatos = flujo => Array.isArray(flujo?.dias) && flujo.dias.length > 0
+
+// ── Los cortes que faltan ─────────────────────────────────────────────────
+//
+// Lo pidió el dueño el 2026-11-08: «el día 8 no está siendo considerado…
+// que si no detecta un día me arroje alguna alerta que falta el corte de un
+// día».
+//
+// El día en blanco tenía dos causas muy distintas y la pantalla las pintaba
+// igual, con un guion:
+//
+//   · **Todavía no ha llegado.** Las tiendas suben su respaldo a partir de
+//     las 20:30, así que durante toda la jornada el día más fresco que puede
+//     existir es el de AYER. Un guion en el día de hoy es lo normal, no un
+//     problema, y avisar de él haría saltar la alerta en las cinco plazas
+//     cada mañana. Una alerta que sale siempre deja de leerse.
+//
+//   · **Faltó el corte.** El respaldo llegó, cubre ese día, y ese día no
+//     trae nada. Eso sí es un problema: o nadie cerró turno, o el respaldo
+//     se subió a medias, y lo que se vendió ese día no está contado en
+//     ningún sitio.
+//
+// La frontera no es «hoy», es **la fecha del respaldo**. Lo anterior o igual
+// a ella debería estar; lo posterior todavía no puede estarlo. Usar «hoy»
+// daría falsas alarmas cada tarde, que es el mismo error que esta pantalla ya
+// cometió una vez con la zona horaria.
+
+/**
+ * Los días de la semana que deberían tener corte y no lo tienen.
+ *
+ * `respaldo` es la fecha del último respaldo de esa plaza. Sin ella no se
+ * opina: no se puede saber hasta dónde llega el dato, y marcar días en rojo a
+ * ciegas manda a buscar un corte que quizá nunca faltó.
+ */
+export function cortesQueFaltan(filas = [], respaldo = null) {
+  if (!respaldo) return { faltan: [], porLlegar: [], sinRespaldo: true }
+  const corte = String(respaldo).slice(0, 10)
+
+  const faltan = [], porLlegar = []
+  for (const r of filas) {
+    if (r.hayDato) continue
+    if (String(r.f) <= corte) faltan.push(r)
+    else porLlegar.push(r)
+  }
+  return { faltan, porLlegar, sinRespaldo: false }
+}

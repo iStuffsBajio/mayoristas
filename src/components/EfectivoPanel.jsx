@@ -25,7 +25,7 @@ import { apiConfigurada } from '../lib/api'
 import { useCaja } from '../lib/useCaja'
 import {
   ESTADOS, DIAS, pesos, pesosCortos, semaforo, faltantesDe, gastosQueDuelen,
-  movimientosDeSemana,
+  movimientosDeSemana, cortesQueFaltan,
   periodoQueCubre, fechaDeDeposito, nombreDia, semanaDe, INICIO_HISTORIAL,
 } from '../lib/caja'
 
@@ -377,16 +377,82 @@ function FormaDeposito({ plaza, bloque, onGuardar, onCancelar }) {
   )
 }
 
+/**
+ * Los días sin corte, y los que simplemente no han llegado.
+ *
+ * Lo pidió el dueño el 2026-11-08: «el día 8 no está siendo considerado… que
+ * si no detecta un día me arroje alguna alerta que falta el corte de un día».
+ *
+ * La pantalla pintaba los dos casos igual, con un guion, y son muy distintos:
+ *
+ *   · **Todavía no ha llegado.** Las tiendas suben su respaldo a partir de
+ *     las 20:30, así que durante toda la jornada el día más fresco que puede
+ *     existir es el de AYER. Un hueco hoy es lo normal.
+ *   · **Faltó el corte.** El respaldo llegó, cubre ese día, y viene vacío. O
+ *     nadie cerró turno, o se subió a medias: lo que se vendió ese día no
+ *     está contado en ningún sitio.
+ *
+ * La frontera es **la fecha del respaldo**, no «hoy». Con «hoy» saltaría la
+ * alerta cada tarde en las cinco plazas, y una alerta que sale siempre deja
+ * de leerse.
+ */
+function CortesQueFaltan({ plaza, bloque }) {
+  const r = cortesQueFaltan(bloque.filas ?? [], plaza.respaldo?.fecha ?? null)
+
+  if (r.sinRespaldo) {
+    return (
+      <p data-sin-respaldo style={{ margin: '0 0 10px', fontSize: 11.5, color: AMBAR, lineHeight: 1.5 }}>
+        ⚠ No se sabe de cuándo es el último respaldo de {plaza.nombre}, así que no se puede
+        decir qué días deberían estar y cuáles no. Los huecos de abajo no significan nada
+        todavía.
+      </p>
+    )
+  }
+
+  if (!r.faltan.length && !r.porLlegar.length) return null
+
+  return (
+    <div data-cortes style={{ margin: '0 0 10px', fontSize: 11.5, lineHeight: 1.55 }}>
+      {r.faltan.length > 0 && (
+        <p data-faltan-cortes style={{ margin: 0, color: ROSA, fontWeight: 700 }}>
+          ⚠ Falta el corte de {r.faltan.length === 1 ? 'un día' : `${r.faltan.length} días`}:{' '}
+          {r.faltan.map(x => `${x.dia} ${String(x.f).slice(8, 10)}`).join(', ')}.
+          {' '}<span style={{ fontWeight: 400 }}>
+            El respaldo del {plaza.respaldo.fecha} ya cubre {r.faltan.length === 1 ? 'ese día' : 'esos días'} y
+            viene sin nada: o no se cerró turno, o el respaldo se subió a medias. Lo que se
+            vendió no está contado en esta cuenta.
+          </span>
+        </p>
+      )}
+      {r.porLlegar.length > 0 && (
+        <p data-por-llegar style={{ margin: r.faltan.length ? '4px 0 0' : 0, color: TINTA_TENUE }}>
+          {r.porLlegar.map(x => `${x.dia} ${String(x.f).slice(8, 10)}`).join(', ')}{' '}
+          {r.porLlegar.length === 1 ? 'todavía no llega' : 'todavía no llegan'}: el último respaldo es
+          del {plaza.respaldo.fecha} y las tiendas lo suben a partir de las 20:30. No es un
+          problema, es que el día aún no ha cerrado.
+        </p>
+      )}
+    </div>
+  )
+}
+
 /** La tabla diaria: las trece líneas del cálculo, por día y sumadas. */
 function TablaDias({ plaza, bloque, cubre, onAjustar }) {
   const [ajustando, setAjustando] = useState(null)
 
   return (
     <div style={{ borderTop: '1px solid ' + LINEA, padding: '14px 18px', overflowX: 'auto' }}>
+      {/* Este renglón hablaba del DEPÓSITO —qué semana cubre— pero estaba
+          justo encima de la tabla diaria, así que se leía como si la tabla
+          fuera de esas fechas. El dueño lo leyó así: «dice que cubre del 26
+          de octubre al 1 de noviembre pero la tabla es del 2 al 8». Ahora se
+          dice de quién habla. */}
       <p style={{ margin: '0 0 10px', fontSize: 11, color: TINTA_TENUE }}>
-        Cubre la venta del {rangoCorto(cubre)}
-        {plaza.respaldo && ` · respaldo del ${plaza.respaldo.fecha}`}
+        El <strong>depósito</strong> de esta semana cubre la venta del {rangoCorto(cubre)}.
+        {plaza.respaldo && ` La tabla de abajo son los días de esta semana, con el respaldo del ${plaza.respaldo.fecha}.`}
       </p>
+
+      <CortesQueFaltan plaza={plaza} bloque={bloque} />
 
       <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 12.5 }}>
         <thead>
@@ -472,6 +538,16 @@ function TablaDias({ plaza, bloque, cubre, onAjustar }) {
           </tr>
         </tbody>
       </table>
+
+      {/* Las salidas con su CONCEPTO, aquí dentro y no sólo en el tablero.
+          El dueño las buscó en esta vista -«no sé dónde puedo ver las salidas
+          de efectivo»- y es lo lógico: aquí es donde están los renglones de
+          gastos, retiros y adelantos, pero sumados. Esto dice en qué se
+          fueron. Va abierto por defecto: si hay salidas en la semana de una
+          plaza concreta, es lo que se vino a ver. */}
+      <SalidasDeLaSemana abiertoPorDefecto
+        grupos={[{ slug: plaza.slug, nombre: plaza.nombre,
+                   movs: movimientosDeSemana(bloque.filas ?? []) }]} />
 
       {ajustando && (
         <FormaAjuste plaza={plaza} {...ajustando}
@@ -1036,13 +1112,10 @@ const NOMBRE_SALIDA = {
  * quien cerró el turno pegado a una cantidad de dinero que falta. Tienen su
  * propia sección y su propia regla.
  */
-function SalidasDeLaSemana({ plazas, indice }) {
-  const [abierto, setAbierto] = useState(false)
+function SalidasDeLaSemana({ grupos, abiertoPorDefecto = false }) {
+  const [abierto, setAbierto] = useState(abiertoPorDefecto)
 
-  const porPlaza = plazas.map(p => ({
-    plaza: p,
-    movs: movimientosDeSemana(p.bloques?.[indice]?.filas ?? []),
-  })).filter(x => x.movs.length)
+  const porPlaza = (grupos ?? []).filter(x => x.movs.length)
 
   const cuantas = porPlaza.reduce((a, x) => a + x.movs.length, 0)
   const total = porPlaza.reduce((a, x) => a + x.movs
@@ -1074,11 +1147,14 @@ function SalidasDeLaSemana({ plazas, indice }) {
         </span>
       </button>
 
-      {abierto && porPlaza.map(({ plaza, movs }) => (
-        <div key={plaza.slug} data-salidas-de={plaza.slug} style={{ marginTop: 12 }}>
-          <p style={{ margin: '0 0 5px', fontSize: 11.5, fontWeight: 800, color: TINTA }}>
-            {plaza.nombre}
-          </p>
+      {abierto && porPlaza.map(({ slug, nombre, movs }) => (
+        <div key={slug} data-salidas-de={slug} style={{ marginTop: 12 }}>
+          {/* Con una sola plaza el título sobra: ya se sabe de quién es. */}
+          {porPlaza.length > 1 && (
+            <p style={{ margin: '0 0 5px', fontSize: 11.5, fontWeight: 800, color: TINTA }}>
+              {nombre}
+            </p>
+          )}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
             <tbody>
               {movs.map(m => (
@@ -1273,7 +1349,10 @@ function Calendario({ plazas }) {
       {/* El detalle de las salidas va DEBAJO de la tabla y plegado: la tabla
           dice cuánto salió, esto dice en qué se fue. Son dos preguntas y la
           segunda sólo se hace cuando la primera sorprende. */}
-      <SalidasDeLaSemana plazas={conDatos} indice={indice} />
+      <SalidasDeLaSemana grupos={conDatos.map(p => ({
+        slug: p.slug, nombre: p.nombre,
+        movs: movimientosDeSemana(p.bloques?.[indice]?.filas ?? []),
+      }))} />
     </div>
   )
 }
