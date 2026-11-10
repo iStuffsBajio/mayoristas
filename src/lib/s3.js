@@ -48,3 +48,12 @@ export function estadisticasUrl(slug) {
 export function historialUrl(slug) {
   return urlDe(`inventarios/${slug}/historial.json`)
 }
+
+/**
+ * Los días que cada código estuvo en cero en los últimos 90, sacados del
+ * kárdex. Público a propósito —sólo código y días, ningún nombre—: bodega lo
+ * necesita y no puede leer `ventas/`. Ver `lib/agotados.js`.
+ */
+export function agotadosUrl(slug) {
+  return urlDe(`inventarios/${slug}/agotados.json`)
+}

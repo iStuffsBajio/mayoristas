@@ -3,6 +3,16 @@
 Este registro resume cambios relevantes del producto y de su documentación;
 no sustituye el historial completo de Git.
 
+## 2026-11-09
+
+- Bodega tiene **Consultar modelo**: buscar un modelo o abrir uno de los más
+  vendidos, con su venta y existencia por tienda y lo que hay en bodega.
+- Se miden los **días en cero** de cada código en los últimos 90 desde el
+  kárdex de Eleventa (`inventarios/<plaza>/agotados.json`). La ficha dice por
+  plaza si su venta es de fiar, y «Pedir por venta» y «Comprar» marcan con ⚠
+  los modelos que vendieron poco porque estaban agotados. La cantidad a pedir
+  no cambia.
+
 ## 2026-11-08
 
 - Se añadió `AGENTS.md` como fuente compartida de instrucciones para Codex y

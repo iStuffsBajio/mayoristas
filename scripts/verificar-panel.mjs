@@ -481,12 +481,31 @@ const BAJAS = [
   },
 ]
 
+/**
+ * Los días en cero del kárdex, con los TRES casos que la pantalla dice
+ * distinto: León censura (la mitad del tiempo en cero), Aguascalientes es de
+ * fiar (nunca en cero), y San Luis no tiene archivo —antes de la primera
+ * sincronización que lo mide—. Con un solo caso, dos tercios de lo que se
+ * dibuja no se ejecutarían nunca.
+ */
+function agotadosDe(plaza) {
+  const parte = { leon: 0.5, aguascalientes: 0 }[plaza]
+  if (parte === undefined) return null
+  return {
+    plaza, dias: 90,
+    porCodigo: Object.fromEntries(productos.map(p => [p.Codigo,
+      { diasEnCero: 90 * parte, diasMedidos: 90, parte }])),
+  }
+}
+
 /** Lo que devuelve cada ruta, según lo que pida. */
 function respuesta(url) {
   const u = String(url)
   if (/indice\.json/.test(u)) {
     return { mockups: MODELOS.map(([codigo, nombre], i) => ({ codigo, nombre, archivo: `${codigo}.png`, piezas: 200 - i * 10 })) }
   }
+  // Antes que nada: la ruta lleva `inventarios/` y caería en el inventario.
+  if (/agotados\.json/.test(u)) return agotadosDe(u.match(/inventarios\/([a-z-]+)\//)?.[1])
   if (/estadistica/i.test(u)) return estadisticas
   if (/historial/i.test(u)) return historial
   if (/turnos/i.test(u)) return turnos
@@ -1573,6 +1592,59 @@ function bandejaDeCostos(window, donde) {
  * DIBUJE, y que un codigo inexistente lo diga en vez de dejar el hueco en
  * blanco, que es como se ve igual que un fallo.
  */
+/**
+ * «Consultar modelo», el panel de bodega para mirar un modelo de cerca.
+ *
+ * Lo que se comprueba es lo que contesta la pregunta del dueño —¿vendió poco
+ * porque no había?—: la lista de los más vendidos, que abrir uno dibuje su
+ * ficha, y que la ficha diga plaza por plaza si su venta es de fiar, con los
+ * tres casos (censurada, de fiar, sin medir). Si la lectura dejara de
+ * dibujarse, la ficha seguiría ahí y parecería entera.
+ */
+async function consultaModelo(window, donde) {
+  const doc = window.document
+  const sec = doc.querySelector('[data-consulta-modelo]')
+  if (!sec) { errores.push(`${donde} · «Consultar modelo» no se dibujó`); return 0 }
+
+  const abrir = sec.querySelector('[data-mas-vendidos] [data-abrir-modelo]')
+  if (!abrir) { errores.push(`${donde} · «Consultar modelo» no enseña los más vendidos`); return 0 }
+  clic(window, abrir)
+  await nuevaVuelta(window, 4)
+  if (!enPie(window, `${donde} · abriendo un modelo`)) return 0
+
+  const ficha = doc.querySelector('[data-consulta-modelo] [data-ficha-codigo]')
+  if (!ficha) { errores.push(`${donde} · abrir un más vendido no dibujó su ficha`); return 0 }
+  if (!doc.querySelector('[data-en-bodega]')) {
+    errores.push(`${donde} · la ficha no dice cuánto hay en bodega, que es de donde se surte`)
+  }
+  const fiar = ficha.querySelector('[data-venta-de-fiar]')
+  if (!fiar) {
+    errores.push(`${donde} · la ficha no dice si su venta es de fiar: vuelve a no distinguir poca demanda de mostrador vacío`)
+  } else {
+    const txt = fiar.textContent || ''
+    if (!fiar.querySelector('[data-censurada="si"]')) errores.push(`${donde} · ninguna plaza sale censurada, y León estuvo en cero la mitad del tiempo`)
+    if (!fiar.querySelector('[data-censurada="no"]')) errores.push(`${donde} · ninguna plaza sale de fiar, y Aguascalientes nunca estuvo en cero`)
+    if (!/sin medir/.test(txt)) errores.push(`${donde} · San Luis no tiene archivo y no lo dice`)
+  }
+
+  const volver = [...sec.querySelectorAll('button')].find(b => /volver/i.test(b.textContent))
+  if (volver) { clic(window, volver); await nuevaVuelta(window, 3) }
+  if (!doc.querySelector('[data-mas-vendidos]')) errores.push(`${donde} · «Volver» no regresa a los más vendidos`)
+  return 1
+}
+
+/**
+ * La marca ⚠ de venta censurada en «Pedir por venta».
+ *
+ * 🔒 Se marca y no se corrige, así que lo único que hay que ver es que la
+ * marca salga. Sin ella el X8D vuelve a ser un número que no se sabe si creer.
+ */
+function marcaDeCensura(window, donde) {
+  const doc = window.document
+  if (!doc.querySelector('[data-pedir]')) return 0
+  return doc.querySelector('[data-censurada]') ? 1 : 0
+}
+
 async function buscarUnCodigo(window, donde) {
   const doc = window.document
   const campo = [...doc.querySelectorAll('input')]
@@ -2016,6 +2088,8 @@ const lotesVistos = new Set()
 let nuevosVistos = 0
 let archivosDeBaja = 0
 let salidasVistas = 0
+let consultasVistas = 0
+let censurasVistas = 0
 
 for (const [nombre, sesion] of SESIONES) {
   const { window, dichos } = await arrancar(sesion)
@@ -2076,6 +2150,7 @@ for (const [nombre, sesion] of SESIONES) {
           bandejasDePrecio += preciosARevisar(window, `${nombre} · admin · ${t}`)
         }
         if (/surtido|surtir/i.test(t)) {
+          censurasVistas += marcaDeCensura(window, `${nombre} · ${t}`)
           foliosVistos += await listaDeFolios(window, `${nombre} · admin · ${t}`)
           // Solo para una sesion de TIENDA: admin y bodega si deben verlo.
           if (nombre === 'sucursal') {
@@ -2094,6 +2169,9 @@ for (const [nombre, sesion] of SESIONES) {
         if (/inventarios/i.test(t)) {
           clasesVistas += await clasesEnRecuadros(window, `${nombre} · ${t}`)
           archivosDeBaja += await archivoDeBajas(window, `${nombre} · ${t}`)
+        }
+        if (/consultar modelo/i.test(t) && nombre === 'bodega') {
+          consultasVistas += await consultaModelo(window, `${nombre} · ${t}`)
         }
         if (/se mueve/i.test(t)) {
           movimientoVisto += queSeMueve(window, `${nombre} · admin · ${t}`)
@@ -2169,6 +2247,10 @@ console.log(`  archivo de bajas: ${archivosDeBaja} dibujado`)
 if (!archivosDeBaja) errores.push('el archivo de bajas no se dibujo en ninguna sesion')
 console.log(`  seccion de modelos nuevos: ${nuevosVistos} dibujada`)
 if (!nuevosVistos) errores.push('la seccion «estan vendiendo los modelos nuevos» no se dibujo en ninguna sesion')
+console.log(`  consultar modelo de bodega: ${consultasVistas} dibujado`)
+if (!consultasVistas) errores.push('«Consultar modelo» de bodega no se recorrió: bodega se queda sin poder mirar un modelo de cerca')
+console.log(`  marca de venta censurada en «Pedir»: ${censurasVistas} vista`)
+if (!censurasVistas) errores.push('ninguna lista de «Pedir» marcó un modelo que estuvo en cero: vuelve a no saberse si un número bajo es de fiar')
 console.log(`  lotes dibujados: ${lotesVistos.size}`)
 for (const l of lotesVistos) console.log('    · ' + l)
 if (lotesVistos.size < 4) errores.push(`solo se dibujaron ${lotesVistos.size} lotes de 4: la bandeja volvio a preguntar codigo por codigo`)

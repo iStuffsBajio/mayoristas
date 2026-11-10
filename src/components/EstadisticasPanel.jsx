@@ -27,6 +27,7 @@ import { estrenos, comparaEdiciones, DIAS_EDICION, DIAS_PARA_OPINAR } from '../l
 // La regla de buscar vive en la libreria, con sus pruebas, no aqui: la
 // pastilla de la plaza y la del rango no pueden esconder un codigo que existe.
 import { modelosQueCoinciden, fichaDeVentas } from '../lib/buscarVentas'
+import { lecturaDeVenta, DIAS_AGOTADOS } from '../lib/agotados'
 
 // Una serie por gráfica, así que no hacen falta colores categóricos ni leyenda:
 // el título nombra la serie. Los tonos pasaron el validador de contraste contra
@@ -1096,6 +1097,75 @@ function Cancelaciones({ porPlaza, plazas, sel }) {
   )
 }
 
+/**
+ * Lo que TIENE una plaza, dicho junto a lo que vendió.
+ *
+ * El número solo no basta: la frase es lo que se lee. Y la que importa es la
+ * de la fila en cero, porque es la única en la que «no vendió» no significa
+ * «no se pide».
+ */
+function LecturaExistencia({ vendio, hay }) {
+  if (hay === undefined || hay === null) {
+    return <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: TINTA_TENUE }}>no lo maneja</span>
+  }
+  const n = Number(hay) || 0
+  if (n <= 0) {
+    return (
+      <span style={{ display: 'block', fontSize: 10, fontWeight: 700, color: C_BAJA }}>
+        en cero hoy{vendio === 0 ? ' · no se puede saber si se pide' : ''}
+      </span>
+    )
+  }
+  return (
+    <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: TINTA_TENUE }}>
+      hay {n}{vendio === 0 ? ' · con mercancía y sin venta' : ''}
+    </span>
+  )
+}
+
+/**
+ * ¿La venta de este código es de fiar, plaza por plaza?
+ *
+ * Es la pregunta del dueño del 2026-11-09 con el HONOR X8D, contestada con el
+ * kárdex: cuántos de los últimos 90 días estuvo en cero. No estima nada —la
+ * ficha mira 30 o 60 días y esto mide 90, y mezclar ventanas daría un número
+ * con cara de cuenta que no lo es—; dice el hecho y lo que significa.
+ */
+function VentaDeFiar({ ficha, agotados }) {
+  const filas = ficha.plazas
+    .map(p => ({ p, a: agotados[p.slug] }))
+    .filter(x => x.a !== null)            // no lo maneja: nada que decir
+  if (!filas.length) return null
+  const sinArchivo = filas.every(x => x.a === undefined)
+
+  return (
+    <div data-venta-de-fiar style={{ marginBottom: 16 }}>
+      <h4 style={{ fontSize: 12.5, fontWeight: 700, color: TINTA, margin: '0 0 6px' }}>
+        ¿Su venta es de fiar? Días en cero de los últimos {DIAS_AGOTADOS}
+      </h4>
+      {sinArchivo ? (
+        <p style={{ fontSize: 12, color: TINTA_TENUE, margin: 0, lineHeight: 1.5 }}>
+          Todavía no está medido: los días en cero salen del kárdex de Eleventa y aparecen
+          después de la siguiente sincronización.
+        </p>
+      ) : (
+        <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {filas.map(({ p, a }) => {
+            const l = a ? lecturaDeVenta({ agotado: a }) : null
+            return (
+              <li key={p.slug} data-censurada={l?.censurada ? 'si' : 'no'}
+                  style={{ fontSize: 12, lineHeight: 1.45, color: l?.censurada ? C_BAJA : TINTA_SUAVE }}>
+                <strong style={{ color: TINTA }}>{p.nombre}:</strong>{' '}
+                {l ? l.texto : 'todavía sin medir.'}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </div>
+  )
+}
+
 function PrecioPorPlaza({ porPlaza, plazas }) {
   const GRUPOS = [
     { k: 'fundas',      titulo: 'Fundas',          nota: 'el negocio' },
@@ -1302,7 +1372,24 @@ function PreciosARevisar({ porPlaza }) {
  * un modelo concreto, y mirando «San Luis · 7 días» un código que sólo se
  * movió en León daría cero teniendo el dato a la vista.
  */
-function FichaCodigo({ ficha, rango }) {
+/**
+ * La ficha de un código. Se exporta para que bodega la use en su panel.
+ *
+ * `existencias` es opcional: `{ slug: piezas }`. Cuando llega, cada plaza
+ * enseña lo que TIENE al lado de lo que VENDIÓ, y es lo que contesta la duda
+ * del dueño del 2026-11-09: «quiero saber si eso se debe a que estaba agotado
+ * o si realmente es un número confiable». Cero ventas con cinco en el
+ * mostrador es falta de demanda; cero ventas con cero en el mostrador no dice
+ * nada de la demanda.
+ */
+/*
+ * `agotados` también es opcional: `{ slug: { diasEnCero, diasMedidos, parte } }`
+ * de este código, sacado del kárdex. `null` en una plaza es que no lo maneja;
+ * `undefined`, que esa plaza todavía no tiene archivo. Con él la pregunta se
+ * contesta con días y no sólo con la foto de hoy: un modelo puede tener cinco
+ * hoy y haber pasado seis semanas en cero.
+ */
+export function FichaCodigo({ ficha, rango, existencias = null, agotados = null }) {
   // Doce meses es lo que cabe de un vistazo; el archivo guarda todos y el
   // Excel de «Archivo por mes» los baja completos.
   const meses = ficha.meses.slice(-12)
@@ -1354,10 +1441,15 @@ function FichaCodigo({ ficha, rango }) {
             <Barra valor={p.salidas} max={maxPlaza} color={C_SERIE} />
             <span style={{ fontSize: 12.5, fontWeight: 700, color: p.sinDato ? TINTA_TENUE : TINTA, fontVariantNumeric: 'tabular-nums', minWidth: '7ch', textAlign: 'right' }}>
               {p.sinDato ? 'sin dato' : p.salidas}
+              {existencias && !p.sinDato && (
+                <LecturaExistencia vendio={p.salidas} hay={existencias[p.slug]} />
+              )}
             </span>
           </div>
         ))}
       </div>
+
+      {agotados && <VentaDeFiar ficha={ficha} agotados={agotados} />}
 
       {ficha.total > 0 && (
         <div style={{ marginBottom: 16 }}>

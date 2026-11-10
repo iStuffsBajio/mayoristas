@@ -12,6 +12,7 @@ describe controles y operación de seguridad.
 | Configuración pública | `config/site.json` puede ser público sólo con las secciones permitidas por el backend; no debe contener datos privados. | `backend/src/index.js`; `CLAUDE.md`, “config/site.json es público” |
 | Inventarios | La publicación valida respaldos y protege el inventario existente contra archivos incompletos o más antiguos. | `README.md`, “Protección de los datos” y “Por qué es seguro que corran las dos” |
 | Seguridad de S3 | Mantener separados los datos públicos y privados y limitar permisos a prefijos requeridos. Verificar aplicación en AWS por separado. | `infra/istuffs-s3-policy.json`; `CLAUDE.md`, “Lo que se cambió en AWS, y lo que queda” |
+| Venta censurada | Los días en cero salen del kárdex y se publican en `inventarios/<plaza>/agotados.json` (público: sin nombres). «Pedir» y «Comprar» los **marcan**; corregir la cantidad con ellos queda pendiente de decisión del dueño. | `CLAUDE.md`, “Una venta baja con el mostrador vacío no es poca demanda”; `src/lib/agotados.js` |
 | Trabajo entre agentes | Instrucciones compartidas en `AGENTS.md`; `CLAUDE.md` importa esa fuente y mantiene el conocimiento específico de este repo. | `AGENTS.md`, `CLAUDE.md` |
 
 Las operaciones sobre cuentas, buckets, credenciales y publicación requieren

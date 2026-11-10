@@ -35,6 +35,7 @@ import { fileURLToPath } from 'node:url'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { agregarVentas } from '../src/lib/ventasTicket.js'
 import { reemplazosDeCancelados, resumirReemplazos } from '../src/lib/reemplazos.js'
+import { diasEnCero, DIAS_AGOTADOS } from '../src/lib/agotados.js'
 // La resolucion del respaldo se comparte con los otros extractores: del disco
 // en tu maquina y de Dropbox en la nube, que no tiene la A: montada.
 // Duplicarla era garantizar que el paso de la nube buscara donde no hay nada.
@@ -139,6 +140,35 @@ LEFT JOIN PRODUCTOS p ON p.CODIGO = a.PRODUCTO_CODIGO
 LEFT JOIN DEPARTAMENTOS d ON d.ID = p.DEPT;
 `
 
+/**
+ * La existencia ANTES de cada movimiento, para saber cuándo estuvo en cero.
+ *
+ * Lo pidió el dueño el 2026-11-09: «quiero saber si eso se debe a que estaba
+ * agotado o si realmente es un número confiable». Ver `agotados.js`.
+ *
+ * Columnas comprobadas con el explorador de esquema el mismo día: `CUANDO_FUE`
+ * es TIMESTAMP y `CANTIDAD_ANTERIOR` es FLOAT. No hay «existencia después»,
+ * y no hace falta: la existencia entre dos movimientos es la anterior del
+ * siguiente.
+ *
+ * `CANTIDAD_ANTERIOR` se castea porque un FLOAT concatenado sale en notación
+ * científica. Y los EXTRACT se juntan con separador porque rellenan con
+ * espacios —los meses de octubre en adelante ya salieron una vez como
+ * «2024- 10»—.
+ */
+const sqlKardex = desde => `
+SET HEADING OFF;
+SELECT TRIM(p.CODIGO) || '${SEP}' ||
+       EXTRACT(YEAR FROM h.CUANDO_FUE) || '${SEP}' || EXTRACT(MONTH FROM h.CUANDO_FUE) || '${SEP}' ||
+       EXTRACT(DAY FROM h.CUANDO_FUE) || '${SEP}' || EXTRACT(HOUR FROM h.CUANDO_FUE) || '${SEP}' ||
+       EXTRACT(MINUTE FROM h.CUANDO_FUE) || '${SEP}' ||
+       CAST(h.CANTIDAD_ANTERIOR AS NUMERIC(14,3))
+FROM INVENTARIO_HISTORIAL h
+JOIN PRODUCTOS p ON p.ID = h.PRODUCTO_ID
+WHERE h.CUANDO_FUE >= CAST('${desde}' AS TIMESTAMP)
+ORDER BY h.CUANDO_FUE;
+`
+
 const log = (...m) => console.log(new Date().toLocaleTimeString('es-MX', { hour12: false }), ...m)
 const comoBase = f => `${FB_PREFIJO}${f}`
 
@@ -174,6 +204,55 @@ async function procesar(slug) {
     const lineas = (await filasDe(fdb, workDir, SQL_LINEAS, 'lineas'))
       .map(([ticket, codigo, producto, depto, cantidad, total, ganancia, mayoreo, descuento]) =>
         ({ ticket, codigo, producto, depto, cantidad, total, ganancia, mayoreo, descuento }))
+
+    // ── Los días en cero, aparte y sin poder tumbar lo demás ──
+    //
+    // Si esto falla —una columna que no está, una plaza con el kárdex vacío—
+    // la venta de esa plaza tiene que salir igual. Lo accesorio no puede tirar
+    // lo principal: ya se decidió así con las devoluciones de la caja.
+    let agotados = null
+    try {
+      const hasta = `${respaldo.fecha} 23:59`
+      const d = new Date(`${respaldo.fecha}T00:00`)
+      d.setDate(d.getDate() - DIAS_AGOTADOS)
+      const desde = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+      const movimientos = (await filasDe(fdb, workDir, sqlKardex(desde), 'kardex'))
+        .map(([codigo, a, m, dd, hh, mm, anterior]) => ({
+          codigo,
+          cuando: `${a}-${String(m).padStart(2, '0')}-${String(dd).padStart(2, '0')} `
+            + `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`,
+          anterior: Number(anterior) || 0,
+        }))
+
+      // La existencia de hoy y las altas, del inventario que acaba de publicar
+      // la sincronización con este mismo respaldo: así las dos cuentas hablan
+      // del mismo día.
+      const inv = await (await fetch(
+        `https://${BUCKET}.s3.${REGION}.amazonaws.com/inventarios/${slug}/inventario.json?t=${Date.now()}`)).json()
+      const existenciaHoy = {}, altas = {}
+      for (const p of inv?.productos ?? []) {
+        const c = String(p.Codigo ?? '').trim().toUpperCase()
+        if (!c) continue
+        existenciaHoy[c] = Number(p.Existencia) || 0
+        if (p.Alta) altas[c] = String(p.Alta).slice(0, 10)
+      }
+
+      const porCodigo = diasEnCero({ movimientos, existenciaHoy, altas, desde, hasta })
+      agotados = {
+        plaza: slug,
+        generado: new Date().toISOString(),
+        respaldo: { fecha: respaldo.fecha },
+        dias: DIAS_AGOTADOS, desde, hasta: respaldo.fecha,
+        porCodigo,
+      }
+      const conCero = Object.values(porCodigo).filter(x => x.diasEnCero >= 1).length
+      log(`[${slug}] kárdex: ${movimientos.length} movimientos · `
+        + `${conCero} códigos estuvieron en cero algún día de los últimos ${DIAS_AGOTADOS}`)
+    } catch (e) {
+      log(`[${slug}] AVISO: no se pudieron medir los días en cero (${String(e.message).slice(0, 100)})`)
+      log(`[${slug}]        la venta sale igual; lo que falta es saber si estuvo agotado`)
+    }
 
     log(`[${slug}] ${tickets.length} tickets · ${lineas.length} lineas`)
 
@@ -230,6 +309,9 @@ async function procesar(slug) {
       generado: new Date().toISOString(),
       respaldo: { fecha: respaldo.fecha },
       ...agregado,
+      // Los días en cero van a su propio archivo PÚBLICO, no aquí: este es
+      // privado y bodega no puede leerlo, y bodega es quien más lo necesita.
+      agotados,
       // 🔒 Sospechas, nunca cifras. Ver `reemplazos.js`.
       cancelaciones: { dias: DIAS_VENTANA, resumen: resumenCancel, filas: cancelaciones.slice(0, 300) },
       // La ventana va aparte y completa: quien valore en pesos usa esta y
@@ -269,12 +351,40 @@ for (const slug of slugs) {
     + `mayoreo ${r.dinero > 0 ? Math.round(100 * r.dineroMayoreo / r.dinero) : 0}% del dinero · `
     + `${datos.mayoristas.length} mayoristas · ${datos.cajeros.length} cajeros`)
 
+  // Los días en cero a `inventarios/`, que es PÚBLICO. No llevan ningún
+  // nombre —sólo código y días— y bodega los necesita para no pedir de menos
+  // un modelo que vendió poco porque no había. Se sacan del archivo de ventas
+  // ANTES de nada: no tienen nada que hacer en un archivo privado.
+  const { agotados } = datos
+  delete datos.agotados
+
   if (DRY_RUN) {
+    if (agotados) {
+      const f = path.join(ROOT, 'scripts', 'out', `agotados-${slug}.json`)
+      fs.mkdirSync(path.dirname(f), { recursive: true })
+      fs.writeFileSync(f, JSON.stringify(agotados, null, 2))
+      log(`[${slug}] --dry-run: escrito en ${f}`)
+    }
     const fuera = path.join(ROOT, 'scripts', 'out', `ventas-${slug}.json`)
     fs.mkdirSync(path.dirname(fuera), { recursive: true })
     fs.writeFileSync(fuera, JSON.stringify(datos, null, 2))
     log(`[${slug}] --dry-run: escrito en ${fuera}`)
     continue
+  }
+
+  if (agotados) {
+    try {
+      await s3.send(new PutObjectCommand({
+        Bucket: BUCKET,
+        Key: `inventarios/${slug}/agotados.json`,
+        Body: Buffer.from(JSON.stringify(agotados)),
+        ContentType: 'application/json; charset=utf-8',
+        CacheControl: 'no-cache',
+      }))
+      log(`[${slug}] publicado en inventarios/${slug}/agotados.json`)
+    } catch (e) {
+      log(`[${slug}] AVISO: no se publicaron los días en cero (${String(e.message).slice(0, 100)})`)
+    }
   }
 
   await s3.send(new PutObjectCommand({

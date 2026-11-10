@@ -115,6 +115,60 @@ causa de que se agotaran modelos recién surtidos: medido, 30 clase A iban a
 Lo que todavía NO se puede medir es **cuántas veces se ha agotado** cada
 modelo, que es lo que pide el excedente anti-quiebre: hace falta el historial
 de existencias, y eso sólo sale de la tabla de movimientos de Eleventa.
+**Los días en cero ya se miden** (abajo); el número de quiebres se sacaría
+del mismo kárdex, pero todavía no se cuenta.
+
+### 🔒 Una venta baja con el mostrador vacío no es poca demanda
+
+Lo preguntó el dueño el 2026-11-09 mirando el HONOR X8D en «Pedir», que le
+pedía una o dos piezas: «quiero saber si eso se debe a que estaba agotado o si
+realmente es un número confiable».
+
+Toda la cuenta de «Pedir» sale de lo VENDIDO, y lo que no está en el mostrador
+no se vende. Un modelo agotado tres semanas sale con ritmo bajo, se le pide
+poco, se vuelve a agotar, y la cuenta se confirma a sí misma. Es venta
+**censurada**, no demanda baja.
+
+**De dónde sale.** `INVENTARIO_HISTORIAL` guarda en cada movimiento la
+existencia de JUSTO ANTES (`CANTIDAD_ANTERIOR`). No hay «después», y deducirlo
+obliga a saber si cada movimiento suma o resta. No hace falta: **la existencia
+entre un movimiento y el siguiente es la anterior del siguiente**, y del
+último hasta hoy, la de hoy. Lo calcula `diasEnCero()` en `agotados.js`, con
+pruebas; lo extrae `extraer-ventas-linea.js`, que ya restaura el respaldo de
+cada plaza —una restauración más costaría minutos por plaza en cada corrida—,
+y va en su propio `try/catch`: si falla, la venta sale igual.
+
+**Se publica en `inventarios/<plaza>/agotados.json`, PÚBLICO, a propósito.**
+Sólo lleva código y días, ningún nombre, y quien más lo necesita es bodega,
+que no puede leer `ventas/`. Se saca del objeto de ventas ANTES de escribir
+nada —también en `--dry-run`—: en un archivo privado no tiene nada que hacer.
+
+Tres cosas que no hay que deshacer:
+
+- **Un modelo nuevo se cuenta desde su `Alta`.** Antes de llegar no estaba
+  agotado: no existía. Contado desde el principio de la ventana, cada novedad
+  saldría «agotada» casi entera.
+- **La fecha sola se lee como medianoche LOCAL** (`momento()`). Mezclando
+  `'2026-10-21'` —UTC— con `'2026-10-21 00:00'` —local—, seis horas fantasma
+  contaban como «en cero». La prueba lo cazó.
+- **La ficha no estima.** Mira 30 o 60 días y esto mide 90 (`DIAS_AGOTADOS`);
+  estimar con las ventas de una ventana y los días en cero de otra da un
+  número con cara de cuenta que no lo es. Dice el hecho y lo que significa.
+
+`PARTE_QUE_CENSURA` es **0.25** —una semana de cada cuatro sin mercancía— y
+es criterio, no medida: un día suelto en cero pasa siempre entre que se vacía
+y llega la caja, y avisar por eso haría que el aviso dejara de leerse.
+
+🔒 **Se MARCA, no se corrige.** «Pedir por venta» y «Comprar» llevan ⚠ en el
+ritmo y en la venta, pero la cantidad sigue saliendo de la misma cuenta.
+Subirla con el ritmo de los días con mercancía es decisión del dueño, y está
+PREGUNTADA, no decidida.
+
+Medido en Aguascalientes con el respaldo del 2026-11-08: **169 códigos**
+estuvieron en cero algún día de los últimos 90; **31 de los que hoy salen en
+«Pedir por venta»** llevan la marca. Y la respuesta al X8D: en Aguascalientes
+estuvo en cero **0.7 de 86 días** y no vendió ni una —su número bajo es de
+fiar: es poca demanda—.
 
 ### Tres reglas que NO son números y pesan más
 
@@ -476,7 +530,7 @@ se reparte en varios días a propósito, y lleva dentro uno de 25 días que
 todavía no se puede juzgar: así se ejercita «muy nuevos» y de paso se comprueba
 que una tanda partida en días NO salga como dos ediciones.
 
-Hoy cubre: 4 sesiones · 15 pestañas · 15 secciones de panel · 42 cabeceras ·
+Hoy cubre: 4 sesiones · 15 pestañas · 16 secciones de panel · 42 cabeceras ·
 12 incidencias de la bandeja de revisión —con **las dos sesiones que la
 trabajan**, administrador y bodega, porque bodega escribe en ella igual y
 comprobarla sólo con admin dejaba fuera justo la sesión a la que ya se le
@@ -484,7 +538,10 @@ perdió el trabajo una vez—, **los 4 lotes**, la bandeja de costos y
 **las 5 plazas del flujo de efectivo** —tres de ellas por dentro, porque desde
 que el historial arranca en ceros sólo hay una semana a la vista y las cuatro
 ramas (con control, sin control, marcado, sin marcar) ya no caben en una sola
-plaza—. Si alguno de esos números baja, algo dejó de pintarse.
+plaza—, y **«Consultar modelo» de bodega** con la lectura de venta censurada
+en sus tres casos —León censurada, Aguascalientes de fiar, San Luis sin
+archivo—, más la marca ⚠ en «Pedir». Si alguno de esos números baja, algo
+dejó de pintarse.
 
 **Y para escribir en un campo controlado por React, el rastreador se siembra
 con algo DISTINTO de lo que se va a escribir.** `escribir()` lo sembraba
@@ -1703,7 +1760,13 @@ Bodega entra con su propia contraseña y ve **otro panel**. No es una tienda:
 |---|---|---|
 | Surtido | lo que le toca recibir, en su plaza | **Surtir**: qué mandar a cada tienda, y registrarlo |
 | | — | **Comprar**: lo que hay que pedir al proveedor |
+| | — | **Consultar modelo**: cuánto vende, cuánto hay y si su venta es de fiar |
 | Revisar | sí | sí |
+
+«Consultar modelo» (2026-11-09) sale **sólo de archivos públicos** —
+estadísticas, historial, inventario y `agotados.json`—. Es la misma ficha que
+ve el administrador en Ventas, sin un dato más: nada de `ventas/`, que lleva
+la lista de mayoristas.
 
 ### El permiso va por CAPACIDAD, y está escrito dos veces a la fuerza
 

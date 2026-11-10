@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA } from '../lib/sucursales'
-import { inventarioJsonUrl, historialUrl, estadisticasUrl } from '../lib/s3'
+import { inventarioJsonUrl, historialUrl, estadisticasUrl, agotadosUrl } from '../lib/s3'
+import { censuraEn, DIAS_AGOTADOS } from '../lib/agotados'
 import {
   velocidadDiaria, velocidadCombinada, calcularSurtido, analizarBodega,
   candidatosADepurar, esTemporadaAlta, COBERTURA, MOTIVOS,
@@ -480,6 +481,9 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
         inv:  await bajar(inventarioJsonUrl(slug)),
         hist: await bajar(historialUrl(slug)),
         est:  await bajar(estadisticasUrl(slug)),
+        // Los días en cero de cada código, del kárdex: dicen si un ritmo bajo
+        // es poca demanda o mostrador vacío. Ver `lib/agotados.js`.
+        ago:  await bajar(agotadosUrl(slug)),
       }]))
       if (!cancelado) { setDatos(Object.fromEntries(pares)); setCargando(false) }
     })()
@@ -733,6 +737,28 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   const candidatos = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.CANDIDATO).sort((a, b) => b.enTiendas - a.enTiendas), [filas])
 
   const piezasVenta = porVenta.reduce((a, f) => a + f.sugerido, 0)
+
+  // ── Venta censurada: lo que vendió poco porque no había ──
+  //
+  // Lo preguntó el dueño el 2026-11-09 con el HONOR X8D: «quiero saber si eso
+  // se debe a que estaba agotado o si realmente es un número confiable». El
+  // ritmo sale de lo vendido, y lo que no está en el mostrador no se vende:
+  // un modelo agotado semanas sale con ritmo bajo, se le pide poco y se vuelve
+  // a agotar.
+  //
+  // 🔒 Se MARCA, no se corrige. Subir la cantidad por esto es decisión del
+  // dueño: el «Pedir» sigue saliendo exactamente de la misma cuenta.
+  const agotadosPorPlaza = useMemo(
+    () => (datos ? Object.fromEntries(Object.entries(datos).map(([k, d]) => [k, d?.ago])) : {}),
+    [datos])
+  const censuraDe = f => (esFeria ? [] : censuraEn(
+    agotadosPorPlaza, f.codigo,
+    esTodas ? (f.plazas ?? []).map(p => p.slug) : [sel]))
+  const censuradas = useMemo(
+    () => (vista === 'venta' ? porVenta.filter(f => censuraDe(f).length > 0).length : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [porVenta, agotadosPorPlaza, sel, esTodas, esFeria, vista])
+  const hayKardex = Object.values(agotadosPorPlaza).some(Boolean)
   const nombreSel = opciones.find(o => o.slug === sel)?.nombre ?? ''
 
   // Se baja el libro entero, no solo la vista que se está mirando: las cuatro
@@ -906,6 +932,20 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
               <strong style={{ color: TINTA }}>{porVenta.length}</strong> modelos, <strong style={{ color: TINTA }}>{piezasVenta}</strong> piezas
               {porVenta.length > TOPE && ` — se listan los primeros ${TOPE}`}
             </p>
+            {censuradas > 0 && (
+              <p data-censuradas={censuradas} style={{ fontSize: 12, color: AMBAR, margin: '0 0 10px', lineHeight: 1.5 }}>
+                <strong>{censuradas}</strong> {censuradas === 1 ? 'modelo lleva' : 'modelos llevan'} ⚠ en el ritmo:
+                estuvieron en cero una cuarta parte o más de los últimos {DIAS_AGOTADOS} días. Su venta se
+                quedó corta porque no había, así que lo que se pide también puede quedarse corto. La
+                cantidad no se corrige sola: es para que la mires.
+              </p>
+            )}
+            {!hayKardex && !esFeria && (
+              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '0 0 10px', lineHeight: 1.5 }}>
+                Todavía no se sabe qué modelos vendieron poco por estar agotados: los días en cero
+                salen del kárdex y aparecen después de la siguiente sincronización.
+              </p>
+            )}
             <Tabla encabezados={<>
               <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
               <Th campo="existencia" orden={ord} num style={{ textAlign: 'right' }}>Tiene</Th>
@@ -920,7 +960,25 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={f} />
                   <Celda num>{f.existencia}</Celda>
-                  <Celda num color={TINTA_SUAVE}>{f.ritmo.toFixed(2)}</Celda>
+                  {(() => {
+                    const cen = censuraDe(f)
+                    if (!cen.length) return <Celda num color={TINTA_SUAVE}>{f.ritmo.toFixed(2)}</Celda>
+                    const peor = cen[0]
+                    const detalle = cen
+                      .map(x => `${NOMBRE_CORTO[x.slug] ?? x.slug}: en cero ${Math.round(x.diasEnCero)} de ${x.diasMedidos} días`)
+                      .join(' · ')
+                    return (
+                      <Celda num color={TINTA_SUAVE}
+                             title={`${detalle}. El ritmo se queda corto: no se vendió porque no había.`}>
+                        {f.ritmo.toFixed(2)}
+                        <span data-censurada={f.codigo}
+                              style={{ display: 'block', fontSize: 10, fontWeight: 700, color: AMBAR, whiteSpace: 'nowrap' }}>
+                          ⚠ en cero {Math.round(peor.diasEnCero)}/{peor.diasMedidos} d
+                          {esTodas ? ` · ${NOMBRE_CORTO[peor.slug] ?? peor.slug}` : ''}
+                        </span>
+                      </Celda>
+                    )
+                  })()}
                   <Celda num color={f.cobertura !== null && f.cobertura < 7 ? ROSA : TINTA_SUAVE}>
                     {f.cobertura === null ? '—' : `${Math.floor(f.cobertura)} d`}
                   </Celda>
@@ -1209,7 +1267,27 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
                          title={f.enCatalogo ? undefined : 'Bodega no maneja este código'}>
                     {f.enCatalogo ? f.existencia : '—'}
                   </Celda>
-                  <Celda num color={'#0288AD'}>{f.vendidas2m || '—'}</Celda>
+                  {(() => {
+                    // Las tiendas donde estuvo en cero: su venta de dos meses
+                    // es la de un mostrador vacío, y comprar por ella se queda
+                    // corto. 🔒 Se marca, la cantidad no se toca.
+                    const cen = censuraEn(agotadosPorPlaza, f.codigo, sucursales.map(x => x.slug))
+                    return (
+                      <Celda num color={'#0288AD'}
+                             title={cen.length
+                               ? cen.map(x => `${NOMBRE_CORTO[x.slug] ?? x.slug}: en cero ${Math.round(x.diasEnCero)} de ${x.diasMedidos} días`).join(' · ')
+                                 + '. La venta se queda corta: no se vendió porque no había.'
+                               : undefined}>
+                        {f.vendidas2m || '—'}
+                        {cen.length > 0 && (
+                          <span data-censurada={f.codigo}
+                                style={{ display: 'block', fontSize: 10, fontWeight: 700, color: AMBAR, whiteSpace: 'nowrap' }}>
+                            ⚠ en cero en {cen.map(x => NOMBRE_CORTO[x.slug] ?? x.slug).join(', ')}
+                          </span>
+                        )}
+                      </Celda>
+                    )
+                  })()}
                   <CeldaPedir fila={f} ambito="compra" onCambiar={cambiarAjuste} />
                   <Celda num color={f.plazasEnCero === f.plazasTotal && f.plazasTotal > 0 ? ROSA : AMBAR}>
                     {f.plazasTotal ? `${f.plazasEnCero}/${f.plazasTotal}` : '—'}

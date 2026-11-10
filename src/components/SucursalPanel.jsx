@@ -5,6 +5,7 @@ import { BotonSeccion } from './AdminPanel'
 import SurtidoPanel from './SurtidoPanel'
 import RevisarPanel from './RevisarPanel'
 import MovimientoPanel from './MovimientoPanel'
+import ConsultaModelo from './ConsultaModelo'
 
 /**
  * Lo que ve una sucursal con su sesión.
@@ -44,6 +45,10 @@ const SECCIONES_BODEGA = [
   // ahí una sección de compras al proveedor era enseñar una decisión que no
   // es suya. En su sitio va lo que sí necesita antes de armar una caja.
   { id: 'movimiento', icono: '📈', titulo: 'Qué se mueve', sub: 'Lo que vuela y lo que sobra, por tienda' },
+  // Lo pidió el dueño el 2026-11-09: «que pueda consultar un modelo en
+  // específico, las ventas o los más vendidos». Va con datos públicos —ni un
+  // nombre de mayorista— y con la existencia al lado de la venta.
+  { id: 'consulta', icono: '🔎', titulo: 'Consultar modelo', sub: 'Cuánto vende y cuánto hay, por tienda' },
   { id: 'revisar', icono: '🔍', titulo: 'Revisar', sub: 'Códigos y nombres, uno a uno' },
 ]
 
@@ -98,6 +103,7 @@ export default function SucursalPanel() {
           <SurtidoPanel ambito="sucursales" plaza={esBodega ? null : plaza} />
         )}
         {seccion === 'movimiento' && esBodega && <MovimientoPanel />}
+        {seccion === 'consulta' && esBodega && <ConsultaModelo />}
       </div>
     </div>
   )
