@@ -115,3 +115,27 @@ test('en la vista del administrador cada plaza lleva su ranking, sin mezclarse',
   assert.equal(r['san-luis'].total.dinero, 900)
   assert.equal(r['san-luis'].sinCompras[0].quien, 'OTRO')
 })
+
+test('SIN detalle por día nadie sale como «no compró»: sale el historial, dicho como tal', () => {
+  // Pasó en vivo el 2026-11-09: antes de la sincronización que trae el detalle,
+  // «157 mayoristas no compraron en estos 7 días», con la última compra de hoy.
+  const r = rankingDeMayoristas({
+    porDia: [], hoy: '2026-11-09',
+    conocidos: [{ quien: 'ANA (1)', tickets: 40, ultima: '2026-11-09' }, { quien: 'BETO (2)', tickets: 3, ultima: '2026-10-01' }],
+  })
+  assert.equal(r.hayDetalle, false)
+  assert.deepEqual(r.sinCompras, [])
+  assert.deepEqual(r.historico.map(c => c.quien), ['ANA (1)', 'BETO (2)'])
+  assert.equal(r.historico[0].diasSin, 0)
+  assert.equal(r.historico[1].diasSin, 39)
+})
+
+test('cada mayorista lleva su parte del total y su ticket medio', () => {
+  const r = rankingDeMayoristas({
+    hoy: '2026-11-09',
+    porDia: [{ f: '2026-11-09', quien: 'A', tickets: 2, piezas: 10, dinero: 300 }, { f: '2026-11-08', quien: 'B', tickets: 1, piezas: 2, dinero: 100 }],
+  })
+  assert.equal(r.lista[0].parte, 0.75)
+  assert.equal(r.lista[0].ticketMedio, 150)
+  assert.equal(r.hayDetalle, true)
+})

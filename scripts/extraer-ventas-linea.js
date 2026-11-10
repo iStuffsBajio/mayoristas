@@ -34,6 +34,7 @@ import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { agregarVentas } from '../src/lib/ventasTicket.js'
+import { incidenciasDeMayoreo, cobrosElectronicos } from '../src/lib/reglasMayoreo.js'
 import { reemplazosDeCancelados, resumirReemplazos } from '../src/lib/reemplazos.js'
 import { diasEnCero, DIAS_AGOTADOS } from '../src/lib/agotados.js'
 // La resolucion del respaldo se comparte con los otros extractores: del disco
@@ -141,6 +142,28 @@ FROM VENTATICKETS_ARTICULOS a
 LEFT JOIN PRODUCTOS p ON p.CODIGO = a.PRODUCTO_CODIGO
 LEFT JOIN DEPARTAMENTOS d ON d.ID = p.DEPT;
 `
+
+/**
+ * La referencia de cada cobro con tarjeta, transferencia o mixto.
+ *
+ * `REFERENCIA` es lo que Eleventa pide al cobrar con tarjeta o transferencia,
+ * y con ella se casa cada cobro con el estado de cuenta del banco. Comprobado
+ * con el explorador de esquema el 2026-11-09 en León: `REFERENCIA` es
+ * VARCHAR(255) y `TOTAL` NUMERIC. `FORMA_PAGO` es CHAR con relleno: TRIM.
+ *
+ * Va en su propia consulta, y no en la de tickets, a propósito: si una plaza
+ * tuviera otra versión de Eleventa sin esa columna, la consulta de tickets
+ * fallaría entera y con ella toda la venta de la plaza.
+ */
+const sqlReferencias = desde => `
+SET HEADING OFF;
+SELECT t.ID || '${SEP}' || COALESCE(t.TOTAL, 0) || '${SEP}' || COALESCE(t.REFERENCIA, '')
+FROM VENTATICKETS t
+WHERE t.VENDIDO_EN >= '${desde}' AND TRIM(t.FORMA_PAGO) IN ('t', 's', 'm');
+`
+
+/** Cuántos días de reglas de mayoreo y de cobros electrónicos se publican: los del corte. */
+const DIAS_DE_DETALLE = 120
 
 /**
  * La existencia ANTES de cada movimiento, para saber cuándo estuvo en cero.
@@ -263,6 +286,42 @@ async function procesar(slug) {
 
     log(`[${slug}] ${tickets.length} tickets · ${lineas.length} lineas`)
 
+    // ── Las reglas de mayoreo y los cobros electrónicos, para el corte ──
+    //
+    // 🔒 Las reglas las puso el dueño el 2026-11-09; ver `reglasMayoreo.js`.
+    // Sólo los últimos DIAS_DE_DETALLE: el corte mira semanas.
+    const dDetalle = new Date(`${respaldo.fecha}T00:00`)
+    dDetalle.setDate(dDetalle.getDate() - (DIAS_DE_DETALLE - 1))
+    const desdeDetalle = `${dDetalle.getFullYear()}-${String(dDetalle.getMonth() + 1).padStart(2, '0')}-${String(dDetalle.getDate()).padStart(2, '0')}`
+    // Con tope: si la regla no se cumplía antes de que se pusiera, la lista
+    // podría ser de miles. Van primero las más recientes, que son las de la
+    // semana que se está cuadrando, y el total se dice aparte.
+    const todasLasIncidencias = incidenciasDeMayoreo({ tickets, lineas, desdeDia: desdeDetalle })
+    const reglasMayoreo = {
+      dias: DIAS_DE_DETALLE, desde: desdeDetalle,
+      total: todasLasIncidencias.length,
+      incidencias: todasLasIncidencias.slice(0, 3000),
+    }
+    log(`[${slug}] reglas de mayoreo: ${reglasMayoreo.total} tickets las rompen en ${DIAS_DE_DETALLE} días`)
+
+    // La referencia, aparte y sin poder tumbar lo demás.
+    let cobros = null
+    try {
+      const refs = new Map((await filasDe(fdb, workDir, sqlReferencias(desdeDetalle), 'referencias'))
+        .map(([id, total, referencia]) => [String(id).trim(), { total, referencia }]))
+      cobros = {
+        dias: DIAS_DE_DETALLE, desde: desdeDetalle,
+        filas: cobrosElectronicos({
+          tickets: tickets.map(t => ({ ...t, ...(refs.get(String(t.id).trim()) ?? {}) })),
+          desdeDia: desdeDetalle,
+        }),
+      }
+      const sinRef = cobros.filas.filter(f => !f.referencia).length
+      log(`[${slug}] cobros electrónicos: ${cobros.filas.length} · ${sinRef} sin referencia`)
+    } catch (e) {
+      log(`[${slug}] AVISO: no se pudieron leer las referencias de los cobros (${String(e.message).slice(0, 100)})`)
+    }
+
     // Dos agregados a proposito, y cada uno sirve para una cosa:
     //
     //   · TODO el historial, para contar piezas y medir la temporada, donde
@@ -322,6 +381,9 @@ async function procesar(slug) {
       // Los días en cero van a su propio archivo PÚBLICO, no aquí: este es
       // privado y bodega no puede leerlo, y bodega es quien más lo necesita.
       agotados,
+      // 🔒 Señalan tickets, no cambian ninguna cifra. Ver `reglasMayoreo.js`.
+      reglasMayoreo,
+      cobrosElectronicos: cobros,
       // 🔒 Sospechas, nunca cifras. Ver `reemplazos.js`.
       cancelaciones: { dias: DIAS_VENTANA, resumen: resumenCancel, filas: cancelaciones.slice(0, 300) },
       // La ventana va aparte y completa: quien valore en pesos usa esta y

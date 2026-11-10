@@ -29,17 +29,20 @@ rotación para el administrador, Torreón en la sincronización, y `UltimaVenta`
 ## Fase C: el corte de la sucursal
 
 Construida el mismo día: sección Corte para cada tienda y para el administrador,
-Torreón con ciclo de cuatro semanas y ranking de mayoristas por plaza. Los
-supuestos que hay que confirmar con el dueño están en `CLAUDE.md`. La fase B
+Torreón con ciclo de cuatro semanas y ranking de mayoristas por plaza. Con las
+respuestas del dueño de esa noche: fondo de caja asignado por el administrador,
+comisiones aparte del sueldo y señal de nombre faltante, reglas de mayoreo por
+ticket y cobros electrónicos con su referencia. Lo que queda por confirmar está
+en `CLAUDE.md`. La fase B
 (incidencias con foto) sigue decidida y sin construir.
 
 ## Verificación de esta actualización
 
-- Frontend: `npm test` — 544 pruebas pasaron.
-- Backend: `npm test` en `backend/` — 134 pruebas pasaron, incluida la paridad
+- Frontend: `npm test` — 561 pruebas pasaron.
+- Backend: `npm test` en `backend/` — 137 pruebas pasaron, incluida la paridad
   entre el candado del servidor y el de la página y lo que ve cada sesión del corte.
 - `npm run build` pasó (con la advertencia de tamaño de paquete de siempre).
-- `npm run verificar`: 4 sesiones, 19 secciones de panel y 73 cabeceras, con
+- `npm run verificar`: 4 sesiones, 19 secciones de panel y 145 cabeceras, con
   el corte de la tienda y del administrador. Metiendo a propósito una
   tolerancia de un peso, falló en tres sitios. Se
   comprobó rompiendo a propósito dos piezas del candado y del filtro de Revisar

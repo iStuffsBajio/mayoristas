@@ -38,11 +38,12 @@
 //    la pantalla de Efectivo— y mientras falte, el corte dice que falta en vez
 //    de pintar un color.
 //
-// 4. **El sueldo se reconoce por el concepto.** Eleventa sólo distingue Entrada
-//    de Salida; el tipo fino lo pone la página. Una salida es sueldo si es un
-//    `adelanto` o si su concepto lo dice (`PALABRAS_SUELDO`). Lo que un
-//    empleado escriba de otro modo cae en gastos, y se enseña la lista de
-//    salidas para que se vea. Falta que el dueño confirme las palabras.
+// 4. **El sueldo y las comisiones se reconocen por el concepto.** Eleventa
+//    sólo distingue Entrada de Salida; el tipo fino lo pone la página. La regla
+//    la puso el dueño el 2026-11-09: «el concepto de la salida debe decir
+//    sueldo y el nombre del trabajador», y lo mismo las comisiones. Lo que se
+//    escriba de otro modo cae en gastos, y una línea sin nombre se SEÑALA: la
+//    cuenta sale igual, pero no se puede saber a quién se le pagó.
 
 import { flujoSemana, semanaDe, correrSemana, diasDeSemana, nombreDia, conControl, INICIO_HISTORIAL } from './caja.js'
 
@@ -57,6 +58,30 @@ export const DENOMINACIONES = [500, 200, 100, 50, 20, 10, 5, 2, 1]
  * que depende de cómo escriba la gente.
  */
 export const PALABRAS_SUELDO = /\b(sueldos?|n[oó]minas?|salarios?|quincenas?|raya|pago\s+(de\s+)?(personal|empleados?|trabajadores?))\b/i
+
+/** 🔒 Una comisión: «comisión» y el nombre del trabajador, igual que el sueldo. */
+export const PALABRAS_COMISION = /\bcomisi[oó]n(es)?\b/i
+
+// Lo que rodea al nombre en un concepto y no es el nombre: «pago de sueldo de
+// la semana a Juan» deja «Juan».
+// Con límites de LETRA y no `\b`: `\b` sólo sabe de ASCII, y en «María» veía
+// una «a» suelta al final y dejaba «Marí».
+const RELLENO = /(?<!\p{L})(pagos?|de|del|la|las|el|los|a|al|para|por|semana|semanal|sem|correspondiente|quincenal|mensual|adelanto|anticipo|empleados?|personal|trabajador(es)?|y|sueldos?|n[oó]minas?|salarios?|quincenas?|raya|comisi[oó]n(es)?|ventas?)(?!\p{L})/giu
+
+/**
+ * El nombre del trabajador que trae un concepto de sueldo o comisión, o `null`
+ * si no trae ninguno. Se queda con lo que no es palabra de relleno, número ni
+ * fecha: lo que queda, si tiene letras, es el nombre.
+ */
+export function trabajadorDe(concepto) {
+  const resto = String(concepto ?? '')
+    .replace(/\d+([\/.-]\d+)*/g, ' ')
+    .replace(RELLENO, ' ')
+    .replace(/[^\p{L}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return /\p{L}{2,}/u.test(resto) ? resto : null
+}
 
 /**
  * Las plazas que llevan corte, en el orden en que se miran.
@@ -109,9 +134,14 @@ export function limpiarConteo(cantidades = {}) {
 
 // ── El sueldo y las salidas ─────────────────────────────────────────────────
 
+const esSalida = m => m?.tipo !== 'entrada' && m?.tipo !== 'faltante'
+
+/** ¿Esta salida es una comisión? Va antes que el sueldo: «comisión de nómina» es comisión. */
+export const esComision = m => esSalida(m) && PALABRAS_COMISION.test(String(m?.concepto ?? ''))
+
 /** ¿Esta salida es un sueldo? Un adelanto lo es; lo demás, por lo que dice. */
 export const esSueldo = m =>
-  m?.tipo !== 'entrada' && m?.tipo !== 'faltante'
+  esSalida(m) && !esComision(m)
   && (m?.tipo === 'adelanto' || PALABRAS_SUELDO.test(String(m?.concepto ?? '')))
 
 /**
@@ -123,17 +153,26 @@ export const esSueldo = m =>
  * la tienda y no los enseña.
  */
 export function clasificarMovimientos(movs = []) {
-  const entradas = [], sueldos = [], gastos = []
+  const entradas = [], sueldos = [], comisiones = [], gastos = []
+  // Al sueldo y la comisión se les apunta a quién: es la mitad de la regla.
+  const conNombre = m => {
+    const trabajador = trabajadorDe(m.concepto)
+    return { ...m, trabajador, sinNombre: !trabajador }
+  }
   for (const m of movs ?? []) {
     if (m?.tipo === 'faltante') continue
     if (m?.tipo === 'entrada') entradas.push(m)
-    else if (esSueldo(m)) sueldos.push(m)
+    else if (esComision(m)) comisiones.push(conNombre(m))
+    else if (esSueldo(m)) sueldos.push(conNombre(m))
     else gastos.push(m)
   }
   const suma = xs => xs.reduce((a, m) => a + num(m.monto), 0)
   return {
-    entradas, sueldos, gastos,
-    totalEntradas: suma(entradas), totalSueldos: suma(sueldos), totalGastos: suma(gastos),
+    entradas, sueldos, comisiones, gastos,
+    totalEntradas: suma(entradas), totalSueldos: suma(sueldos),
+    totalComisiones: suma(comisiones), totalGastos: suma(gastos),
+    // Cuántas líneas de sueldo o comisión no dicen a quién se le pagó.
+    sinNombre: [...sueldos, ...comisiones].filter(m => !trabajadorDe(m.concepto)).length,
   }
 }
 
@@ -176,7 +215,8 @@ export function cuadreSemanal({ semana, caja = {}, ventas = {}, params = {}, con
   // El efectivo teórico de la semana: lo cobrado en efectivo, menos
   // devoluciones, más lo que entró, menos sueldo y gastos. Es el `neto` de
   // `caja.js` con el sueldo separado de los gastos.
-  const esperado = num(t.efectivoCobrado) - num(t.devoluciones) + mov.totalEntradas - mov.totalSueldos - mov.totalGastos
+  const esperado = num(t.efectivoCobrado) - num(t.devoluciones) + mov.totalEntradas
+    - mov.totalSueldos - mov.totalComisiones - mov.totalGastos
 
   const porFecha = new Map((ventas?.porDiaTipo ?? []).map(d => [d.f, d]))
   const dias = flujo.filas.map(f => {
@@ -193,6 +233,13 @@ export function cuadreSemanal({ semana, caja = {}, ventas = {}, params = {}, con
       } : null,
     }
   })
+  // 🔒 Los tickets de la semana que rompen las reglas de mayoreo, y los cobros
+  // electrónicos con su referencia. `null` es «no se ha extraído todavía»,
+  // que no es «ninguno»: se dicen distinto en la pantalla.
+  const enLaSemana = xs => xs.filter(x => String(x.f) >= semana.desde && String(x.f) <= semana.hasta)
+  const mayoreo = Array.isArray(ventas?.reglasMayoreo?.incidencias) ? enLaSemana(ventas.reglasMayoreo.incidencias) : null
+  const cobros = Array.isArray(ventas?.cobrosElectronicos?.filas) ? enLaSemana(ventas.cobrosElectronicos.filas) : null
+
   const conPiezas = dias.filter(d => d.piezas)
   const piezas = conPiezas.length ? {
     fundas: conPiezas.reduce((a, d) => a + d.piezas.fundas, 0),
@@ -227,8 +274,10 @@ export function cuadreSemanal({ semana, caja = {}, ventas = {}, params = {}, con
     devoluciones: t.devoluciones,
     entradas: mov.totalEntradas,
     sueldo: mov.totalSueldos,
+    comisiones: mov.totalComisiones,
     gastos: mov.totalGastos,
-    listas: { entradas: mov.entradas, sueldos: mov.sueldos, gastos: mov.gastos },
+    sinNombre: mov.sinNombre,
+    listas: { entradas: mov.entradas, sueldos: mov.sueldos, comisiones: mov.comisiones, gastos: mov.gastos },
     ventasBrutas: num(t.ventaTotal) + mov.totalEntradas,
     esperado,
     fondo,
@@ -238,6 +287,8 @@ export function cuadreSemanal({ semana, caja = {}, ventas = {}, params = {}, con
     // Lo que se entrega: lo contado menos el fondo, que se queda en la caja.
     entregable: contado !== null && fondo !== null ? contado - fondo : null,
     piezas,
+    mayoreo,
+    cobros,
     conControl: flujo.conControl,
     diasSinControl: flujo.diasSinControl,
     estado,
@@ -337,14 +388,17 @@ export function bloquesDeCorte({ plaza, fecha, caja = {}, ventas = {}, params = 
     ventaTotal: suma('ventaTotal'), efectivoCobrado: suma('efectivoCobrado'),
     tarjeta: suma('tarjeta'), transferencia: suma('transferencia'),
     devoluciones: suma('devoluciones'), entradas: suma('entradas'),
-    sueldo: suma('sueldo'), gastos: suma('gastos'), esperado: suma('esperado'),
+    sueldo: suma('sueldo'), comisiones: suma('comisiones'), gastos: suma('gastos'), esperado: suma('esperado'),
     esperadoEnCaja: esperadoTotal,
+    fondo,
     piezas: bloques.some(b => b.piezas) ? {
       fundas: bloques.reduce((a, b) => a + (b.piezas?.fundas ?? 0), 0),
       hidrogel: bloques.reduce((a, b) => a + (b.piezas?.hidrogel ?? 0), 0),
       stickers: bloques.reduce((a, b) => a + (b.piezas?.stickers ?? 0), 0),
       total: bloques.reduce((a, b) => a + (b.piezas?.total ?? 0), 0),
     } : null,
+    mayoreo: bloques.some(b => b.mayoreo) ? bloques.flatMap(b => b.mayoreo ?? []) : null,
+    cobros: bloques.some(b => b.cobros) ? bloques.flatMap(b => b.cobros ?? []) : null,
     contado: ultimaContada?.contado ?? null,
     contadoEn: ultimaContada?.clave ?? null,
     diferencia: ultimaContada?.diferencia ?? null,
@@ -374,13 +428,15 @@ export function resumenGlobal(bloquesPorPlaza = {}) {
     filas,
     ventaTotal: suma('ventaTotal'), efectivoCobrado: suma('efectivoCobrado'),
     tarjeta: suma('tarjeta'), transferencia: suma('transferencia'),
-    gastos: suma('gastos'), sueldo: suma('sueldo'), esperado: suma('esperado'),
+    gastos: suma('gastos'), sueldo: suma('sueldo'), comisiones: suma('comisiones'), esperado: suma('esperado'),
     piezas: hay.length ? {
       fundas: hay.reduce((a, f) => a + f.piezas.fundas, 0),
       hidrogel: hay.reduce((a, f) => a + f.piezas.hidrogel, 0),
       stickers: hay.reduce((a, f) => a + f.piezas.stickers, 0),
       total: hay.reduce((a, f) => a + f.piezas.total, 0),
     } : null,
+    // Tickets de la semana que rompen las reglas de mayoreo, en todas las plazas.
+    mayoreo: filas.reduce((a, f) => a + (f.mayoreo?.length ?? 0), 0),
     alertas: filas.filter(f => f.estado === 'faltante' || f.estado === 'sobrante'),
     faltantes: filas.filter(f => f.estado === 'faltante'),
   }

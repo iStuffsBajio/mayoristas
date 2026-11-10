@@ -305,3 +305,60 @@ test('funciones puras: lunes, fechas y recortes', () => {
   assert.equal(C.ventasParaTienda(null).porDiaTipo.length, 0)
   assert.deepEqual(C.parametrosParaTienda({ fondoFijo: 500, cuenta: 'x' }), { fondoFijo: 500, desdeControlSalidas: null })
 })
+
+// ── El fondo de caja lo asigna el administrador, y sólo toca el fondo ───────
+
+test('el administrador asigna el fondo de UNA plaza sin borrar sus otros parámetros', async () => {
+  const s3 = s3ConArchivos({
+    'caja/parametros.json': { leon: { fondoFijo: 500, cuenta: '****1234', responsable: 'Dani', tolerancia: 50, desdeControlSalidas: '2026-11-05' } },
+  })
+  try {
+    const r = await pedir('POST', '/caja/fondo', { token: tokenAdmin(), cuerpo: { sucursal: 'leon', fondoFijo: 1500 } })
+    assert.equal(r.statusCode, 200)
+    const p = s3.leer('caja/parametros.json').leon
+    assert.equal(p.fondoFijo, 1500)
+    assert.equal(p.cuenta, '****1234', 'la cuenta sigue')
+    assert.equal(p.responsable, 'Dani')
+    assert.equal(p.desdeControlSalidas, '2026-11-05')
+
+    // Torreón, que no tenía nada, recibe el suyo.
+    assert.equal((await pedir('POST', '/caja/fondo', { token: tokenAdmin(), cuerpo: { sucursal: 'torreon', fondoFijo: '800' } })).statusCode, 200)
+    assert.equal(s3.leer('caja/parametros.json').torreon.fondoFijo, 800)
+
+    // Vacío es «sin capturar»: null, nunca cero.
+    await pedir('POST', '/caja/fondo', { token: tokenAdmin(), cuerpo: { sucursal: 'leon', fondoFijo: '' } })
+    assert.equal(s3.leer('caja/parametros.json').leon.fondoFijo, null)
+  } finally { s3.restaurar() }
+})
+
+test('una tienda NO asigna fondo, ni el suyo; y un fondo raro se rechaza', async () => {
+  const s3 = s3ConArchivos({ 'caja/parametros.json': {} })
+  try {
+    assert.equal((await pedir('POST', '/caja/fondo', { token: tokenLeon(), cuerpo: { sucursal: 'leon', fondoFijo: 1 } })).statusCode, 403)
+    assert.equal((await pedir('POST', '/caja/fondo', { cuerpo: { sucursal: 'leon', fondoFijo: 1 } })).statusCode, 403)
+    assert.equal((await pedir('POST', '/caja/fondo', { token: tokenAdmin(), cuerpo: { sucursal: 'narnia', fondoFijo: 1 } })).statusCode, 400)
+    assert.equal((await pedir('POST', '/caja/fondo', { token: tokenAdmin(), cuerpo: { sucursal: 'leon', fondoFijo: -5 } })).statusCode, 400)
+    assert.equal((await pedir('POST', '/caja/fondo', { token: tokenAdmin(), cuerpo: { sucursal: 'leon', fondoFijo: 'mil' } })).statusCode, 400)
+    assert.equal(s3.puestos.length, 0, 'nada rechazado se escribió')
+  } finally { s3.restaurar() }
+})
+
+// ── Las reglas de mayoreo: la tienda las ve sin quién cobró ─────────────────
+
+test('las incidencias de mayoreo llegan a la tienda SIN cajero, y al administrador con él', () => {
+  const ventas = {
+    reglasMayoreo: { dias: 120, desde: '2026-07-13', total: 1, incidencias: [
+      { f: '2026-11-09', hora: '12:30', folio: '101', cajero: 'daniela coronilla', mayorista: 'ANA (1001)', piezas: 3, etiquetas: 2, motivos: ['etiquetas-no-cuadran'] },
+    ] },
+    cobrosElectronicos: { dias: 120, filas: [{ f: '2026-11-09', hora: '13:00', folio: '102', forma: 't', total: '250', referencia: 'BBVA 1234', cajero: 'x' }] },
+  }
+  const tienda = C.ventasParaTienda(ventas)
+  assert.equal(tienda.reglasMayoreo.incidencias[0].cajero, undefined)
+  assert.ok(!JSON.stringify(tienda).includes('daniela'))
+  assert.equal(tienda.cobrosElectronicos.filas[0].total, 250)
+  assert.equal(tienda.cobrosElectronicos.filas[0].cajero, undefined)
+  assert.equal(C.ventasParaTienda(ventas, { conCajero: true }).reglasMayoreo.incidencias[0].cajero, 'daniela coronilla')
+  // Sin extraer todavía: null, no una lista vacía que diría «ninguna».
+  assert.equal(C.ventasParaTienda({}).reglasMayoreo, null)
+  assert.equal(C.ventasParaTienda({}).cobrosElectronicos, null)
+})

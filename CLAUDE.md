@@ -534,10 +534,13 @@ se reparte en varios días a propósito, y lleva dentro uno de 25 días que
 todavía no se puede juzgar: así se ejercita «muy nuevos» y de paso se comprueba
 que una tanda partida en días NO salga como dos ediciones.
 
-Hoy cubre: 4 sesiones · 15 pestañas · 19 secciones de panel · 73 cabeceras ·
+Hoy cubre: 4 sesiones · 15 pestañas · 19 secciones de panel · 145 cabeceras ·
 **el corte semanal** con la tienda —sin tolerancia, guardando los tres colores,
-sin ver nombres de otra plaza— y con el administrador —todas, Torreón con su
-ciclo y contar por una plaza— ·
+sin ver nombres de otra plaza, con sus reglas de mayoreo y sus cobros sin
+referencia— y con el administrador —todas, Torreón con su ciclo, la comisión y
+el sueldo sin nombre, asignar el fondo y contar por una plaza—; además
+comprueba lo que RECIBE la tienda, no sólo lo que se pinta: una pantalla que no
+dibuja la columna del cajero escondía una fuga que seguía en los datos ·
 12 incidencias de la bandeja de revisión —con **las dos sesiones que la
 trabajan**, administrador y bodega, porque bodega escribe en ella igual y
 comprobarla sólo con admin dejaba fuera justo la sesión a la que ya se le
@@ -1163,9 +1166,12 @@ primera corrida:
 - **El historial por mes de Torreón arranca vacío.** Se arma comparando fotos
   de inventario, y no hay una anterior. Para sembrarlo desde el kárdex:
   `node scripts/extraer-historial-respaldo.js --sucursal=torreon`.
-- **Su sesión.** El backend ya la conoce (`SUCURSALES` en `backend/src/index.js`)
-  pero entra con `HASH_TORREON`, y no se comprobó si esa variable existe en la
-  Lambda. Sin ella nadie puede iniciar sesión como Torreón.
+- **Su sesión.** `HASH_TORREON` SÍ está en la Lambda (comprobado el 2026-11-09
+  por nombre, sin leer el valor): se puso en la rotación del 2026-11-06. Para
+  cambiar la contraseña de una plaza sin que nadie más la vea:
+  `node backend/scripts/cambiar-contrasena.js torreon` —se teclea en la
+  ventana, a la Lambda sólo va el hash y ofrece guardarla en el `.env`, de donde
+  `generar-credenciales.js` las saca todas—.
 - **Sus paneles.** `activa: false` sigue siendo cierto: un mayorista no la ve y
   Surtido, Inventarios, Revisar y el Dashboard no la cuentan. Sólo la cuentan
   la ficha de un modelo, la depuración y el flujo de efectivo.
@@ -2244,27 +2250,111 @@ plaza por separado— y puede abrir cualquiera y contar por ella. En «Todas» n
 puede contar: no se sabría de qué plaza. **Las diferencias no se suman entre
 plazas**: un faltante en una y un sobrante en otra no se compensan.
 
+### Lo que contestó el dueño sobre los supuestos (2026-11-09, por la noche)
+
+- **El fondo de caja es fijo, distinto en cada plaza, y lo asigna el
+  administrador en su panel.** Va en la sección Corte, al abrir una plaza
+  («Fondo de caja de …»), y en «Todas» sale como columna. Se guarda en el mismo
+  `fondoFijo` de `caja/parametros.json` por una ruta propia, `POST /caja/fondo`,
+  que toca SÓLO el fondo: la de parámetros reescribe el bloque entero de la
+  plaza, y mandarla desde el corte —que no tiene la cuenta ni el responsable—
+  los borraría. Vacío es null, nunca cero. Hay prueba de las dos cosas.
+- **🔒 El sueldo se reconoce porque el concepto dice «sueldo» y el nombre del
+  trabajador. Las comisiones igual: «comisión» y el nombre.** Las comisiones
+  van en su propia lista y su propio renglón, y restan del esperado igual que el
+  sueldo. Un sueldo o una comisión SIN nombre se cuenta igual pero se señala
+  («⚠ falta el nombre del trabajador»): la cuenta sale, lo que no se sabe es a
+  quién se le pagó. Se siguen aceptando `nómina`, `salario`, `quincena` y el tipo
+  `adelanto` como sueldo: sólo cambia la lista donde se ve. El nombre lo saca
+  `trabajadorDe()` quitando el relleno, y los límites son de LETRA, no `\b`:
+  con `\b`, «María» perdía la «a» final.
 ### ⚠️ Supuestos que se tomaron para terminar: CONFIRMAR con el dueño
 
-- **El fondo de caja es el `fondoFijo`** que ya existe en los parámetros de cada
-  plaza (Efectivo). Sin él la plaza sale en gris. Hoy hay que capturarlo.
-- **Un sueldo se reconoce** por el tipo `adelanto` o por el concepto:
-  `sueldo`, `nómina`, `salario`, `quincena`, `raya`, `pago de personal`…
-  (`PALABRAS_SUELDO` en `corte.js`). Una salida de sueldo con otro texto caería
-  en gastos: el esperado sale igual, sólo cambia en qué lista se ve.
 - **El esperado sale del efectivo cobrado**, no de «ventas − tarjeta»: es lo
   mismo, pero el POS ya reparte los pagos mixtos (`CORTE_OPERACIONES`) y restar
   sólo la tarjeta dejaría dentro las transferencias.
-  `esperado = efectivo cobrado − devoluciones + otras entradas − sueldo − gastos`.
+  `esperado = efectivo cobrado − devoluciones + otras entradas − sueldo − comisiones − gastos`.
 - **El banco por banco del Excel no está**: el POS no guarda a qué banco entró
   cada tarjeta, y el dueño dijo que lo único que se teclea es el conteo.
 - **Las notas** del Excel quedaron en un campo de observaciones por semana.
 - **Por día o turno** sigue pendiente: la tabla es por día, el cuadre por semana.
 
+### 🔒 Las reglas de mayoreo: las puso el dueño el 2026-11-09
+
+1. **No se cobra a precio de mayoreo sin una funda o una mica de hidrogel en el
+   ticket.** Un ticket con alguna línea con `USA_MAYOREO` tiene que llevar al
+   menos una funda o un hidrogel (`tipoDePieza`).
+2. **Si el ticket lleva mayorista, la etiqueta del mayorista va tantas veces
+   como productos.** «Compra dos fundas y un sticker, y el mayorista debe venir
+   tres veces.» Las piezas de la línea a $0.01 tienen que sumar lo mismo que
+   las de TODO lo demás: cuentan también stickers y popsockets, porque el
+   ejemplo del dueño mete un sticker. De más también es no cuadrar.
+
+Vive en `src/lib/reglasMayoreo.js`, con pruebas. La extracción publica en
+`ventas/<plaza>.json` los tickets que las rompen en los últimos 120 días
+(`reglasMayoreo`, con tope de 3 000 y el total aparte). **Señala, no corrige
+ninguna cifra.** En el corte salen por semana; la tienda los ve SIN el nombre
+de quien cobró y el administrador con él, y la vista de «Todas» avisa del
+total. Los cancelados no cuentan.
+
+Lo que NO es regla, y no se marca: un ticket a mayoreo **sin** mayorista. No lo
+dijo el dueño, y el mostrador da precio de mayoreo sin la casilla (ver «La
+lista de precios NO es el precio»).
+
+### Los cobros con tarjeta o transferencia: la REFERENCIA
+
+Lo preguntó el dueño el 2026-11-09: las tiendas pueden escribir una nota en el
+ticket para identificar cada cobro. Se miró el esquema (explorador, León):
+`VENTATICKETS` tiene **`REFERENCIA`** (VARCHAR 255), que es lo que Eleventa pide
+al cobrar con tarjeta o transferencia, y además `NOTAS` y `NOTAS_AL_PIE`, que
+son BLOB. Se usa `REFERENCIA`: es texto corto y no hace falta leer un BLOB con
+el `isql` de Firebird 2.0.
+
+La recomendación para las tiendas: en la referencia, **banco + número de
+autorización** (tarjeta: el «AUT» del voucher) o **banco + clave de rastreo o
+folio** (transferencia). La hora no hace falta: el ticket ya la guarda.
+
+El corte enseña, plegados, los cobros electrónicos de la semana con su
+referencia y avisa de los que vienen sin ella. En un pago mixto el importe es
+el del ticket entero. Se extrae en su PROPIA consulta y en `try/catch`: si una
+plaza no tuviera la columna, la venta de esa plaza sale igual. **No se ha
+comprobado** que Eleventa guarde ahí lo que se teclea al cobrar: se verá con la
+primera sincronización.
+
+### Cada concepto tiene su color, y no es adorno
+
+Lo pidió el dueño el 2026-11-09 viendo la primera versión: «se ve demasiado
+plana, no se distingue una sección de la otra… otras entradas en verde, ventas
+en azul, que hagan relación al concepto». Quedó así, y es el MISMO color en la
+tabla de la semana, en su lista, en la cascada y en las cifras de arriba:
+
+| ventas | otras entradas | tarjeta y transf. | gastos | sueldo | comisiones | caja |
+|---|---|---|---|---|---|---|
+| azul | verde | verde azulado | ámbar | morado | rosa | tinta |
+
+El estado de resultados es una **cascada** —ventas, menos lo cobrado por otra
+vía, igual a efectivo cobrado, más y menos lo demás, igual a lo esperado— con
+una barra por renglón frente a la venta. Las tablas son las de Inventarios:
+contenedor redondeado, cabecera fija y, donde se ordena, `aria-sort`.
+
+### ⚠️ «No compraron» sin detalle por día decía que nadie compró
+
+El ranking de mayoristas se pidió «como la venta de productos», y ahora lo es:
+tabla con compras, % del total, piezas, visitas y ticket medio, ordenable. Pero
+la captura con la que lo pidió destapó un error peor que el formato: **«157
+mayoristas no compraron en estos 7 días»**, con la última compra de HOY.
+
+Antes de la sincronización que trae `mayoristasPorDia`, la lista del rango sale
+vacía y todos los clientes caían en «no compraron». Ahora, sin detalle por día
+NO se dice que nadie compró (`hayDetalle` en `mayoristas.js`, con prueba): se
+enseña la última compra de cada cliente según todo su historial, dicho como lo
+que es, y el ranking del rango aparece cuando llega el dato.
+
 ### Cuándo se llena
 
-Las piezas por tipo y los mayoristas por día salen de `porDiaTipo` y
-`mayoristasPorDia` de `ventas/<plaza>.json`, que `extraer-ventas-linea.js`
+Las piezas por tipo, los mayoristas por día, las reglas de mayoreo y los cobros
+electrónicos salen de `porDiaTipo`, `mayoristasPorDia`, `reglasMayoreo` y
+`cobrosElectronicos` de `ventas/<plaza>.json`, que `extraer-ventas-linea.js`
 publica desde ahora con 120 días de detalle. **Hasta la próxima sincronización**
 la tabla de piezas dice que se llena entonces y el ranking también, en vez de
 pintar ceros. Las ventas en pesos ya salen de `caja/`, que existe.

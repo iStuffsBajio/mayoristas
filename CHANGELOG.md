@@ -5,6 +5,22 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-09
 
+- **El corte, más visual:** cada concepto con su color (ventas azul, otras
+  entradas verde, tarjeta y transferencia verde azulado, gastos ámbar, sueldo
+  morado, comisiones rosa), cifras grandes arriba de cada semana, barras en las
+  ventas por día y el estado de resultados como cascada. El ranking de
+  mayoristas pasa a ser una tabla ordenable como la venta de productos, y ya no
+  dice que «no compraron» los clientes cuando lo que falta es el detalle por día.
+
+- **Corte, segunda vuelta con las respuestas del dueño:** el administrador
+  asigna el fondo de caja de cada plaza desde el corte; las comisiones van
+  aparte del sueldo y los dos se señalan si no traen el nombre del trabajador;
+  cada semana enseña los tickets que rompen las **reglas de mayoreo** (mayoreo
+  sin funda ni mica; el mayorista que no viene tantas veces como productos) y
+  los **cobros con tarjeta y transferencia con su referencia**, avisando de los
+  que vienen sin ella. Nuevo guion `backend/scripts/cambiar-contrasena.js` para
+  cambiar la contraseña de una plaza tecleándola en una ventana.
+
 - **Fase C — el corte semanal de cada sucursal.** Sección **Corte** en el panel
   de cada tienda y del administrador: ventas de la semana del punto de venta
   día por día, piezas de fundas, hidrogel y stickers, otras entradas, gastos y

@@ -1292,6 +1292,39 @@ export function limpiarParametros(p = {}) {
   }
 }
 
+/**
+ * `POST /caja/fondo`: el fondo de caja de UNA plaza, y nada más.
+ *
+ * Lo pidió el dueño el 2026-11-09: «cada sucursal puede tener diferente; que
+ * lo pueda asignar el administrador en su propio panel». Toca sólo el fondo:
+ * la ruta de parámetros reescribe el bloque entero de la plaza, y mandarla
+ * desde el corte —que no tiene la cuenta ni el responsable— los borraría.
+ */
+async function rutaGuardarFondo(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Sólo el administrador asigna el fondo de caja.' })
+
+  const plaza = String(cuerpo?.sucursal ?? '')
+  if (!PLAZAS_CAJA.has(plaza)) return responder(origen, 400, { error: 'Sucursal desconocida.' })
+
+  // Vacío es «sin capturar» y se guarda null, nunca cero (`limpiarParametros`).
+  const v = cuerpo?.fondoFijo
+  const vacio = v === null || v === undefined || String(v).trim() === ''
+  if (!vacio && !(Number.isFinite(Number(v)) && Number(v) >= 0)) {
+    return responder(origen, 400, { error: 'El fondo tiene que ser un número de cero en adelante.' })
+  }
+
+  const todos = await leerJson('caja/parametros.json')
+  const limpios = limpiarParametros({ ...(todos[plaza] ?? {}), fondoFijo: vacio ? null : v })
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: 'caja/parametros.json',
+    Body: Buffer.from(JSON.stringify({ ...todos, [plaza]: limpios })),
+    ContentType: 'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+  return responder(origen, 200, { ok: true, plaza, fondoFijo: limpios.fondoFijo })
+}
+
 /** Los parámetros por sucursal. Solo administrador. */
 async function rutaGuardarParametros(evento, origen, cuerpo) {
   const sesion = sesionDe(evento)
@@ -1417,7 +1450,7 @@ async function rutaTurnos(evento, origen) {
 const claveCortes = plaza => `cortes/${plaza}.json`
 
 /** Todo lo que el corte de una plaza necesita, ya recortado para una tienda. */
-async function datosDeCorte(plaza, params, hoy) {
+async function datosDeCorte(plaza, params, hoy, esAdmin = false) {
   const [caja, ventas, conteos] = await Promise.all([
     leerJson(`caja/${plaza}.json`),
     leerJson(claveVentas(plaza)),
@@ -1436,7 +1469,7 @@ async function datosDeCorte(plaza, params, hoy) {
       movimientos: movimientosParaTienda(caja, hoy),
     },
     parametros: parametrosParaTienda(params?.[plaza]),
-    ventas: ventasParaTienda(ventas),
+    ventas: ventasParaTienda(ventas, { conCajero: esAdmin }),
     conteos,
   }
 }
@@ -1466,7 +1499,7 @@ async function rutaCorte(evento, origen) {
 
   const params = await leerJson('caja/parametros.json')
   const hoy = hoyMexico()
-  const datos = await Promise.all(plazas.map(p => datosDeCorte(p, params, hoy)))
+  const datos = await Promise.all(plazas.map(p => datosDeCorte(p, params, hoy, !!sesion.admin)))
   return responder(origen, 200, {
     hoy,
     plazas: Object.fromEntries(datos.map(d => [d.plaza, d])),
@@ -1568,6 +1601,7 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/caja/deposito')   return await rutaGuardarDeposito(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/caja/ajuste')     return await rutaGuardarAjusteCaja(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/caja/parametros') return await rutaGuardarParametros(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/caja/fondo')      return await rutaGuardarFondo(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/caja/movimiento') return await rutaGuardarMovimiento(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/diseno')     return await rutaSubirDiseno(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/config')     return await rutaGuardarConfig(evento, origen, cuerpo)

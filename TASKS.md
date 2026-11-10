@@ -19,10 +19,8 @@ servidor viejo sólo afecta a quien pulse un botón de Depurar en esos minutos.
   `inventarios/torreon/`. **Hasta entonces Depurar bloquea toda baja y lo dice.**
 - [ ] **3. Sembrar el historial de Torreón**, una sola vez y con la sincronización
   ya corrida: `node scripts/extraer-historial-respaldo.js --sucursal=torreon`.
-- [ ] **4. Comprobar `HASH_TORREON` en la Lambda.** El backend ya conoce a
-  Torreón, pero nadie puede entrar como ella sin esa variable. No se pudo
-  consultar. Para añadirla se usa `backend/scripts/anadir-variable-lambda.js`,
-  nunca el CLI a pelo (reemplaza el conjunto entero).
+- [x] **4. `HASH_TORREON` en la Lambda:** está (comprobado el 2026-11-09 por
+  nombre). Para cambiar la contraseña: `node backend/scripts/cambiar-contrasena.js torreon`.
 - [ ] **5. Abrir Depurar y mirar** que ya no diga que falta el inventario de
   Torreón, y que «Obsoletos en ceros» muestre algo en «Se pueden».
 - [ ] **6. La primera baja real es la primera prueba del servidor contra S3.**
@@ -36,19 +34,23 @@ servidor viejo sólo afecta a quien pulse un botón de Depurar en esos minutos.
 - [ ] **Tras la próxima sincronización**, abrir Corte con una tienda: la tabla
   de piezas y el ranking de mayoristas se llenan entonces (`porDiaTipo` y
   `mayoristasPorDia` en `ventas/<plaza>.json`). Antes lo dicen en pantalla.
-- [ ] **Capturar el fondo de caja** de cada plaza (Efectivo → parámetros). Sin él
-  la plaza sale en gris y no se juzga. Torreón incluido.
-- [ ] **Confirmar con el dueño los supuestos** de `CLAUDE.md` («Supuestos que se
-  tomaron para terminar»): fondo = `fondoFijo`, cómo se reconoce un sueldo, y
-  que el banco por banco del Excel no hace falta.
+- [ ] **Asignar el fondo de caja** de cada plaza: Corte → la plaza → «Fondo de
+  caja». Sin él la plaza sale en gris y no se juzga. Torreón incluido.
+- [ ] **Confirmar con el dueño** lo que queda en «Supuestos que se tomaron»: el
+  esperado desde el efectivo cobrado y que el banco por banco no hace falta.
+- [ ] **Comprobar con la primera sincronización** que `REFERENCIA` trae lo que
+  se teclea al cobrar con tarjeta o transferencia.
+- [ ] **Avisar a las tiendas** de las reglas de mayoreo y de qué escribir en la
+  referencia: banco + autorización (tarjeta) o banco + clave de rastreo
+  (transferencia).
 - [ ] El primer conteo real es la primera prueba de `POST /corte/conteo` contra
   S3: revisar `cortes/<plaza>.json` y que una tienda no pueda abrir otra plaza.
-- [ ] Avisar a las tiendas: **el sueldo se registra en el POS como salida**, con
-  la palabra «sueldo» o «nómina» en el concepto.
+- [ ] Avisar a las tiendas: **el sueldo y las comisiones se registran en el POS
+  como salida**, con «sueldo» o «comisión» y el nombre del trabajador.
 
 ## Fases siguientes (decididas, no construidas)
 
-- [ ] **Fase B — incidencias manuales con foto**, sobre la bandeja de Revisar
+- [ ] **Fase B — incidencias manuales con foto** (el dueño la dejó para más adelante el 2026-11-09), sobre la bandeja de Revisar
   (un solo sistema con un campo de origen, no dos con estados distintos). Falta
   confirmar categorías y dónde se guardan las fotos (prefijo privado).
 - [x] **Fase C — panel de corte de la sucursal**, Torreón a cuatro semanas y

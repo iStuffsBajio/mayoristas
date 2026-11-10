@@ -103,8 +103,15 @@ export function movimientosParaTienda(caja, hasta) {
     .map(({ persona, quien, cajero, ...resto }) => resto)          // eslint-disable-line no-unused-vars
 }
 
-/** Sólo lo del corte de un `ventas/<plaza>.json`. Nada más sale de ahí. */
-export function ventasParaTienda(ventas) {
+/**
+ * Sólo lo del corte de un `ventas/<plaza>.json`. Nada más sale de ahí.
+ *
+ * `conCajero` es para el administrador: las incidencias de mayoreo llevan
+ * quién cobró el ticket, y eso a una tienda no se le entrega.
+ */
+export function ventasParaTienda(ventas, { conCajero = false } = {}) {
+  const reglas = ventas?.reglasMayoreo
+  const cobros = ventas?.cobrosElectronicos
   return {
     detalleDias: num(ventas?.detalleDias),
     hasta: ventas?.hasta ?? null,
@@ -115,6 +122,16 @@ export function ventasParaTienda(ventas) {
     mayoristas: (Array.isArray(ventas?.mayoristas) ? ventas.mayoristas : [])
       .map(m => ({ quien: String(m.quien ?? ''), tickets: num(m.tickets), ultima: m.ultima ?? null }))
       .filter(m => m.quien),
+    // 🔒 Los tickets que rompen las reglas de mayoreo del dueño. `null` es «no
+    // se ha extraído», que no es «ninguno las rompe».
+    reglasMayoreo: reglas && Array.isArray(reglas.incidencias) ? {
+      dias: num(reglas.dias), desde: reglas.desde ?? null, total: num(reglas.total ?? reglas.incidencias.length),
+      incidencias: reglas.incidencias.map(({ cajero, ...resto }) => (conCajero ? { ...resto, cajero } : resto)),
+    } : null,
+    cobrosElectronicos: cobros && Array.isArray(cobros.filas) ? {
+      dias: num(cobros.dias), desde: cobros.desde ?? null,
+      filas: cobros.filas.map(({ f, hora, folio, forma, total, referencia }) => ({ f, hora, folio, forma, total: num(total), referencia: String(referencia ?? '') })),
+    } : null,
   }
 }
 

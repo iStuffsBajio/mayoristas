@@ -8,7 +8,7 @@
 // servidor (`GET /corte`): aquí no se filtra nada que haya que proteger.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { corte as pedirCorte, guardarConteo } from './api'
+import { corte as pedirCorte, guardarConteo, guardarFondoCaja } from './api'
 import { PLAZAS_CORTE, bloquesDeCorte } from './corte'
 import { hoyLocal } from './fechas'
 import { INICIO_HISTORIAL, semanaDe } from './caja'
@@ -90,8 +90,18 @@ export function useCorte(token, plaza = null) {
     return r.registro
   }, [token])
 
+  /** El administrador asigna el fondo de una plaza; se pinta lo que guardó el servidor. */
+  const guardarFondo = useCallback(async (p, fondoFijo) => {
+    const r = await guardarFondoCaja({ sucursal: p, fondoFijo }, token)
+    setDatos(d => ({
+      ...d,
+      plazas: { ...d.plazas, [p]: { ...d.plazas[p], parametros: { ...(d.plazas[p].parametros ?? {}), fondoFijo: r.fondoFijo } } },
+    }))
+    return r.fondoFijo
+  }, [token])
+
   const recargar = useCallback(() => setVuelta(v => v + 1), [])
 
-  return { plazas, cargando, error, hoy, referencia, mover, esActual, hayAnterior, guardar, recargar, hoyServidor: datos?.hoy ?? null }
+  return { plazas, cargando, error, hoy, referencia, mover, esActual, hayAnterior, guardar, guardarFondo, recargar, hoyServidor: datos?.hoy ?? null }
 }
 

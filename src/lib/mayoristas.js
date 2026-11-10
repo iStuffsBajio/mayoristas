@@ -38,6 +38,13 @@ export const rangoValido = n => {
   return Math.min(DIAS_MAXIMOS, Math.max(DIAS_MINIMOS, d))
 }
 
+/** Días de calendario de `a` a `b`, ambos `AAAA-MM-DD`; `null` si falta alguno. */
+function diasEntre(a, b) {
+  const x = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(a ?? '')), y = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(b ?? ''))
+  if (!x || !y) return null
+  return Math.round((Date.UTC(+y[1], +y[2] - 1, +y[3]) - Date.UTC(+x[1], +x[2] - 1, +x[3])) / 864e5)
+}
+
 /** El primer día de una ventana de `dias` días que termina en `hoy`, inclusive. */
 function desdeDe(hoy, dias) {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(hoy ?? ''))
@@ -73,33 +80,48 @@ export function rankingDeMayoristas({ porDia = [], conocidos = [], dias = DIAS_M
     por.set(k, f)
   }
 
-  const lista = [...por.values()].sort((a, b) =>
+  const ordenada = [...por.values()].sort((a, b) =>
     b.dinero - a.dinero || b.piezas - a.piezas || b.tickets - a.tickets || a.quien.localeCompare(b.quien))
     .map((f, i) => ({ ...f, puesto: i + 1 }))
+  const lista = ordenada
+  const total = {
+    clientes: lista.length,
+    tickets: lista.reduce((a, f) => a + f.tickets, 0),
+    piezas: lista.reduce((a, f) => a + f.piezas, 0),
+    dinero: lista.reduce((a, f) => a + f.dinero, 0),
+  }
 
   // Los clientes de la plaza que no aparecen en el rango.
+  //
+  // SÓLO si hay detalle por día. Sin él —antes de la primera sincronización que
+  // lo trae— la lista de arriba sale vacía y TODOS los clientes caían aquí como
+  // «no compraron», incluso los que compraron ayer. Pasó en vivo el 2026-11-09:
+  // «157 mayoristas no compraron en estos 7 días», con la última compra de hoy.
+  const hayDetalle = Array.isArray(porDia) && porDia.length > 0
   const activos = new Set(lista.map(f => f.quien))
-  const sinCompras = (conocidos ?? [])
+  const sinCompras = !hayDetalle ? [] : (conocidos ?? [])
     .filter(c => c?.quien && !activos.has(String(c.quien).trim()))
-    .map(c => ({ quien: String(c.quien).trim(), ultima: c.ultima ?? null, tickets: num(c.tickets) }))
+    .map(c => ({ quien: String(c.quien).trim(), ultima: c.ultima ?? null, tickets: num(c.tickets), diasSin: diasEntre(c.ultima, hoy) }))
     // Los que compraron más hace poco primero: son los que acaban de dejar de
     // venir, y a los que hace años que no se ven no hay nada que hacerles.
     .sort((a, b) => String(b.ultima ?? '').localeCompare(String(a.ultima ?? '')) || a.quien.localeCompare(b.quien))
 
   return {
     dias: rango, desde, hasta: hoy ?? null,
-    lista,
+    hayDetalle,
+    // Sin detalle, lo único que hay es el historial entero de cada cliente: su
+    // última compra y sus visitas de siempre. Se enseña como lo que es.
+    historico: hayDetalle ? [] : (conocidos ?? [])
+      .filter(c => c?.quien)
+      .map(c => ({ quien: String(c.quien).trim(), ultima: c.ultima ?? null, tickets: num(c.tickets), diasSin: diasEntre(c.ultima, hoy) }))
+      .sort((a, b) => String(b.ultima ?? '').localeCompare(String(a.ultima ?? '')) || b.tickets - a.tickets),
+    lista: lista.map(f => ({ ...f, parte: total.dinero > 0 ? f.dinero / total.dinero : 0, ticketMedio: f.tickets ? f.dinero / f.tickets : 0 })),
     masActivo: lista[0] ?? null,
     // Con uno solo, «el más activo» y «el menos activo» serían el mismo, y
     // decirlo dos veces es ruido.
     menosActivo: lista.length > 1 ? lista[lista.length - 1] : null,
     sinCompras,
-    total: {
-      clientes: lista.length,
-      tickets: lista.reduce((a, f) => a + f.tickets, 0),
-      piezas: lista.reduce((a, f) => a + f.piezas, 0),
-      dinero: lista.reduce((a, f) => a + f.dinero, 0),
-    },
+    total,
   }
 }
 

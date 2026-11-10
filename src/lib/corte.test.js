@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   DENOMINACIONES, PLAZAS_CORTE, totalContado, limpiarConteo, esSueldo, clasificarMovimientos,
   cuadreSemanal, cicloDe, bloquesDeCorte, resumenGlobal, alPeso, SEMAFORO_DE_CORTE, PALABRAS_SUELDO,
+  esComision, trabajadorDe,
 } from './corte.js'
 import { flujoSemana, semanaDe } from './caja.js'
 
@@ -299,4 +300,60 @@ test('EN LA VISTA GLOBAL UN FALTANTE Y UN SOBRANTE NO SE COMPENSAN', () => {
   assert.equal(g.ventaTotal, 3000)
   assert.equal(g.piezas.total, 18)
   assert.ok(!('diferencia' in g), 'no hay una diferencia global que sume lo que no se puede sumar')
+})
+
+// ── Sueldo y comisiones: con el nombre del trabajador ───────────────────────
+
+test('una comisión NO es sueldo, y va antes aunque diga nómina', () => {
+  assert.equal(esComision({ tipo: 'otra-salida', concepto: 'Comisión Ana' }), true)
+  assert.equal(esComision({ tipo: 'otra-salida', concepto: 'comisiones de la semana Luis' }), true)
+  assert.equal(esComision({ tipo: 'otra-salida', concepto: 'comision nomina Ana' }), true)
+  assert.equal(esSueldo({ tipo: 'otra-salida', concepto: 'comision nomina Ana' }), false)
+  assert.equal(esComision({ tipo: 'entrada', concepto: 'comision' }), false)
+  assert.equal(esComision({ tipo: 'otra-salida', concepto: 'garrafón' }), false)
+})
+
+test('el nombre del trabajador sale del concepto, y sin nombre es null', () => {
+  assert.equal(trabajadorDe('Sueldo Juan Pérez'), 'Juan Pérez')
+  assert.equal(trabajadorDe('Sueldo Ana María'), 'Ana María', 'la «a» final de María no es relleno')
+  assert.equal(trabajadorDe('pago de sueldo de la semana a Daniela'), 'Daniela')
+  assert.equal(trabajadorDe('COMISION ANA 2/11 al 8/11'), 'ANA')
+  assert.equal(trabajadorDe('Sueldo'), null)
+  assert.equal(trabajadorDe('sueldo semana 45'), null)
+  assert.equal(trabajadorDe('comisiones'), null)
+  assert.equal(trabajadorDe(''), null)
+})
+
+test('las comisiones restan del esperado y se cuentan aparte; sin nombre se señala', () => {
+  const r = clasificarMovimientos([
+    { tipo: 'otra-salida', monto: 800, concepto: 'Sueldo Juan' },
+    { tipo: 'otra-salida', monto: 150, concepto: 'Comisión Juan' },
+    { tipo: 'otra-salida', monto: 300, concepto: 'sueldo' },
+    { tipo: 'otra-salida', monto: 50, concepto: 'garrafón' },
+  ])
+  assert.equal(r.totalSueldos, 1100)
+  assert.equal(r.totalComisiones, 150)
+  assert.equal(r.totalGastos, 50)
+  assert.equal(r.sinNombre, 1, 'el «sueldo» suelto no dice a quién')
+  assert.equal(r.sueldos[0].trabajador, 'Juan')
+  assert.equal(r.sueldos[1].sinNombre, true)
+  assert.equal(r.comisiones[0].trabajador, 'Juan')
+})
+
+// ── Reglas de mayoreo y cobros electrónicos, por semana ─────────────────────
+
+test('las incidencias de mayoreo y los cobros se reparten por semana; sin extraer es null', () => {
+  const semana = { desde: '2026-11-09', hasta: '2026-11-15' }
+  const ventas = {
+    reglasMayoreo: { incidencias: [{ f: '2026-11-10', folio: '1' }, { f: '2026-11-03', folio: '2' }] },
+    cobrosElectronicos: { filas: [{ f: '2026-11-15', folio: '3' }, { f: '2026-11-16', folio: '4' }] },
+  }
+  const r = cuadreSemanal({ semana, ventas })
+  assert.deepEqual(r.mayoreo.map(x => x.folio), ['1'])
+  assert.deepEqual(r.cobros.map(x => x.folio), ['3'])
+  // «No se ha extraído» no es «ninguno»: null, no una lista vacía.
+  const v = cuadreSemanal({ semana, ventas: {} })
+  assert.equal(v.mayoreo, null)
+  assert.equal(v.cobros, null)
+  assert.deepEqual(cuadreSemanal({ semana, ventas: { reglasMayoreo: { incidencias: [] } } }).mayoreo, [])
 })

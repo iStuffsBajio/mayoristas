@@ -552,6 +552,8 @@ const {
 let SESION_ACTUAL = { isAdmin: false, branch: 'leon' }
 const CORTES_GUARDADOS = {}      // plaza -> { lunes -> registro }
 const POSTS_DE_CORTE = []
+const FONDOS_GUARDADOS = {}
+const POSTS_DE_FONDO = []
 
 const PLAZAS_DEL_CORTE = ['leon', 'san-luis', 'aguascalientes', 'torreon']
 const CAJA_TORREON = {
@@ -560,6 +562,7 @@ const CAJA_TORREON = {
   movimientos: [
     { f: semanaAtras(0), tipo: 'gasto', monto: 90, concepto: 'papeleria', origen: 'eleventa' },
     { f: semanaAtras(0), tipo: 'retiro', monto: 800, concepto: 'pago de nomina quincena', origen: 'eleventa' },
+    { f: semanaAtras(0), tipo: 'otra-salida', monto: 150, concepto: 'Comision Felipe Soto', origen: 'eleventa' },
   ],
   faltantes: [],
 }
@@ -586,6 +589,18 @@ function ventasDeCorte(slug) {
       [{ f: haceDias(i), quien, tickets, piezas, dinero }, { f: haceDias(3), quien, tickets, piezas: piezas + 2, dinero: dinero + 100 }]),
     mayoristas: [...mayor.map(([quien, tickets]) => ({ quien, tickets, ultima: haceDias(3) })),
                  { quien: `CLIENTE VIEJO ${slug.toUpperCase()} (9999)`, tickets: 8, ultima: '2026-08-01' }],
+    // 🔒 Un ticket que rompe las reglas de mayoreo, ESTA semana, con el cajero
+    // dentro: a una tienda le tiene que llegar sin él.
+    reglasMayoreo: { dias: 120, desde: haceDias(119), total: 1, incidencias: [{
+      f: haceDias(0), hora: '12:30', folio: `${slug.length}01`, cajero: 'daniela coronilla',
+      mayorista: mayor[0]?.[0] ?? null, piezas: 3, etiquetas: 2,
+      tipos: { fundas: 2, hidrogel: 0, stickers: 1, otros: 0 }, importe: 300, mayoreo: true,
+      motivos: ['etiquetas-no-cuadran'],
+    }] },
+    cobrosElectronicos: { dias: 120, desde: haceDias(119), filas: [
+      { f: haceDias(0), hora: '13:00', folio: '9001', forma: 't', total: 250, referencia: 'BBVA aut 123456' },
+      { f: haceDias(0), hora: '14:10', folio: '9002', forma: 's', total: 900, referencia: '' },
+    ] },
     // Esto NO debe llegar a una tienda: lo quita `ventasParaTienda`.
     ventana: { dias: 365, porCodigo: {} },
     cajeros: [{ quien: 'daniela coronilla', tickets: 50 }],
@@ -601,13 +616,19 @@ function datosDeCorteMock(slug, esAdmin) {
     caja: esAdmin
       ? { hayDatos: true, respaldo: f.respaldo, dias: f.dias, movimientos: f.movimientos }
       : { hayDatos: true, respaldo: f.respaldo, dias: diasParaTienda(f, isoDia(new Date())), movimientos: movimientosParaTienda(f, isoDia(new Date())) },
-    parametros: parametrosParaTienda(params),
-    ventas: ventasParaTienda(ventasDeCorte(slug)),
+    parametros: parametrosParaTienda(slug in FONDOS_GUARDADOS ? { ...params, fondoFijo: FONDOS_GUARDADOS[slug] } : params),
+    ventas: ventasParaTienda(ventasDeCorte(slug), { conCajero: esAdmin }),
     conteos: CORTES_GUARDADOS[slug] ?? {},
   }
 }
 
 function respuestaDeCorte(u, opciones, sesionAdmin, plazaDeSesion) {
+  if (/\/caja\/fondo/.test(u)) {
+    const c = JSON.parse(opciones?.body ?? '{}')
+    POSTS_DE_FONDO.push(c)
+    FONDOS_GUARDADOS[c.sucursal] = c.fondoFijo
+    return { ok: true, plaza: c.sucursal, fondoFijo: c.fondoFijo }
+  }
   if (opciones?.method === 'POST') {
     const c = JSON.parse(opciones.body ?? '{}')
     POSTS_DE_CORTE.push(c)
@@ -624,16 +645,22 @@ function respuestaDeCorte(u, opciones, sesionAdmin, plazaDeSesion) {
   }
   const pedida = u.match(/plaza=([a-z-]+)/)?.[1]
   const slugs = pedida && pedida !== 'todas' ? [pedida] : (sesionAdmin ? PLAZAS_DEL_CORTE : [plazaDeSesion])
-  return {
+  const r = {
     hoy: isoDia(new Date()),
     plazas: Object.fromEntries(slugs.map(s => [s, datosDeCorteMock(s, sesionAdmin)])),
   }
+  // Lo que RECIBE una tienda, no sólo lo que se pinta: una pantalla que no
+  // dibuja la columna del cajero esconde una fuga que sigue estando en los datos.
+  if (!sesionAdmin && /daniela|jenni/i.test(JSON.stringify(r))) {
+    errores.push('la respuesta del corte a una TIENDA lleva el nombre de quien cobro o cerro turno')
+  }
+  return r
 }
 
 /** Lo que devuelve cada ruta, según lo que pida. `null` es un 404. */
 function respuesta(url, opciones) {
   const u = String(url)
-  if (/\/corte(\/conteo)?(\?|$)/.test(u)) {
+  if (/\/corte(\/conteo)?(\?|$)|\/caja\/fondo/.test(u)) {
     return respuestaDeCorte(u, opciones, SESION_ACTUAL.isAdmin, SESION_ACTUAL.branch)
   }
   if (opciones?.method === 'POST' && /\/ajustes(\?|$)/.test(u)) {
@@ -2578,6 +2605,15 @@ async function corteDeLaTienda(window, donde) {
     if (new RegExp(prohibido, 'i').test(texto)) errores.push(`${donde} · la pantalla de la tienda enseña «${prohibido}»`)
   }
 
+  // Las reglas de mayoreo y los cobros electrónicos de la semana.
+  if (b0.querySelector('[data-reglas-mayoreo]')?.getAttribute('data-reglas-mayoreo') !== '1') {
+    errores.push(`${donde} · el ticket que rompe las reglas de mayoreo no salió en la semana`)
+  }
+  if (!b0.querySelector('[data-cobros="2"] [data-sin-referencia="1"]')) {
+    errores.push(`${donde} · los cobros con tarjeta no dicen cuál viene sin referencia`)
+  }
+  if (doc.querySelector('[data-fondo-caja]')) errores.push(`${donde} · una tienda puede asignar su propio fondo de caja`)
+
   // Sin conteo no hay semaforo de color: gris.
   if (b0.getAttribute('data-estado-corte') !== 'sin-conteo') {
     errores.push(`${donde} · sin conteo la semana debia salir «sin-conteo» y salio «${b0.getAttribute('data-estado-corte')}»`)
@@ -2642,6 +2678,8 @@ async function corteDelAdmin(window, donde) {
   // La tienda dejo un faltante guardado: el administrador tiene que verlo.
   if (!doc.querySelector('[data-alertas-corte]')) errores.push(`${donde} · hay un faltante guardado por la tienda y la vista global no avisa`)
 
+  if (!doc.querySelector('[data-alertas-mayoreo]')) errores.push(`${donde} · la vista global no avisa de los tickets que rompen las reglas de mayoreo`)
+
   // Torreon: cuatro semanas y un bloque global.
   clic(window, doc.querySelector('[data-corte-plaza="torreon"]'))
   await nuevaVuelta(window, 6)
@@ -2652,11 +2690,35 @@ async function corteDelAdmin(window, donde) {
     errores.push(`${donde} · el sueldo registrado como salida no salio en la lista de sueldos`)
   }
   if (doc.querySelectorAll('[data-mayoristas]').length !== 1) errores.push(`${donde} · Torreon enseña mas de un ranking`)
+  if (!/Felipe/.test(doc.querySelector('[data-lista-corte="Comisiones"]')?.textContent ?? '')) {
+    errores.push(`${donde} · la comision registrada como salida no salio en la lista de comisiones`)
+  }
+  if (!doc.querySelector('[data-lista-corte="Sueldo"] [data-sin-nombre]')) {
+    errores.push(`${donde} · un sueldo sin el nombre del trabajador no se señala`)
+  }
+  // El administrador ve quien cobro el ticket que rompe la regla; la tienda no.
+  if (!/daniela coronilla/.test(doc.querySelector('[data-incidencia-mayoreo]')?.textContent ?? '')) {
+    errores.push(`${donde} · el administrador no ve quien cobro el ticket que rompe la regla de mayoreo`)
+  }
 
   // Una plaza concreta: el administrador SI puede contar por ella.
   clic(window, doc.querySelector('[data-corte-plaza="leon"]'))
   await nuevaVuelta(window, 6)
   if (!doc.querySelector('[data-guardar-conteo]')) errores.push(`${donde} · el administrador no puede guardar el conteo de una plaza`)
+
+  // El fondo de caja lo asigna el administrador, plaza por plaza.
+  const fondo = doc.querySelector('[data-fondo-caja="leon"] input')
+  if (!fondo) { errores.push(`${donde} · el administrador no puede asignar el fondo de caja`); return 1 }
+  escribir(window, fondo, '1500')
+  await nuevaVuelta(window, 3)
+  const antes = POSTS_DE_FONDO.length
+  clic(window, doc.querySelector('[data-fondo-caja="leon"] [data-guardar-fondo]'))
+  await nuevaVuelta(window, 6)
+  const enviado = POSTS_DE_FONDO.at(-1)
+  if (POSTS_DE_FONDO.length !== antes + 1 || enviado?.sucursal !== 'leon' || enviado?.fondoFijo !== 1500) {
+    errores.push(`${donde} · guardar el fondo no mandó 1500 para León: ${JSON.stringify(enviado)}`)
+  }
+  if (!doc.querySelector('[data-fondo-caja="leon"] [data-fondo-guardado]')) errores.push(`${donde} · tras guardar el fondo no dice que se guardó`)
   return 1
 }
 

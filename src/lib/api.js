@@ -292,6 +292,13 @@ export const ventas = (plaza, token) =>
 export const corte = (plaza, token) =>
   pedir(`/corte${plaza ? `?plaza=${encodeURIComponent(plaza)}` : ''}`, { token })
 
+/**
+ * El fondo de caja de UNA plaza. Sólo el administrador. Toca sólo el fondo:
+ * los demás parámetros de la plaza se quedan como están.
+ */
+export const guardarFondoCaja = ({ sucursal, fondoFijo }, token) =>
+  pedir('/caja/fondo', { metodo: 'POST', token, cuerpo: { sucursal, fondoFijo } })
+
 /** Lo único que captura la tienda: el conteo de billetes y monedas de una semana. */
 export const guardarConteo = ({ plaza, semana, cantidades, observaciones = '' }, token) =>
   pedir('/corte/conteo', { metodo: 'POST', cuerpo: { plaza, semana, cantidades, observaciones }, token })
