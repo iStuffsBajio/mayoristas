@@ -11,6 +11,7 @@ import {
   nuevoAjuste, juntarAjustes, dondeSigue, estadoDe,
   codigosOcultos, sinOcultos, pendientesPorPlaza, resumirAjustes, codigosDeFicha,
   historialDeBajas, resumenDeBajas,
+  esBaja, codigosDescontinuados, MOTIVO_DESCONTINUADO,
 } from './ajustes.js'
 
 const HOY = new Date('2026-11-05T12:00:00Z')
@@ -164,4 +165,54 @@ test('un pendiente de mas de tres semanas se marca, y el archivo lo cuenta', () 
     new Date('2026-11-08T12:00:00Z'))
   assert.equal(filas[0].insiste, true)
   assert.equal(resumenDeBajas(filas).insisten, 1)
+})
+
+// ── Lo que bodega descontinuó ──────────────────────────────────────────────
+//
+// Vive en el mismo archivo que las bajas y NO es una baja. Contarlo como
+// pendiente mandaría a una tienda a «corregir en su caja» un código que lo
+// único que hace es liquidarse.
+
+const descontinuado = (codigo, extra = {}) => nuevoAjuste({
+  tipo: TIPOS.DESCONTINUADO, codigo, motivo: MOTIVO_DESCONTINUADO, quien: 'bodega',
+  cuando: new Date('2026-11-01T12:00:00Z'), ...extra,
+})
+
+test('«descontinuado» tiene su propio motivo, y no se mezclan', () => {
+  assert.equal(descontinuado('lgq6t').codigo, 'LGQ6T')
+  assert.equal(descontinuado('LGQ6T').clave, 'descontinuado|LGQ6T')
+  assert.throws(() => nuevoAjuste({ tipo: TIPOS.DESCONTINUADO, codigo: 'X', motivo: 'dado-de-baja', quien: 'admin' }))
+  assert.throws(() => nuevoAjuste({ tipo: TIPOS.OCULTAR, codigo: 'X', motivo: MOTIVO_DESCONTINUADO, quien: 'admin' }))
+})
+
+test('LO DESCONTINUADO NO ES UNA BAJA: no se cuenta como pendiente en ninguna caja', () => {
+  const correcciones = juntarAjustes({
+    admin: [ajuste('BAJA1')],
+    bodega: [descontinuado('LIQ1')],
+  })
+  const inventarios = { leon: inv('BAJA1', 'LIQ1') }
+
+  assert.equal(esBaja(correcciones['ocultar|BAJA1']), true)
+  assert.equal(esBaja(correcciones['descontinuado|LIQ1']), false)
+  assert.equal(esBaja({}), true, 'un ajuste viejo, sin tipo, es una baja')
+
+  const pend = pendientesPorPlaza(correcciones, inventarios, HOY)
+  assert.deepEqual(pend.leon.map(a => a.codigo), ['BAJA1'], 'a la tienda sólo le toca borrar la baja')
+  assert.deepEqual(resumirAjustes(correcciones, inventarios, HOY), { pendientes: 1, resueltos: 0, insistiendo: 0, total: 1 })
+  assert.deepEqual(historialDeBajas(correcciones, inventarios, HOY).map(f => f.codigo), ['BAJA1'])
+  assert.equal(resumenDeBajas(historialDeBajas(correcciones, inventarios, HOY)).total, 1)
+})
+
+test('lo descontinuado NO se esconde: sigue contando, sólo se aparta de la cola', () => {
+  const correcciones = juntarAjustes({ bodega: [descontinuado('LIQ1')], admin: [ajuste('BAJA1')] })
+  assert.deepEqual([...codigosDescontinuados(correcciones)], ['LIQ1'])
+  assert.deepEqual([...codigosOcultos(correcciones)], ['BAJA1'], 'sólo lo dado de baja se oculta')
+  assert.equal(codigosDescontinuados(null).size, 0)
+})
+
+test('la baja definitiva tiene nombre en el archivo y en el Excel', () => {
+  assert.match(MOTIVOS['baja-definitiva'], /Baja definitiva/)
+  const a = nuevoAjuste({ codigo: 'X1', motivo: 'baja-definitiva', quien: 'admin' })
+  assert.equal(a.motivo, 'baja-definitiva')
+  assert.equal(a.tipo, 'ocultar', 'es una baja normal: sigue el mismo camino hasta la caja')
 })

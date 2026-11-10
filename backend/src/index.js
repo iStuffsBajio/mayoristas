@@ -7,6 +7,7 @@
 // y el navegador solo recibe respuestas ya procesadas.
 
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { verificarBajas, hoyMexico, PLAZAS_CON_STOCK, DIAS_MINIMOS_PARA_BAJA } from './bajas.js'
 import {
   verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
@@ -662,7 +663,26 @@ async function escribirRevisiones(origen, quien, mias, id) {
 // SOLO su archivo y al leer se juntan: con uno compartido, dos personas
 // corrigiendo a la vez se borrarian sin avisar.
 
-const TIPOS_AJUSTE = new Set(['ocultar'])
+const TIPOS_AJUSTE = new Set(['ocultar', 'descontinuado'])
+
+/**
+ * `descontinuado` no oculta nada: marca un código que bodega ya no surte y
+ * que las tiendas están liquidando, para que la cola de revisión no lo siga
+ * reclamando como si fuera un error. Lo marcan administración y bodega, que
+ * es quien sabe qué dejó de comprar.
+ */
+const MOTIVO_DESCONTINUADO = 'bodega-descontinuo'
+const PUEDE_DESCONTINUAR = new Set(['admin', 'bodega'])
+
+/**
+ * La baja definitiva NO está en la lista de abajo, a propósito. Sólo se
+ * registra por `/ajustes/bajas`, que comprueba en el servidor que el código no
+ * tenga piezas ni ventas. Si estuviera aquí, bastaría mandar el motivo por la
+ * ruta genérica para saltarse el candado.
+ */
+const MOTIVO_BAJA_DEFINITIVA = 'baja-definitiva'
+const MAX_BAJAS_POR_PETICION = 500
+
 const MOTIVOS_AJUSTE = new Set([
   // `dado-de-baja` es la decision tomada desde el panel de Inventarios: el
   // codigo sigue vivo en la caja y se quiere fuera. No es lo mismo que
@@ -688,9 +708,18 @@ async function rutaAjustes(evento, origen) {
   return responder(origen, 200, { ajustes })
 }
 
+/** Los ajustes que caben en una petición por lote. */
+const MAX_AJUSTES_POR_PETICION = 500
+
 /**
  * Guarda o retira un ajuste. Mandar `motivo: null` lo retira, que es como se
  * deshace una correccion: el dato vuelve a verse en crudo.
+ *
+ * Acepta uno (`codigo`) o varios (`items: [{ codigo, producto }]`) en la MISMA
+ * petición. Lo segundo no es comodidad: cada petición lee el archivo, lo
+ * modifica y lo reescribe entero, así que dos simultáneas de la misma persona
+ * se pisan y la última gana. Marcar 146 modelos con 146 peticiones perdía
+ * marcas sin avisar; en una sola se leen y se escriben una vez.
  */
 async function rutaGuardarAjuste(evento, origen, cuerpo) {
   const sesion = sesionDe(evento)
@@ -699,27 +728,51 @@ async function rutaGuardarAjuste(evento, origen, cuerpo) {
   const quien = quienEs(sesion)
   if (!quien) return responder(origen, 403, { error: 'Sesion sin sucursal.' })
 
-  const codigo = String(cuerpo?.codigo ?? '').trim().toUpperCase().slice(0, 60)
-  if (!codigo) return responder(origen, 400, { error: 'Falta el codigo.' })
+  const normal = c => String(c ?? '').trim().toUpperCase().slice(0, 60)
+  const items = Array.isArray(cuerpo?.items) && cuerpo.items.length
+    ? cuerpo.items.map(i => ({ codigo: normal(i?.codigo), producto: String(i?.producto ?? '').slice(0, 120) }))
+    : [{ codigo: normal(cuerpo?.codigo), producto: String(cuerpo?.producto ?? '').slice(0, 120) }]
+  if (items.length > MAX_AJUSTES_POR_PETICION) {
+    return responder(origen, 400, { error: `Máximo ${MAX_AJUSTES_POR_PETICION} códigos por petición.` })
+  }
+  if (items.some(i => !i.codigo)) return responder(origen, 400, { error: 'Falta el codigo.' })
 
   const tipo = String(cuerpo?.tipo ?? 'ocultar')
   if (!TIPOS_AJUSTE.has(tipo)) return responder(origen, 400, { error: 'Tipo de ajuste desconocido.' })
+  if (tipo === 'descontinuado' && !PUEDE_DESCONTINUAR.has(quien)) {
+    return responder(origen, 403, { error: 'Sólo administración y bodega marcan lo que bodega descontinuó.' })
+  }
 
-  const clave = `${tipo}|${codigo}`
+  // Todo se valida ANTES de leer ni escribir nada: un lote con un motivo malo
+  // no puede dejar la mitad guardada.
+  let motivo = null
+  if (cuerpo?.motivo != null) {
+    motivo = String(cuerpo.motivo)
+    // La baja definitiva tiene su propia ruta, con el candado.
+    if (motivo === MOTIVO_BAJA_DEFINITIVA) {
+      return responder(origen, 400, {
+        error: 'La baja definitiva se registra en /ajustes/bajas, que comprueba existencia y ventas.',
+      })
+    }
+    const validos = tipo === 'descontinuado' ? new Set([MOTIVO_DESCONTINUADO]) : MOTIVOS_AJUSTE
+    if (!validos.has(motivo)) return responder(origen, 400, { error: 'Motivo desconocido.' })
+  }
+
   const mios = await leerJson(claveAjustes(quien))
+  const cuando = new Date().toISOString()
 
   // Sin motivo se retira. Toda correccion lleva motivo: es lo que hace que el
   // reporte que baja a cada sucursal se pueda ordenar y contar.
-  if (cuerpo?.motivo == null) {
-    delete mios[clave]
-  } else {
-    const motivo = String(cuerpo.motivo)
-    if (!MOTIVOS_AJUSTE.has(motivo)) return responder(origen, 400, { error: 'Motivo desconocido.' })
-    mios[clave] = {
-      clave, tipo, codigo, motivo,
-      producto: String(cuerpo.producto ?? '').slice(0, 120),
-      nota:     String(cuerpo.nota ?? '').slice(0, 500),
-      cuando:   new Date().toISOString(),
+  for (const { codigo, producto } of items) {
+    const clave = `${tipo}|${codigo}`
+    if (motivo === null) {
+      delete mios[clave]
+    } else {
+      mios[clave] = {
+        clave, tipo, codigo, motivo, producto,
+        nota:   String(cuerpo.nota ?? '').slice(0, 500),
+        cuando,
+      }
     }
   }
 
@@ -734,7 +787,105 @@ async function rutaGuardarAjuste(evento, origen, cuerpo) {
     ContentType:  'application/json; charset=utf-8',
     CacheControl: 'no-cache',
   }))
-  return responder(origen, 200, { ok: true, por: quien })
+  return responder(origen, 200, { ok: true, por: quien, cantidad: items.length })
+}
+
+/** Lee un JSON de S3 y devuelve NULL si no está: aquí «no hay» es un dato. */
+async function leerJsonONulo(clave) {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: clave }))
+    const v = JSON.parse(await r.Body.transformToString())
+    return v && typeof v === 'object' ? v : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Baja definitiva de una lista de códigos. SÓLO el administrador.
+ *
+ * El dueño lo fijó el 2026-11-09: no se elimina un SKU con existencia global
+ * ni con ventas en los últimos 365 días. «Estrictamente» no se cumple con un
+ * botón apagado: cualquiera con sesión de administrador puede mandar esta
+ * petición a mano. Por eso la comprobación es de aquí, y lee los inventarios
+ * de S3 en el momento: nada de lo que mande el navegador cuenta como prueba.
+ *
+ * Todo o nada en lo que toca al inventario: si falta el de CUALQUIER plaza no
+ * se registra ninguno —responde 409—, porque un stock global al que le falta
+ * una plaza es una cifra falsa. Lo demás se decide código por código: los que
+ * pasan se registran y los que no vuelven con sus motivos.
+ *
+ * Lo que se registra es una nota —`ocultar` con motivo `baja-definitiva`—, no
+ * un borrado: el inventario se regenera del respaldo y la caja la borra cada
+ * tienda. El estado se cierra solo cuando el código deja de salir ahí.
+ */
+async function rutaGuardarBajas(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
+  if (sesion.admin !== true) {
+    return responder(origen, 403, { error: 'Sólo el administrador da de baja definitiva.' })
+  }
+
+  const codigos = [...new Set((Array.isArray(cuerpo?.codigos) ? cuerpo.codigos : [])
+    .map(c => String(c ?? '').trim().toUpperCase().slice(0, 60)).filter(Boolean))]
+  if (!codigos.length) return responder(origen, 400, { error: 'Faltan los códigos.' })
+  if (codigos.length > MAX_BAJAS_POR_PETICION) {
+    return responder(origen, 400, { error: `Máximo ${MAX_BAJAS_POR_PETICION} códigos por petición.` })
+  }
+
+  // Los archivos se leen frescos, de S3, en cada petición.
+  const [invs, hists] = await Promise.all([
+    Promise.all(PLAZAS_CON_STOCK.map(async s => [s, await leerJsonONulo(`inventarios/${s}/inventario.json`)])),
+    Promise.all(PLAZAS_CON_STOCK.map(async s => [s, await leerJsonONulo(`inventarios/${s}/historial.json`)])),
+  ])
+
+  const v = verificarBajas({
+    codigos,
+    inventarios: Object.fromEntries(invs),
+    historiales: Object.fromEntries(hists),
+    dias: Number(cuerpo?.dias) || DIAS_MINIMOS_PARA_BAJA,
+    hoy: hoyMexico(),
+  })
+
+  if (v.plazasSinInventario.length) {
+    return responder(origen, 409, {
+      error: 'Falta el inventario de alguna plaza: el stock global no está completo y no se puede dar de baja nada.',
+      plazasSinInventario: v.plazasSinInventario,
+      rechazados: v.resultados.map(r => ({ codigo: r.codigo, motivos: r.motivos })),
+    })
+  }
+
+  const aceptados = v.resultados.filter(r => r.ok)
+  const rechazados = v.resultados.filter(r => !r.ok).map(r => ({ codigo: r.codigo, motivos: r.motivos }))
+
+  const guardados = []
+  if (aceptados.length) {
+    const quien = quienEs(sesion)
+    const mios = await leerJson(claveAjustes(quien))
+    const ahora = new Date().toISOString()
+    const nota = texto(cuerpo?.nota, 500)
+      || `Sin existencia y sin venta en más de ${v.dias} días`
+    for (const r of aceptados) {
+      const clave = `ocultar|${r.codigo}`
+      mios[clave] = {
+        clave, tipo: 'ocultar', codigo: r.codigo, motivo: MOTIVO_BAJA_DEFINITIVA,
+        producto: texto(r.producto, 120), nota, cuando: ahora,
+      }
+      guardados.push({ ...mios[clave], quien })
+    }
+    if (Object.keys(mios).length > 5000) {
+      return responder(origen, 413, { error: 'Demasiados ajustes guardados.' })
+    }
+    await s3.send(new PutObjectCommand({
+      Bucket:       BUCKET,
+      Key:          claveAjustes(quien),
+      Body:         Buffer.from(JSON.stringify(mios)),
+      ContentType:  'application/json; charset=utf-8',
+      CacheControl: 'no-cache',
+    }))
+  }
+
+  return responder(origen, 200, { ok: true, dias: v.dias, aceptados: guardados, rechazados })
 }
 
 // ── Surtidos ───────────────────────────────────────────────────────────────
@@ -1281,6 +1432,7 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/revisiones') return await rutaGuardarRevision(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/ajustes')    return await rutaAjustes(evento, origen)
     if (metodo === 'POST' && ruta === '/ajustes')    return await rutaGuardarAjuste(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/ajustes/bajas') return await rutaGuardarBajas(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/surtidos')   return await rutaSurtidos(evento, origen)
     if (metodo === 'POST' && ruta === '/surtidos')   return await rutaGuardarSurtido(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/caja')            return await rutaCaja(evento, origen)

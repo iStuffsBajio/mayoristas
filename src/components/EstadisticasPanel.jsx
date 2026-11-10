@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 // La bodega queda fuera: lo que sale de ahi son envios a las sucursales,
 // no ventas, y mezclarlo falsearia el ranking.
 import { SUCURSALES_PUBLICAS as SUCURSALES, BODEGA } from '../lib/sucursales'
-import { estadisticasUrl, historialUrl, inventarioJsonUrl } from '../lib/s3'
+import { estadisticasUrl, historialUrl, inventarioJsonUrl, agotadosUrl } from '../lib/s3'
 import { promedioEntrePlazas } from '../lib/precios'
 import {
   proyeccionDelMes, puenteDeVariacion, momentum, brechas,
@@ -23,11 +23,12 @@ import { porDebajoDelMayoreo, mayoreoSinMarcar } from '../lib/precioCobrado'
 import { descargarPrecios } from '../lib/exportarPrecios'
 import { hayBusqueda } from '../lib/buscar'
 import { mapaDeAltas } from '../lib/surtido'
-import { estrenos, comparaEdiciones, DIAS_EDICION, DIAS_PARA_OPINAR } from '../lib/estrenos'
+import { estrenos, comparaEdiciones, variantesDeModelosViejos, DIAS_EDICION, DIAS_PARA_OPINAR } from '../lib/estrenos'
 // La regla de buscar vive en la libreria, con sus pruebas, no aqui: la
 // pastilla de la plaza y la del rango no pueden esconder un codigo que existe.
 import { modelosQueCoinciden, fichaDeVentas } from '../lib/buscarVentas'
 import { lecturaDeVenta, DIAS_AGOTADOS } from '../lib/agotados'
+import { rotacionDe, rotacionDeRed, existenciasDeCodigo, agotadosDeCodigo } from '../lib/rotacion'
 
 // Una serie por gráfica, así que no hacen falta colores categóricos ni leyenda:
 // el título nombra la serie. Los tonos pasaron el validador de contraste contra
@@ -815,6 +816,7 @@ function Estrenos({ datos, precios, plazas }) {
   const [abierta, setAbierta] = useState(1)
   const cmp = useMemo(() => comparaEdiciones(datos?.cohortes), [datos])
   if (!datos?.cohortes?.length) return null
+  const apartadas = datos.variantes ?? []
 
   const hay = datos.cohortes.some(c => c.modelos.length > 0)
   const cohorte = datos.cohortes.find(c => c.n === abierta) ?? datos.cohortes[0]
@@ -842,6 +844,9 @@ function Estrenos({ datos, precios, plazas }) {
           ? ' Un modelo entró suelto y no forma edición.'
           : ` ${datos.sueltos} modelos entraron sueltos y no forman edición.`)}
         {datos.sinFecha > 0 && ` ${datos.sinFecha} quedan fuera por no saber cuándo entraron.`}
+        {' '}Un código nuevo para un teléfono que <strong>ya existía</strong> no cuenta como modelo
+        nuevo: es otra presentación o un código repetido, y se enseña abajo para que se vea qué se
+        dejó fuera.
       </p>
 
       {!hay ? (
@@ -961,6 +966,38 @@ function Estrenos({ datos, precios, plazas }) {
           </div>
         )}
       </>)}
+
+      {/* Lo que se dejó fuera, a la vista. Una regla que esconde cosas sin
+          decirlo es peor que la que corrige: quien vea que falta un modelo
+          tiene que poder encontrar por qué. */}
+      {apartadas.length > 0 && (
+        <details data-variantes={apartadas.length} style={{ marginTop: 14 }}>
+          <summary style={{ fontSize: 11.5, color: TINTA_SUAVE, cursor: 'pointer', lineHeight: 1.5 }}>
+            {apartadas.length === 1
+              ? '1 código reciente se dejó fuera'
+              : `${apartadas.length} códigos recientes se dejaron fuera`}: es otra presentación de un
+            teléfono que ya existía
+          </summary>
+          <ul style={{ listStyle: 'none', margin: '8px 0 0', display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {apartadas.slice(0, 40).map(v => (
+              <li key={v.codigo} data-variante={v.codigo}
+                  style={{ fontSize: 11.5, color: TINTA_SUAVE, lineHeight: 1.45 }}>
+                <strong style={{ color: TINTA }}>{v.codigo}</strong>
+                {v.producto ? ` · ${v.producto}` : ''} · alta {v.alta}
+                {v.deCodigo && (
+                  <> — ya existía como <strong style={{ color: TINTA }}>{v.deCodigo}</strong>
+                    {v.deAlta ? ` (desde ${v.deAlta})` : ''}</>
+                )}
+              </li>
+            ))}
+          </ul>
+          {apartadas.length > 40 && (
+            <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0' }}>
+              Y {apartadas.length - 40} más.
+            </p>
+          )}
+        </details>
+      )}
     </section>
   )
 }
@@ -1105,7 +1142,14 @@ function Cancelaciones({ porPlaza, plazas, sel }) {
  * «no se pide».
  */
 function LecturaExistencia({ vendio, hay }) {
-  if (hay === undefined || hay === null) {
+  // `null` es que la plaza no tiene inventario publicado —Torreón, hasta su
+  // primera sincronización—: no se sabe. `undefined` es que lo tiene publicado
+  // y el código no está: no lo maneja. Decir lo segundo de lo primero
+  // mandaría a buscar un faltante que sólo es un archivo que no ha llegado.
+  if (hay === null) {
+    return <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: TINTA_TENUE }}>sin inventario publicado</span>
+  }
+  if (hay === undefined) {
     return <span style={{ display: 'block', fontSize: 10, fontWeight: 400, color: TINTA_TENUE }}>no lo maneja</span>
   }
   const n = Number(hay) || 0
@@ -1162,6 +1206,116 @@ function VentaDeFiar({ ficha, agotados }) {
           })}
         </ul>
       )}
+    </div>
+  )
+}
+
+/**
+ * La rotación de un modelo: cuánto sale, cuánto hay y para cuántos días
+ * alcanza, plaza por plaza y en la red.
+ *
+ * Es el cruce que pidió el dueño el 2026-11-09 —ventas contra existencia en
+ * tiendas y bodega— con el indicador de velocidad. Las cuentas están en
+ * `lib/rotacion.js`, con pruebas. Aquí sólo se pintan, y se dice lo que cada
+ * caso significa: «no se vende» con piezas en el mostrador no es una buena
+ * noticia, y «sin inventario» no es cero.
+ */
+function RotacionDeModelo({ ficha, rango, existencias }) {
+  const filas = ficha.plazas.map(p => {
+    const hay = existencias?.[p.slug]
+    const sinVenta = p.sinDato
+    return {
+      p,
+      hay,
+      // Sin archivo de venta no se puede decir el ritmo, aunque se sepa lo que hay.
+      rot: sinVenta
+        ? { estado: 'sin-dato', porSemana: 0, dias: null, existencia: hay ?? null }
+        : rotacionDe({ salidas: p.salidas, rango, existencia: hay === undefined ? 0 : hay }),
+      noLoManeja: hay === undefined,
+    }
+  })
+
+  // Bodega, con tres casos que se dicen distinto: tiene el código (una cifra,
+  // quizá cero), NO lo tiene dado de alta (sale de su catálogo: es el
+  // descontinuado), o no hay inventario de bodega publicado (no se sabe).
+  const bodegaSinAlta = !(BODEGA.slug in existencias)
+  const enBodega = bodegaSinAlta ? 0 : existencias[BODEGA.slug]
+
+  const red = rotacionDeRed({
+    tiendas: filas.filter(f => !f.p.sinDato)
+      .map(f => ({ salidas: f.p.salidas, existencia: f.hay === undefined ? 0 : f.hay })),
+    bodega: enBodega,
+    rango,
+  })
+
+  const diasTexto = r => {
+    if (r.estado === 'sin-dato') return 'sin dato'
+    if (r.estado === 'sin-existencia') return 'en cero'
+    if (r.estado === 'sin-venta') return 'no se vende'
+    if (r.dias < 1) return 'menos de 1 día'
+    if (r.dias >= 365) return 'más de un año'
+    return `${Math.round(r.dias)} días`
+  }
+  // Rosa lo que se acaba o ya se acabó; ámbar lo que está parado con piezas
+  // encima, que es dinero quieto y no una buena noticia.
+  const colorDe = r => (r.estado === 'sin-existencia' || (r.estado === 'rota' && r.dias < 7)) ? C_BAJA
+    : r.estado === 'sin-venta' ? '#B45309' : TINTA
+  const ritmo = r => (r.estado === 'sin-dato' ? '—' : `${r.porSemana.toFixed(1)}`)
+  const hayTxt = h => (h === null ? '—' : h === undefined ? 'no lo maneja' : String(h))
+
+  const celda = { fontSize: 12, fontVariantNumeric: 'tabular-nums', textAlign: 'right' }
+  const reng = { display: 'grid', gridTemplateColumns: 'minmax(90px, 1.6fr) 0.7fr 0.9fr 0.8fr minmax(80px, 1.2fr)', gap: 8, alignItems: 'baseline' }
+
+  return (
+    <div data-rotacion style={{ marginBottom: 16 }}>
+      <h4 style={{ fontSize: 12.5, fontWeight: 700, color: TINTA, margin: '0 0 6px' }}>
+        Rotación y existencia, últimos {rango} días
+      </h4>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, overflowX: 'auto' }}>
+        <div style={{ ...reng, fontSize: 10.5, color: TINTA_TENUE }}>
+          <span>Plaza</span>
+          <span style={{ textAlign: 'right' }}>Salió</span>
+          <span style={{ textAlign: 'right' }} title="Piezas que salen por semana, al ritmo del rango elegido">pz/sem</span>
+          <span style={{ textAlign: 'right' }}>Hay</span>
+          <span style={{ textAlign: 'right' }} title="Para cuántos días alcanza lo que hay, al ritmo de este rango">Alcanza</span>
+        </div>
+        {filas.map(({ p, hay, rot }) => (
+          <div key={p.slug} data-rotacion-de={p.slug} style={reng}>
+            <span style={{ fontSize: 12, color: TINTA_SUAVE }}>{p.nombre}</span>
+            <span style={celda}>{p.sinDato ? '—' : p.salidas}</span>
+            <span style={celda}>{ritmo(rot)}</span>
+            <span style={{ ...celda, color: hay === undefined || hay === null ? TINTA_TENUE : TINTA }}>{hayTxt(hay)}</span>
+            <span style={{ ...celda, fontWeight: 700, color: colorDe(rot) }}>{diasTexto(rot)}</span>
+          </div>
+        ))}
+
+        <div data-rotacion-de="red" style={{ ...reng, borderTop: '1px solid ' + LINEA, paddingTop: 5 }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: TINTA }}>Tiendas juntas</span>
+          <span style={{ ...celda, fontWeight: 700 }}>{red.tiendas.salidas}</span>
+          <span style={celda}>{ritmo(red.tiendas)}</span>
+          <span style={{ ...celda, fontWeight: 700 }}>{red.tiendas.existencia ?? '—'}</span>
+          <span style={{ ...celda, fontWeight: 800, color: colorDe(red.tiendas) }}>{diasTexto(red.tiendas)}</span>
+        </div>
+
+        <div data-en-bodega data-rotacion-de="bodega" style={reng}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: TINTA }}>Bodega</span>
+          <span style={{ ...celda, color: TINTA_TENUE }}>no vende</span>
+          <span style={celda}></span>
+          <span style={{ ...celda, fontWeight: 700 }}>{enBodega === null ? '—' : enBodega}</span>
+          <span style={{ ...celda, color: bodegaSinAlta ? C_BAJA : TINTA_SUAVE }}>
+            {enBodega === null ? 'sin inventario'
+              : bodegaSinAlta ? 'no está dado de alta'
+              : red.diasBodega === null ? (enBodega > 0 ? 'sin ritmo' : 'en cero')
+              : `+${Math.round(red.diasBodega)} días`}
+          </span>
+        </div>
+      </div>
+      <p style={{ fontSize: 10.5, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
+        «Alcanza» es la cuenta al ritmo de estos {rango} días, no una promesa. Si el modelo estuvo en cero
+        parte del tiempo, su ritmo sale corto y los días salen largos: mira arriba si su venta es de fiar.
+        {red.sinInventario > 0 && ` ${red.sinInventario === 1 ? 'Una plaza no tiene' : `${red.sinInventario} plazas no tienen`} inventario publicado y no suma${red.sinInventario === 1 ? '' : 'n'} a las tiendas.`}
+        {enBodega !== null && !bodegaSinAlta && ' Bodega se traduce a días al ritmo de las tiendas: es de donde se surte.'}
+      </p>
     </div>
   )
 }
@@ -1451,6 +1605,10 @@ export function FichaCodigo({ ficha, rango, existencias = null, agotados = null 
 
       {agotados && <VentaDeFiar ficha={ficha} agotados={agotados} />}
 
+      {existencias && (
+        <RotacionDeModelo ficha={ficha} rango={rango} existencias={existencias} />
+      )}
+
       {ficha.total > 0 && (
         <div style={{ marginBottom: 16 }}>
           <SerieDiaria serie={ficha.serie} />
@@ -1518,10 +1676,18 @@ export default function EstadisticasPanel() {
       // descarga cae en null por su cuenta y el resto sigue.
       // El inventario entra aquí porque sin él no hay precios ni costos, y sin
       // precios esta pantalla cuenta piezas: un negocio no se dirige en piezas.
-      const pares = await Promise.all(activas.map(async s => [s.slug, {
+      // `SUCURSALES` aquí son las que VENDEN —las cuatro tiendas—, no sólo las
+      // que ve un mayorista: Torreón vende y tiene caja, aunque su página no
+      // esté abierta. Sólo la ficha de un modelo mira esa cuarta; todo lo
+      // demás sigue contando con `activas`, así que sus consolidados no
+      // cambian. Hasta que se publique su inventario, sus archivos son null y
+      // la ficha dice «sin dato», que es lo honesto.
+      const pares = await Promise.all(SUCURSALES.map(async s => [s.slug, {
         est:  await bajar(estadisticasUrl(s.slug)).catch(() => null),
         hist: await bajar(historialUrl(s.slug)).catch(() => null),
         inv:  await bajar(inventarioJsonUrl(s.slug)).catch(() => null),
+        // Los días en cero, del kárdex. Público y sin nombres.
+        ago:  await bajar(agotadosUrl(s.slug)).catch(() => null),
       }]))
       // Bodega no vende, así que no entra en ninguna estadística de venta.
       // Su inventario sí hace falta: es de donde sale el COSTO, y de ningún
@@ -1624,8 +1790,27 @@ export default function EstadisticasPanel() {
     // marcarlo como piso.
     const altas = mapaDeAltas(Object.fromEntries(
       Object.entries(invsVista).map(([slug, inv]) => [slug, inv?.productos ?? []])))
-    return estrenos({ altas, historial, inventarios: invsVista, precios, costos, nombres })
-  }, [porSucursal, invsVista, historial, precios, costos, nombres])
+
+    // ¿Es un teléfono nuevo o sólo un código nuevo? Eso se decide con TODA la
+    // red, no con la plaza que se mira: que el teléfono ya existiera en otra
+    // tienda, o en bodega, es justo lo que lo hace viejo. Con una plaza
+    // elegida, el S10e de León volvía a salir como nuevo porque León es la
+    // única que lo dio de alta con ese código.
+    const invRed = Object.fromEntries(
+      [...activas.map(s => s.slug), BODEGA.slug]
+        .map(slug => [slug, porSucursal[slug]?.inv?.productos ?? []]))
+    const altasRed = mapaDeAltas(invRed)
+    const nombresRed = {}
+    for (const prods of Object.values(invRed)) {
+      for (const p of prods) {
+        const k = String(p.Codigo ?? '').trim()
+        if (k && !nombresRed[k]) nombresRed[k] = p.Producto ?? ''
+      }
+    }
+    const variantes = variantesDeModelosViejos({ altas: altasRed, nombres: nombresRed })
+
+    return estrenos({ altas, historial, inventarios: invsVista, precios, costos, nombres, variantes })
+  }, [porSucursal, invsVista, historial, precios, costos, nombres, activas])
 
   // Cuatro semanas contra las cuatro anteriores: es la comparación que usa
   // quien compra, no el mes natural, que parte la tendencia por la mitad.
@@ -1717,10 +1902,27 @@ export default function EstadisticasPanel() {
   const clave = coincidencias.some(c => c.clave === claveSel)
     ? claveSel
     : coincidencias[0]?.clave ?? null
+  // La ficha es la herramienta de investigar UN modelo: lleva todas las
+  // tiendas que venden, Torreón incluida, y a cada una la existencia que tiene
+  // hoy y los días que estuvo en cero. Es la misma que ve bodega en «Consultar
+  // modelo»: son dos entradas a una sola pantalla, no dos pantallas.
   const ficha = useMemo(
-    () => (clave ? fichaDeVentas({ porSucursal, clave, plazas: activas, rango }) : null),
-    [porSucursal, clave, activas, rango],
+    () => (clave ? fichaDeVentas({ porSucursal, clave, plazas: SUCURSALES, rango }) : null),
+    [porSucursal, clave, rango],
   )
+
+  const existenciasFicha = useMemo(() => {
+    if (!ficha?.codigo || !porSucursal) return null
+    const inv = Object.fromEntries(
+      [...SUCURSALES.map(s => s.slug), BODEGA.slug].map(slug => [slug, porSucursal[slug]?.inv ?? null]))
+    return existenciasDeCodigo(ficha.codigo, inv)
+  }, [ficha, porSucursal])
+
+  const agotadosFicha = useMemo(() => {
+    if (!ficha?.codigo || !porSucursal) return null
+    return agotadosDeCodigo(ficha.codigo,
+      Object.fromEntries(SUCURSALES.map(s => [s.slug, porSucursal[s.slug]?.ago ?? null])))
+  }, [ficha, porSucursal])
 
   // Lo que se enseña a la derecha del título cuando el comparativo está
   // cerrado: lo justo para saber si conviene abrirlo.
@@ -1767,12 +1969,20 @@ export default function EstadisticasPanel() {
         ))}
       </div>
 
-      {/* Buscar un código concreto.
+      {/* «Investigar un modelo»: es el nombre con el que el dueño pidió esta
+          herramienta para el administrador (2026-11-09), la misma que ve bodega
+          en «Consultar modelo». Va titulada para que se encuentre: antes era
+          sólo una barra de búsqueda sin nombre.
+
+          Buscar un código concreto.
 
           Va fuera del bloque de abajo a propósito: ese bloque depende de que
           la plaza elegida tenga estadística, y la búsqueda no puede depender
           de eso. Si Aguascalientes no tiene archivo publicado, buscar un
           código que se vende en León tiene que seguir contestando. */}
+      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 8px' }}>
+        Investigar un modelo
+      </h4>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
         <input
           value={busqueda}
@@ -1810,7 +2020,8 @@ export default function EstadisticasPanel() {
           )}
 
           {ficha
-            ? <FichaCodigo ficha={ficha} rango={rango} />
+            ? <FichaCodigo ficha={ficha} rango={rango}
+                           existencias={existenciasFicha} agotados={agotadosFicha} />
             : (
               <div data-sin-coincidencias style={{ padding: '14px 16px', borderRadius: 16, marginBottom: 18, background: 'rgba(16,22,25,0.03)', border: '1px solid ' + LINEA }}>
                 <p style={{ fontSize: 13, fontWeight: 700, color: TINTA, margin: 0 }}>

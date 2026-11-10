@@ -36,9 +36,26 @@
 //    historial, no la fecha de entrada: en León 579 de 647 productos comparten
 //    el día en que arrancó Eleventa. Esa fecha dice cuándo empieza lo que se
 //    puede ver. Incluirla llenó una vez esta lista de fundas de iPhone 6.
+//
+// 5. UN CÓDIGO NUEVO NO ES UN MODELO NUEVO. Lo vio el dueño el 2026-11-09: el
+//    Galaxy S10e salía como «nuevo». No era un reabasto —el reabasto no mueve
+//    `Alta`— sino que León dio de alta el código SGS10ETC el 2 de mayo de 2026
+//    para un teléfono que Aguascalientes y San Luis vendían desde 2023 con
+//    otro código. La lista agrupaba por CÓDIGO, no por teléfono.
+//
+//    Medido el mismo día en las tres últimas ediciones: **9 de 46 códigos**
+//    eran otra presentación de un teléfono que ya existía —un «3 en 1» de un
+//    A57 que ya tenía su TPU desde enero, un REDMI NOTE 15 con dos códigos—.
+//    Eleventa no guarda fecha de creación del producto (se comprobó en el
+//    esquema: `PRODUCTOS` sólo tiene `ELIMINADO_EN` y `CHECADO_EN`), así que
+//    la prueba es el nombre: el mismo teléfono con un código anterior. Ver
+//    `variantesDeModelosViejos`.
 
 import { valorDe } from './precios.js'
 import { DIAS_RECIEN_LLEGADO } from './surtido.js'
+import { clavesDe } from './variantes.js'
+import { esProtector } from './familias.js'
+import { seProduce } from './produccion.js'
 
 /**
  * Hasta dónde llega un modelo para seguir contando como «nuevo». Son los
@@ -146,6 +163,88 @@ function porMesDe(historial, codigo, desdeMes) {
   return out
 }
 
+/** Días de calendario entre dos fechas AAAA-MM-DD, sin husos horarios. */
+const diasDeFecha = (a, b) =>
+  Math.round((new Date(`${a}T00:00:00`) - new Date(`${b}T00:00:00`)) / 86400000)
+
+/**
+ * Los códigos «nuevos» que en realidad son otra presentación de un teléfono
+ * que ya existía.
+ *
+ * `altas` es el mapa de `mapaDeAltas` de **toda la red**, no de la plaza que se
+ * está mirando: que el teléfono ya existiera en otra tienda es justo lo que
+ * lo hace viejo. `nombres` es `{ codigo: nombre }` de cada código de `altas`.
+ *
+ * Un código es variante cuando CADA teléfono que cubre ya tenía otro código
+ * con una alta anterior por `holgura` días o más. Tres decisiones, todas
+ * medidas en el catálogo real:
+ *
+ *   · **Cada teléfono, no alguno.** «MOTO G77/G67» cubre dos aparatos: si el
+ *     G67 ya existía pero el G77 no, el código trae un teléfono nuevo y SÍ es
+ *     un estreno. Sólo es variante si no trae ninguno nuevo —«A56/A36/A37 3 en
+ *     1», cuyos tres ya tenían su TPU—.
+ *   · **La holgura es la misma que agrupa una edición** (`DIAS_MISMA_EDICION`).
+ *     Dos códigos del mismo teléfono dados de alta con un día de diferencia
+ *     son de la MISMA tanda —el POCO M8 Pro y el REDMI NOTE 15 PRO PLUS/POCO
+ *     M8 PRO— y ninguno es variante del otro; si no, quedaría fuera un modelo
+ *     que de verdad entró.
+ *   · **Un piso cuenta como prueba de edad.** Es una cota inferior: dice que el
+ *     código existía al menos desde esa fecha. Lo que no puede es ser una
+ *     LLEGADA (regla 4), pero para probar que un teléfono es viejo sirve.
+ *
+ * Devuelve `Map<codigo, { deCodigo, deAlta, deProducto }>`: de qué código
+ * anterior es variante, para poder decirlo en pantalla. Una variante no se
+ * esconde en silencio: se cuenta y se enseña por qué se dejó fuera.
+ */
+export function variantesDeModelosViejos({ altas = {}, nombres = {}, holgura = DIAS_MISMA_EDICION } = {}) {
+  // clave de teléfono → códigos que lo cubren, con su alta
+  const porClave = new Map()
+  const clavesDelCodigo = new Map()
+  for (const [codigo, d] of Object.entries(altas)) {
+    if (!d?.alta) continue
+    const nombre = nombres[codigo] ?? ''
+    // Las micas, el hidrogel y los stickers no son modelos de teléfono, y
+    // `claveModelo` NO los deja en blanco —aunque su comentario lo diga—: dos
+    // micas con el mismo nombre darían la misma «clave de teléfono». No se
+    // emparejan: un emparejado falso es peor que ninguno.
+    if (esProtector(codigo, nombre) || seProduce(codigo, nombre)) continue
+    const claves = clavesDe(nombre)
+    if (!claves.length) continue
+    clavesDelCodigo.set(codigo, claves)
+    for (const k of claves) {
+      if (!porClave.has(k)) porClave.set(k, [])
+      porClave.get(k).push({ codigo, alta: d.alta })
+    }
+  }
+
+  const out = new Map()
+  for (const [codigo, claves] of clavesDelCodigo) {
+    const miAlta = altas[codigo].alta
+    let evidencia = null
+    let todos = true
+    for (const k of claves) {
+      // El más antiguo de los OTROS que cubren este teléfono, si lleva
+      // `holgura` días o más de ventaja.
+      let mejor = null
+      for (const o of porClave.get(k) ?? []) {
+        if (o.codigo === codigo) continue
+        if (diasDeFecha(miAlta, o.alta) < holgura) continue
+        if (!mejor || o.alta < mejor.alta) mejor = o
+      }
+      if (!mejor) { todos = false; break }
+      if (!evidencia || mejor.alta < evidencia.alta) evidencia = mejor
+    }
+    if (todos && evidencia) {
+      out.set(codigo, {
+        deCodigo: evidencia.codigo,
+        deAlta: evidencia.alta,
+        deProducto: nombres[evidencia.codigo] ?? '',
+      })
+    }
+  }
+  return out
+}
+
 /**
  * Las ediciones que hay, de la más reciente a la más vieja.
  *
@@ -217,10 +316,24 @@ function existenciaDe(inventarios) {
  * `inventarios` son los inventarios de esa misma plaza (o de todas).
  */
 export function estrenos({
-  altas = {}, historial = null, inventarios = {}, precios = {}, costos = {},
+  altas: altasTodas = {}, historial = null, inventarios = {}, precios = {}, costos = {},
   nombres = {}, hoy = new Date(), ediciones = 2,
+  // El resultado de `variantesDeModelosViejos` (un Map) o su equivalente en
+  // objeto. Se calcula con las altas de TODA la red aunque aquí se mire una
+  // sola plaza.
+  variantes = null,
 }) {
   const ex = existenciaDe(inventarios)
+
+  // Lo que es otra presentación de un teléfono viejo se aparta ANTES de formar
+  // lotes, no después: los lotes dependen de cuántos modelos junta cada fecha
+  // (`MINIMO_EDICION`) y de cómo se encadenan, así que quitar un código de una
+  // edición ya formada podía dejarla con menos de tres o partir otra.
+  const esVariante = codigo =>
+    variantes instanceof Map ? variantes.has(codigo) : Boolean(variantes?.[codigo])
+  const altas = variantes
+    ? Object.fromEntries(Object.entries(altasTodas).filter(([c]) => !esVariante(c)))
+    : altasTodas
   const { ediciones: lotes, sueltos } = lotesDeEntrada(altas)
 
   // Cuando no hay lotes —una plaza que recibe de goteo— no se deja la
@@ -321,7 +434,28 @@ export function estrenos({
   let sinFecha = 0
   for (const d of Object.values(altas)) if (!d?.alta) sinFecha++
 
-  return { cohortes, sinFecha, sueltos, hayLotes: lotes.length > 0 }
+  // Lo que se dejó fuera por ser variante, y por qué. Sólo las altas que caen
+  // dentro del tramo que la pantalla enseña: una variante de hace tres años no
+  // le interesa a nadie y llenaría la lista de ruido.
+  const desdeVisible = elegidos.length
+    ? elegidos[elegidos.length - 1].hasta
+    : iso(hace(hoy, DIAS_EDICION))
+  const apartadas = []
+  for (const [codigo, d] of Object.entries(altasTodas)) {
+    if (!d?.alta || d.piso || d.alta < desdeVisible || !esVariante(codigo)) continue
+    const v = variantes instanceof Map ? variantes.get(codigo) : variantes[codigo]
+    apartadas.push({
+      codigo,
+      producto: nombres[codigo] || ex[codigo]?.producto || '',
+      alta: d.alta,
+      deCodigo: v.deCodigo ?? null,
+      deAlta: v.deAlta ?? null,
+      deProducto: v.deProducto ?? '',
+    })
+  }
+  apartadas.sort((a, b) => b.alta.localeCompare(a.alta) || a.codigo.localeCompare(b.codigo))
+
+  return { cohortes, sinFecha, sueltos, hayLotes: lotes.length > 0, variantes: apartadas }
 }
 
 /**

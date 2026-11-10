@@ -74,6 +74,8 @@ const SUCURSALES = {
   'aguascalientes': { nombre: 'Aguascalientes',  carpeta: 'ags' },
   'bodega':         { nombre: 'Bodega',          carpeta: 'BODEGA' },
   'ferias':         { nombre: 'Ferias',          carpeta: 'ferias' },
+  // Vende y lleva caja desde junio de 2025; ver `sincronizar-inventarios.js`.
+  'torreon':        { nombre: 'Torreón',         carpeta: 'TORREON' },
 }
 
 const arg = n => process.argv.find(a => a.startsWith(`--${n}=`))?.split('=')[1]
@@ -228,8 +230,13 @@ async function procesar(slug) {
       // La existencia de hoy y las altas, del inventario que acaba de publicar
       // la sincronización con este mismo respaldo: así las dos cuentas hablan
       // del mismo día.
-      const inv = await (await fetch(
-        `https://${BUCKET}.s3.${REGION}.amazonaws.com/inventarios/${slug}/inventario.json?t=${Date.now()}`)).json()
+      const resp = await fetch(
+        `https://${BUCKET}.s3.${REGION}.amazonaws.com/inventarios/${slug}/inventario.json?t=${Date.now()}`)
+      // Una plaza nueva —Torreón— todavía no tiene inventario publicado la
+      // primera vez: sin este aviso, S3 contesta con un XML de error y lo que
+      // salía en el registro era «Unexpected token '<'», que no dice nada.
+      if (!resp.ok) throw new Error(`el inventario de ${slug} todavía no está publicado (HTTP ${resp.status})`)
+      const inv = await resp.json()
       const existenciaHoy = {}, altas = {}
       for (const p of inv?.productos ?? []) {
         const c = String(p.Codigo ?? '').trim().toUpperCase()

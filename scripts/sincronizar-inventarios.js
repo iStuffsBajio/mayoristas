@@ -23,7 +23,7 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 import { dropboxConfigurado } from './lib/dropbox-api.js'
 import { ultimoRespaldo, obtenerArchivo, origenPorDefecto } from './lib/respaldos.js'
 import { salidasEntre, agregarDia, estadisticaVacia, acumularEnPeriodo, historialVacio } from './lib/estadisticas.js'
-import { deptoOculto } from './lib/departamentos.js'
+import { deptoOculto, esEtiquetaDeCliente } from './lib/departamentos.js'
 
 const ejecutar = promisify(execFile)
 
@@ -65,7 +65,13 @@ const FB_PASS = process.env.FIREBIRD_PASS || 'masterkey'
 const FB_PREFIJO = process.env.FB_PREFIJO || ''
 const comoBase = ruta => `${FB_PREFIJO}${ruta}`
 
-// Solo sucursales activas. Torreón y Morelia tienen carpeta pero sin respaldos recientes.
+// Torreón SÍ vende y SÍ manda respaldo: el del 2026-11-09 está en su carpeta, y
+// su caja lleva meses entrando en el flujo de efectivo. Que `activa` sea false
+// en `sucursales.js` sólo significa que un mayorista no la ve; no que no tenga
+// mercancía. Sin su inventario, cualquier cuenta de «existencia global» —y el
+// candado que impide dar de baja un código con piezas— se queda ciega justo
+// con la plaza que falta. Va como opcional: si su carpeta falla, no tumba a las
+// demás. Morelia sigue fuera: sus respaldos se detienen en marzo de 2024.
 const SUCURSALES = [
   { slug: 'aguascalientes', nombre: 'Aguascalientes',  carpeta: 'ags'  },
   { slug: 'leon',           nombre: 'León',            carpeta: 'leon' },
@@ -74,6 +80,7 @@ const SUCURSALES = [
   // existe, esta corrida la salta con un aviso y las demas siguen.
   { slug: 'bodega',         nombre: 'Bodega',          carpeta: 'BODEGA', opcional: true },
   { slug: 'ferias',         nombre: 'Ferias',          carpeta: 'ferias', opcional: true },
+  { slug: 'torreon',        nombre: 'Torreón',         carpeta: 'TORREON', opcional: true },
 ]
 
 
@@ -110,6 +117,18 @@ const SEP = '~|~'
 // DINVMINIMO es el punto de reorden que ya está capturado producto por
 // producto en la caja: 15 para el iPhone 13, 50 para las micas. Es el criterio
 // del dueño, y vale más que cualquier cobertura que calculemos nosotros.
+//
+// ULTIMA VENTA, la columna 11: el último movimiento del kárdex que viene de
+// una VENTA (`VENTA_ID IS NOT NULL`, que es como ya lo identifica el script
+// del historial por mes). `UltimoMov` no sirve para esto: cuenta los recuentos
+// de inventario, y un ajuste rejuvenecía un modelo parado desde hace dos años
+// —el día mediano toca 1 o 2 productos, pero Aguascalientes tiene 208 con la
+// fecha de un solo recuento—. Esto sí es la última vez que se vendió.
+//
+// Es lo que permite decir «sin venta en dos años» sin adivinar: el historial
+// por mes que publica la sincronización sólo llega a octubre de 2025 en
+// Aguascalientes y San Luis, y a enero de 2026 en León, pero el kárdex de
+// cada caja llega hasta donde empezó Eleventa en ella.
 const SQL = `
 SET HEADING OFF;
 SELECT p.CODIGO || '${SEP}' || p.DESCRIPCION || '${SEP}' || COALESCE(b.CANTIDAD_ACTUAL, 0) || '${SEP}' || COALESCE(d.NOMBRE, '')
@@ -117,6 +136,7 @@ SELECT p.CODIGO || '${SEP}' || p.DESCRIPCION || '${SEP}' || COALESCE(b.CANTIDAD_
        || '${SEP}' || COALESCE((SELECT MAX(h.CUANDO_FUE) FROM INVENTARIO_HISTORIAL h WHERE h.PRODUCTO_ID = p.ID), '')
        || '${SEP}' || COALESCE(p.PVENTA, 0) || '${SEP}' || COALESCE(p.MAYOREO, 0)
        || '${SEP}' || COALESCE(p.PCOSTO, 0) || '${SEP}' || COALESCE(p.DINVMINIMO, 0)
+       || '${SEP}' || COALESCE((SELECT MAX(h.CUANDO_FUE) FROM INVENTARIO_HISTORIAL h WHERE h.PRODUCTO_ID = p.ID AND h.VENTA_ID IS NOT NULL), '')
 FROM PRODUCTOS p
 LEFT JOIN INVENTARIO_BALANCES b ON b.PRODUCTO_ID = p.ID
 LEFT JOIN DEPARTAMENTOS d ON d.ID = p.DEPT
@@ -169,7 +189,7 @@ async function consultar(fdb, workDir) {
   for (const linea of texto.split(/\r?\n/)) {
     if (!linea.includes(SEP)) continue
     const [codigo, producto, existencia, depto, alta, ultimo,
-           pventa, mayoreo, pcosto, minimo] = linea.split(SEP).map(s => s.trim())
+           pventa, mayoreo, pcosto, minimo, ultimaVenta] = linea.split(SEP).map(s => s.trim())
     if (!producto) continue
     // Las fechas llegan como "2024-04-18 15:03:02.0000"; basta el día.
     const soloDia = v => /^\d{4}-\d{2}-\d{2}/.exec(v ?? '')?.[0] ?? null
@@ -182,6 +202,7 @@ async function consultar(fdb, workDir) {
     filas.push({
       codigo, producto, existencia: parseFloat(existencia) || 0, depto,
       alta: soloDia(alta), ultimo: soloDia(ultimo),
+      ultimaVenta: soloDia(ultimaVenta),
       pventa: num(pventa), mayoreo: num(mayoreo), pcosto: num(pcosto), minimo: num(minimo),
     })
   }
@@ -326,10 +347,20 @@ async function procesar(suc, workDir) {
   if (filas.length === 0) throw new Error('La consulta no devolvió productos')
 
   const productos = filas
-    .filter(f => !deptoOculto(f.depto))
+    .filter(f => !deptoOculto(f.depto) && !esEtiquetaDeCliente(f))
     .map(f => ({
       Codigo: f.codigo, Producto: f.producto, Existencia: f.existencia,
       Alta: f.alta, UltimoMov: f.ultimo,
+      // El departamento de Eleventa. Ya se leía —es lo que filtra los clientes
+      // y el cajón de sastre— pero no se publicaba, y sin él no se puede
+      // depurar por marca o departamento ni reconocer el de hidrogel por algo
+      // más fiable que el nombre. Es público sin riesgo: son categorías de
+      // producto, no nombres de personas.
+      ...(f.depto && { Departamento: f.depto }),
+      // La última VENTA, no el último movimiento. Se omite cuando nunca se
+      // vendió: la ausencia significa «sin venta en todo el historial de esta
+      // caja», que es un dato, y no un cero ni una fecha inventada.
+      ...(f.ultimaVenta && { UltimaVenta: f.ultimaVenta }),
       // Cero significa «sin capturar», no «gratis». Quien los lea tiene que
       // distinguirlo, así que se omiten en vez de publicar un cero engañoso.
       ...(f.pventa  > 0 && { Precio:  f.pventa }),

@@ -13,6 +13,24 @@ no sustituye el historial completo de Git.
   los modelos que vendieron poco porque estaban agotados. La cantidad a pedir
   no cambia.
 
+- **Fase 1 de la especificación del 2026-11-09:**
+  - Sección **Depurar** en el panel de administración, con cuatro listas
+    (modelos de salida, sin rotación de más de un año, obsoletos en ceros, marca
+    o departamento), Excel de cuatro hojas y un candado que impide dar de baja
+    un código con piezas en la red o con ventas en el último año. El candado
+    manda en el servidor y sin el inventario de cualquier plaza no se baja nada.
+  - Marca «descontinuado en bodega»: lo marcado deja de reclamarse en Revisar.
+  - «Modelos nuevos» ya no cuenta como nuevo un código nuevo de un teléfono que
+    existía (el caso del Galaxy S10e).
+  - La ficha de un modelo en Ventas trae existencia por tienda y bodega, días en
+    cero y rotación; es la misma que ve bodega. Ahora incluye Torreón.
+  - La sincronización publica `UltimaVenta` y `Departamento` en cada inventario,
+    y **Torreón entra a la sincronización**, a la extracción de ventas y al
+    historial.
+  - El inventario público ya no puede publicar a un cliente mayorista: el
+    departamento de Torreón se escribe en singular y se coló por ahí.
+  - Lo cobrado a $0.01 se trata como mayorista y no cuenta como pieza.
+
 ## 2026-11-08
 
 - Se añadió `AGENTS.md` como fuente compartida de instrucciones para Codex y

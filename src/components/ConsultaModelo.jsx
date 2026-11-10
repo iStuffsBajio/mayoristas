@@ -25,6 +25,7 @@ import { SUCURSALES_PUBLICAS, BODEGA } from '../lib/sucursales'
 import { estadisticasUrl, historialUrl, inventarioJsonUrl, agotadosUrl } from '../lib/s3'
 import { modelosQueCoinciden, fichaDeVentas, catalogoDeVentas } from '../lib/buscarVentas'
 import { FichaCodigo } from './EstadisticasPanel'
+import { existenciasDeCodigo, agotadosDeCodigo } from '../lib/rotacion'
 
 const TINTA       = '#101619'
 const TINTA_SUAVE = '#4A5A61'
@@ -33,12 +34,10 @@ const LINEA       = '#D6E0E4'
 
 const RANGOS = [30, 60]
 
-const limpio = c => String(c ?? '').trim().toUpperCase()
-
 export default function ConsultaModelo() {
-  const plazas = useMemo(() => SUCURSALES_PUBLICAS.filter(s => s.activa), [])
+  // Las tiendas que VENDEN, Torreón incluida aunque un mayorista no la vea.
+  const plazas = useMemo(() => SUCURSALES_PUBLICAS, [])
   const [porSucursal, setPorSucursal] = useState(null)
-  const [existencias, setExistencias] = useState({})
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [clave, setClave] = useState(null)
@@ -63,16 +62,7 @@ export default function ConsultaModelo() {
       const invBodega = await bajar(inventarioJsonUrl(BODEGA.slug)).catch(() => null)
       if (!vivo) return
 
-      // Existencia por código y plaza, bodega incluida: es de donde se surte.
-      const ex = {}
-      for (const [slug, d] of [...pares, [BODEGA.slug, { inv: invBodega }]]) {
-        for (const p of d.inv?.productos ?? []) {
-          const c = limpio(p.Codigo)
-          if (c) (ex[c] ??= {})[slug] = Number(p.Existencia) || 0
-        }
-      }
-      setPorSucursal(Object.fromEntries(pares))
-      setExistencias(ex)
+      setPorSucursal({ ...Object.fromEntries(pares), [BODEGA.slug]: { inv: invBodega } })
       setCargando(false)
     })()
     return () => { vivo = false }
@@ -114,18 +104,19 @@ export default function ConsultaModelo() {
       .map(([k, n]) => ({ clave: k, producto: cat[k] || k, piezas: n }))
   }, [porSucursal, plazas, rango])
 
-  const existenciasDe = ficha?.codigo ? existencias[limpio(ficha.codigo)] ?? {} : null
+  // Las mismas cuentas que la ficha del administrador en Ventas: salen de
+  // `lib/rotacion.js`, no de un cálculo propio de esta pantalla.
+  const existenciasDe = useMemo(() => {
+    if (!ficha?.codigo || !porSucursal) return null
+    const inv = Object.fromEntries(
+      [...plazas.map(p => p.slug), BODEGA.slug].map(slug => [slug, porSucursal[slug]?.inv ?? null]))
+    return existenciasDeCodigo(ficha.codigo, inv)
+  }, [ficha, porSucursal, plazas])
 
-  // Por plaza: el dato del código, `null` si la plaza tiene archivo y no lo
-  // maneja, `undefined` si la plaza todavía no tiene archivo. Son tres cosas
-  // distintas y la ficha las dice distinto.
   const agotadosDe = useMemo(() => {
     if (!ficha?.codigo || !porSucursal) return null
-    const c = limpio(ficha.codigo)
-    return Object.fromEntries(plazas.map(p => {
-      const ago = porSucursal[p.slug]?.ago
-      return [p.slug, ago ? (ago.porCodigo?.[c] ?? null) : undefined]
-    }))
+    return agotadosDeCodigo(ficha.codigo,
+      Object.fromEntries(plazas.map(p => [p.slug, porSucursal[p.slug]?.ago ?? null])))
   }, [ficha, porSucursal, plazas])
 
   if (cargando) {
@@ -179,12 +170,6 @@ export default function ConsultaModelo() {
 
       {ficha && (buscando || clave) && (
         <FichaCodigo ficha={ficha} rango={rango} existencias={existenciasDe} agotados={agotadosDe} />
-      )}
-
-      {ficha && existenciasDe && (buscando || clave) && (
-        <p data-en-bodega style={{ fontSize: 12, color: TINTA_SUAVE, margin: '-8px 0 0' }}>
-          En bodega hay <strong>{existenciasDe[BODEGA.slug] ?? 0}</strong>.
-        </p>
       )}
 
       {!buscando && !clave && top.length > 0 && (

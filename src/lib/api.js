@@ -210,6 +210,28 @@ export const ajustes = token => pedir('/ajustes', { token })
 export const guardarAjuste = ({ codigo, tipo = 'ocultar', motivo, producto = '', nota = '' }, token) =>
   pedir('/ajustes', { metodo: 'POST', cuerpo: { codigo, tipo, motivo, producto, nota }, token })
 
+/**
+ * Guarda o retira el MISMO ajuste para varios códigos, en una sola petición.
+ *
+ * Es la única forma correcta de marcar muchos: cada petición lee el archivo
+ * de la persona, lo modifica y lo reescribe entero, así que varias a la vez se
+ * pisan y la última gana. `items` es `[{ codigo, producto }]`; `motivo` en
+ * null los quita.
+ */
+export const guardarAjustes = ({ items, tipo = 'ocultar', motivo, nota = '' }, token) =>
+  pedir('/ajustes', { metodo: 'POST', cuerpo: { items, tipo, motivo, nota }, token })
+
+/**
+ * Baja definitiva de una lista de códigos. SÓLO el administrador.
+ *
+ * El servidor comprueba, leyendo los inventarios en ese momento, que ninguno
+ * tenga piezas en la red ni ventas en el último año: lo que mande esta página
+ * no cuenta como prueba. Contesta `aceptados` y `rechazados` con sus motivos;
+ * y si falta el inventario de alguna plaza, 409 y no escribe nada.
+ */
+export const guardarBajas = ({ codigos, dias = 365, nota = '' }, token) =>
+  pedir('/ajustes/bajas', { metodo: 'POST', cuerpo: { codigos, dias, nota }, token })
+
 // ── Surtidos: lo que sale de bodega a cada tienda ────────────────────────────
 //
 // Un folio lleva las líneas que salieron y la existencia que había en el

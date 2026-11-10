@@ -8,7 +8,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  agregarVentas, claseDeLinea, horaDe, diaSemanaDe, pesoDelMayoreo,
+  agregarVentas, claseDeLinea, horaDe, diaSemanaDe, pesoDelMayoreo, esPrecioDeEtiqueta, PRECIO_DE_ETIQUETA,
   DEPTO_MAYORISTAS, DEPTO_STICKERS, precioPorPlaza, PISO_PRECIO,
   preciosDeVenta, soloPrecios, cobertura, DESCUENTO_MAXIMO,
 } from './ventasTicket.js'
@@ -86,6 +86,60 @@ test('clasificar una linea: tres cosas distintas', () => {
   assert.equal(claseDeLinea({ depto: DEPTO_STICKERS }), 'sin-stock')
   assert.equal(claseDeLinea({ depto: 'FUNDAS' }), 'producto')
   assert.equal(claseDeLinea({}), 'producto')
+})
+
+test('TORREÓN lo escribe en singular, y el precio de $0.01 es la segunda red', () => {
+  // «MAYORISTA» no era «MAYORISTAS»: sin esto su cliente se contaba como una
+  // funda. Y aunque el departamento fallara por otro motivo, el dueño definió
+  // que lo cobrado a $0.01 es del esquema de mayoristas.
+  assert.equal(claseDeLinea({ depto: 'MAYORISTA' }), 'etiqueta')
+  assert.equal(claseDeLinea({ depto: ' Mayorista ' }), 'etiqueta')
+  assert.equal(claseDeLinea({ depto: 'FUNDAS', cantidad: 1, total: 0.01 }), 'etiqueta')
+  assert.equal(claseDeLinea({ depto: 'FUNDAS', cantidad: 3, total: 0.03 }), 'etiqueta')
+  assert.ok(esPrecioDeEtiqueta(0.01) && !esPrecioDeEtiqueta(1) && !esPrecioDeEtiqueta(0))
+  assert.equal(PRECIO_DE_ETIQUETA, 0.01)
+})
+
+test('el precio de etiqueta NO se confunde con una venta de verdad', () => {
+  // Una línea en cero no es una etiqueta; una a $1 es el «regalo» que ya se
+  // cuenta aparte; y un sticker barato sigue siendo un sticker.
+  assert.equal(claseDeLinea({ depto: 'FUNDAS', cantidad: 1, total: 0 }), 'producto')
+  assert.equal(claseDeLinea({ depto: 'FUNDAS', cantidad: 1, total: 1 }), 'producto')
+  assert.equal(claseDeLinea({ depto: 'FUNDAS', cantidad: 2, total: 250 }), 'producto')
+  assert.equal(claseDeLinea({ depto: 'stikers', cantidad: 10, total: 90 }), 'sin-stock')
+
+  const r = agregarVentas({
+    tickets: [ticket(1)],
+    lineas: [
+      linea(1),
+      linea(1, { codigo: 'PT998', producto: 'OTRO CLIENTE (998)', depto: 'MAYORISTA', cantidad: 1, total: 0.01 }),
+      // Sin departamento reconocible, pero cobrada a $0.01: tampoco es pieza.
+      linea(1, { codigo: 'PT997', producto: 'OTRO CLIENTE (997)', depto: 'COSAS', cantidad: 1, total: 0.01 }),
+    ],
+  })
+  assert.equal(r.resumen.piezas, 1, 'las dos etiquetas no suman piezas')
+  assert.equal(r.porCodigo.PT998, undefined)
+  assert.equal(r.porCodigo.PT997, undefined)
+  assert.equal(r.mayoristas.length, 2)
+})
+
+test('el inventario PÚBLICO no publica a un cliente: ni en singular ni por precio', async () => {
+  // Con la sincronización de Torreón, su «MAYORISTA» habría salido en
+  // inventario.json —que lee cualquiera— con el nombre del cliente. Este
+  // filtro es lo único que lo impide, así que se prueba con el mismo código
+  // que usa la sincronización.
+  const { deptoOculto, esEtiquetaDeCliente } = await import('../../scripts/lib/departamentos.js')
+  const sale = f => !deptoOculto(f.depto) && !esEtiquetaDeCliente(f)
+
+  assert.equal(sale({ depto: 'MAYORISTAS', pventa: 0.01, existencia: 0 }), false)
+  assert.equal(sale({ depto: 'MAYORISTA',  pventa: 0.01, existencia: 0 }), false, 'el singular de Torreón')
+  assert.equal(sale({ depto: 'COSAS',      pventa: 0.01, existencia: 0 }), false, 'por precio, aunque el depto falle')
+  assert.equal(sale({ depto: 'GALAXY',     pventa: 215,  existencia: 8 }), true)
+
+  // Un producto DE VERDAD con el precio mal capturado en $0.01 y piezas en el
+  // mostrador tiene que verse: es justo la clase de error que hay que poder
+  // encontrar, y esconderlo lo volvería invisible.
+  assert.equal(sale({ depto: 'GALAXY', pventa: 0.01, existencia: 5 }), true)
 })
 
 test('LA TERCERA TRAMPA: la hora se lee del texto, no con new Date()', () => {

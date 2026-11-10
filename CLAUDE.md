@@ -51,6 +51,10 @@ a las tiendas. Preguntar siempre.
 | `DIAS_PARA_DAR_DE_ALTA` | `surtidos.js` | `4` | Gracia antes de reclamar el alta de un surtido |
 | `TOLERANCIA` | `surtidos.js` | `0` | Piezas de diferencia que se dejan pasar |
 | `INICIO_HISTORIAL` | `caja.js` | `2026-11-02` | Desde cuándo cuenta el flujo de efectivo |
+| `DIAS_MINIMOS_PARA_BAJA` | `depuracion.js` y `backend/src/bajas.js` | `365` | El PISO para dar de baja un código: sin venta y con esa antigüedad. No existe un valor menor |
+| `DIAS_CATEGORIA_SIN_MOVIMIENTO` | `depuracion.js` | `730` | Dos años sin movimiento para dar de baja una marca o departamento entero |
+| `DIAS_SIN_ROTACION` | `depuracion.js` | `365` | Un año sin vender, con piezas, para la lista de «Sin rotación» |
+| `PRECIO_DE_ETIQUETA` | `ventasTicket.js` | `0.01` | Lo cobrado a $0.01 es del esquema de mayoristas, no una pieza vendida |
 
 ### Los cortes de clase se miden, no se copian
 
@@ -506,7 +510,7 @@ variable global y revienta en el navegador. Ya pasó dos veces —`LogoutIcon` y
 
 ```bash
 npm test                      # reglas de negocio y búsqueda
-cd backend && npm test        # 19 pruebas del backend
+cd backend && npm test        # el backend, con la paridad del candado de bajas
 npm run build
 npm run verificar             # ejecuta el paquete en jsdom
 ```
@@ -530,7 +534,7 @@ se reparte en varios días a propósito, y lleva dentro uno de 25 días que
 todavía no se puede juzgar: así se ejercita «muy nuevos» y de paso se comprueba
 que una tanda partida en días NO salga como dos ediciones.
 
-Hoy cubre: 4 sesiones · 15 pestañas · 16 secciones de panel · 42 cabeceras ·
+Hoy cubre: 4 sesiones · 15 pestañas · 17 secciones de panel · 73 cabeceras ·
 12 incidencias de la bandeja de revisión —con **las dos sesiones que la
 trabajan**, administrador y bodega, porque bodega escribe en ella igual y
 comprobarla sólo con admin dejaba fuera justo la sesión a la que ya se le
@@ -540,7 +544,10 @@ que el historial arranca en ceros sólo hay una semana a la vista y las cuatro
 ramas (con control, sin control, marcado, sin marcar) ya no caben en una sola
 plaza—, y **«Consultar modelo» de bodega** con la lectura de venta censurada
 en sus tres casos —León censurada, Aguascalientes de fiar, San Luis sin
-archivo—, más la marca ⚠ en «Pedir». Si alguno de esos números baja, algo
+archivo—, más la marca ⚠ en «Pedir», y **«Depurar»** con sus dos estados
+reales: Torreón sin inventario (todo bloqueado, con el motivo a la vista) y
+Torreón publicado (elegir, confirmar y dar de baja), más que marcar un modelo
+como descontinuado lo saque de Revisar Y que al quitar la marca vuelva. Si alguno de esos números baja, algo
 dejó de pintarse.
 
 **Y para escribir en un campo controlado por React, el rastreador se siembra
@@ -1140,6 +1147,26 @@ de 2,195 turnos de Ags y 349 de 349 de León. El fondo fijo es un parámetro.
 entra en el flujo de efectivo. Aparte, hay una carpeta `MORELIA` con respaldos
 que se detienen el **2024-03-25** y que no aparece en el código: queda fuera.
 
+**Y desde el 2026-11-09 también está en la sincronización.** Su carpeta
+`TORREON` sigue mandando respaldo —el del 2026-11-09 estaba en Dropbox— y un
+comentario viejo de `sincronizar-inventarios.js` decía lo contrario («sin
+respaldos recientes»), así que **ninguna cuenta de existencia de la red la
+incluía**. Se añadió como `opcional` a la sincronización, a la extracción de
+ventas y al historial. Ver «Depurar el catálogo».
+
+Pasos que NO hace la sincronización sola y hay que dar una vez, a mano, tras la
+primera corrida:
+
+- **El historial por mes de Torreón arranca vacío.** Se arma comparando fotos
+  de inventario, y no hay una anterior. Para sembrarlo desde el kárdex:
+  `node scripts/extraer-historial-respaldo.js --sucursal=torreon`.
+- **Su sesión.** El backend ya la conoce (`SUCURSALES` en `backend/src/index.js`)
+  pero entra con `HASH_TORREON`, y no se comprobó si esa variable existe en la
+  Lambda. Sin ella nadie puede iniciar sesión como Torreón.
+- **Sus paneles.** `activa: false` sigue siendo cierto: un mayorista no la ve y
+  Surtido, Inventarios, Revisar y el Dashboard no la cuentan. Sólo la cuentan
+  la ficha de un modelo, la depuración y el flujo de efectivo.
+
 ---
 
 ## ⚠️ VERIFICAR — Los precios de bodega NO sirven
@@ -1376,6 +1403,27 @@ es otro: **enero no está en `MESES_ALTA`**, así que la cobertura baja a
 «temporada baja» justo cuando enero corre a ×1.19–1.49.
 
 No se cambia nada de esto sin preguntar.
+
+### 🔒 El precio de $0.01 es del esquema de mayoristas, y Torreón lo escribe en singular
+
+Lo definió el dueño el 2026-11-09: **todo lo que se procesa a $0.01 es del
+esquema de mayoristas y NO es una pieza vendida.** `claseDeLinea` lo aplica
+como segunda red, detrás del departamento: una línea cuyas piezas cuestan
+$0.01 cada una es una etiqueta sea cual sea el departamento que alguien le
+puso. Una línea en cero o a $1 NO lo es (esas son las «cobradas a $1» de más
+abajo).
+
+Hacía falta de verdad, no por limpieza: el departamento de clientes de Torreón
+se llama **«MAYORISTA», en singular**, y los dos filtros sólo conocían
+«mayoristas». Con la sincronización de Torreón, un cliente suyo habría salido
+**con su nombre en el `inventario.json` PÚBLICO** y se habría contado como una
+funda. Se detectó con la corrida en seco, antes de publicar nada.
+
+Ahora hay una sola lista (`DEPTOS_MAYORISTAS`, en `ventasTicket.js`) que
+comparten `claseDeLinea` y el filtro del inventario público
+(`scripts/lib/departamentos.js`), y el inventario además oculta un producto
+cobrado a $0.01 **sin existencia**. Sin existencia: un producto de verdad con
+el precio mal capturado en $0.01 y piezas en el mostrador tiene que verse.
 
 ### Cuatro trampas medidas, todas silenciosas
 
@@ -1693,6 +1741,41 @@ larga de verdad dura 24 días, así que 45 no parte ninguna.
 
 Vive en `src/lib/estrenos.js`, con pruebas.
 
+### ⚠️ Un código nuevo NO es un modelo nuevo
+
+El 2026-11-09 el dueño vio el Galaxy S10e en «Modelos nuevos» y pensó que era un
+reabasto tras estar en cero. **No lo era**: el reabasto no mueve `Alta`. León
+dio de alta el código `SGS10ETC` el 2 de mayo de 2026 para un teléfono que
+Aguascalientes y San Luis vendían desde 2023 con otro código, y la lista
+agrupaba por CÓDIGO, no por teléfono.
+
+Medido el mismo día en las tres últimas ediciones: **9 de 46 códigos** eran otra
+presentación de un teléfono que ya existía —un «3 en 1» de un A57 con TPU desde
+enero, un REDMI NOTE 15 con dos códigos—, y inflaban «sí venden».
+
+La regla (`variantesDeModelosViejos`, en `estrenos.js`):
+
+- Es variante el código cuyos teléfonos YA tenían otro código con una alta
+  anterior por `DIAS_MISMA_EDICION` (21) días o más. Se mira con `claveModelo`.
+- **Cada** teléfono que cubre, no alguno: «MOTO G77/G67» con el G67 viejo y el G77
+  nuevo SÍ es un estreno.
+- Dos códigos del mismo teléfono con un día de diferencia son de la MISMA tanda
+  y ninguno es variante del otro.
+- Se calcula con las altas de **toda la red**, aunque se mire una sola plaza: que
+  el teléfono existiera en otra tienda es lo que lo hace viejo.
+- Se aparta ANTES de formar lotes: los lotes dependen de cuántos modelos junta
+  cada fecha, y quitar uno de una edición ya armada la dejaba con menos de tres.
+- **No se esconde en silencio:** sale en un desplegable con «ya existía como X».
+- Micas, hidrogel y stickers no se emparejan nunca. `claveModelo` NO los deja en
+  blanco, aunque su comentario lo diga: dos micas con el mismo nombre darían la
+  misma «clave de teléfono».
+
+**No existe `created_at`.** La especificación del 2026-11-09 pedía validar la
+fecha de creación del SKU en el «Catálogo Maestro». Se comprobó el esquema de
+Eleventa con `scripts/explorar-esquema.js`: `PRODUCTOS` tiene 26 columnas y las
+únicas fechas son `ELIMINADO_EN` (borrado lógico) y `CHECADO_EN`. Lo más cercano
+a una creación sigue siendo el primer movimiento del kárdex (`Alta`).
+
 ### ⚠️ La venta sale del acumulado MENSUAL, no del detalle diario
 
 `estadisticas.json` guarda sólo los **últimos 60 días** de detalle
@@ -1956,6 +2039,215 @@ El Excel de Revisar sigue llevando **sólo lo pendiente**, y así tiene que
 seguir: es una lista de tareas para la tienda, no un archivo histórico. Son
 dos preguntas distintas —«qué me falta borrar» y «qué he quitado»— y
 mezclarlas haría que ninguna de las dos se pudiera contestar de un vistazo.
+
+---
+
+## 🔒 CONFIRMAR — Depurar el catálogo: lo que se puede dar de baja
+
+Se añadió el 2026-11-09 como sección **Depurar** del panel de administración,
+con cuatro listas que pidió el dueño: modelos de salida, sin rotación de más de
+un año, obsoletos en ceros y marca o departamento. Y una regla por delante de
+todas, con sus palabras:
+
+> Queda estrictamente PROHIBIDO eliminar un SKU si tiene stock global > 0 o si
+> registra ventas en los últimos 365 días.
+
+### «Estrictamente» no se cumple con un botón apagado
+
+Cualquiera con sesión de administrador puede mandar la petición a mano. El
+candado que MANDA vive en el servidor: `POST /ajustes/bajas`
+(`backend/src/bajas.js`), que **lee los inventarios de S3 en el momento** y
+rechaza lo que no pase. Lo que mande el navegador no cuenta como prueba. La
+misma cuenta está escrita en `src/lib/depuracion.js` para que la pantalla no
+ofrezca un botón que el servidor va a rechazar y diga POR QUÉ. Son dos
+paquetes y no se puede compartir, así que `backend/test/bajas.test.js` pone las
+dos frente a frente con los mismos 13 casos × 2 umbrales.
+
+Se exige TODO a la vez:
+
+1. **El inventario de CADA plaza.** Sin el de una, el stock global está
+   incompleto y una cifra falsa no se distingue de una buena. Si falta alguno,
+   el servidor contesta **409 y no escribe nada**.
+2. Que el código exista en alguna caja.
+3. Cero piezas en toda la red (las seis plazas, `PLAZAS_CON_STOCK`).
+4. **MÁS** de `dias` desde su última venta —365 exactos todavía bloquean— o que
+   nunca se haya vendido.
+5. Que lleve al menos `dias` en el catálogo (`Alta` mínima de la red): un código
+   nuevo sin ventas no está muerto, acaba de llegar.
+6. Que la última venta sea EXACTA: cada plaza que lo tiene publica
+   `UltimaVenta`. El historial por mes sólo sirve para BLOQUEAR, nunca para
+   liberar.
+
+`dias` es 365 o 730 (el dueño dijo «365–730») y **nunca baja de 365**, pida lo
+que pida el cliente. La baja definitiva **no** se puede registrar por la ruta
+genérica `/ajustes`: está rechazada ahí a propósito, o bastaría mandar el
+motivo por esa ruta para saltarse el candado.
+
+### Lo que NO hace
+
+No borra nada de Eleventa. Dar de baja registra una nota —`ocultar` con motivo
+`baja-definitiva`, la misma que usa la ✕— y arma el Excel de lo que cada tienda
+borra en su caja; el estado se cierra solo cuando el código deja de salir en el
+respaldo. Ver «La ✕ de Inventarios NO borra nada».
+
+### Cinco cosas medidas el 2026-11-09 que cambian cómo se hace
+
+1. **1,022 «obsoletos» eran 35.** De los códigos sin existencia y sin venta en
+   un año, **985 ya no están en ninguna caja**: sólo viven en el historial por
+   mes. No hay nada que dar de baja y no entran a ninguna lista (se cuentan
+   aparte: «988 códigos con venta registrada ya no existen»).
+2. **La venta sale del kárdex, no del historial por mes.** El historial que
+   publica la sincronización llega a octubre de 2025 en Aguascalientes y San
+   Luis, a enero de 2026 en León, y Torreón no tiene ninguno: con él no se
+   puede probar «dos años sin venta». Cada `inventario.json` trae ahora
+   **`UltimaVenta`**: la última vez que el kárdex registró una VENTA
+   (`VENTA_ID IS NOT NULL`, como ya hace `extraer-historial-respaldo.js`). No
+   sirve `UltimoMov`: cuenta los recuentos, y un ajuste hace parecer reciente un
+   modelo parado.
+3. **`Departamento` también se publica.** Ya se leía —es lo que filtra los
+   clientes— pero no viajaba. Los departamentos son marcas (`GALAXY` y
+   `SAMSUNG` coexisten: son lo mismo, se normalizan), más `HIDROGEL`, `ZTE`,
+   `ONE PLUS`, `LG`... Donde no viaja se deduce del nombre (`marcaDe`).
+4. **«Bodega en cero» no es «descontinuado».** De 187 modelos con bodega en cero
+   y piezas en tiendas, 146 ni están en el catálogo de bodega (eso es
+   descontinuar), 11 llevan más de `DIAS_DESCONTINUADO` (180) en cero y **30 son
+   faltantes normales que se resurten**: hay que COMPRARLOS, no liquidarlos. Se
+   separan en la pantalla, o la lista de liquidación se llena de lo que hay que
+   pedir al proveedor.
+5. **Los stickers no son catálogo que depurar** (`seProduce`): bodega no los
+   almacena, los imprime. Con piezas en una tienda salían como «descontinuados»
+   y en cero como «obsoletos».
+
+Y un ejemplo que enseña lo que el candado hace: **LG lleva 734 días sin venta,
+pero 7 de sus 10 códigos todavía tienen 75 piezas.** No se puede dar de baja la
+marca entera; primero se liquida (está en «Sin rotación»).
+
+### Torreón y el hueco que dejaba
+
+Sin su inventario **no se puede dar de baja NADA** (409). Con los datos reales:
+0 de 35 obsoletos se podían dar de baja sin Torreón, y 34 con ella. La
+sincronización ya la incluye (ver «Torreón vende y el código decía que no»);
+el candado se abre solo en cuanto publique.
+
+**León ve sólo desde 2025-12-20.** Su kárdex es el de su Eleventa actual: una
+venta suya de antes no está en ningún dato. La pantalla lo dice (calculado del
+dato, no escrito: se apaga el 2026-12-20) y la regla de la antigüedad lo cubre
+—un código sólo se da por muerto si ya existía en el resto de la red hace más
+de un año—, pero la ventana ciega existe.
+
+### Lo descontinuado en bodega: el flag `descontinuado_bodega`
+
+Lo pidió el dueño como un booleano del catálogo. No hay catálogo editable —el
+dato lo regenera Eleventa cuatro veces al día—, así que es un ajuste más
+(`tipo: 'descontinuado'`, motivo `bodega-descontinuo`, en `ajustes/<quien>.json`)
+y lo marcan administración y bodega.
+
+- **No oculta nada.** El código sigue vendiéndose y contando. Sólo deja de
+  reclamarse en Revisar como si fuera un error: es justo el escenario por el que
+  el motor reclamaba códigos «que bodega no tiene».
+- **Se aparta antes de agrupar**, no después. Un lote con un código marcado y
+  otro no, filtrado ya armado, quedaba a medias.
+- **No es una baja.** Vive en el mismo archivo y NO entra a «pendientes en la
+  caja» (`esBaja`): mandar a una tienda a «corregir» algo que sólo se está
+  liquidando era el error a evitar.
+- **No sustituye el orden de la cola.** Los lotes de la escalera `PASO` siguen
+  siendo del dueño (2026-10-27); esto sólo apaga lo ya marcado.
+
+### Marcar varios: UNA petición
+
+Cada petición a `/ajustes` lee el archivo de la persona, lo modifica y lo
+reescribe entero. **Dos simultáneas se pisan y la última gana.** Marcar 146
+modelos con 146 peticiones perdía marcas sin avisar. `/ajustes` acepta
+`items: [{ codigo, producto }]` y todo se valida ANTES de leer ni escribir
+nada: un lote con un motivo malo no puede dejar la mitad guardada.
+
+### Cómo se probó que el candado no es decorativo
+
+Un verde en `verificar` puede significar que una comprobación nunca se
+ejecutó. Se rompió a propósito cada pieza y se comprobó que algo lo cazaba:
+
+- Quitar el motivo «falta el inventario» de `razonesDeBloqueo` → `npm test`
+  falla con 2 pruebas y `verificar` con 3 errores («LGQ6T se puede dar de baja
+  SIN el inventario de Torreon»).
+- Quitar el filtro de Revisar → `verificar` falla («HX7CT esta marcado como
+  descontinuado y Revisar lo sigue reclamando»). Y la prueba comprueba también
+  que al quitar la marca HX7CT **vuelve**: sin esa mitad, que desapareciera
+  podría ser por cualquier otra cosa.
+- Lo que NO se caza: el `incompleto` de la pantalla (`DepurarPanel`) es una
+  segunda red redundante —sin filas elegibles el botón se apaga igual—. No es
+  un hueco: el candado de verdad son la lógica y el servidor.
+
+### Lo que NO se ha podido comprobar
+
+- **Ninguna de estas pantallas se ha visto con datos publicados en el formato
+  nuevo**, porque ese formato (`UltimaVenta`, `Departamento`, Torreón) sólo
+  existe tras la próxima corrida de la sincronización. Se miró en un Chrome
+  real con los inventarios de la corrida en seco servidos desde el navegador.
+- **El servidor no se ha ejercitado contra el S3 real**: sus pruebas usan un S3
+  de memoria. La primera baja real es la primera prueba contra S3.
+- `UltimaVenta` y `Departamento` quedan en `inventario.json`, que es PÚBLICO. Son
+  fechas y categorías, no nombres de personas, pero la fecha de la última venta
+  de cada código por plaza es información de negocio que antes no se publicaba
+  —`UltimoMov` ya daba algo parecido—.
+
+---
+
+## 🔒 CONFIRMAR — El panel de corte de la sucursal: decidido el 2026-11-09, TODAVÍA NO CONSTRUIDO
+
+El dueño pegó una especificación de cinco módulos el 2026-11-09. Lo que se
+construyó es la **Fase 1** (modelos nuevos, ficha de un modelo para el
+administrador, anomalías y depuración). Lo de abajo es lo que contestó sobre el
+panel de corte, para que la siguiente sesión no tenga que preguntarlo otra vez.
+
+**Quién ve qué.** Cada sucursal ve las **ventas de la semana, de sólo lectura**,
+para confirmar que el corte le cuadra. **Lo único que alimenta es el corte
+semanal de efectivo** (cuántos billetes y monedas de cada denominación). Hoy
+llenan a mano un Excel entero; la idea es una tabla igual de reconocible pero
+**llena desde los movimientos del punto de venta**. Esto **revierte en parte**
+la decisión del 2026-11-06 de que el efectivo era sólo del administrador: cada
+tienda verá lo suyo, y NUNCA los faltantes con nombre ni otras plazas.
+
+**Todo sale del POS**, incluidos los pagos con tarjeta y transferencia
+(`CORTE_OPERACIONES`, que ya reparte los pagos mixtos). El Excel actual:
+
+| Bloque | Contenido |
+|---|---|
+| Ventas de la semana | Día, fecha, ventas ($), piezas. Total semanal |
+| Otras entradas / Gastos semana | Descripción y monto, con total |
+| Estado de resultados semanal | Otras entradas, ventas, total ventas, gastos, sueldo, pago con tarjeta → **esperado en caja** |
+| Corte semanal $ | Billetes 500, 200, 100, 50, 20, 10, 5, 2, 1: cantidad y total |
+| Diferencia | contado − esperado |
+| Notas | Concepto, costo, precio, anotaciones, fecha |
+
+La cuenta del Excel es `esperado = total ventas − gastos − sueldo − tarjeta`.
+Cosas que quedan por decidir al construirlo, y que conviene preguntar:
+
+- **El esperado debe usar la tarjeta del POS, no la que teclee el empleado**: si
+  la teclea él, puede subirla hasta que el faltante desaparezca. Los bancos que
+  se tecleen sirven sólo para conciliar contra el POS.
+- **«Sueldo» y el fondo de caja** no tienen de dónde salir hoy. El fondo es un
+  parámetro por plaza; sueldo es una salida más, con tipo.
+- El cuadre debería poder verse **por día o turno**, no sólo por semana: un
+  faltante semanal no dice qué día fue. Y el verde en «$0 exacto» necesita la
+  tolerancia, que hoy es un parámetro vacío a propósito.
+- Antes del 2026-11-05 no había control de salidas: sigue valiendo `conControl`.
+
+**Torreón es el caso especial.** Deposita o transfiere **a las 4 semanas**, no
+cada semana. Quiere un control de **4 semanas a partir del 2026-11-09 (lunes)**:
+cuatro bloques semanales y **un bloque global mensual**. Es un lunes, como exige
+`INICIO_HISTORIAL`.
+
+**Mayoristas.** El ranking lo ven **el administrador y todas las sucursales**:
+el acumulado de cada mayorista en la semana, el más activo y el menos activo.
+Ojo: los «productos» del departamento MAYORISTAS son los CLIENTES, así que es
+un ranking de clientes, y esa lista hoy es privada (`ventas/` da 403 a una
+tienda). Falta decidir si cada tienda ve sólo los de su plaza —lo razonable— o
+los de todas; hará falta una ruta que sirva sólo lo suyo.
+
+**Piezas vendidas** cuentan sólo **fundas, hidrogel y stickers**, con el desglose
+por tipo. **Micas = todo el departamento HIDROGEL**, o cualquier producto con
+«hidrogel» en el nombre (el departamento existe: 7 códigos). Las ventas a
+$0.01 no cuentan como pieza.
 
 ---
 

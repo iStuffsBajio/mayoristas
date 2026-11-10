@@ -28,9 +28,21 @@
 // «pendiente de corregir en caja», con su antigüedad. Sin esa regla, esto
 // sería una forma cómoda de esconder problemas.
 
-/** Lo que se puede ajustar. Hoy uno; el mecanismo vale para los demás. */
+/**
+ * Lo que se puede ajustar.
+ *
+ *   · `ocultar`       dejar de contar un código en los recuadros. Es la ✕, y
+ *                     la baja definitiva: se APUNTA, no se borra.
+ *   · `descontinuado` marcar que bodega ya no surte un código y las tiendas
+ *                     liquidan lo que queda. NO oculta nada: el código sigue
+ *                     vendiéndose y contando. Sólo hace que la cola de
+ *                     revisión deje de reclamarlo como si fuera un error.
+ *                     Lo pidió el dueño el 2026-11-09 como el flag
+ *                     `descontinuado_bodega`.
+ */
 export const TIPOS = {
   OCULTAR: 'ocultar',
+  DESCONTINUADO: 'descontinuado',
 }
 
 /**
@@ -47,8 +59,16 @@ export const MOTIVOS = {
   'codigo-duplicado':  'Está duplicado con otro',
   'mal-capturado':     'Está mal capturado',
   'no-se-maneja-aqui': 'Esta plaza no lo maneja',
+  // La baja definitiva SÓLO se registra por `/ajustes/bajas`, que comprueba en
+  // el servidor que no tenga piezas ni ventas. Está aquí para poder ponerle
+  // nombre en el archivo de bajas y en el Excel de cada sucursal.
+  'baja-definitiva':   'Baja definitiva: sin existencia ni venta',
   'otro':              'Otro',
 }
+
+/** El único motivo del tipo `descontinuado`. */
+export const MOTIVO_DESCONTINUADO = 'bodega-descontinuo'
+export const TEXTO_DESCONTINUADO = 'Bodega lo descontinuó: las tiendas liquidan lo que queda'
 
 export const ESTADOS = {
   PENDIENTE: 'pendiente',   // ámbar: corregido aquí, no en la caja
@@ -71,7 +91,10 @@ export const claveDe = (tipo, codigo) => `${tipo}|${limpio(codigo)}`
  */
 export function nuevoAjuste({ tipo = TIPOS.OCULTAR, codigo, producto = '', motivo, nota = '', quien, cuando = new Date() }) {
   if (!codigo) throw new Error('Un ajuste sin código no se puede aplicar a nada.')
-  if (!MOTIVOS[motivo]) throw new Error(`Motivo desconocido: ${motivo}`)
+  // El motivo es del tipo: «descontinuado» sólo lleva el suyo, y el suyo no
+  // vale para ocultar. El servidor lo exige igual.
+  const valido = tipo === TIPOS.DESCONTINUADO ? motivo === MOTIVO_DESCONTINUADO : Boolean(MOTIVOS[motivo])
+  if (!valido) throw new Error(`Motivo desconocido: ${motivo}`)
   return {
     clave: claveDe(tipo, codigo),
     tipo,
@@ -150,6 +173,24 @@ export function codigosDeFicha(item) {
     .map(limpio)
 }
 
+/**
+ * ¿Es una baja —algo que hay que borrar en la caja—? Los ajustes viejos no
+ * traen `tipo` y son de ocultar.
+ *
+ * Hace falta porque `descontinuado` vive en el mismo archivo y NO es una
+ * baja: contarlo como pendiente mandaría a la tienda a «corregir» un código
+ * que lo único que hace es liquidarse.
+ */
+export const esBaja = a => (a?.tipo ?? TIPOS.OCULTAR) === TIPOS.OCULTAR
+
+/** Los códigos que bodega descontinuó, en mayúsculas. */
+export function codigosDescontinuados(ajustes) {
+  return new Set(
+    Object.values(ajustes ?? {})
+      .filter(a => a?.tipo === TIPOS.DESCONTINUADO)
+      .map(a => limpio(a.codigo)))
+}
+
 /** Los códigos que el panel no debe volver a reclamar. */
 export function codigosOcultos(ajustes) {
   return new Set(
@@ -179,7 +220,7 @@ export function sinOcultos(filas, ocultos, codigoDe = f => f.codigo) {
  */
 export function pendientesPorPlaza(ajustes, inventarios, hoy = new Date()) {
   const porPlaza = {}
-  for (const a of Object.values(ajustes ?? {})) {
+  for (const a of Object.values(ajustes ?? {}).filter(esBaja)) {
     const { estado, plazas, dias, insiste } = estadoDe(a, inventarios, hoy)
     if (estado !== ESTADOS.PENDIENTE) continue
     for (const slug of plazas) {
@@ -194,7 +235,7 @@ export function pendientesPorPlaza(ajustes, inventarios, hoy = new Date()) {
 /** Resumen para el contador del menú. */
 export function resumirAjustes(ajustes, inventarios, hoy = new Date()) {
   let pendientes = 0, resueltos = 0, insistiendo = 0
-  for (const a of Object.values(ajustes ?? {})) {
+  for (const a of Object.values(ajustes ?? {}).filter(esBaja)) {
     const e = estadoDe(a, inventarios, hoy)
     if (e.estado === ESTADOS.RESUELTO) resueltos++
     else { pendientes++; if (e.insiste) insistiendo++ }
@@ -228,7 +269,7 @@ export function resumirAjustes(ajustes, inventarios, hoy = new Date()) {
  * hacer algo hoy.
  */
 export function historialDeBajas(correcciones, inventarios, hoy = new Date()) {
-  const filas = Object.values(correcciones ?? {}).map(a => {
+  const filas = Object.values(correcciones ?? {}).filter(esBaja).map(a => {
     const e = estadoDe(a, inventarios ?? {}, hoy)
     return {
       ...a,

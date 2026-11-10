@@ -183,6 +183,23 @@ const productos = MODELOS.map(([Codigo, Producto], i) => ({
   Alta: diasAtras([400, 40, 36, 32, 25, 170, 168, 165, 500, 420][i]),
 }))
 
+/**
+ * Un código NUEVO para un teléfono que YA existía, como el Galaxy S10e.
+ *
+ * El del 2026-11-09 no era un reabasto: León dio de alta otro código para un
+ * teléfono que otras plazas vendían desde 2023, y «Modelos nuevos» agrupaba
+ * por código. Éste es el IPHONE 13 —alta de hace 400 días— con un «3 en 1»
+ * dado de alta hace 33, dentro del primer lote.
+ *
+ * Tiene que estar en la bodega también (entra por `productos`): si no, sería
+ * un huérfano más y movería las cuentas de la cola de revisión.
+ */
+const VARIANTE_DE_MENTIRA = 'I13NT'
+productos.push({
+  Codigo: VARIANTE_DE_MENTIRA, Producto: 'IPHONE 13 3 IN 1',
+  Existencia: 5, Precio: 70, Mayoreo: 50, Alta: diasAtras(33),
+})
+
 // La forma la fijan `estadisticaVacia` y `historialVacio` en
 // src/lib/estadisticas.js: `dias` es una LISTA de { f, m }, no un número, y
 // `periodos` otra de { p, m, dias }. Un número donde iba una lista tumbaba
@@ -498,9 +515,62 @@ function agotadosDe(plaza) {
   }
 }
 
-/** Lo que devuelve cada ruta, según lo que pida. */
-function respuesta(url) {
+/**
+ * ¿Torreón ya publicó su inventario?
+ *
+ * Por defecto NO, que es el estado real de producción hoy: vende, tiene
+ * mercancía y no publica nada en `inventarios/`. Es lo que hace que la ficha
+ * tenga que distinguir «sin dato» de «cero», y que la depuración bloquee toda
+ * baja: con los archivos presentes esas ramas no se ejecutarían nunca.
+ *
+ * `depurar()` lo enciende un rato para ejercitar el otro camino —el de elegir
+ * un código y darlo de baja— y lo vuelve a apagar al salir.
+ */
+let TORREON_PUBLICA = false
+
+/**
+ * Los ajustes que la página ha mandado, para que la siguiente pantalla que los
+ * pida los encuentre. Sin esto, marcar un modelo como descontinuado en
+ * «Depurar» no se vería en «Revisar» —cada pantalla vuelve a pedirlos— y no
+ * se podría comprobar lo único que ese marcado promete.
+ */
+const AJUSTES_GUARDADOS = new Map()
+
+/** Lo que devuelve cada ruta, según lo que pida. `null` es un 404. */
+function respuesta(url, opciones) {
   const u = String(url)
+  if (opciones?.method === 'POST' && /\/ajustes(\?|$)/.test(u)) {
+    const c = JSON.parse(opciones.body ?? '{}')
+    const items = c.items?.length ? c.items : [{ codigo: c.codigo, producto: c.producto }]
+    for (const { codigo, producto } of items) {
+      const k = String(codigo ?? '').toUpperCase()
+      const clave = `${c.tipo ?? 'ocultar'}|${k}`
+      if (c.motivo == null) AJUSTES_GUARDADOS.delete(clave)
+      else AJUSTES_GUARDADOS.set(clave, {
+        clave, tipo: c.tipo ?? 'ocultar', codigo: k, motivo: c.motivo,
+        producto: producto ?? '', nota: c.nota ?? '', cuando: new Date().toISOString(), quien: 'admin',
+      })
+    }
+    return { ok: true, por: 'admin', cantidad: items.length }
+  }
+  if (/inventarios\/torreon\//.test(u)) {
+    // Sólo el inventario, y sólo cuando se pide: estadística, historial y días
+    // en cero de Torreón siguen sin existir, que también es lo real.
+    return TORREON_PUBLICA && /inventario\.json/.test(u) ? inventarioDe('torreon') : null
+  }
+  // La ruta de bajas: el servidor acepta lo que le llegue. El candado de verdad
+  // se prueba en `backend/test/bajas.test.js`; aquí sólo importa que la
+  // pantalla pida, enseñe lo contestado y no se rompa.
+  if (/\/ajustes\/bajas/.test(u)) {
+    const codigos = JSON.parse(opciones?.body ?? '{}').codigos ?? []
+    return {
+      ok: true, dias: 365, rechazados: [],
+      aceptados: codigos.map(c => ({
+        clave: `ocultar|${c}`, tipo: 'ocultar', codigo: c, motivo: 'baja-definitiva',
+        producto: '', nota: '', cuando: new Date().toISOString(), quien: 'admin',
+      })),
+    }
+  }
   if (/indice\.json/.test(u)) {
     return { mockups: MODELOS.map(([codigo, nombre], i) => ({ codigo, nombre, archivo: `${codigo}.png`, piezas: 200 - i * 10 })) }
   }
@@ -511,7 +581,7 @@ function respuesta(url) {
   if (/turnos/i.test(u)) return turnos
   // Las respuestas de la cola viven en el backend, no en S3 publico.
   if (/revisiones/i.test(u)) return { marcas: {} }
-  if (/\/ajustes/i.test(u)) return { ajustes: BAJAS }
+  if (/\/ajustes/i.test(u)) return { ajustes: [...BAJAS, ...AJUSTES_GUARDADOS.values()] }
   if (/surtidos/i.test(u)) return { surtidos: SURTIDOS }
   if (/\/ventas\b/i.test(u)) return VENTAS_DE(u.match(/plaza=([a-z-]+)/)?.[1] ?? 'leon')
   if (/\/caja/i.test(u)) return caja
@@ -595,6 +665,10 @@ function inventarioDe(plaza) {
           // «Costos que faltan» tenga algo que pintar. Sin eso no se
           // ejercita: un cero es «sin capturar», no «gratis».
           ...(i < 2 ? {} : { Costo: 30 + i }),
+          // La última venta exacta. Sin ella en ninguna plaza, la depuración
+          // dice que no puede probar nada y bloquea toda baja: lo correcto, pero
+          // entonces ninguna rama de «se puede dar de baja» se ejercita.
+          UltimaVenta: diasAtras(3),
         })),
       generado: GENERADO,
     }
@@ -606,7 +680,7 @@ function inventarioDe(plaza) {
       // lote: se queda como pregunta suelta, que es la otra clase de ficha.
       // Dándole fecha vieja se lo tragaba el lote y la comprobación dejaba de
       // pintar una ficha individual sin que nada fallara.
-      ...productos.map(p => ({ ...p, UltimoMov: '2026-10-18' })),
+      ...productos.map(p => ({ ...p, UltimoMov: '2026-10-18', UltimaVenta: diasAtras(3) })),
       ...HUERFANOS
         .filter(([, , , , donde]) => donde.includes(plaza))
         .map(([Codigo, Producto, Existencia, UltimoMov]) => ({
@@ -651,8 +725,16 @@ async function arrancar(sesion) {
 
   // Nada de red: el inventario vive en S3 y aquí no se va a buscar. Lo que
   // se devuelve tiene la forma de lo real para que las tablas se pinten.
-  window.fetch = url => {
-    const cuerpo = respuesta(url)
+  window.fetch = (url, opciones) => {
+    const cuerpo = respuesta(url, opciones)
+    if (cuerpo === null) {
+      return Promise.resolve({
+        ok: false, status: 404,
+        json: () => Promise.reject(new Error('404')),
+        text: () => Promise.resolve(''),
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
+      })
+    }
     return Promise.resolve({
       ok: true, status: 200,
       json: () => Promise.resolve(cuerpo),
@@ -785,6 +867,24 @@ async function modelosNuevos(window, donde) {
   if (!filas().length) {
     errores.push(`${donde} · la seccion no listo ningun modelo nuevo`)
     return 1
+  }
+
+  // Un código nuevo de un teléfono que ya existía NO es un modelo nuevo, y no
+  // se esconde en silencio: sale aparte, con el código del que viene. Si la
+  // regla se cae, el S10e vuelve a salir como estreno; si se cae lo segundo,
+  // quien vea que falta un modelo no tiene dónde mirar por qué.
+  if (filas().some(f => f.dataset.estreno === VARIANTE_DE_MENTIRA)) {
+    errores.push(`${donde} · ${VARIANTE_DE_MENTIRA} sale como modelo nuevo siendo otra presentacion de un telefono que ya existia`)
+  }
+  const apartadas = doc.querySelector('[data-variantes]')
+  if (!apartadas) {
+    errores.push(`${donde} · la seccion no enseña los codigos que dejo fuera por ser variantes`)
+  } else if (!apartadas.querySelector(`[data-variante="${VARIANTE_DE_MENTIRA}"]`)) {
+    errores.push(`${donde} · ${VARIANTE_DE_MENTIRA} no aparece entre los que se dejaron fuera`)
+  } else if (!/ya existía como/.test(apartadas.textContent || '')) {
+    // No se mira UN código concreto: la prueba cita el más antiguo de todos
+    // los IPHONE 13 que hay, y cuál sea depende de los datos de mentira.
+    errores.push(`${donde} · no dice de que codigo viene la variante`)
   }
 
   const txt = (sec.textContent || '').replace(/\s+/g, ' ')
@@ -1593,6 +1693,253 @@ function bandejaDeCostos(window, donde) {
  * blanco, que es como se ve igual que un fallo.
  */
 /**
+ * «Depurar»: las cuatro listas, los candados y el flujo de dar de baja.
+ *
+ * Lo que se cuida aquí es lo que, rompiéndose, NO se nota: un botón de «dar de
+ * baja» que se enciende sin el inventario de una plaza se ve igual de bien que
+ * uno apagado, y es justo lo que el dueño prohibió. Por eso se recorren los dos
+ * estados reales —Torreón sin inventario, y Torreón publicado— y se mira que el
+ * botón responda a cada uno.
+ *
+ * Las cuentas y el candado en sí los fijan `depuracion.test.js` y
+ * `backend/test/bajas.test.js`; esto comprueba que la pantalla los respete y
+ * diga POR QUÉ algo no se puede.
+ */
+async function depurar(window, donde) {
+  const doc = window.document
+  let cabeceras = 0
+  let vistas = 0
+  const dentro = id => doc.querySelector(`[data-vista-depurar="${id}"]`)
+  const vuelta = async (n = 4) => { await nuevaVuelta(window, n) }
+  const esperar = async cond => { for (let i = 0; i < 30 && !cond(); i++) await vuelta(3) }
+  const ir = async id => {
+    clic(window, doc.querySelector(`[data-depurar-vista="${id}"]`))
+    await esperar(() => dentro(id))
+  }
+  const pildora = (id, texto) =>
+    [...dentro(id).querySelectorAll('button')].find(b => (b.textContent || '').trim() === texto)
+  const casilla = codigo => doc.querySelector(`[data-fila-depurar="${codigo}"] input[type="checkbox"]`)
+
+  await esperar(() => doc.querySelector('[data-depurar]'))
+  if (!doc.querySelector('[data-depurar]')) {
+    errores.push(`${donde} · «Depurar» no se dibujo`)
+    return { vistas, cabeceras }
+  }
+  for (const id of ['salida', 'rotacion', 'obsoletos', 'categorias']) {
+    if (!doc.querySelector(`[data-depurar-vista="${id}"]`)) errores.push(`${donde} · falta la pestaña «${id}»`)
+  }
+  if (!doc.querySelector('[data-bajar-depuracion]')) errores.push(`${donde} · falta el botón del reporte de cuatro hojas`)
+
+  // ── Torreón SIN inventario: lo real hoy. Nada se puede dar de baja. ──────
+  const aviso = doc.querySelector('[data-bloqueo-inventario]')
+  if (!aviso || !/Torre[oó]n/.test(aviso.textContent || '')) {
+    errores.push(`${donde} · falta el aviso de que falta el inventario de Torreon: sin el, el stock global esta incompleto y nadie se entera`)
+  }
+
+  // 1. Modelos de salida
+  await esperar(() => dentro('salida')?.querySelector('[data-fila-depurar]'))
+  if (!dentro('salida')?.querySelector('[data-fila-depurar]')) {
+    errores.push(`${donde} · «Modelos de salida» no listo nada: bodega descontinuo varios codigos`)
+  } else {
+    vistas++
+    cabeceras += await todasLasCabeceras(window, `${donde} · salida`)
+    if (!dentro('salida').querySelector('[data-fila-depurar="HX7CT"]')) {
+      errores.push(`${donde} · HX7CT esta en las tiendas y bodega no lo tiene: tenia que salir como modelo de salida`)
+    }
+    // Los stickers no se almacenan: bodega los imprime. Con piezas en una
+    // tienda saldrian como «descontinuados», que es mentira.
+    if (dentro('salida').querySelector('[data-fila-depurar="MTST01"]')) {
+      errores.push(`${donde} · un sticker sale como modelo de salida: bodega no los almacena, los imprime`)
+    }
+
+    // Marcar como descontinuado: se pinta al momento…
+    const seccion = async texto => {
+      const b = [...doc.querySelectorAll('.menu-seccion')].find(x => new RegExp(texto, 'i').test(x.textContent || ''))
+      if (!b) { errores.push(`${donde} · no encuentro la seccion ${texto} en el menu`); return false }
+      clic(window, b)
+      await vuelta(8)
+      return true
+    }
+    const enRevisar = async () => {
+      if (!(await seccion('Revisar'))) return null
+      await esperar(() => doc.querySelector('[data-incidencia]'))
+      return [...doc.querySelectorAll('[data-incidencia]')].map(f => f.dataset.incidencia)
+    }
+
+    const c = casilla('HX7CT')
+    if (!c) errores.push(`${donde} · HX7CT no se puede elegir`)
+    else {
+      // Antes de marcar, HX7CT TIENE que estar en la cola: se vende y bodega
+      // no lo tiene de alta. Si no estuviera, la comprobación de abajo pasaría
+      // sin demostrar nada.
+      const antes = await enRevisar()
+      if (antes && !antes.includes('cod|HX7CT')) {
+        errores.push(`${donde} · HX7CT no sale en Revisar ANTES de marcarlo: la comprobacion de abajo no probaria nada`)
+      }
+      await seccion('Depurar')
+      await esperar(() => casilla('HX7CT'))
+
+      clic(window, casilla('HX7CT'))
+      await vuelta()
+      const marcar = doc.querySelector('[data-marcar-descontinuado]')
+      if (!marcar || marcar.disabled) errores.push(`${donde} · elegir un modelo no enciende «marcar como descontinuado»`)
+      else {
+        clic(window, marcar)
+        await vuelta(6)
+        const fila = doc.querySelector('[data-fila-depurar="HX7CT"]')
+        if (!/marcado/.test(fila?.textContent || '')) errores.push(`${donde} · marcar como descontinuado no se pinta`)
+
+        // …y es lo único que promete: lo marcado deja de reclamarse en Revisar.
+        const durante = await enRevisar()
+        if (durante && durante.includes('cod|HX7CT')) {
+          errores.push(`${donde} · HX7CT esta marcado como descontinuado y Revisar lo sigue reclamando como un error`)
+        }
+        if (durante && !durante.length) errores.push(`${donde} · Revisar quedo vacio al marcar un solo codigo`)
+
+        // Y se quita, y VUELVE: sin esta mitad, que haya desaparecido podría
+        // ser por cualquier otra cosa.
+        await seccion('Depurar')
+        await esperar(() => casilla('HX7CT'))
+        clic(window, casilla('HX7CT'))
+        await vuelta()
+        const quitar = doc.querySelector('[data-quitar-marca]')
+        if (!quitar) errores.push(`${donde} · un modelo marcado no ofrece quitar la marca`)
+        else { clic(window, quitar); await vuelta(6) }
+        if (/marcado/.test(doc.querySelector('[data-fila-depurar="HX7CT"]')?.textContent || '')) {
+          errores.push(`${donde} · quitar la marca no la quita`)
+        }
+        const despues = await enRevisar()
+        if (despues && !despues.includes('cod|HX7CT')) {
+          errores.push(`${donde} · al quitar la marca HX7CT no vuelve a Revisar`)
+        }
+        await seccion('Depurar')
+        await esperar(() => doc.querySelector('[data-vista-depurar="salida"]'))
+      }
+    }
+  }
+
+  // 2. Sin rotación
+  await ir('rotacion')
+  if (!dentro('rotacion')) errores.push(`${donde} · «Sin rotacion» no se dibujo`)
+  else {
+    vistas++
+    if (!dentro('rotacion').querySelector('[data-fila-depurar]')) {
+      errores.push(`${donde} · «Sin rotacion» no listo ningun codigo parado con piezas`)
+    } else cabeceras += await todasLasCabeceras(window, `${donde} · rotacion`)
+  }
+
+  // 3. Obsoletos en ceros, SIN el inventario de Torreón: todo bloqueado.
+  await ir('obsoletos')
+  if (!dentro('obsoletos')) errores.push(`${donde} · «Obsoletos en ceros» no se dibujo`)
+  else {
+    vistas++
+    const todos = pildora('obsoletos', 'Todos')
+    if (todos) { clic(window, todos); await vuelta(5) }
+    const lgq6 = dentro('obsoletos').querySelector('[data-fila-depurar="LGQ6T"]')
+    if (!lgq6) errores.push(`${donde} · LGQ6T (sin piezas y sin ventas) no sale como obsoleto en ceros`)
+    else {
+      if (lgq6.dataset.puede !== 'no') errores.push(`${donde} · LGQ6T se puede dar de baja SIN el inventario de Torreon`)
+      if (!/Torre[oó]n/.test(lgq6.textContent || '')) errores.push(`${donde} · la fila no dice por que no se puede: falta Torreon`)
+    }
+    const baja = doc.querySelector('[data-dar-baja]')
+    if (!baja || !baja.disabled) errores.push(`${donde} · el boton de dar de baja esta ENCENDIDO sin el inventario de Torreon`)
+    cabeceras += await todasLasCabeceras(window, `${donde} · obsoletos`)
+  }
+
+  // 4. Por marca o departamento
+  await ir('categorias')
+  if (!dentro('categorias')) errores.push(`${donde} · «Por marca» no se dibujo`)
+  else {
+    vistas++
+    if (!dentro('categorias').querySelector('[data-categoria]')) errores.push(`${donde} · «Por marca» no listo ninguna categoria`)
+    else {
+      const lg = dentro('categorias').querySelector('[data-categoria="LG"]')
+      if (!lg) errores.push(`${donde} · no sale la categoria LG, que se deduce del nombre`)
+      else if (lg.dataset.entera !== 'no') errores.push(`${donde} · LG se puede dar de baja entera SIN el inventario de Torreon`)
+      if (dentro('categorias').querySelector('[data-dar-baja-categoria]:not([disabled])')) {
+        errores.push(`${donde} · hay un boton de dar de baja una categoria ENCENDIDO sin el inventario de Torreon`)
+      }
+      // Una categoría con piezas no se da de baja nunca: APPLE tiene.
+      const apple = dentro('categorias').querySelector('[data-categoria="APPLE"]')
+      if (apple && apple.dataset.entera !== 'no') errores.push(`${donde} · APPLE tiene piezas y sale como «entera»`)
+      cabeceras += await todasLasCabeceras(window, `${donde} · categorias`)
+    }
+  }
+
+  // ── Torreón CON inventario: ahora sí hay a dónde llegar. ─────────────────
+  TORREON_PUBLICA = true
+  try {
+    // Se sale y se vuelve a entrar: el panel baja sus archivos al montarse.
+    const botones = [...doc.querySelectorAll('.menu-seccion')]
+    const otro = botones.find(b => /Dashboard/i.test(b.textContent || ''))
+    const mio = botones.find(b => /Depurar/i.test(b.textContent || ''))
+    if (!otro || !mio) { errores.push(`${donde} · no encuentro el menu para volver a montar Depurar`); return { vistas, cabeceras } }
+    clic(window, otro); await vuelta(6)
+    clic(window, mio)
+    await esperar(() => doc.querySelector('[data-depurar]'))
+    await vuelta(6)
+
+    if (doc.querySelector('[data-bloqueo-inventario]')) {
+      errores.push(`${donde} · sigue el aviso de que falta un inventario con las seis plazas publicadas`)
+    }
+
+    // Categoría LG entera: el botón se enciende, y confirmar pide confirmación.
+    await ir('categorias')
+    const btnCat = doc.querySelector('[data-dar-baja-categoria="LG"]')
+    if (!btnCat) errores.push(`${donde} · LG (sin piezas, sin ventas, de hace años) no se puede dar de baja entera con todo publicado`)
+    else if (btnCat.disabled) errores.push(`${donde} · el boton de dar de baja LG esta apagado con todo publicado`)
+    else {
+      clic(window, btnCat); await vuelta()
+      const conf = doc.querySelector('[data-confirmar-baja]')
+      if (!conf) errores.push(`${donde} · dar de baja una categoria no pide confirmacion`)
+      else {
+        if (!/no borra nada de Eleventa/.test(conf.textContent || '')) {
+          errores.push(`${donde} · la confirmacion no dice que la pagina NO borra nada de Eleventa`)
+        }
+        const cancelar = [...conf.querySelectorAll('button')].find(b => /Cancelar/.test(b.textContent || ''))
+        if (cancelar) { clic(window, cancelar); await vuelta() }
+        if (doc.querySelector('[data-confirmar-baja]')) errores.push(`${donde} · «Cancelar» no cierra la confirmacion`)
+      }
+    }
+
+    // Obsoletos: LGQ6T se puede, se elige, se confirma y queda pedido.
+    await ir('obsoletos')
+    const fila = dentro('obsoletos')?.querySelector('[data-fila-depurar="LGQ6T"]')
+    if (!fila) errores.push(`${donde} · LGQ6T no sale entre los que se pueden dar de baja`)
+    else if (fila.dataset.puede !== 'si') errores.push(`${donde} · LGQ6T no se puede dar de baja con todo publicado: ${(fila.textContent || '').slice(0, 160)}`)
+    else {
+      clic(window, casilla('LGQ6T')); await vuelta()
+      const baja = doc.querySelector('[data-dar-baja]')
+      if (!baja || baja.disabled) errores.push(`${donde} · elegir LGQ6T no enciende el boton de dar de baja`)
+      else {
+        clic(window, baja); await vuelta()
+        const si = doc.querySelector('[data-confirmar-si]')
+        if (!si) errores.push(`${donde} · dar de baja no pide confirmacion`)
+        else {
+          clic(window, si)
+          await esperar(() => doc.querySelector('[data-resultado-baja]'))
+          const res = doc.querySelector('[data-resultado-baja]')
+          if (!res || !/Se apuntaron 1 baja/.test(res.textContent || '')) {
+            errores.push(`${donde} · dar de baja no enseña lo que se apunto: ${(res?.textContent || '(nada)').slice(0, 140)}`)
+          } else if (!/Excel de bajas por tienda/.test(res.textContent || '')) {
+            errores.push(`${donde} · tras dar de baja no se ofrece el Excel de lo que cada tienda debe borrar`)
+          }
+          // Queda como «ya pedida»: no se vuelve a ofrecer como si nada.
+          const pedidas = pildora('obsoletos', 'Ya pedidas')
+          if (pedidas) { clic(window, pedidas); await vuelta(5) }
+          if (!/Baja pedida/.test(dentro('obsoletos')?.querySelector('[data-fila-depurar="LGQ6T"]')?.textContent || '')) {
+            errores.push(`${donde} · lo dado de baja no queda como «baja pedida»: se podria pedir otra vez`)
+          }
+        }
+      }
+    }
+  } finally {
+    TORREON_PUBLICA = false
+  }
+  return { vistas, cabeceras }
+}
+
+/**
  * «Consultar modelo», el panel de bodega para mirar un modelo de cerca.
  *
  * Lo que se comprueba es lo que contesta la pregunta del dueño —¿vendió poco
@@ -1671,6 +2018,30 @@ async function buscarUnCodigo(window, donde) {
   const lineas = ficha.querySelectorAll('[style*="minmax"]').length
   if (lineas < 3) {
     errores.push(`${donde} · la ficha trae ${lineas} renglones: faltan plazas o meses`)
+  }
+
+  // «Investigar un modelo» del administrador: ventas, existencia y rotación,
+  // en las cuatro tiendas y en bodega. Es lo que pidió el dueño el
+  // 2026-11-09 y la misma ficha que ve bodega, así que si se cae aquí se cae
+  // en las dos.
+  const rot = ficha.querySelector('[data-rotacion]')
+  if (!rot) {
+    errores.push(`${donde} · la ficha no trae la rotacion: ventas contra existencia`)
+  } else {
+    for (const slug of ['leon', 'san-luis', 'aguascalientes', 'torreon', 'red', 'bodega']) {
+      if (!rot.querySelector(`[data-rotacion-de="${slug}"]`)) {
+        errores.push(`${donde} · la rotacion no trae el renglon de ${slug}`)
+      }
+    }
+    // Torreón no tiene nada publicado: tiene que decirlo, no enseñar ceros
+    // que se leerían como «vendió cero y no tiene nada».
+    const t = rot.querySelector('[data-rotacion-de="torreon"]')
+    if (t && !/sin dato/.test(t.textContent || '')) {
+      errores.push(`${donde} · Torreon no tiene datos y la ficha no lo dice: enseña ceros inventados`)
+    }
+    if (!(rot.textContent || '').includes('no es una promesa') && !(rot.textContent || '').includes('no una promesa')) {
+      errores.push(`${donde} · la rotacion no avisa de que «alcanza» es una cuenta y no una promesa`)
+    }
   }
 
   escribir(window, campo, 'ZZZZ99')
@@ -2090,6 +2461,7 @@ let archivosDeBaja = 0
 let salidasVistas = 0
 let consultasVistas = 0
 let censurasVistas = 0
+let depuradosVistos = 0
 
 for (const [nombre, sesion] of SESIONES) {
   const { window, dichos } = await arrancar(sesion)
@@ -2173,6 +2545,11 @@ for (const [nombre, sesion] of SESIONES) {
         if (/consultar modelo/i.test(t) && nombre === 'bodega') {
           consultasVistas += await consultaModelo(window, `${nombre} · ${t}`)
         }
+        if (/depurar/i.test(t) && nombre === 'admin') {
+          const r = await depurar(window, `${nombre} · admin · ${t}`)
+          depuradosVistos += r.vistas
+          cabeceras += r.cabeceras
+        }
         if (/se mueve/i.test(t)) {
           movimientoVisto += queSeMueve(window, `${nombre} · admin · ${t}`)
         }
@@ -2247,6 +2624,8 @@ console.log(`  archivo de bajas: ${archivosDeBaja} dibujado`)
 if (!archivosDeBaja) errores.push('el archivo de bajas no se dibujo en ninguna sesion')
 console.log(`  seccion de modelos nuevos: ${nuevosVistos} dibujada`)
 if (!nuevosVistos) errores.push('la seccion «estan vendiendo los modelos nuevos» no se dibujo en ninguna sesion')
+console.log(`  depurar (listas y candados): ${depuradosVistos} vistas recorridas`)
+if (depuradosVistos < 4) errores.push(`«Depurar» recorrio ${depuradosVistos} vistas de 4: una baja con piezas en la red no saldria en ningun sitio`)
 console.log(`  consultar modelo de bodega: ${consultasVistas} dibujado`)
 if (!consultasVistas) errores.push('«Consultar modelo» de bodega no se recorrió: bodega se queda sin poder mirar un modelo de cerca')
 console.log(`  marca de venta censurada en «Pedir»: ${censurasVistas} vista`)

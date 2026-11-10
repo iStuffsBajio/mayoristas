@@ -1,6 +1,6 @@
 # Estado del proyecto
 
-Actualizado: 2026-11-08.
+Actualizado: 2026-11-09.
 
 ## Código y repositorio
 
@@ -18,19 +18,29 @@ Consulta `TASKS.md`. Los pendientes de AWS y Dropbox allí reflejan notas de
 `CLAUDE.md` (comprobaciones anotadas el 2026-11-07); su estado actual requiere
 validación directa en esos servicios.
 
+## Fase 1 de la especificación del 2026-11-09
+
+Implementada y verificada en local; **sin subir** (ver `TASKS.md` para el orden
+de despliegue): sección Depurar con candado en el servidor, marca de descontinuado
+en bodega, corrección de «Modelos nuevos», ficha de un modelo con existencia y
+rotación para el administrador, Torreón en la sincronización, y `UltimaVenta` y
+`Departamento` publicados. Las fases B (incidencias con foto) y C (panel de corte
+de la sucursal) están decididas pero no construidas.
+
 ## Verificación de esta actualización
 
-- Frontend: `npm.cmd test` — 436 pruebas pasaron.
-- Backend: `npm.cmd test` en `backend/` — 95 pruebas pasaron. La salida incluyó
-  errores de credenciales AWS ausentes y conexiones a Dropbox bloqueadas por el
-  entorno; esto no verifica conectividad con los servicios externos.
-- `git diff --check` pasó. No se hicieron cambios globales ni publicaciones.
-- Rediseño visual del dashboard: `npm.cmd run verificar` pasó con 4 sesiones,
-  15 secciones del panel y 42 encabezados ordenables comprobados. **Ese
-  rediseño se revirtió después** (`22568de`); lo que está en producción es el
-  dashboard anterior.
-- La compilación pasa con advertencias no bloqueantes: datos de Browserslist
-  antiguos y bundle JavaScript superior a 500 kB.
+- Frontend: `npm test` — 504 pruebas pasaron.
+- Backend: `npm test` en `backend/` — 120 pruebas pasaron, incluida la paridad
+  entre el candado del servidor y el de la página.
+- `npm run build` pasó (con la advertencia de tamaño de paquete de siempre).
+- `npm run verificar`: 4 sesiones, 17 secciones de panel y 73 cabeceras. Se
+  comprobó rompiendo a propósito dos piezas del candado y del filtro de Revisar
+  que la verificación falla cuando debe.
+- Mirado en un Chrome real, en escritorio y a 390 px, con los inventarios de la
+  corrida en seco servidos desde el navegador.
+- **No se comprobó:** el servidor contra el S3 real (sus pruebas usan un S3 de
+  memoria) ni ninguna pantalla con datos publicados en el formato nuevo, que no
+  existe hasta la próxima sincronización.
 
 ## Documentación
 

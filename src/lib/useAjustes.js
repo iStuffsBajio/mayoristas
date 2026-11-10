@@ -7,7 +7,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { ajustes as pedirAjustes } from './api'
-import { juntarAjustes, codigosOcultos } from './ajustes'
+import { juntarAjustes, codigosOcultos, codigosDescontinuados } from './ajustes'
 
 /**
  * Devuelve las correcciones de todos, ya juntadas, y el conjunto de códigos
@@ -35,6 +35,9 @@ export function useAjustes(token) {
   }, [token])
 
   const ocultos = useMemo(() => codigosOcultos(correcciones), [correcciones])
+  // Lo que bodega descontinuó: no se esconde, pero la cola de revisión deja de
+  // reclamarlo. Ver `codigosDescontinuados`.
+  const descontinuados = useMemo(() => codigosDescontinuados(correcciones), [correcciones])
 
-  return { correcciones, ocultos, setCorrecciones }
+  return { correcciones, ocultos, descontinuados, setCorrecciones }
 }

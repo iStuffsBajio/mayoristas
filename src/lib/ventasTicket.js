@@ -94,6 +94,30 @@ export const DESCUENTO_MAXIMO = 80
 /** El departamento que no son productos sino clientes. */
 export const DEPTO_MAYORISTAS = 'mayoristas'
 
+/**
+ * Cómo se llama ese departamento según la plaza.
+ *
+ * Torreón lo tiene en SINGULAR —«MAYORISTA»—, y con sólo el plural su cliente
+ * se habría contado como una funda y habría salido publicado en el inventario
+ * PÚBLICO con nombre y apellido. Un departamento mal escrito en una caja no es
+ * un caso raro: es lo normal, porque lo teclea quien da de alta.
+ */
+export const DEPTOS_MAYORISTAS = new Set([DEPTO_MAYORISTAS, 'mayorista'])
+
+/**
+ * 🔒 El precio con el que el punto de venta apunta a un mayorista: $0.01.
+ *
+ * Lo definió el dueño el 2026-11-09: todo lo que se procese a $0.01 es del
+ * esquema de mayoristas y NO es una pieza vendida. Sirve de segunda red
+ * detrás del departamento, que es lo que falla cuando alguien lo escribe
+ * distinto. Medido en León: 2,368 «piezas» que valen $24 en total.
+ */
+export const PRECIO_DE_ETIQUETA = 0.01
+
+/** ¿Este precio unitario es el de una etiqueta de mayorista? */
+export const esPrecioDeEtiqueta = v =>
+  Number.isFinite(Number(v)) && Math.abs(Number(v) - PRECIO_DE_ETIQUETA) < 0.005
+
 /** Lo que se vende sin tener inventario: bodega lo imprime cuando hace falta. */
 export const DEPTO_STICKERS = 'stikers'
 
@@ -112,9 +136,15 @@ export const deptoDe = v => limpio(v).toLowerCase()
  *   · `sin-stock`  venta de verdad, pero sin inventario (stickers).
  *   · `producto`   lo demás: mercancía con existencia.
  */
-export function claseDeLinea({ depto }) {
+export function claseDeLinea({ depto, cantidad, total } = {}) {
   const d = deptoDe(depto)
-  if (d === DEPTO_MAYORISTAS) return 'etiqueta'
+  if (DEPTOS_MAYORISTAS.has(d)) return 'etiqueta'
+  // Segunda red: el precio. Una línea cuyas piezas cuestan $0.01 cada una no
+  // es una venta, sea cual sea el departamento que alguien le puso. Hace falta
+  // que haya piezas y dinero: una línea en cero no es una etiqueta, es otra
+  // cosa que ya se cuenta aparte.
+  const piezas = num(cantidad)
+  if (piezas > 0 && num(total) > 0 && esPrecioDeEtiqueta(num(total) / piezas)) return 'etiqueta'
   if (d === DEPTO_STICKERS) return 'sin-stock'
   return 'producto'
 }

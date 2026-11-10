@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   estrenos, comparaEdiciones, medianaRitmo, ventasDesdeElMes, lotesDeEntrada,
+  variantesDeModelosViejos,
   DIAS_EDICION, DIAS_PARA_OPINAR, DIAS_MISMA_EDICION, MINIMO_EDICION,
   DIAS_MAXIMO_EDICION,
 } from './estrenos.js'
@@ -284,4 +285,175 @@ test('una tanda real de 24 dias sigue siendo UNA edicion', () => {
   // esta puesto para no partirla.
   const mayo = { ...lote('A', 189, 3), ...lote('B', 175, 3), ...lote('C', 165, 4) }
   assert.equal(lotesDeEntrada(mayo).ediciones.length, 1)
+})
+
+// ── Un código nuevo no es un modelo nuevo ──────────────────────────────────
+//
+// Los casos son los reales del 2026-11-09, con los códigos y las fechas del
+// catálogo: el Galaxy S10e que veía el dueño, el «3 en 1» de un teléfono que ya
+// tenía su TPU, y dos códigos del mismo teléfono dados de alta con un día de
+// diferencia en la misma tanda.
+
+const ALTAS_REALES = {
+  // El S10e: Aguascalientes lo vende desde 2023 (un piso: cota inferior)…
+  SGS10LTC: { alta: '2023-03-23', piso: true },
+  // …y León dio de alta OTRO código para el mismo teléfono en mayo de 2026.
+  SGS10ETC: { alta: '2026-05-02', piso: false },
+
+  // Un teléfono de enero con su TPU, y el «3 en 1» que llega en agosto.
+  SGA57T:   { alta: '2026-01-28', piso: false },
+  SGA573:   { alta: '2026-08-10', piso: false },
+
+  // Un teléfono de verdad nuevo, sin nada anterior.
+  GP7PT:    { alta: '2026-11-07', piso: false },
+
+  // El mismo teléfono, dos códigos, un día de diferencia: MISMA tanda.
+  XPM8PT:     { alta: '2026-05-18', piso: false },
+  XRN15PPT:   { alta: '2026-05-19', piso: false },
+
+  // Un código que cubre dos teléfonos: el G67 ya existía, el G77 no.
+  MTG67T:   { alta: '2026-01-31', piso: false },
+  MTG77T:   { alta: '2026-08-10', piso: false },
+
+  // «3 en 1» de tres teléfonos que YA tenían su TPU: variante de los tres.
+  SGA56T:   { alta: '2024-12-23', piso: false },
+  SGA36T:   { alta: '2024-12-23', piso: false },
+  SGA37T:   { alta: '2026-01-28', piso: false },
+  SGA563:   { alta: '2026-08-10', piso: false },
+}
+
+const NOMBRES_REALES = {
+  SGS10LTC: 'SAMSUNG S10E  TPU CRISTAL',
+  SGS10ETC: 'GALAXY S10E TPU CRISTAL',
+  SGA57T:   'GALAXY A57 TPU CASE',
+  SGA573:   'GALAXY A57 3 IN 1',
+  GP7PT:    'GOOGLE PIXEL 7 PRO TPU CASE',
+  XPM8PT:   'XIAOMI POCCO M8 PRO TPU CASE',
+  XRN15PPT: 'XIAOMI REDMI NOTE 15 PRO PLUS/POCCO M8 PRO TPU CASE',
+  MTG67T:   'MOTO G67 TPU CASE',
+  MTG77T:   'MOTO G77/G67 TPU CASE',
+  SGA56T:   'GALAXY A56 TPU CASE',
+  SGA36T:   'GALAXY A36 TPU CASE',
+  SGA37T:   'GALAXY A37 TPU CASE',
+  SGA563:   'GALAXY A56/A36/A37 3 IN 1',
+}
+
+test('EL GALAXY S10e: un código nuevo para un teléfono que ya existía es variante', () => {
+  // El reabasto no mueve `Alta`. Lo que pasó fue que León dio de alta SGS10ETC
+  // el 2 de mayo para un teléfono que otras plazas vendían desde 2023, y la
+  // lista agrupaba por código y no por teléfono.
+  const v = variantesDeModelosViejos({ altas: ALTAS_REALES, nombres: NOMBRES_REALES })
+  assert.ok(v.has('SGS10ETC'), 'el S10e NO es un modelo nuevo')
+  assert.equal(v.get('SGS10ETC').deCodigo, 'SGS10LTC', 'y dice de cuál viene')
+  assert.equal(v.get('SGS10ETC').deAlta, '2023-03-23')
+  assert.ok(!v.has('SGS10LTC'), 'el viejo no es variante de nadie')
+})
+
+test('un «3 en 1» de un teléfono que ya tenía su TPU es variante', () => {
+  const v = variantesDeModelosViejos({ altas: ALTAS_REALES, nombres: NOMBRES_REALES })
+  assert.ok(v.has('SGA573'))
+  assert.equal(v.get('SGA573').deCodigo, 'SGA57T')
+})
+
+test('UN TELÉFONO DE VERDAD NUEVO no es variante de nada', () => {
+  const v = variantesDeModelosViejos({ altas: ALTAS_REALES, nombres: NOMBRES_REALES })
+  assert.ok(!v.has('GP7PT'))
+})
+
+test('DOS CÓDIGOS DE LA MISMA TANDA no se anulan entre sí', () => {
+  // Con un día de diferencia son de la misma edición: ninguno es «el viejo».
+  // Quitar uno sacaría de la lista un modelo que de verdad entró.
+  const v = variantesDeModelosViejos({ altas: ALTAS_REALES, nombres: NOMBRES_REALES })
+  assert.ok(!v.has('XPM8PT'))
+  assert.ok(!v.has('XRN15PPT'))
+})
+
+test('UN CÓDIGO QUE CUBRE DOS TELÉFONOS: basta uno nuevo para que sea estreno', () => {
+  // El G67 ya existía; el G77 no. El código trae un teléfono nuevo.
+  const v = variantesDeModelosViejos({ altas: ALTAS_REALES, nombres: NOMBRES_REALES })
+  assert.ok(!v.has('MTG77T'), 'trae el G77, que es nuevo')
+  // Y el que cubre tres teléfonos que YA existían sí es variante.
+  assert.ok(v.has('SGA563'), 'el A56, el A36 y el A37 ya tenían su TPU')
+})
+
+test('la holgura es la misma que agrupa una edición', () => {
+  assert.equal(DIAS_MISMA_EDICION, 21)
+  const altas = {
+    A1: { alta: '2026-01-01', piso: false },
+    A2: { alta: '2026-01-22', piso: false },   // 21 días después: variante
+    A3: { alta: '2026-01-21', piso: false },   // 20 días después: misma tanda
+  }
+  const nombres = { A1: 'IPHONE 99 TPU CASE', A2: 'IPHONE 99 HARD CASE', A3: 'IPHONE 99 DUO' }
+  const v = variantesDeModelosViejos({ altas, nombres })
+  assert.ok(v.has('A2'))
+  assert.ok(!v.has('A3'))
+})
+
+test('micas, hidrogel y stickers NO son teléfonos y no se emparejan', () => {
+  // `claveModelo` no los deja en blanco: dos micas con el mismo nombre darían
+  // la misma «clave de teléfono». Un emparejado falso es peor que ninguno.
+  const altas = {
+    M1: { alta: '2024-01-01', piso: false }, M2: { alta: '2026-10-01', piso: false },
+    S1: { alta: '2024-01-01', piso: false }, S2: { alta: '2026-10-01', piso: false },
+  }
+  const nombres = {
+    M1: 'MICA HIDROGEL MATE', M2: 'MICA HIDROGEL MATE',
+    S1: 'STIKER DISEÑO', S2: 'STIKER DISEÑO',
+  }
+  assert.equal(variantesDeModelosViejos({ altas, nombres }).size, 0)
+})
+
+test('sin nombre no se opina', () => {
+  const altas = { X1: { alta: '2024-01-01', piso: false }, X2: { alta: '2026-10-01', piso: false } }
+  assert.equal(variantesDeModelosViejos({ altas, nombres: {} }).size, 0)
+  assert.equal(variantesDeModelosViejos().size, 0)
+})
+
+test('estrenos() aparta las variantes ANTES de formar lotes y las enseña aparte', () => {
+  // Tres modelos nuevos de verdad y un cuarto código que es variante de uno
+  // viejo, todos de la misma fecha. Sin el filtro, el lote tendría cuatro.
+  const altas = {
+    ...lote('NUEVO', 40, 3),
+    S10ETC: { alta: hace(40), piso: false },
+    S10LTC: { alta: '2023-03-23', piso: true },
+  }
+  const nombres = {
+    NUEVO0: 'XIAOMI AAA1 TPU CASE', NUEVO1: 'XIAOMI AAA2 TPU CASE', NUEVO2: 'XIAOMI AAA3 TPU CASE',
+    S10ETC: 'GALAXY S10E TPU CRISTAL', S10LTC: 'SAMSUNG S10E TPU CRISTAL',
+  }
+  const variantes = variantesDeModelosViejos({ altas, nombres })
+  const r = estrenos({ altas, historial: { periodos: [] }, inventarios: inv([]), nombres, variantes, hoy: HOY })
+
+  const codigos = r.cohortes.flatMap(c => c.modelos.map(m => m.codigo))
+  assert.ok(!codigos.includes('S10ETC'), 'no sale como modelo nuevo')
+  assert.equal(r.cohortes[0].resumen.modelos, 3, 'el lote son los tres de verdad')
+
+  assert.equal(r.variantes.length, 1, 'pero no se esconde en silencio')
+  assert.equal(r.variantes[0].codigo, 'S10ETC')
+  assert.equal(r.variantes[0].deCodigo, 'S10LTC')
+})
+
+test('quitar una variante PUEDE dejar a una edición sin lote, y no se inventa uno', () => {
+  // Dos modelos nuevos y una variante, el mismo día: con la variante serían
+  // tres —una edición—; sin ella son dos, que es goteo. Filtrar antes de
+  // agrupar es lo que hace que el resultado sea el correcto.
+  const altas = {
+    N1: { alta: hace(40), piso: false }, N2: { alta: hace(40), piso: false },
+    VAR: { alta: hace(40), piso: false }, VIEJO: { alta: '2022-05-05', piso: false },
+  }
+  const nombres = { N1: 'OPPO ZZ1 TPU CASE', N2: 'OPPO ZZ2 TPU CASE', VAR: 'OPPO ZZ9 3 IN 1', VIEJO: 'OPPO ZZ9 TPU CASE' }
+  const sin = estrenos({ altas, historial: { periodos: [] }, inventarios: inv([]), nombres, hoy: HOY })
+  assert.equal(sin.hayLotes, true, 'sin el filtro, tres juntos forman edición')
+
+  const variantes = variantesDeModelosViejos({ altas, nombres })
+  const con = estrenos({ altas, historial: { periodos: [] }, inventarios: inv([]), nombres, variantes, hoy: HOY })
+  assert.equal(con.hayLotes, false, 'sin la variante son dos: es goteo')
+})
+
+test('estrenos() sin variantes se comporta exactamente como antes', () => {
+  const altas = lote('X', 40, 3)
+  const a = estrenos({ altas, historial: { periodos: [] }, inventarios: inv([]), hoy: HOY })
+  const b = estrenos({ altas, historial: { periodos: [] }, inventarios: inv([]), variantes: null, hoy: HOY })
+  assert.deepEqual(a, b)
+  assert.deepEqual(a.variantes, [])
 })

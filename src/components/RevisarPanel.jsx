@@ -234,7 +234,7 @@ export default function RevisarPanel() {
   // Se cargan con el mismo gancho que usa el dashboard. Con dos cargadores
   // distintos bastaría con que uno se quedara atrás para que el error
   // siguiera saliendo en esa pantalla y la corrección pareciera rota.
-  const { correcciones, ocultos, setCorrecciones } = useAjustes(token)
+  const { correcciones, ocultos, descontinuados, setCorrecciones } = useAjustes(token)
 
   /**
    * Marca uno o varios códigos como que ya no existen.
@@ -297,7 +297,15 @@ export default function RevisarPanel() {
     const tiendas = Object.fromEntries(
       Object.entries(inv).filter(([s]) => s !== BODEGA.slug))
 
+    // Lo que bodega descontinuó y las tiendas están liquidando NO es un error:
+    // es justo el escenario por el que el sistema reclamaba códigos «que bodega
+    // no tiene». Se aparta ANTES de agrupar, no después, porque los lotes se
+    // forman con lo que llega: filtrar un lote ya armado dejaba a medias a los
+    // que tenían algún código marcado y otro no. Los marca el dueño en
+    // «Depurar» (flag `descontinuado_bodega`, 2026-11-09); sigue siendo un
+    // código normal que se vende y cuenta, sólo deja de salir aquí.
     const huerfanos = codigosHuerfanos({ inventarios: tiendas, bodega: inv[BODEGA.slug], grupos })
+      .filter(h => !descontinuados.has(String(h.codigo).trim().toUpperCase()))
     const patrones = patronesDeEscritura({ inventarios: inv })
     const nombres = discrepanciasDeNombre({ inventarios: inv })
 
@@ -322,7 +330,7 @@ export default function RevisarPanel() {
     }
 
     return items
-  }, [inv, grupos])
+  }, [inv, grupos, descontinuados])
 
   /**
    * Lo ya corregido no se vuelve a sacar.
@@ -334,8 +342,10 @@ export default function RevisarPanel() {
    */
   const vivos = useMemo(() => todos.filter(x => {
     const cs = codigosDeFicha(x)
-    return cs.length === 0 || cs.some(c => !ocultos.has(c))
-  }), [todos, ocultos])
+    // Se va si TODOS sus códigos están dados de baja o descontinuados: con uno
+    // que siga siendo un problema de verdad, la ficha se queda.
+    return cs.length === 0 || cs.some(c => !ocultos.has(c) && !descontinuados.has(c))
+  }), [todos, ocultos, descontinuados])
 
   const alternativas = useCallback(
     (codigo, producto) => alternativasDe(codigo, producto, grupos, existencias),
