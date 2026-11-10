@@ -2220,29 +2220,37 @@ tienda verá lo suyo, y NUNCA los faltantes con nombre ni otras plazas.
 | Notas | Concepto, costo, precio, anotaciones, fecha |
 
 La cuenta del Excel es `esperado = total ventas − gastos − sueldo − tarjeta`.
-Cosas que quedan por decidir al construirlo, y que conviene preguntar:
 
-- **El esperado debe usar la tarjeta del POS, no la que teclee el empleado**: si
-  la teclea él, puede subirla hasta que el faltante desaparezca. Los bancos que
-  se tecleen sirven sólo para conciliar contra el POS.
-- **«Sueldo» y el fondo de caja** no tienen de dónde salir hoy. El fondo es un
-  parámetro por plaza; sueldo es una salida más, con tipo.
-- El cuadre debería poder verse **por día o turno**, no sólo por semana: un
-  faltante semanal no dice qué día fue. Y el verde en «$0 exacto» necesita la
-  tolerancia, que hoy es un parámetro vacío a propósito.
-- Antes del 2026-11-05 no había control de salidas: sigue valiendo `conControl`.
+**Respondido por el dueño el 2026-11-09:**
+
+- **Todo lo que debe haber en caja o en el corte semanal sale del POS**, sin
+  excepción: ventas, tarjeta, transferencias, gastos y sueldo. El empleado no
+  teclea ninguna de esas cifras, y por eso la tarjeta que cuenta es la del POS.
+- **El sueldo sale del acumulado de la semana, y el empleado SIEMPRE lo tiene
+  que reflejar en el POS como una salida de efectivo.** Sin esa salida, el
+  esperado queda por encima de lo que hay y se lee como faltante: es una regla
+  de operación de las tiendas, no sólo de la página. Falta saber cómo reconocer
+  en el POS una salida de sueldo (por tipo o por el texto del concepto).
+- **NO hay ninguna tolerancia en el faltante de dinero.** Cualquier diferencia
+  cuenta: $0 verde, negativo rojo, positivo azul. El parámetro `tolerancia` de
+  caja se queda sin uso para este corte.
+- **El fondo de caja** sigue sin respuesta: es un parámetro por plaza y la
+  fórmula depende de él.
+
+Sigue valiendo: el cuadre debería poder verse **por día o turno**, no sólo por
+semana, y antes del 2026-11-05 no había control de salidas (`conControl`).
 
 **Torreón es el caso especial.** Deposita o transfiere **a las 4 semanas**, no
 cada semana. Quiere un control de **4 semanas a partir del 2026-11-09 (lunes)**:
 cuatro bloques semanales y **un bloque global mensual**. Es un lunes, como exige
 `INICIO_HISTORIAL`.
 
-**Mayoristas.** El ranking lo ven **el administrador y todas las sucursales**:
-el acumulado de cada mayorista en la semana, el más activo y el menos activo.
-Ojo: los «productos» del departamento MAYORISTAS son los CLIENTES, así que es
-un ranking de clientes, y esa lista hoy es privada (`ventas/` da 403 a una
-tienda). Falta decidir si cada tienda ve sólo los de su plaza —lo razonable— o
-los de todas; hará falta una ruta que sirva sólo lo suyo.
+**Mayoristas.** Ranking de CLIENTES (los «productos» del departamento
+MAYORISTAS son clientes): el acumulado de cada mayorista, el más activo y el
+menos activo. **Cada sucursal ve SÓLO el de su plaza; el único que ve todas es el
+administrador.** El rango se elige **de 7 a 30 días como máximo**. Esa lista hoy
+es privada (`ventas/` da 403 a una tienda), así que hace falta una ruta del
+backend que sirva a cada sesión sólo lo de su plaza —nunca lo de otra—.
 
 **Piezas vendidas** cuentan sólo **fundas, hidrogel y stickers**, con el desglose
 por tipo. **Micas = todo el departamento HIDROGEL**, o cualquier producto con
