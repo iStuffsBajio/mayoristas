@@ -22,6 +22,7 @@ describe controles y operación de seguridad.
 | Reglas de mayoreo | 🔒 Del dueño: no hay mayoreo sin funda o mica de hidrogel en el ticket, y la etiqueta del mayorista va tantas veces como productos. Se SEÑALAN por ticket en el corte; no cambian ninguna cifra. | `CLAUDE.md`, “Las reglas de mayoreo”; `src/lib/reglasMayoreo.js` |
 | Cobros electrónicos | Se identifican por `VENTATICKETS.REFERENCIA` (banco + autorización o clave de rastreo). Se extrae aparte y en `try/catch`. | `CLAUDE.md`, “Los cobros con tarjeta o transferencia” |
 | Efectivo y corte | Una sola pestaña del administrador con subsecciones (Resumen, Corte semanal, Depósitos, Faltantes, Parámetros) y los mismos colores por concepto (`coloresCaja.js`). Las tiendas ven sólo su Corte. | `CLAUDE.md`, “Corte y Efectivo van en la MISMA pestaña” |
+| Diseño del panel | Todas las pestañas usan las piezas de `Diseno.jsx` y la paleta de `coloresCaja.js`; cada sección lleva el color de su tema (ventas azul, inventario verde azulado, agotado rosa, comprar morado, dinero verde, revisar ámbar). | `CLAUDE.md`, “El diseño del corte es el diseño de TODO el panel” |
 | Ranking de mayoristas | Cada tienda ve sólo el de su plaza y el administrador todas, por separado; rango de 7 a 30 días. | `src/lib/mayoristas.js`; `GET /corte` |
 | Trabajo entre agentes | Instrucciones compartidas en `AGENTS.md`; `CLAUDE.md` importa esa fuente y mantiene el conocimiento específico de este repo. | `AGENTS.md`, `CLAUDE.md` |
 

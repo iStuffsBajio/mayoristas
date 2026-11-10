@@ -1,3 +1,4 @@
+import { TEMAS } from './Diseno'
 import { useState, useEffect, useMemo } from 'react'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA } from '../lib/sucursales'
 import { inventarioJsonUrl, historialUrl, estadisticasUrl, agotadosUrl } from '../lib/s3'
@@ -51,6 +52,12 @@ const FERIAS = SUCURSALES.find(s => s.estacional)
 // la misma fila de pestañas obligaba a leer el título para saber de qué se
 // estaba hablando; el panel las separa en dos secciones y cada una pide solo
 // las suyas.
+/** El tema de color de cada vista: el mismo significado en todas las pestañas. */
+const TEMA_DE_VISTA = {
+  venta: 'comprar', muestra: 'agotado', candidatos: 'ventas', depurar: 'alerta',
+  bodega: 'inventario', compras: 'comprar', agotados: 'agotado',
+}
+
 const VISTAS = [
   { id: 'venta',      etiqueta: 'Pedir por venta',         ambito: 'sucursales' },
   { id: 'muestra',    etiqueta: 'Sin venta y agotados',    ambito: 'sucursales' },
@@ -77,7 +84,9 @@ function Pildora({ activa, onClick, children, tenue }) {
 
 function Dato({ valor, etiqueta, nota, color }) {
   return (
-    <div style={{ flex: 1, minWidth: 104, padding: '12px 14px', background: '#fff', border: '1px solid ' + LINEA, borderRadius: 16 }}>
+    <div style={{ flex: 1, minWidth: 104, padding: '12px 14px', borderRadius: 16,
+                  background: /^#[0-9a-f]{6}$/i.test(color ?? '') ? color + '14' : 'rgba(16,22,25,0.04)',
+                  borderLeft: '4px solid ' + (color || TINTA) }}>
       <div style={{ fontSize: 22, fontWeight: 800, color: color || TINTA, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{valor}</div>
       <div style={{ fontSize: 11.5, color: TINTA_SUAVE, marginTop: 2 }}>{etiqueta}</div>
       {nota && <div style={{ fontSize: 10.5, color: TINTA_TENUE, marginTop: 1 }}>{nota}</div>}
@@ -89,7 +98,8 @@ function Aviso({ tono = AMBAR, children }) {
   const fondo = tono === AMBAR ? 'rgba(180,83,9,0.06)' : 'rgba(0,188,242,0.05)'
   const borde = tono === AMBAR ? 'rgba(180,83,9,0.22)' : 'rgba(0,188,242,0.25)'
   return (
-    <div style={{ padding: '12px 14px', borderRadius: 16, background: fondo, border: '1px solid ' + borde, marginBottom: 14 }}>
+    <div style={{ padding: '12px 14px', borderRadius: 16, background: fondo, border: '1px solid ' + borde,
+                  borderLeft: '5px solid ' + (tono === AMBAR ? AMBAR : TEMAS.ventas.fuerte), marginBottom: 14 }}>
       <p style={{ fontSize: 11.5, color: tono === AMBAR ? AMBAR : TINTA_SUAVE, margin: 0, lineHeight: 1.55 }}>{children}</p>
     </div>
   )
@@ -393,6 +403,7 @@ function Folios({ cuadres, resumen, onCerrar, puedeCerrar }) {
 }
 
 export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = null }) {
+  const TEMA_AMBITO = TEMAS[ambito === 'bodega' ? 'comprar' : 'inventario']
   const sucursales = SUCURSALES_ACTIVAS
   const opciones = useMemo(() => [TODAS, ...sucursales, ...(FERIAS ? [FERIAS] : [])], [sucursales])
 
@@ -818,8 +829,14 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
-      <div style={{ marginBottom: 14 }}>
-        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+      {/* La cabecera de la pestaña, con la franja de su tema: surtir es
+          inventario; la bodega, comprar. El mismo color que en el tablero. */}
+      <div style={{ marginBottom: 14, borderLeft: '5px solid ' + TEMA_AMBITO.fuerte, background: TEMA_AMBITO.suave,
+                    borderRadius: 14, padding: '10px 14px' }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 800, color: TEMA_AMBITO.fuerte, margin: 0 }}>
+          {ambito === 'bodega' ? 'Bodega: qué comprar y qué puede surtir' : 'Surtido: qué mandar a cada tienda'}
+        </h3>
+        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '2px 0 0', lineHeight: 1.5 }}>
           A qué ritmo sale cada modelo, cuántos días quieres aguantar, y cuánto falta para llegar ahí.
           Es la cuenta que harías a mano, hecha sobre todo el historial disponible.
         </p>
@@ -923,6 +940,19 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
           <Pildora key={v.id} activa={vista === v.id} onClick={() => setVista(v.id)}>{v.etiqueta}</Pildora>
         ))}
       </div>
+
+      {/* La vista elegida, con la franja de SU tema: lo que se agota en rosa,
+          lo que se compra en morado, lo que hay en verde azulado. */}
+      {(() => {
+        const v = VISTAS.find(x => x.id === vista)
+        const t = TEMAS[TEMA_DE_VISTA[vista] ?? 'neutro']
+        return v ? (
+          <div data-franja-vista={vista} style={{ borderLeft: '5px solid ' + t.fuerte, background: t.suave, borderRadius: 12,
+                        padding: '7px 12px', marginBottom: 12, fontSize: 12.5, fontWeight: 800, color: t.fuerte }}>
+            {v.etiqueta.replace(/^[^\p{L}]+/u, '')}
+          </div>
+        ) : null
+      })()}
 
       {/* ── Pedir por venta ── */}
       {vista === 'venta' && (porVenta.length === 0

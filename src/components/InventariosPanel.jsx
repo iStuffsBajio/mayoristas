@@ -1,3 +1,4 @@
+import { TEMAS } from './Diseno'
 import { useState, useEffect, useMemo } from 'react'
 // Aqui si entra la bodega: es inventario y el panel es solo de administrador.
 import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA, nombreSucursal } from '../lib/sucursales'
@@ -112,9 +113,11 @@ function Contador({ n, etiqueta, color, activo, onClick, clases, id }) {
     <button type="button" onClick={onClick} data-filtro={id}
       style={{
         flex: 1, minWidth: 108, padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
-        background: activo ? 'rgba(0,188,242,0.06)' : '#fff',
-        border: `1px solid ${activo ? 'rgba(0,188,242,0.45)' : LINEA}`,
+        background: color + (activo ? '22' : '0F'),
+        border: `1.5px solid ${activo ? color : 'transparent'}`,
+        borderLeft: '4px solid ' + color,
         borderRadius: 16,
+        boxShadow: activo ? `0 2px 10px ${color}26` : 'none',
       }}>
       <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{n}</div>
       <div style={{ fontSize: 11, color: TINTA_SUAVE, marginTop: 2 }}>{etiqueta}</div>
@@ -220,7 +223,8 @@ function ArchivoDeBajas({ correcciones, inventarios, onDeshacer }) {
 
   return (
     <section data-archivo-bajas
-             style={{ marginTop: 16, border: '1px solid ' + LINEA, borderRadius: 18, padding: '12px 14px' }}>
+             style={{ marginTop: 16, border: '1px solid ' + LINEA, borderLeft: '5px solid ' + TEMAS.neutro.fuerte,
+                      background: TEMAS.neutro.suave, borderRadius: 18, padding: '12px 14px' }}>
       <button type="button" onClick={() => setAbierto(v => !v)}
               data-abrir-archivo
               style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap',
@@ -600,8 +604,12 @@ export default function InventariosPanel() {
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
-      <div style={{ marginBottom: 16 }}>
-        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+      <div style={{ marginBottom: 16, borderLeft: '5px solid ' + TEMAS.inventario.fuerte, background: TEMAS.inventario.suave,
+                    borderRadius: 14, padding: '10px 14px' }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 800, color: TEMAS.inventario.fuerte, margin: 0 }}>
+          Existencias {sel === TODAS.slug ? 'de todas las tiendas' : `de ${sucursal.nombre}`}
+        </h3>
+        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '2px 0 0', lineHeight: 1.5 }}>
           El inventario que la página está mostrando ahora mismo. Arranca filtrado por lo
           urgente, que es lo que sirve para salir a resurtir.
         </p>

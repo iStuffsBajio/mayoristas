@@ -3,6 +3,14 @@
 Este registro resume cambios relevantes del producto y de su documentación;
 no sustituye el historial completo de Git.
 
+## 2026-11-10
+
+- **El diseño del corte en todo el panel:** Dashboard, Ventas, Inventarios,
+  Surtido, Bodega, Revisar y Depurar llevan secciones con cabecera de color,
+  cifras grandes con su color de fondo y franjas por tema (ventas azul,
+  inventario verde azulado, agotado rosa, comprar morado, dinero verde,
+  revisar ámbar). Piezas compartidas en `src/components/Diseno.jsx`.
+
 ## 2026-11-09
 
 - **Efectivo y corte, en una sola pestaña** del administrador: el corte semanal

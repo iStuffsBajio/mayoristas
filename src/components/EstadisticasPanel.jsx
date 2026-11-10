@@ -1,3 +1,4 @@
+import { Seccion, TEMAS } from './Diseno'
 import { useState, useEffect, useMemo } from 'react'
 // La bodega queda fuera: lo que sale de ahi son envios a las sucursales,
 // no ventas, y mezclarlo falsearia el ranking.
@@ -98,11 +99,11 @@ function Plegable({ titulo, resumen, children, abiertoPorDefecto = false }) {
   const [abierto, setAbierto] = useState(abiertoPorDefecto)
 
   return (
-    <div style={{ borderTop: '1px solid ' + LINEA, paddingTop: 14 }}>
+    <div style={{ border: '1px solid ' + TEMAS.neutro.borde, borderRadius: 20, overflow: 'hidden' }}>
       <button type="button" onClick={() => setAbierto(v => !v)}
         style={{
           display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-          background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left',
+          background: TEMAS.neutro.suave, border: 'none', padding: '11px 16px', cursor: 'pointer', textAlign: 'left',
         }}>
         <span style={{
           fontSize: 13, color: TINTA_TENUE, transition: 'transform .18s',
@@ -115,7 +116,7 @@ function Plegable({ titulo, resumen, children, abiertoPorDefecto = false }) {
           </span>
         )}
       </button>
-      {abierto && <div style={{ marginTop: 14 }}>{children}</div>}
+      {abierto && <div style={{ padding: '14px 16px' }}>{children}</div>}
     </div>
   )
 }
@@ -134,7 +135,9 @@ function Cifra({ valor, etiqueta, color }) {
 
 function Dato({ valor, etiqueta, nota, color }) {
   return (
-    <div style={{ flex: 1, minWidth: 120, padding: '14px 16px', background: '#fff', border: '1px solid ' + LINEA, borderRadius: 18 }}>
+    <div style={{ flex: 1, minWidth: 120, padding: '12px 16px', borderRadius: 16,
+                  background: /^#[0-9a-f]{6}$/i.test(color ?? '') ? color + '14' : 'rgba(16,22,25,0.04)',
+                  borderLeft: '4px solid ' + (color || TINTA) }}>
       <div style={{ fontSize: 26, fontWeight: 800, color: color || TINTA, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{valor}</div>
       <div style={{ fontSize: 12, color: TINTA_SUAVE, marginTop: 3 }}>{etiqueta}</div>
       {nota && <div style={{ fontSize: 11, color: TINTA_TENUE, marginTop: 2 }}>{nota}</div>}
@@ -174,9 +177,8 @@ function SerieDiaria({ serie }) {
   const promedio = conDato ? total / conDato : 0
 
   return (
-    <div>
+    <Seccion tema="ventas" titulo={<>Piezas por día</>} >
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 8, gap: 10, flexWrap: 'wrap' }}>
-        <h4 style={{ fontSize: 12.5, fontWeight: 700, color: TINTA, margin: 0 }}>Piezas por día</h4>
         <span style={{ fontSize: 11.5, color: activo ? TINTA : TINTA_TENUE, fontVariantNumeric: 'tabular-nums' }}>
           {activo
             ? `${DIAS_SEMANA[fechaDe(activo.fecha).getDay()]} ${fmtDia(activo.fecha)} · ${activo.salidas} pz`
@@ -237,7 +239,7 @@ function SerieDiaria({ serie }) {
           <span>{fmtDia(serie[serie.length - 1].fecha)}</span>
         </div>
       )}
-    </div>
+    </Seccion>
   )
 }
 
@@ -280,7 +282,7 @@ function Ranking({ ranking }) {
         <div key={r.codigo + i} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, alignItems: 'center' }}>
           <div style={{ minWidth: 0 }}>
             <Modelo producto={r.producto} codigo={r.codigo} />
-            <Barra valor={r.salidas} max={max} color={C_RANKING} />
+            <Barra valor={r.salidas} max={max} color={TEMAS.ventas.fuerte} />
           </div>
           <span style={{ fontSize: 14, fontWeight: 800, color: TINTA, fontVariantNumeric: 'tabular-nums', minWidth: '3ch', textAlign: 'right' }}>
             {r.salidas}
@@ -402,7 +404,7 @@ function ComparativoPeriodos({ historial, sucursal }) {
             </span>
             <div style={{ minWidth: 0 }}>
               <Modelo producto={f.producto} codigo={f.codigo} />
-              <Barra valor={f.salidas} max={max} color={C_RANKING} />
+              <Barra valor={f.salidas} max={max} color={TEMAS.ventas.fuerte} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
               <span style={{ fontSize: 14, fontWeight: 800, color: TINTA, fontVariantNumeric: 'tabular-nums' }}>
@@ -549,8 +551,7 @@ function EnTreintaSegundos({ proyeccion, puente, empuje, rendimiento, parado, su
   if (!frases.length) return null
 
   return (
-    <section style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px', background: 'rgba(2,136,173,0.04)' }}>
-      <h3 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 8px' }}>En 30 segundos</h3>
+    <Seccion tema="ventas" titulo={<>En 30 segundos</>} >
       <p style={{ fontSize: 14, color: TINTA, lineHeight: 1.65, margin: 0 }}>{frases.join(' ')}</p>
       <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '10px 0 0', lineHeight: 1.5 }}>
         En pesos, al <strong>precio que de verdad se cobró</strong> en la caja, con la mezcla de
@@ -561,7 +562,7 @@ function EnTreintaSegundos({ proyeccion, puente, empuje, rendimiento, parado, su
         )}
         {' '}Las piezas son un piso: una salida resurtida el mismo día no se ve.
       </p>
-    </section>
+    </Seccion>
   )
 }
 
@@ -579,10 +580,7 @@ function Puente({ puente }) {
   const max = Math.max(1, ...partes.map(p => Math.abs(p.valor)))
 
   return (
-    <div>
-      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
-        Por qué cambió la venta
-      </h4>
+    <Seccion tema="dinero" titulo={<>Por qué cambió la venta</>} >
       <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px' }}>
         Las últimas cuatro semanas contra las cuatro anteriores.
       </p>
@@ -607,7 +605,7 @@ function Puente({ puente }) {
           </div>
         ))}
       </div>
-    </div>
+    </Seccion>
   )
 }
 
@@ -635,15 +633,12 @@ function Momentum({ acelerando, frenando }) {
   )
 
   return (
-    <div>
-      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 12px' }}>
-        Qué se mueve
-      </h4>
+    <Seccion tema="ventas" titulo={<>Qué se mueve</>} >
       <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap' }}>
         {columna('Se acelera', acelerando, C_SUBE, 'Pedir más antes de que falte')}
         {columna('Se frena', frenando, C_BAJA, 'Mirar antes de volver a comprar')}
       </div>
-    </div>
+    </Seccion>
   )
 }
 
@@ -653,10 +648,7 @@ function Momentum({ acelerando, frenando }) {
  */
 function Brechas({ filas }) {
   return (
-    <div>
-      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
-        Lo mismo, parado aquí y agotándose allá
-      </h4>
+    <Seccion tema="inventario" titulo={<>Lo mismo, parado aquí y agotándose allá</>} >
       <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px' }}>
         {filas.length} casos. Es un traspaso, no una compra; el monto es lo que esa tienda
         dejaría de hacer al mes si vendiera como la que manda.
@@ -679,17 +671,14 @@ function Brechas({ filas }) {
           </li>
         ))}
       </ul>
-    </div>
+    </Seccion>
   )
 }
 
 /** El dinero quieto en el estante. */
 function Parado({ datos }) {
   return (
-    <div>
-      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
-        Dinero parado
-      </h4>
+    <Seccion tema="dinero" titulo={<>Dinero parado</>} >
       <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px' }}>
         {datos.filas.length} modelos · {datos.piezas} piezas · <strong style={{ color: TINTA }}>{pesos(datos.pesos)}</strong> a
         costo, sin una sola venta en más de tres meses. La última venta sale del acumulado por
@@ -709,7 +698,7 @@ function Parado({ datos }) {
           </li>
         ))}
       </ul>
-    </div>
+    </Seccion>
   )
 }
 
@@ -731,9 +720,9 @@ function CostosQueFaltan({ filas }) {
   const sinAlta = filas.filter(f => f.caso === 'no-esta-en-bodega')
 
   return (
-    <section style={{ border: '1px solid #FCD34D', borderRadius: 22, padding: '18px 20px', background: 'rgba(252,211,77,0.10)' }}>
+    <section style={{ border: '1px solid ' + TEMAS.alerta.borde, borderRadius: 20, padding: '14px 18px', background: TEMAS.alerta.suave, borderLeft: '5px solid ' + TEMAS.alerta.fuerte }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 6 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 800, color: '#92400E', margin: 0, flex: 1 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 800, color: TEMAS.alerta.fuerte, margin: 0, flex: 1 }}>
           Costos que faltan en bodega
         </h3>
         <button type="button" className="boton-tinta" style={{ fontSize: 11.5, padding: '6px 12px' }}
@@ -825,11 +814,7 @@ function Estrenos({ datos, precios, plazas }) {
   const pct = v => (v === null ? '—' : `${Math.round(v * 100)}%`)
 
   return (
-    <section data-estrenos
-             style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px' }}>
-      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
-        ¿Están vendiendo los modelos nuevos?
-      </h4>
+    <Seccion tema="comprar" titulo={<>¿Están vendiendo los modelos nuevos?</>} data-estrenos>
       <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px', lineHeight: 1.5 }}>
         {datos.hayLotes
           ? <>Una edición es el <strong>lote</strong> con el que entraron: las fechas de alta
@@ -998,7 +983,7 @@ function Estrenos({ datos, precios, plazas }) {
           )}
         </details>
       )}
-    </section>
+    </Seccion>
   )
 }
 
@@ -1042,11 +1027,7 @@ function Cancelaciones({ porPlaza, plazas, sel }) {
   const TEXTO = { probable: 'Probable reemplazo', dudosa: 'Dudoso', ninguna: 'Sin reemplazo' }
 
   return (
-    <section data-cancelaciones
-             style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px' }}>
-      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
-        Tickets cancelados, y qué se vendió después
-      </h4>
+    <Seccion tema="agotado" titulo={<>Tickets cancelados, y qué se vendió después</>} data-cancelaciones>
       <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 12px', lineHeight: 1.5 }}>
         <strong>Esto es una sospecha, no un dato.</strong> Eleventa no enlaza una cancelación con
         la venta que la sustituyó: ese dato no existe en ninguna tabla. Lo que se mira es el
@@ -1130,7 +1111,7 @@ function Cancelaciones({ porPlaza, plazas, sel }) {
           )}
         </div>
       ))}
-    </section>
+    </Seccion>
   )
 }
 
@@ -1337,10 +1318,7 @@ function PrecioPorPlaza({ porPlaza, plazas }) {
   const dias = filas[0].datos.ventana?.dias ?? 365
 
   return (
-    <section data-precio-plaza style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px' }}>
-      <h3 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
-        A qué precio vende cada plaza
-      </h3>
+    <Seccion tema="dinero" titulo={<>A qué precio vende cada plaza</>} data-precio-plaza>
       <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 16px', lineHeight: 1.55 }}>
         Lo que de verdad se cobró en la caja, de los últimos {dias} días. No es el precio de la
         lista: es el de los tickets, línea por línea. Los tres grupos van <strong>aparte</strong>,
@@ -1408,7 +1386,7 @@ function PrecioPorPlaza({ porPlaza, plazas }) {
         El descuento se mide código contra sí mismo y se resume con la mediana, no promediando:
         un código vendido una vez a $1 al público arrastraba el promedio a −63%.
       </p>
-    </section>
+    </Seccion>
   )
 }
 
@@ -1443,9 +1421,9 @@ function PreciosARevisar({ porPlaza }) {
 
   return (
     <section data-precios-revisar
-             style={{ border: '1px solid #FCD34D', borderRadius: 22, padding: '18px 20px', background: 'rgba(252,211,77,0.10)' }}>
+             style={{ border: '1px solid ' + TEMAS.alerta.borde, borderRadius: 20, padding: '14px 18px', background: TEMAS.alerta.suave, borderLeft: '5px solid ' + TEMAS.alerta.fuerte }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap', marginBottom: 6 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 800, color: '#92400E', margin: 0, flex: 1 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 800, color: TEMAS.alerta.fuerte, margin: 0, flex: 1 }}>
           Se vende más barato que a un mayorista
         </h3>
         <button type="button" className="boton-tinta" style={{ fontSize: 11.5, padding: '6px 12px' }}
@@ -1624,7 +1602,7 @@ export function FichaCodigo({ ficha, rango, existencias = null, agotados = null 
             {meses.map(m => (
               <div key={m.periodo} style={{ display: 'grid', gridTemplateColumns: 'minmax(90px, 140px) 1fr auto', gap: 10, alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: TINTA_SUAVE }}>{nombreDePeriodo(m.periodo)}</span>
-                <Barra valor={m.salidas} max={maxMes} color={C_RANKING} />
+                <Barra valor={m.salidas} max={maxMes} color={TEMAS.ventas.fuerte} />
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: m.salidas ? TINTA : TINTA_TENUE, fontVariantNumeric: 'tabular-nums', minWidth: '4ch', textAlign: 'right' }}>
                   {m.salidas}
                 </span>
@@ -1980,9 +1958,9 @@ export default function EstadisticasPanel() {
           la plaza elegida tenga estadística, y la búsqueda no puede depender
           de eso. Si Aguascalientes no tiene archivo publicado, buscar un
           código que se vende en León tiene que seguir contestando. */}
-      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 8px' }}>
-        Investigar un modelo
-      </h4>
+      <div style={{ borderLeft: '5px solid ' + TEMAS.ventas.fuerte, background: TEMAS.ventas.suave, borderRadius: 14, padding: '8px 14px', marginBottom: 10 }}>
+        <h4 style={{ fontSize: 13, fontWeight: 800, color: TEMAS.ventas.fuerte, margin: 0 }}>Investigar un modelo</h4>
+      </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 6 }}>
         <input
           value={busqueda}
@@ -2114,12 +2092,9 @@ export default function EstadisticasPanel() {
 
           <SerieDiaria serie={resumen.serie} />
 
-          <div>
-            <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 12px' }}>
-              Modelos con más salida en {sucursal.nombre}
-            </h4>
+          <Seccion tema="ventas" titulo={`Modelos con más salida en ${sucursal.nombre}`}>
             <Ranking ranking={resumen.ranking} />
-          </div>
+          </Seccion>
 
           {historial && (
             <Plegable titulo="Comparativo contra el periodo anterior"

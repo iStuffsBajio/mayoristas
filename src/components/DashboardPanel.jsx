@@ -16,6 +16,7 @@ import { esTemporadaAlta } from '../lib/surtido'
 import { separarProtectores, esProtector } from '../lib/familias'
 import { promedioEntrePlazas, desviaciones, valorDe } from '../lib/precios'
 import BarrasAgotados from './BarrasAgotados'
+import { Seccion, Cifra as CifraCasa, Cifras, TEMAS } from './Diseno'
 
 /**
  * Dashboard: lo más importante de cada sección, en una sola pantalla.
@@ -291,12 +292,13 @@ export default function DashboardPanel({ onIrA }) {
     <div className="tablero">
 
       {/* ── Lo que pide una decisión ────────────────────────────────── */}
-      <section className="tablero-alertas">
-        <h3>Atención</h3>
+      <Seccion tema={alertas.some(a => a.tono === 'grave') ? 'agotado' : alertas.length ? 'alerta' : 'dinero'}
+               titulo="Atención" sub="Lo que pide una decisión hoy"
+               extra={alertas.length ? `${alertas.length} ${alertas.length === 1 ? 'aviso' : 'avisos'}` : '✓ al día'}>
         {alertas.length === 0 ? (
           <p className="tablero-ok">Nada urgente. Los inventarios están al día y no hay modelos de clase A en cero.</p>
         ) : (
-          <ul>
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'grid', gap: 8 }}>
             {alertas.map((a, i) => (
               <li key={i} className={`alerta alerta-${a.tono}`}>
                 <span className="alerta-marca" aria-hidden="true" />
@@ -306,32 +308,20 @@ export default function DashboardPanel({ onIrA }) {
             ))}
           </ul>
         )}
-      </section>
+      </Seccion>
 
       {/* ── Antes de que se agote ───────────────────────────────────── */}
       {porAgotarse?.filas?.length > 0 && (
-        <section className="tablero-reservas">
-          <header>
-            <h3>Antes de que se agote</h3>
-            <p>
-              Lo que no aguanta hasta la próxima surtida, al ritmo de las últimas semanas.
-              Pedir al proveedor tarda {ENTREGA.proveedor} días; al nacional, {ENTREGA.nacional}.
-            </p>
-          </header>
-
-          <div className="reservas-cifras">
-            <span className="reservas-cifra grave">
-              <strong>{porAgotarse.resumen.cero}</strong> en cero vendiéndose
-            </span>
-            <span className="reservas-cifra">
-              <strong>{porAgotarse.resumen.reponer}</strong> por debajo de su objetivo
-            </span>
+        <Seccion tema="agotado" titulo="Antes de que se agote"
+                 sub={`Lo que no aguanta hasta la próxima surtida, al ritmo de las últimas semanas. Pedir al proveedor tarda ${ENTREGA.proveedor} días; al nacional, ${ENTREGA.nacional}.`}>
+          <Cifras style={{ marginBottom: 12 }}>
+            <CifraCasa tema="agotado" titulo="En cero vendiéndose" valor={porAgotarse.resumen.cero} />
+            <CifraCasa tema="comprar" titulo="Por debajo de su objetivo" valor={porAgotarse.resumen.reponer} />
             {porAgotarse.resumen.pesosAlDia > 0 && (
-              <span className="reservas-cifra alerta">
-                <strong>${Math.round(porAgotarse.resumen.pesosAlDia).toLocaleString('es-MX')}</strong> de mayoreo al día
-              </span>
+              <CifraCasa tema="alerta" titulo="De mayoreo que se deja de vender al día"
+                         valor={`$${Math.round(porAgotarse.resumen.pesosAlDia).toLocaleString('es-MX')}`} />
             )}
-          </div>
+          </Cifras>
 
           <ul className="reservas-lista">
             {porAgotarse.filas.slice(0, 8).map(f => (
@@ -362,18 +352,18 @@ export default function DashboardPanel({ onIrA }) {
               Ver los {porAgotarse.filas.length} en Surtido
             </button>
           )}
-        </section>
+        </Seccion>
       )}
 
       {/* ── Las cifras de la semana ─────────────────────────────────── */}
-      <div className="tablero-cifras">
-        <Cifra n={ventas?.totalSalidas} que="piezas vendidas" nota="últimos 30 días" />
-        <Cifra n={ventas?.modelosConMovimiento} que="modelos con salida" nota="últimos 30 días" />
-        <Cifra n={agotadosFunda.length} que="fundas en cero" nota="en alguna tienda" />
+      <Cifras>
+        <Cifra tema="ventas" n={ventas?.totalSalidas} que="Piezas vendidas" nota="últimos 30 días" />
+        <Cifra tema="ventas" n={ventas?.modelosConMovimiento} que="Modelos con salida" nota="últimos 30 días" />
+        <Cifra tema="agotado" n={agotadosFunda.length} que="Fundas en cero" nota="en alguna tienda" />
         {perdidoEnPesos
-          ? <Cifra n={perdidoEnPesos} pesos que="perdidos" nota={`${agotados.perdidas} piezas que se habrían vendido`} tono="alerta" />
-          : <Cifra n={agotados?.perdidas} que="piezas perdidas" nota="por estar agotado" tono="alerta" />}
-      </div>
+          ? <Cifra tema="alerta" n={perdidoEnPesos} pesos que="Perdidos" nota={`${agotados.perdidas} piezas que se habrían vendido`} />
+          : <Cifra tema="alerta" n={agotados?.perdidas} que="Piezas perdidas" nota="por estar agotado" />}
+      </Cifras>
 
       <div className="tablero-rejilla">
 
@@ -382,28 +372,28 @@ export default function DashboardPanel({ onIrA }) {
 
         {/* ── Lo que más sale ───────────────────────────────────────── */}
         {topVentas.length > 0 && (
-          <Tarjeta titulo="Fundas que más salen" sub="Piezas en los últimos 30 días">
+          <Tarjeta tema="ventas" titulo="Fundas que más salen" sub="Piezas en los últimos 30 días">
             <Ranking
               filas={topVentas.map(r => ({ nombre: r.producto || r.codigo, valor: r.salidas }))}
-              color="var(--cian)" />
+              color={TEMAS.ventas.fuerte} />
           </Tarjeta>
         )}
 
         {/* ── Lo que más cuesta tener agotado ───────────────────────── */}
         {topPerdidas.length > 0 && (
-          <Tarjeta titulo="Fundas que más cuesta tener agotadas" sub="Piezas que se habrían vendido">
+          <Tarjeta tema="agotado" titulo="Fundas que más cuesta tener agotadas" sub="Piezas que se habrían vendido">
             <Ranking
               filas={topPerdidas.map(f => ({ nombre: f.producto, valor: piezasPerdidas(f) }))}
-              color="var(--magenta)" />
+              color={TEMAS.agotado.fuerte} />
           </Tarjeta>
         )}
 
         {/* ── Micas e hidrogel, con su propio control ───────────────── */}
         {topProtector.length > 0 && (
-          <Tarjeta titulo="Micas e hidrogel" sub="Se controlan aparte de las fundas">
+          <Tarjeta tema="inventario" titulo="Micas e hidrogel" sub="Se controlan aparte de las fundas">
             <Ranking
               filas={topProtector.map(r => ({ nombre: r.producto || r.codigo, valor: r.salidas }))}
-              color="var(--naranja)" />
+              color={TEMAS.inventario.fuerte} />
             <p className="tablero-nota">
               {agotadosProtector.length > 0
                 ? `${agotadosProtector.length} en cero en alguna tienda.`
@@ -416,7 +406,7 @@ export default function DashboardPanel({ onIrA }) {
 
         {/* ── Precios que se salen de la raya ───────────────────────── */}
         {fueraDePrecio.length > 0 && (
-          <Tarjeta titulo="Precios fuera de la raya" sub="Comparado con la mediana de las otras plazas">
+          <Tarjeta tema="alerta" titulo="Precios fuera de la raya" sub="Comparado con la mediana de las otras plazas">
             <ul className="tablero-precios">
               {fueraDePrecio.map(d => (
                 <li key={`${d.codigo}|${d.slug}`}>
@@ -437,7 +427,7 @@ export default function DashboardPanel({ onIrA }) {
 
         {/* ── Personal ──────────────────────────────────────────────── */}
         {personal?.filas?.length > 0 && (
-          <Tarjeta titulo="Personal" sub={`Acumulado de la semana del ${formatoRango(rango)}`}>
+          <Tarjeta tema="neutro" titulo="Personal" sub={`Acumulado de la semana del ${formatoRango(rango)}`}>
             <ul className="tablero-personas">
               {personal.filas.map(f => (
                 <li key={`${f.slug}|${f.persona}`}>
@@ -459,7 +449,7 @@ export default function DashboardPanel({ onIrA }) {
         )}
 
         {/* ── Estado de los inventarios ─────────────────────────────── */}
-        <Tarjeta titulo="Inventarios" sub="Piezas y última publicación">
+        <Tarjeta tema="inventario" titulo="Inventarios" sub="Piezas y última publicación">
           <ul className="tablero-plazas">
             {[...sucursales, BODEGA].map(s => {
               const inv = datos?.[s.slug]?.inv
@@ -484,26 +474,17 @@ export default function DashboardPanel({ onIrA }) {
 
 // ── Piezas sueltas ────────────────────────────────────────────────────────
 
-function Cifra({ n, que, nota, tono, pesos }) {
+// Las cifras y las tarjetas usan el diseño de la casa (`Diseno.jsx`): cada una
+// con el color de su tema, el mismo que tiene en su pestaña.
+function Cifra({ n, que, nota, tema, pesos }) {
   return (
-    <div className={'cifra' + (tono ? ` cifra-${tono}` : '')}>
-      <p className="cifra-n">
-        {n == null ? '—' : (pesos ? '$' : '') + Math.round(n).toLocaleString('es-MX')}
-      </p>
-      <p className="cifra-que">{que}</p>
-      <p className="cifra-nota">{nota}</p>
-    </div>
+    <CifraCasa tema={tema} titulo={que} sub={nota}
+               valor={n == null ? '—' : (pesos ? '$' : '') + Math.round(n).toLocaleString('es-MX')} />
   )
 }
 
-function Tarjeta({ titulo, sub, children }) {
-  return (
-    <section className="tarjeta">
-      <h4>{titulo}</h4>
-      {sub && <p className="tarjeta-sub">{sub}</p>}
-      {children}
-    </section>
-  )
+function Tarjeta({ tema, titulo, sub, children }) {
+  return <Seccion tema={tema} titulo={titulo} sub={sub}>{children}</Seccion>
 }
 
 /**

@@ -17,6 +17,7 @@
 // marcar un modelo como descontinuado tampoco lo oculta: sigue vendiéndose y
 // contando, sólo deja de salir en la cola de revisión como si fuera un error.
 
+import { TEMAS } from './Diseno'
 import { Fragment, useEffect, useMemo, useState, useCallback } from 'react'
 import { SUCURSALES, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl, historialUrl } from '../lib/s3'
@@ -62,7 +63,9 @@ function Pildora({ activa, onClick, children, ...resto }) {
 
 function Dato({ valor, etiqueta, nota, color }) {
   return (
-    <div style={{ flex: 1, minWidth: 130, padding: '12px 15px', background: '#fff', border: '1px solid ' + LINEA, borderRadius: 18 }}>
+    <div style={{ flex: 1, minWidth: 130, padding: '12px 15px', borderRadius: 16,
+                  background: /^#[0-9a-f]{6}$/i.test(color ?? '') ? color + '14' : 'rgba(16,22,25,0.04)',
+                  borderLeft: '4px solid ' + (color || TINTA) }}>
       <div style={{ fontSize: 24, fontWeight: 800, color: color || TINTA, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{valor}</div>
       <div style={{ fontSize: 12, color: TINTA_SUAVE, marginTop: 3 }}>{etiqueta}</div>
       {nota && <div style={{ fontSize: 11, color: TINTA_TENUE, marginTop: 2 }}>{nota}</div>}
@@ -78,6 +81,7 @@ function Caja({ tono = 'neutro', titulo, children, ...resto }) {
       padding: '11px 14px', borderRadius: 16, lineHeight: 1.55, fontSize: 12,
       background: ambar ? 'rgba(180,83,9,0.07)' : 'rgba(16,22,25,0.03)',
       border: '1px solid ' + (ambar ? 'rgba(180,83,9,0.28)' : LINEA),
+      borderLeft: '5px solid ' + (ambar ? AMBAR : TEMAS.neutro.borde),
       color: TINTA_SUAVE,
     }}>
       {titulo && <strong style={{ display: 'block', color: ambar ? AMBAR : TINTA, fontSize: 12.5, marginBottom: 2 }}>{titulo}</strong>}
@@ -305,6 +309,13 @@ export default function DepurarPanel() {
   return (
     <div data-depurar style={{ background: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px',
                                 display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {/* La cabecera con la franja del tema «revisar»: depurar es decidir qué
+          sale del catálogo, y se distingue de lo que es venta o inventario. */}
+      <div style={{ borderLeft: '5px solid ' + TEMAS.alerta.fuerte, background: TEMAS.alerta.suave, borderRadius: 14, padding: '10px 14px' }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 800, color: TEMAS.alerta.fuerte, margin: 0 }}>
+          Depurar: lo que sale del catálogo
+        </h3>
+      </div>
       <p style={{ fontSize: 12.5, color: TINTA_SUAVE, margin: 0, lineHeight: 1.6 }}>
         Lo que hay que sacar del catálogo y lo que se está liquidando. <strong>No se borra nada de
         Eleventa</strong>: dar de baja apunta la decisión y arma la lista de lo que cada tienda borra en

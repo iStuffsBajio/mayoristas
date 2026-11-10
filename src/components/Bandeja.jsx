@@ -26,6 +26,7 @@
 // una capa de estado encima, no una tabla de incidencias: si el respaldo deja
 // de producir un caso, se cierra solo. No hay incidencias zombi posibles.
 
+import { TEMAS } from './Diseno'
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import {
   ESTADOS, ESTADOS_QUE_SE_ELIGEN, TEXTO_ESTADO, GRAVEDADES,
@@ -116,7 +117,9 @@ const codigosDe = h => (h?.codigos ?? [])
 
 function Dato({ n, etiqueta, color, nota }) {
   return (
-    <div style={{ flex: 1, minWidth: 104, padding: '10px 12px', border: '1px solid ' + LINEA, borderRadius: 16 }}>
+    <div style={{ flex: 1, minWidth: 104, padding: '10px 12px', borderRadius: 16,
+                  background: /^#[0-9a-f]{6}$/i.test(color ?? '') ? color + '14' : 'rgba(16,22,25,0.04)',
+                  borderLeft: '4px solid ' + (color ?? TINTA) }}>
       <div style={{ fontSize: 20, fontWeight: 800, color: color ?? TINTA, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{n}</div>
       <div style={{ fontSize: 11, color: TINTA_SUAVE, marginTop: 2 }}>{etiqueta}</div>
       {nota && <div style={{ fontSize: 10, color: TINTA_TENUE, marginTop: 1 }}>{nota}</div>}
@@ -733,7 +736,7 @@ function PorSucursal({ grupos, catalogo }) {
   if (!grupos.length) return null
 
   return (
-    <section data-por-sucursal style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <section data-por-sucursal style={{ display: 'flex', flexDirection: 'column', gap: 8, border: '1px solid ' + TEMAS.inventario.borde, borderLeft: '5px solid ' + TEMAS.inventario.fuerte, background: TEMAS.inventario.suave, borderRadius: 18, padding: '12px 14px' }}>
       <h5 style={{ fontSize: 12.5, fontWeight: 800, color: TINTA, margin: 0 }}>
         Lo que le toca a cada plaza
       </h5>
@@ -782,7 +785,7 @@ function Causa({ incidencias, inventarios, hoy }) {
   const medio = useMemo(() => tiempoMedio(incidencias), [incidencias])
 
   return (
-    <section data-causa style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <section data-causa style={{ display: 'flex', flexDirection: 'column', gap: 10, border: '1px solid ' + TEMAS.alerta.borde, borderLeft: '5px solid ' + TEMAS.alerta.fuerte, background: TEMAS.alerta.suave, borderRadius: 18, padding: '12px 14px' }}>
       <h5 style={{ fontSize: 12.5, fontWeight: 800, color: TINTA, margin: 0 }}>
         De dónde sale el trabajo
       </h5>
@@ -852,7 +855,7 @@ function Excepciones({ excepciones, onRevocar, hoy }) {
   const lista = Object.values(excepciones)
   if (!lista.length) return null
   return (
-    <section data-excepciones style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+    <section data-excepciones style={{ display: 'flex', flexDirection: 'column', gap: 7, border: '1px solid ' + TEMAS.neutro.borde, borderLeft: '5px solid ' + TEMAS.neutro.fuerte, background: TEMAS.neutro.suave, borderRadius: 18, padding: '12px 14px' }}>
       <h5 style={{ fontSize: 12.5, fontWeight: 800, color: TINTA, margin: 0 }}>
         Avisos apagados a propósito
         <span style={{ marginInlineStart: 6, color: AMBAR }}>{lista.length}</span>
@@ -890,7 +893,7 @@ function Excepciones({ excepciones, onRevocar, hoy }) {
 function Catalogo({ catalogo, onGuardar, guardando }) {
   const [abierto, setAbierto] = useState(null)
   return (
-    <section data-catalogo style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+    <section data-catalogo style={{ display: 'flex', flexDirection: 'column', gap: 7, border: '1px solid ' + TEMAS.neutro.borde, borderLeft: '5px solid ' + TEMAS.neutro.fuerte, background: TEMAS.neutro.suave, borderRadius: 18, padding: '12px 14px' }}>
       <h5 style={{ fontSize: 12.5, fontWeight: 800, color: TINTA, margin: 0 }}>
         Qué significa cada error
       </h5>
@@ -967,7 +970,8 @@ function Tablero({ incidencias, onAbrir }) {
         return (
           <div key={c.estado} data-columna={c.estado}
                style={{ flex: '1 0 190px', minWidth: 190, border: '1px solid ' + LINEA,
-                        borderRadius: 14, padding: '8px 9px', background: '#fff' }}>
+                        borderTop: '4px solid ' + c.color, borderRadius: 14, padding: '8px 9px',
+                        background: c.color + '0D' }}>
             <p style={{ fontSize: 11, fontWeight: 800, color: c.color, margin: '0 0 7px' }}>
               {TEXTO_ESTADO[c.estado]}
               <span style={{ marginInlineStart: 5, color: TINTA_TENUE }}>{suyas.length}</span>

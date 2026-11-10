@@ -2356,6 +2356,25 @@ los usan las dos vistas: la tabla diaria de depósitos pinta cada renglón con e
 color de su concepto (`CONCEPTO_DE_LINEA`; un adelanto es sueldo, los retiros y
 proveedores son gasto, los faltantes van en alerta porque NO restan).
 
+### El diseño del corte es el diseño de TODO el panel
+
+El dueño lo pidió el 2026-11-10: «muy intuitivo y muy fácil de comprender…
+tiene más cuerpo y puedo distinguir de mejor manera cada sección». Las piezas
+viven en `src/components/Diseno.jsx` —`Seccion`, `Cifra`, `Cifras`,
+`CajaDeTabla`— y los colores en `src/lib/coloresCaja.js`, una sola paleta.
+
+Lo que manda es el TEMA de una sección, no el gusto, y es el mismo en todas
+las pestañas:
+
+| ventas | inventario | agotado | comprar | dinero | revisar/alerta | neutro |
+|---|---|---|---|---|---|---|
+| azul | verde azulado | rosa | morado | verde | ámbar | tinta |
+
+Se aplicó cambiando las piezas propias de cada pestaña (`Dato`, `Tarjeta`,
+`Plegable`, `Caja`, `Contador`) y la envoltura de cada bloque, sin tocar su
+lógica: Dashboard, Ventas, Inventarios, Surtido y Bodega, Revisar y Depurar.
+Una pestaña nueva tiene que salir de `Diseno.jsx`, o volverá a verse plana.
+
 ### ⚠️ «No compraron» sin detalle por día decía que nadie compró
 
 El ranking de mayoristas se pidió «como la venta de productos», y ahora lo es:

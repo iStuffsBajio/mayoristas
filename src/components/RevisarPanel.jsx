@@ -1,3 +1,4 @@
+import { TEMAS } from './Diseno'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import {
@@ -371,6 +372,17 @@ export default function RevisarPanel() {
 
   return (
     <div className="revisar">
+      {/* La cabecera con la franja del tema «revisar», el mismo ámbar que la
+          alerta del tablero: es la pestaña de lo que hay que corregir. */}
+      <div style={{ borderLeft: '5px solid ' + TEMAS.alerta.fuerte, background: TEMAS.alerta.suave,
+                    borderRadius: 14, padding: '10px 14px', marginBottom: 14 }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 800, color: TEMAS.alerta.fuerte, margin: 0 }}>
+          Revisar: códigos y nombres que no cuadran entre plazas
+        </h3>
+        <p style={{ fontSize: 12, color: '#4A5A61', margin: '2px 0 0', lineHeight: 1.5 }}>
+          Cada caso con su evidencia al lado. Lo que se contesta aquí lo ve administración y la tienda.
+        </p>
+      </div>
       <header className="revisar-avance">
         {sinRed && (
           <span className="revisar-sinred" role="status">
