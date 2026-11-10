@@ -23,6 +23,8 @@ import { useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { apiConfigurada } from '../lib/api'
 import { useCaja } from '../lib/useCaja'
+import CortePanel from './CortePanel'
+import { colorDeLinea, FONDO_CABECERA } from '../lib/coloresCaja'
 import {
   ESTADOS, DIAS, pesos, pesosCortos, semaforo, faltantesDe, gastosQueDuelen,
   movimientosDeSemana, cortesQueFaltan, devolucionesDelDia, movimientosDelDia,
@@ -563,12 +565,13 @@ function TablaDias({ plaza, bloque, cubre, onAjustar }) {
 
       <CortesQueFaltan plaza={plaza} bloque={bloque} />
 
+      <div style={{ border: '1px solid ' + LINEA, borderRadius: 14, overflowX: 'auto' }}>
       <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', fontSize: 12.5 }}>
-        <thead>
+        <thead style={{ background: FONDO_CABECERA }}>
           <tr>
             <th style={{ textAlign: 'left', padding: '6px 8px', fontSize: 10, fontWeight: 700,
               color: TINTA_TENUE, textTransform: 'uppercase', letterSpacing: '0.06em',
-              borderBottom: '1px solid ' + LINEA, position: 'sticky', left: 0, background: '#fff' }}>Línea</th>
+              borderBottom: '1px solid ' + LINEA, position: 'sticky', left: 0, background: FONDO_CABECERA }}>Línea</th>
             {bloque.filas.map(f => (
               <th key={f.f} style={{ textAlign: 'right', padding: '6px 8px', fontSize: 10, fontWeight: 700,
                 color: f.conControl ? TINTA_TENUE : AMBAR, textTransform: 'uppercase',
@@ -590,15 +593,18 @@ function TablaDias({ plaza, bloque, cubre, onAjustar }) {
             // VERSE por fuera: puesta con el mismo color que las restas,
             // cualquiera la lee como una más y la suma con la vista.
             const esNota = clase === 'nota'
+            // Cada renglón con el color de su concepto, el mismo del corte.
+            const c = colorDeLinea(clave)
             return (
               <tr key={clave} data-linea={clave}
-                style={{ background: esTotal ? 'rgba(16,22,25,0.025)' : undefined }}>
+                style={{ background: esTotal ? c.suave : undefined, borderBottom: '1px solid rgba(16,22,25,0.04)' }}>
                 {/* El NOMBRE abre el detalle; las celdas siguen abriendo el
                     ajuste, que es lo que hacían. Dos cosas distintas en el
                     mismo renglón, y cada una donde se espera. */}
-                <td style={{ padding: '6px 8px', color: esTotal ? TINTA : esNota ? AMBAR : TINTA_SUAVE,
-                  fontWeight: esTotal ? 800 : 500, whiteSpace: 'nowrap',
-                  position: 'sticky', left: 0, background: esTotal ? '#F7F8F9' : '#fff' }}>
+                <td style={{ padding: '7px 10px', color: esTotal ? c.fuerte : esNota ? AMBAR : TINTA,
+                  fontWeight: esTotal ? 800 : 600, whiteSpace: 'nowrap',
+                  position: 'sticky', left: 0, background: esTotal ? '#F4F8F9' : '#fff',
+                  borderLeft: '4px solid ' + c.fuerte }}>
                   {CON_DETALLE[clave] ? (
                     <button type="button" data-ver-detalle={clave}
                             onClick={() => setDetalle(d => (d === clave ? null : clave))}
@@ -629,8 +635,8 @@ function TablaDias({ plaza, bloque, cubre, onAjustar }) {
                     </td>
                   )
                 })}
-                <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 800,
-                  color: esTotal ? TINTA : esNota ? AMBAR : TINTA_SUAVE, whiteSpace: 'nowrap' }}>
+                <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 800,
+                  color: c.fuerte, background: c.suave, whiteSpace: 'nowrap' }}>
                   {pesos(bloque.total[clave])}
                 </td>
               </tr>
@@ -667,6 +673,7 @@ function TablaDias({ plaza, bloque, cubre, onAjustar }) {
           </tr>
         </tbody>
       </table>
+      </div>
 
       {/* Las salidas con su CONCEPTO, aquí dentro y no sólo en el tablero.
           El dueño las buscó en esta vista -«no sé dónde puedo ver las salidas
@@ -1069,9 +1076,16 @@ function Concentrado({ plazas }) {
 
 // ── La pantalla ────────────────────────────────────────────────────────────
 
+// El corte semanal vive aquí desde el 2026-11-09, como una vista más: lo decidió
+// el dueño —«van muy en armonía una con la otra»—. Corte y Efectivo salen de la
+// MISMA cuenta semanal del punto de venta: el corte dice si cuadra lo contado en
+// la caja, y el resto de esta pestaña si se depositó. Las tiendas siguen viendo
+// SÓLO su corte, en su panel: lo demás de aquí lleva faltantes con nombre y la
+// cuenta del banco.
 const VISTAS = [
-  ['tablero',    'Tablero'],
-  ['bloques',    'Bloques por sucursal'],
+  ['tablero',    'Resumen'],
+  ['corte',      'Corte semanal'],
+  ['bloques',    'Depósitos por sucursal'],
   ['faltantes',  'Faltantes'],
   ['parametros', 'Parámetros'],
 ]
@@ -1117,17 +1131,29 @@ export default function EfectivoPanel() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
-      <nav className="flex gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
+      {/* Las subsecciones van como un control segmentado, no como pastillas:
+          debajo, el corte y los depósitos tienen sus PROPIAS pastillas de plaza,
+          y dos filas iguales no se distinguen. */}
+      <nav aria-label="Secciones de efectivo" style={{
+        display: 'flex', gap: 4, padding: 4, borderRadius: 999, background: '#EEF3F5',
+        overflowX: 'auto', scrollbarWidth: 'none', alignSelf: 'flex-start', maxWidth: '100%',
+      }}>
         {VISTAS.map(([id, t]) => (
-          <button key={id} type="button" onClick={() => setVista(id)}
-            className={'chip-plaza' + (vista === id ? ' activa' : '')}
-            aria-current={vista === id ? 'page' : undefined}>
-            <span className="chip-plaza-texto">{t}</span>
+          <button key={id} type="button" onClick={() => setVista(id)} data-vista-efectivo={id}
+            aria-current={vista === id ? 'page' : undefined}
+            style={{
+              border: 0, borderRadius: 999, padding: '8px 16px', fontSize: 12.5, fontWeight: 700,
+              fontFamily: 'inherit', whiteSpace: 'nowrap', cursor: 'pointer',
+              background: vista === id ? TINTA : 'transparent', color: vista === id ? '#fff' : TINTA_SUAVE,
+            }}>
+            {t}
           </button>
         ))}
       </nav>
 
-      {cargando && (
+      {vista === 'corte' && <CortePanel />}
+
+      {cargando && vista !== 'corte' && (
         <div style={caja}>
           <p style={{ margin: 0, fontSize: 13, color: TINTA_TENUE }}>Leyendo el flujo de las cinco plazas…</p>
         </div>

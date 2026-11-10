@@ -42,7 +42,7 @@ en `CLAUDE.md`. La fase B
 - Backend: `npm test` en `backend/` — 137 pruebas pasaron, incluida la paridad
   entre el candado del servidor y el de la página y lo que ve cada sesión del corte.
 - `npm run build` pasó (con la advertencia de tamaño de paquete de siempre).
-- `npm run verificar`: 4 sesiones, 19 secciones de panel y 145 cabeceras, con
+- `npm run verificar`: 4 sesiones, 18 secciones de panel y 145 cabeceras, con
   el corte de la tienda y del administrador. Metiendo a propósito una
   tolerancia de un peso, falló en tres sitios. Se
   comprobó rompiendo a propósito dos piezas del candado y del filtro de Revisar

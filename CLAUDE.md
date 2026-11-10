@@ -534,7 +534,7 @@ se reparte en varios días a propósito, y lleva dentro uno de 25 días que
 todavía no se puede juzgar: así se ejercita «muy nuevos» y de paso se comprueba
 que una tanda partida en días NO salga como dos ediciones.
 
-Hoy cubre: 4 sesiones · 15 pestañas · 19 secciones de panel · 145 cabeceras ·
+Hoy cubre: 4 sesiones · 15 pestañas · 18 secciones de panel · 145 cabeceras ·
 **el corte semanal** con la tienda —sin tolerancia, guardando los tres colores,
 sin ver nombres de otra plaza, con sus reglas de mayoreo y sus cobros sin
 referencia— y con el administrador —todas, Torreón con su ciclo, la comisión y
@@ -2336,6 +2336,25 @@ El estado de resultados es una **cascada** —ventas, menos lo cobrado por otra
 vía, igual a efectivo cobrado, más y menos lo demás, igual a lo esperado— con
 una barra por renglón frente a la venta. Las tablas son las de Inventarios:
 contenedor redondeado, cabecera fija y, donde se ordena, `aria-sort`.
+
+### Corte y Efectivo van en la MISMA pestaña del administrador
+
+Lo decidió el dueño el 2026-11-09: «van muy en armonía una con la otra». La
+pestaña se llama **Efectivo y corte** y el corte es una vista más de
+`EfectivoPanel` (Resumen · Corte semanal · Depósitos por sucursal · Faltantes ·
+Parámetros), con un control segmentado para que no se confunda con las pastillas
+de plaza que lleva cada vista debajo.
+
+No se fundieron en una sola página, a propósito: salen de la MISMA cuenta
+semanal, pero hacen dos trabajos —el corte dice si cuadra lo contado en la
+caja; los depósitos, si llegó al banco— y la pestaña de Efectivo lleva faltantes
+con nombre y la cuenta del banco, que una tienda no puede ver. **Las tiendas
+siguen viendo SÓLO su Corte**, en su panel.
+
+Los colores de cada concepto viven una sola vez en `src/lib/coloresCaja.js` y
+los usan las dos vistas: la tabla diaria de depósitos pinta cada renglón con el
+color de su concepto (`CONCEPTO_DE_LINEA`; un adelanto es sueldo, los retiros y
+proveedores son gasto, los faltantes van en alerta porque NO restan).
 
 ### ⚠️ «No compraron» sin detalle por día decía que nadie compró
 

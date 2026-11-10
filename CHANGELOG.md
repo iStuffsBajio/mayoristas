@@ -5,6 +5,11 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-09
 
+- **Efectivo y corte, en una sola pestaña** del administrador: el corte semanal
+  es una subsección de Efectivo, junto a Resumen, Depósitos por sucursal,
+  Faltantes y Parámetros, y la tabla diaria de depósitos usa los mismos colores
+  por concepto que el corte. Las tiendas siguen viendo sólo su corte.
+
 - **El corte, más visual:** cada concepto con su color (ventas azul, otras
   entradas verde, tarjeta y transferencia verde azulado, gastos ámbar, sueldo
   morado, comisiones rosa), cifras grandes arriba de cada semana, barras en las

@@ -2845,9 +2845,6 @@ for (const [nombre, sesion] of SESIONES) {
         if (/corte/i.test(t) && nombre === 'sucursal') {
           cortesVistos += await corteDeLaTienda(window, `${nombre} · ${t}`)
         }
-        if (/corte/i.test(t) && nombre === 'admin') {
-          cortesVistos += await corteDelAdmin(window, `${nombre} · ${t}`)
-        }
         if (/depurar/i.test(t) && nombre === 'admin') {
           const r = await depurar(window, `${nombre} · admin · ${t}`)
           depuradosVistos += r.vistas
@@ -2868,6 +2865,17 @@ for (const [nombre, sesion] of SESIONES) {
           // estaba en pantalla.
           salidasVistas += await salidasDeCaja(window, `${nombre} · admin · ${t}`)
           plazasDeEfectivo += await revisarEfectivo(window, `${nombre} · admin · ${t}`)
+          // El corte semanal es una vista de Efectivo desde el 2026-11-09.
+          if (nombre === 'admin') {
+            const vista = window.document.querySelector('[data-vista-efectivo="corte"]')
+            if (!vista) errores.push(`${nombre} · ${t} · no hay vista de corte semanal dentro de Efectivo`)
+            else {
+              clic(window, vista)
+              await nuevaVuelta(window, 8)
+              cabeceras += await todasLasCabeceras(window, `${nombre} · ${t} · corte`)
+              cortesVistos += await corteDelAdmin(window, `${nombre} · ${t} · corte`)
+            }
+          }
         }
       }
     }

@@ -37,30 +37,21 @@ import {
 import { rankingDeMayoristas, RANGOS_DE_MAYORISTAS } from '../lib/mayoristas'
 import { MOTIVOS_DE_MAYOREO, FORMAS_ELECTRONICAS } from '../lib/reglasMayoreo'
 import { pesos } from '../lib/caja'
+import { COLORES, FONDO_CABECERA } from '../lib/coloresCaja'
 
 const TINTA       = '#101619'
 const TINTA_SUAVE = '#4A5A61'
 const TINTA_TENUE = '#8598A1'
 const LINEA       = '#D6E0E4'
-const FONDO_CAB   = '#F7FAFB'
+const FONDO_CAB   = FONDO_CABECERA
 const VERDE       = '#4B7A1B'
 const ROJO        = '#C4156F'
 const AZUL        = '#0288AD'
 const GRIS        = '#8598A1'
 const AMBAR       = '#B45309'
 
-/** El color de cada concepto: fuerte para el texto, suave para el fondo. */
-const C = {
-  ventas:      { fuerte: '#0277A0', suave: 'rgba(2,136,173,0.08)',   borde: 'rgba(2,136,173,0.30)',   barra: 'rgba(2,136,173,0.22)' },
-  entradas:    { fuerte: '#3F6F14', suave: 'rgba(75,122,27,0.09)',   borde: 'rgba(75,122,27,0.32)',   barra: 'rgba(75,122,27,0.25)' },
-  electronico: { fuerte: '#0F766E', suave: 'rgba(15,118,110,0.08)',  borde: 'rgba(15,118,110,0.30)',  barra: 'rgba(15,118,110,0.22)' },
-  gastos:      { fuerte: '#B45309', suave: 'rgba(180,83,9,0.08)',    borde: 'rgba(180,83,9,0.30)',    barra: 'rgba(180,83,9,0.22)' },
-  sueldo:      { fuerte: '#6D28D9', suave: 'rgba(109,40,217,0.07)',  borde: 'rgba(109,40,217,0.28)',  barra: 'rgba(109,40,217,0.20)' },
-  comisiones:  { fuerte: '#BE185D', suave: 'rgba(190,24,93,0.07)',   borde: 'rgba(190,24,93,0.28)',   barra: 'rgba(190,24,93,0.20)' },
-  piezas:      { fuerte: '#4B7A1B', suave: 'rgba(75,122,27,0.06)',   borde: 'rgba(75,122,27,0.25)',   barra: 'rgba(75,122,27,0.20)' },
-  caja:        { fuerte: TINTA,     suave: 'rgba(16,22,25,0.04)',    borde: LINEA,                    barra: 'rgba(16,22,25,0.14)' },
-  alerta:      { fuerte: AMBAR,     suave: 'rgba(180,83,9,0.06)',    borde: 'rgba(180,83,9,0.30)',    barra: 'rgba(180,83,9,0.20)' },
-}
+/** El color de cada concepto: compartido con Efectivo, que va en la misma pestaña. */
+const C = COLORES
 
 const COLOR = { verde: VERDE, rojo: ROJO, azul: AZUL, gris: GRIS }
 const PUNTO = { verde: '🟢', rojo: '🔴', azul: '🔵', gris: '⚪' }
