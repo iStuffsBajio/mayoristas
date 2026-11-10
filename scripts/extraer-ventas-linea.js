@@ -270,7 +270,10 @@ async function procesar(slug) {
     //   · La VENTANA, para cualquier cuenta de PRECIO. Mezclar las dos fue el
     //     error que dio una «diferencia» de 1.5 millones que era, casi toda,
     //     cinco años de subidas de precio.
-    const agregado = agregarVentas({ tickets, lineas })
+    // El desglose por día y tipo de pieza, y lo que compra cada mayorista, para
+    // el corte de cada sucursal. Sólo los últimos 120 días y sólo aquí: la
+    // ventana de 365 días no lo lleva, o el archivo saldría duplicado.
+    const agregado = agregarVentas({ tickets, lineas, detalleDias: 120 })
     const corte = new Date(Date.now() - DIAS_VENTANA * 86400000).toISOString().slice(0, 10)
     const reciente = agregarVentas({ tickets, lineas, desdeDia: corte })
 

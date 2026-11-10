@@ -534,7 +534,10 @@ se reparte en varios días a propósito, y lleva dentro uno de 25 días que
 todavía no se puede juzgar: así se ejercita «muy nuevos» y de paso se comprueba
 que una tanda partida en días NO salga como dos ediciones.
 
-Hoy cubre: 4 sesiones · 15 pestañas · 17 secciones de panel · 73 cabeceras ·
+Hoy cubre: 4 sesiones · 15 pestañas · 19 secciones de panel · 73 cabeceras ·
+**el corte semanal** con la tienda —sin tolerancia, guardando los tres colores,
+sin ver nombres de otra plaza— y con el administrador —todas, Torreón con su
+ciclo y contar por una plaza— ·
 12 incidencias de la bandeja de revisión —con **las dos sesiones que la
 trabajan**, administrador y bodega, porque bodega escribe en ella igual y
 comprobarla sólo con admin dejaba fuera justo la sesión a la que ya se le
@@ -2192,12 +2195,81 @@ ejecutó. Se rompió a propósito cada pieza y se comprobó que algo lo cazaba:
 
 ---
 
-## 🔒 CONFIRMAR — El panel de corte de la sucursal: decidido el 2026-11-09, TODAVÍA NO CONSTRUIDO
+## 🔒 CONFIRMAR — El panel de corte de la sucursal (construido el 2026-11-09)
 
-El dueño pegó una especificación de cinco módulos el 2026-11-09. Lo que se
-construyó es la **Fase 1** (modelos nuevos, ficha de un modelo para el
-administrador, anomalías y depuración). Lo de abajo es lo que contestó sobre el
-panel de corte, para que la siguiente sesión no tenga que preguntarlo otra vez.
+El dueño pegó una especificación de cinco módulos el 2026-11-09. Primero se
+construyó la **Fase 1** (modelos nuevos, ficha de un modelo, anomalías y
+depuración) y después, el mismo día, este panel: la **Fase C**. Abajo está lo
+que contestó, lo que se construyó y lo que se SUPUSO para poder terminar, que
+es lo que hay que confirmarle.
+
+### Lo que se construyó
+
+| | dónde |
+|---|---|
+| La cuenta de la semana, el conteo y el ciclo de Torreón | `src/lib/corte.js`, con pruebas |
+| El ranking de mayoristas | `src/lib/mayoristas.js`, con pruebas |
+| Qué ve y qué escribe cada sesión | `backend/src/cortes.js` y las rutas `GET /corte` y `POST /corte/conteo` |
+| La pantalla | `src/components/CortePanel.jsx`: sección **Corte** de cada tienda (la primera) y del administrador |
+| Lo guardado | `cortes/<plaza>.json`, PRIVADO, un archivo por plaza y una entrada por lunes |
+
+**El recorte lo hace el servidor, no la pantalla.** `caja/` y `ventas/` siguen
+siendo privados; una tienda recibe de ellos SÓLO lo de su plaza, sin cajero,
+sin arqueo, sin faltantes (llevan el nombre de quien cerró), sin la cuenta del
+banco y sin la ventana de precios ni los cajeros de `ventas/`. Bodega no tiene
+corte: no es una tienda. `backend/test/cortes.test.js` lo fija, y `verificar`
+pasa el dato de mentira por el MISMO recorte importado del backend y comprueba
+que ningún nombre de otra plaza ni de quien cobró llegue a la pantalla.
+
+**El conteo lo totaliza el servidor**, y el autor y la hora también. Cada
+cambio deja un renglón en el historial; volver a guardar lo mismo no deja otro.
+Una semana que todavía no empieza, o anterior al 2026-11-02, se rechaza.
+
+**Sin tolerancia, comprobado.** Se compara al PESO: el esperado se redondea
+(el conteo no puede tener centavos) y de ahí para abajo no hay margen.
+`verificar` cuenta el esperado exacto, uno más y uno menos, y exige verde, azul
+y rojo; con una tolerancia de un peso metida a propósito, falló en tres sitios.
+
+**Gris no es verde.** Sin fondo de caja, sin conteo, o en una semana sin control
+de salidas (`conControl`), no se pinta color y se dice por qué.
+
+**Torreón** enseña su ciclo de cuatro semanas desde el 2026-11-09: cada semana
+compara contra lo esperado ACUMULADO hasta ahí —el dinero se va juntando— y el
+bloque global compara el último conteo contra el ciclo entero. Las semanas que
+todavía no empiezan salen como un renglón, no como un bloque de ceros.
+
+**El administrador** ve «Todas las sucursales» —totales, piezas por tipo, una
+fila por plaza con su estado, avisos de faltante o sobrante y el ranking de cada
+plaza por separado— y puede abrir cualquiera y contar por ella. En «Todas» no se
+puede contar: no se sabría de qué plaza. **Las diferencias no se suman entre
+plazas**: un faltante en una y un sobrante en otra no se compensan.
+
+### ⚠️ Supuestos que se tomaron para terminar: CONFIRMAR con el dueño
+
+- **El fondo de caja es el `fondoFijo`** que ya existe en los parámetros de cada
+  plaza (Efectivo). Sin él la plaza sale en gris. Hoy hay que capturarlo.
+- **Un sueldo se reconoce** por el tipo `adelanto` o por el concepto:
+  `sueldo`, `nómina`, `salario`, `quincena`, `raya`, `pago de personal`…
+  (`PALABRAS_SUELDO` en `corte.js`). Una salida de sueldo con otro texto caería
+  en gastos: el esperado sale igual, sólo cambia en qué lista se ve.
+- **El esperado sale del efectivo cobrado**, no de «ventas − tarjeta»: es lo
+  mismo, pero el POS ya reparte los pagos mixtos (`CORTE_OPERACIONES`) y restar
+  sólo la tarjeta dejaría dentro las transferencias.
+  `esperado = efectivo cobrado − devoluciones + otras entradas − sueldo − gastos`.
+- **El banco por banco del Excel no está**: el POS no guarda a qué banco entró
+  cada tarjeta, y el dueño dijo que lo único que se teclea es el conteo.
+- **Las notas** del Excel quedaron en un campo de observaciones por semana.
+- **Por día o turno** sigue pendiente: la tabla es por día, el cuadre por semana.
+
+### Cuándo se llena
+
+Las piezas por tipo y los mayoristas por día salen de `porDiaTipo` y
+`mayoristasPorDia` de `ventas/<plaza>.json`, que `extraer-ventas-linea.js`
+publica desde ahora con 120 días de detalle. **Hasta la próxima sincronización**
+la tabla de piezas dice que se llena entonces y el ranking también, en vez de
+pintar ceros. Las ventas en pesos ya salen de `caja/`, que existe.
+
+### Lo que contestó el dueño
 
 **Quién ve qué.** Cada sucursal ve las **ventas de la semana, de sólo lectura**,
 para confirmar que el corte le cuadra. **Lo único que alimenta es el corte
@@ -2229,13 +2301,13 @@ La cuenta del Excel es `esperado = total ventas − gastos − sueldo − tarjet
 - **El sueldo sale del acumulado de la semana, y el empleado SIEMPRE lo tiene
   que reflejar en el POS como una salida de efectivo.** Sin esa salida, el
   esperado queda por encima de lo que hay y se lee como faltante: es una regla
-  de operación de las tiendas, no sólo de la página. Falta saber cómo reconocer
-  en el POS una salida de sueldo (por tipo o por el texto del concepto).
+  de operación de las tiendas, no sólo de la página. Cómo se reconoce: ver
+  «Supuestos» arriba.
 - **NO hay ninguna tolerancia en el faltante de dinero.** Cualquier diferencia
   cuenta: $0 verde, negativo rojo, positivo azul. El parámetro `tolerancia` de
   caja se queda sin uso para este corte.
-- **El fondo de caja** sigue sin respuesta: es un parámetro por plaza y la
-  fórmula depende de él.
+- **El fondo de caja** sigue sin respuesta: se tomó el `fondoFijo` de cada
+  plaza (ver «Supuestos»).
 
 Sigue valiendo: el cuadre debería poder verse **por día o turno**, no sólo por
 semana, y antes del 2026-11-05 no había control de salidas (`conControl`).
@@ -2248,9 +2320,10 @@ cuatro bloques semanales y **un bloque global mensual**. Es un lunes, como exige
 **Mayoristas.** Ranking de CLIENTES (los «productos» del departamento
 MAYORISTAS son clientes): el acumulado de cada mayorista, el más activo y el
 menos activo. **Cada sucursal ve SÓLO el de su plaza; el único que ve todas es el
-administrador.** El rango se elige **de 7 a 30 días como máximo**. Esa lista hoy
-es privada (`ventas/` da 403 a una tienda), así que hace falta una ruta del
-backend que sirva a cada sesión sólo lo de su plaza —nunca lo de otra—.
+administrador.** El rango se elige **de 7 a 30 días como máximo** (7, 14, 21 y
+30). `ventas/` sigue dando 403 a una tienda; la lista le llega por `GET /corte`,
+sólo la de su plaza. Los que no compraron en el rango se listan aparte, los que
+lo dejaron de hacer hace menos primero.
 
 **Piezas vendidas** cuentan sólo **fundas, hidrogel y stickers**, con el desglose
 por tipo. **Micas = todo el departamento HIDROGEL**, o cualquier producto con

@@ -536,9 +536,106 @@ let TORREON_PUBLICA = false
  */
 const AJUSTES_GUARDADOS = new Map()
 
+// ── El corte semanal de la sucursal ──────────────────────────────────────
+//
+// El dato sale de los mismos `caja.flujos` del flujo de efectivo, pasado por el
+// MISMO recorte que hace el servidor —`backend/src/cortes.js`, importado, no
+// copiado—: una tienda recibe los días y los movimientos sin cajero ni
+// faltantes. Si el recorte se rompiera, `daniela coronilla` llegaría a la
+// pantalla y la comprobación de abajo lo diría.
+const {
+  diasParaTienda, movimientosParaTienda, ventasParaTienda, parametrosParaTienda,
+} = await import('../backend/src/cortes.js')
+
+// La sesión de la ventana que corre: el servidor contesta distinto a una tienda
+// y al administrador, y el mock tiene que hacer lo mismo.
+let SESION_ACTUAL = { isAdmin: false, branch: 'leon' }
+const CORTES_GUARDADOS = {}      // plaza -> { lunes -> registro }
+const POSTS_DE_CORTE = []
+
+const PLAZAS_DEL_CORTE = ['leon', 'san-luis', 'aguascalientes', 'torreon']
+const CAJA_TORREON = {
+  respaldo: { archivo: 'respaldo-08-11-26.fbk', fecha: semanaAtras(0) },
+  dias: [0, 1, 2, 3].flatMap(n => diasDe(n, 700 + n * 30)),
+  movimientos: [
+    { f: semanaAtras(0), tipo: 'gasto', monto: 90, concepto: 'papeleria', origen: 'eleventa' },
+    { f: semanaAtras(0), tipo: 'retiro', monto: 800, concepto: 'pago de nomina quincena', origen: 'eleventa' },
+  ],
+  faltantes: [],
+}
+const PARAMS_TORREON = { fondoFijo: 600, desdeControlSalidas: DESDE_CONTROL }
+
+const haceDias = n => { const d = new Date(); d.setDate(d.getDate() - n); return isoDia(d) }
+
+/** Las ventas del corte de una plaza: desglose por tipo y mayoristas de ESA plaza. */
+function ventasDeCorte(slug) {
+  const dias = diasDe(0, 0).map(d => d.f)
+  const mayor = {
+    leon:             [['ANA LOPEZ LEON (1001)', 4, 38, 5200], ['BETO RUIZ LEON (1002)', 2, 12, 1500]],
+    'san-luis':       [['CARLA PEREZ SLP (2001)', 3, 20, 2700]],
+    aguascalientes:   [['DIEGO MORA AGS (3001)', 5, 41, 5600], ['ELSA RIOS AGS (3002)', 1, 6, 650]],
+    torreon:          [['FELIPE SOTO TORREON (4001)', 2, 15, 1900]],
+  }[slug] ?? []
+  return {
+    plaza: slug, detalleDias: 120, hasta: dias[6],
+    porDiaTipo: dias.map((f, i) => ({ f, fundas: 6 + i, hidrogel: 2, stickers: 3, otros: i === 2 ? 4 : 0 })),
+    // Fechas contadas hacia ATRAS desde hoy: una venta de mañana no existe, y
+    // el ranking descarta lo futuro. Con los dias de la semana en curso, un
+    // lunes la mitad quedaba fuera y el «menos activo» no salia.
+    mayoristasPorDia: mayor.flatMap(([quien, tickets, piezas, dinero], i) =>
+      [{ f: haceDias(i), quien, tickets, piezas, dinero }, { f: haceDias(3), quien, tickets, piezas: piezas + 2, dinero: dinero + 100 }]),
+    mayoristas: [...mayor.map(([quien, tickets]) => ({ quien, tickets, ultima: haceDias(3) })),
+                 { quien: `CLIENTE VIEJO ${slug.toUpperCase()} (9999)`, tickets: 8, ultima: '2026-08-01' }],
+    // Esto NO debe llegar a una tienda: lo quita `ventasParaTienda`.
+    ventana: { dias: 365, porCodigo: {} },
+    cajeros: [{ quien: 'daniela coronilla', tickets: 50 }],
+  }
+}
+
+function datosDeCorteMock(slug, esAdmin) {
+  const f = slug === 'torreon' ? CAJA_TORREON : caja.flujos[slug]
+  const params = slug === 'torreon' ? PARAMS_TORREON : caja.parametros[slug]
+  const nombre = { leon: 'León', 'san-luis': 'San Luis Potosí', aguascalientes: 'Aguascalientes', torreon: 'Torreón' }[slug]
+  return {
+    plaza: slug, nombre,
+    caja: esAdmin
+      ? { hayDatos: true, respaldo: f.respaldo, dias: f.dias, movimientos: f.movimientos }
+      : { hayDatos: true, respaldo: f.respaldo, dias: diasParaTienda(f, isoDia(new Date())), movimientos: movimientosParaTienda(f, isoDia(new Date())) },
+    parametros: parametrosParaTienda(params),
+    ventas: ventasParaTienda(ventasDeCorte(slug)),
+    conteos: CORTES_GUARDADOS[slug] ?? {},
+  }
+}
+
+function respuestaDeCorte(u, opciones, sesionAdmin, plazaDeSesion) {
+  if (opciones?.method === 'POST') {
+    const c = JSON.parse(opciones.body ?? '{}')
+    POSTS_DE_CORTE.push(c)
+    const total = Object.entries(c.cantidades ?? {}).reduce((a, [d, q]) => a + Number(d) * Number(q), 0)
+    const previo = CORTES_GUARDADOS[c.plaza]?.[c.semana]
+    const cuando = new Date().toISOString()
+    const registro = {
+      semana: c.semana, cantidades: c.cantidades, total, observaciones: c.observaciones ?? '',
+      cuando, quien: sesionAdmin ? 'admin' : plazaDeSesion,
+      historial: [...(previo?.historial ?? []), { cuando, quien: 'x', total }],
+    }
+    CORTES_GUARDADOS[c.plaza] = { ...(CORTES_GUARDADOS[c.plaza] ?? {}), [c.semana]: registro }
+    return { ok: true, registro }
+  }
+  const pedida = u.match(/plaza=([a-z-]+)/)?.[1]
+  const slugs = pedida && pedida !== 'todas' ? [pedida] : (sesionAdmin ? PLAZAS_DEL_CORTE : [plazaDeSesion])
+  return {
+    hoy: isoDia(new Date()),
+    plazas: Object.fromEntries(slugs.map(s => [s, datosDeCorteMock(s, sesionAdmin)])),
+  }
+}
+
 /** Lo que devuelve cada ruta, según lo que pida. `null` es un 404. */
 function respuesta(url, opciones) {
   const u = String(url)
+  if (/\/corte(\/conteo)?(\?|$)/.test(u)) {
+    return respuestaDeCorte(u, opciones, SESION_ACTUAL.isAdmin, SESION_ACTUAL.branch)
+  }
   if (opciones?.method === 'POST' && /\/ajustes(\?|$)/.test(u)) {
     const c = JSON.parse(opciones.body ?? '{}')
     const items = c.items?.length ? c.items : [{ codigo: c.codigo, producto: c.producto }]
@@ -720,6 +817,7 @@ async function arrancar(sesion) {
   })
 
   const { window } = dom
+  SESION_ACTUAL = sesion ?? { isAdmin: false, branch: null }
 
   if (sesion) window.sessionStorage.setItem('istuffs_session', JSON.stringify(sesion))
 
@@ -2426,6 +2524,142 @@ async function marcarUnBloque(window, donde) {
   enPie(window, `${donde} · tras marcar el deposito`)
 }
 
+// ── El corte semanal ────────────────────────────────────────────────────────
+
+const { bloquesDeCorte, PLAZAS_CORTE } = await import('../src/lib/corte.js')
+const hoyDeCorte = () => isoDia(new Date())
+const bloquesEsperados = slug => {
+  const plaza = PLAZAS_CORTE.find(p => p.slug === slug)
+  const d = datosDeCorteMock(slug, true)
+  return bloquesDeCorte({
+    plaza, fecha: hoyDeCorte(), caja: d.caja, ventas: d.ventas, params: d.parametros, conteos: d.conteos,
+  })
+}
+
+/** Escribe un conteo de monedas de $1 y devuelve lo que dice el semáforo en vivo. */
+async function contarEnUnPeso(window, bloque, cantidad) {
+  const campo = bloque.querySelector('[data-denominacion="1"]')
+  escribir(window, campo, String(cantidad))
+  await nuevaVuelta(window, 3)
+  return bloque.querySelector('[data-diferencia-en-vivo]')?.getAttribute('data-diferencia-en-vivo') ?? null
+}
+
+/**
+ * El corte de UNA TIENDA: sus ventas, su conteo, sin tolerancia y sin ver nada
+ * de otra plaza ni de quien cobró.
+ */
+async function corteDeLaTienda(window, donde) {
+  const doc = window.document
+  const raiz = doc.querySelector('[data-corte]')
+  if (!raiz) { errores.push(`${donde} · el corte no se dibujo`); return 0 }
+  if (doc.querySelector('[data-corte-plaza]')) errores.push(`${donde} · una tienda ve el selector de plazas`)
+
+  const esperados = bloquesEsperados('leon')
+  const bloques = [...doc.querySelectorAll('[data-bloque-corte]')]
+  if (bloques.length !== esperados.bloques.length) {
+    errores.push(`${donde} · dibujo ${bloques.length} semanas y deberian ser ${esperados.bloques.length}`)
+  }
+  const b0 = bloques[0]
+  if (!b0) { errores.push(`${donde} · no hay semana en curso`); return 0 }
+  if (b0.querySelectorAll('[data-dia-corte]').length !== 7) errores.push(`${donde} · la tabla de ventas no trae siete dias`)
+  const cab = b0.querySelector('[data-tabla-ventas] thead')?.textContent ?? ''
+  for (const t of ['Fundas', 'Hidrogel', 'Stickers', 'Piezas']) {
+    if (!cab.includes(t)) errores.push(`${donde} · la tabla de ventas no tiene la columna «${t}»`)
+  }
+
+  // Lo que sale del punto de venta: gastos y sueldos, cada uno en su lista.
+  const gastos = b0.querySelector('[data-lista-corte="Gastos de la semana"]')?.textContent ?? ''
+  if (!/garrafon de agua/.test(gastos)) errores.push(`${donde} · el gasto del punto de venta no sale en la lista de gastos`)
+  if (/FALTANTE EN CAJA/i.test(raiz.textContent)) errores.push(`${donde} · un faltante registrado salio en la pantalla de la tienda`)
+
+  // Privacidad: nada de quien cobro ni de otras plazas.
+  const texto = raiz.textContent
+  for (const prohibido of ['daniela', 'jenni', 'CARLA PEREZ', 'DIEGO MORA', 'FELIPE SOTO']) {
+    if (new RegExp(prohibido, 'i').test(texto)) errores.push(`${donde} · la pantalla de la tienda enseña «${prohibido}»`)
+  }
+
+  // Sin conteo no hay semaforo de color: gris.
+  if (b0.getAttribute('data-estado-corte') !== 'sin-conteo') {
+    errores.push(`${donde} · sin conteo la semana debia salir «sin-conteo» y salio «${b0.getAttribute('data-estado-corte')}»`)
+  }
+
+  // SIN TOLERANCIA: el peso exacto cuadra y un peso de diferencia ya no.
+  const esperado = esperados.bloques[0].esperadoEnCaja
+  if (esperado === null || esperado < 2) { errores.push(`${donde} · no hay esperado con que comparar`); return 0 }
+  const casos = [[esperado, 'cuadra', 'verde'], [esperado + 1, 'sobrante', 'azul'], [esperado - 1, 'faltante', 'rojo']]
+  for (const [cantidad, estado, color] of casos) {
+    const vivo = await contarEnUnPeso(window, doc.querySelector('[data-bloque-corte]'), cantidad)
+    if (vivo !== estado) errores.push(`${donde} · contando $${cantidad} (esperado $${esperado}) el semaforo en vivo dijo «${vivo}» y debia decir «${estado}»: hay una tolerancia escondida`)
+    // Y al guardarlo, el bloque cambia de estado y de color.
+    const antes = POSTS_DE_CORTE.length
+    clic(window, doc.querySelector('[data-bloque-corte] [data-guardar-conteo]'))
+    await nuevaVuelta(window, 6)
+    if (POSTS_DE_CORTE.length !== antes + 1) { errores.push(`${donde} · guardar «${estado}» no mando el conteo al servidor`); continue }
+    const enviado = POSTS_DE_CORTE.at(-1)
+    if (enviado.plaza !== 'leon' || enviado.semana !== esperados.bloques[0].clave) {
+      errores.push(`${donde} · el conteo se mando con plaza/semana equivocadas: ${enviado.plaza} ${enviado.semana}`)
+    }
+    const b = doc.querySelector('[data-bloque-corte]')
+    if (b.getAttribute('data-estado-corte') !== estado) errores.push(`${donde} · guardado «${estado}», el bloque dice «${b.getAttribute('data-estado-corte')}»`)
+    if (!b.querySelector(`[data-semaforo="${color}"]`)) errores.push(`${donde} · el color de «${estado}» no es ${color}`)
+    if (!b.querySelector('[data-conteo-guardado]')) errores.push(`${donde} · tras guardar no dice quien ni cuando`)
+  }
+
+  // Mayoristas: solo los de su plaza, mas y menos activo, y los 4 rangos.
+  const m = doc.querySelector('[data-mayoristas="leon"]')
+  if (!m) { errores.push(`${donde} · no salio el ranking de mayoristas`); return 1 }
+  if (doc.querySelectorAll('[data-mayoristas]').length !== 1) errores.push(`${donde} · una tienda ve mas de un ranking`)
+  if (!/ANA LOPEZ/.test(m.querySelector('[data-mas-activo]')?.textContent ?? '')) errores.push(`${donde} · el mas activo no es ANA LOPEZ`)
+  if (!/BETO RUIZ/.test(m.querySelector('[data-menos-activo]')?.textContent ?? '')) errores.push(`${donde} · el menos activo no es BETO RUIZ`)
+  const rangos = [...m.querySelectorAll('[data-rango-mayoristas]')].map(x => x.getAttribute('data-rango-mayoristas'))
+  if (rangos.join() !== '7,14,21,30') errores.push(`${donde} · los rangos son ${rangos.join()} y deben ser 7 a 30`)
+  clic(window, m.querySelector('[data-rango-mayoristas="30"]'))
+  await nuevaVuelta(window, 3)
+  if (!doc.querySelector('[data-mayoristas="leon"] [data-sin-compras]')) errores.push(`${donde} · no dice que mayoristas no compraron`)
+
+  // Semana anterior y de vuelta.
+  const ant = doc.querySelector('[data-semana-anterior]')
+  if (ant && !ant.disabled) {
+    clic(window, ant)
+    await nuevaVuelta(window, 4)
+    if (!enPie(window, `${donde} · semana anterior`)) return 1
+    if (!doc.querySelector('[data-bloque-corte]')) errores.push(`${donde} · la semana anterior se quedo sin bloques`)
+    clic(window, doc.querySelector('[data-semana-siguiente]'))
+    await nuevaVuelta(window, 4)
+  }
+  return 1
+}
+
+/** El corte del ADMINISTRADOR: todas las plazas, el ciclo de Torreon y lo que ve cada una. */
+async function corteDelAdmin(window, donde) {
+  const doc = window.document
+  if (!doc.querySelector('[data-corte]')) { errores.push(`${donde} · el corte no se dibujo`); return 0 }
+  if (!doc.querySelector('[data-resumen-global]')) errores.push(`${donde} · sin resumen de todas las plazas`)
+  if (doc.querySelectorAll('[data-plaza-resumen]').length !== 4) errores.push(`${donde} · el resumen no trae las cuatro plazas`)
+  if (doc.querySelectorAll('[data-mayoristas]').length !== 4) errores.push(`${donde} · el administrador no ve el ranking de las cuatro plazas`)
+  if (doc.querySelector('[data-guardar-conteo]')) errores.push(`${donde} · en «Todas» se puede escribir un conteo, y no sabria de que plaza`)
+  if (!doc.querySelector('[data-piezas-globales]')) errores.push(`${donde} · faltan las piezas globales por tipo`)
+  // La tienda dejo un faltante guardado: el administrador tiene que verlo.
+  if (!doc.querySelector('[data-alertas-corte]')) errores.push(`${donde} · hay un faltante guardado por la tienda y la vista global no avisa`)
+
+  // Torreon: cuatro semanas y un bloque global.
+  clic(window, doc.querySelector('[data-corte-plaza="torreon"]'))
+  await nuevaVuelta(window, 6)
+  if (!enPie(window, `${donde} · Torreon`)) return 1
+  if (doc.querySelectorAll('[data-bloque-corte]').length !== 4) errores.push(`${donde} · Torreon no dibujo sus cuatro semanas`)
+  if (!doc.querySelector('[data-bloque-global]')) errores.push(`${donde} · Torreon no tiene bloque global del ciclo`)
+  if (!/nomina/i.test(doc.querySelector('[data-lista-corte="Sueldo"]')?.textContent ?? '')) {
+    errores.push(`${donde} · el sueldo registrado como salida no salio en la lista de sueldos`)
+  }
+  if (doc.querySelectorAll('[data-mayoristas]').length !== 1) errores.push(`${donde} · Torreon enseña mas de un ranking`)
+
+  // Una plaza concreta: el administrador SI puede contar por ella.
+  clic(window, doc.querySelector('[data-corte-plaza="leon"]'))
+  await nuevaVuelta(window, 6)
+  if (!doc.querySelector('[data-guardar-conteo]')) errores.push(`${donde} · el administrador no puede guardar el conteo de una plaza`)
+  return 1
+}
+
 // ── El recorrido ───────────────────────────────────────────────────────────
 
 const SESIONES = [
@@ -2462,6 +2696,7 @@ let salidasVistas = 0
 let consultasVistas = 0
 let censurasVistas = 0
 let depuradosVistos = 0
+let cortesVistos = 0
 
 for (const [nombre, sesion] of SESIONES) {
   const { window, dichos } = await arrancar(sesion)
@@ -2545,6 +2780,12 @@ for (const [nombre, sesion] of SESIONES) {
         if (/consultar modelo/i.test(t) && nombre === 'bodega') {
           consultasVistas += await consultaModelo(window, `${nombre} · ${t}`)
         }
+        if (/corte/i.test(t) && nombre === 'sucursal') {
+          cortesVistos += await corteDeLaTienda(window, `${nombre} · ${t}`)
+        }
+        if (/corte/i.test(t) && nombre === 'admin') {
+          cortesVistos += await corteDelAdmin(window, `${nombre} · ${t}`)
+        }
         if (/depurar/i.test(t) && nombre === 'admin') {
           const r = await depurar(window, `${nombre} · admin · ${t}`)
           depuradosVistos += r.vistas
@@ -2626,6 +2867,8 @@ console.log(`  seccion de modelos nuevos: ${nuevosVistos} dibujada`)
 if (!nuevosVistos) errores.push('la seccion «estan vendiendo los modelos nuevos» no se dibujo en ninguna sesion')
 console.log(`  depurar (listas y candados): ${depuradosVistos} vistas recorridas`)
 if (depuradosVistos < 4) errores.push(`«Depurar» recorrio ${depuradosVistos} vistas de 4: una baja con piezas en la red no saldria en ningun sitio`)
+console.log(`  corte semanal (tienda y administrador): ${cortesVistos} de 2 recorridos`)
+if (cortesVistos < 2) errores.push(`el corte semanal se recorrio ${cortesVistos} vez de 2: sin el, un faltante sin tolerancia no saldria en ningun sitio`)
 console.log(`  consultar modelo de bodega: ${consultasVistas} dibujado`)
 if (!consultasVistas) errores.push('«Consultar modelo» de bodega no se recorrió: bodega se queda sin poder mirar un modelo de cerca')
 console.log(`  marca de venta censurada en «Pedir»: ${censurasVistas} vista`)

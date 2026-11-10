@@ -5,6 +5,18 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-09
 
+- **Fase C — el corte semanal de cada sucursal.** Sección **Corte** en el panel
+  de cada tienda y del administrador: ventas de la semana del punto de venta
+  día por día, piezas de fundas, hidrogel y stickers, otras entradas, gastos y
+  sueldo con su concepto, el estado de resultados y el conteo de billetes y
+  monedas con la diferencia en vivo, sin tolerancia. Torreón lleva un ciclo de
+  cuatro semanas con bloque global. El administrador ve todas las plazas juntas
+  con avisos y puede abrir cada una. **Ranking de mayoristas** de 7 a 30 días:
+  cada tienda el suyo, el administrador todos. Nuevas rutas `GET /corte` y
+  `POST /corte/conteo`; los conteos se guardan en `cortes/<plaza>.json`
+  (privado). La extracción de ventas publica el detalle por día y tipo y por
+  mayorista.
+
 - Bodega tiene **Consultar modelo**: buscar un modelo o abrir uno de los más
   vendidos, con su venta y existencia por tienda y lo que hay en bodega.
 - Se miden los **días en cero** de cada código en los últimos 90 desde el

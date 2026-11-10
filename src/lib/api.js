@@ -282,6 +282,20 @@ export async function galeria(carpeta) {
 export const ventas = (plaza, token) =>
   pedir(`/ventas?plaza=${encodeURIComponent(plaza)}`, { token })
 
+// ── El corte semanal de cada sucursal ────────────────────────────────────────
+//
+// A diferencia de `ventas` y `caja`, esta ruta la puede pedir una TIENDA, y el
+// servidor decide qué le devuelve: sólo su plaza, sin los nombres de quien
+// cerró turno ni de quien cobró. El administrador recibe todas.
+
+/** Sin `plaza`: una tienda recibe la suya y el administrador, todas. */
+export const corte = (plaza, token) =>
+  pedir(`/corte${plaza ? `?plaza=${encodeURIComponent(plaza)}` : ''}`, { token })
+
+/** Lo único que captura la tienda: el conteo de billetes y monedas de una semana. */
+export const guardarConteo = ({ plaza, semana, cantidades, observaciones = '' }, token) =>
+  pedir('/corte/conteo', { metodo: 'POST', cuerpo: { plaza, semana, cantidades, observaciones }, token })
+
 // ── Flujo de efectivo ────────────────────────────────────────────────────────
 //
 // SOLO ADMINISTRADOR. Lo decidio el dueño: las plazas hacen todo directo en

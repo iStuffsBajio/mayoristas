@@ -6,6 +6,7 @@ import SurtidoPanel from './SurtidoPanel'
 import RevisarPanel from './RevisarPanel'
 import MovimientoPanel from './MovimientoPanel'
 import ConsultaModelo from './ConsultaModelo'
+import CortePanel from './CortePanel'
 
 /**
  * Lo que ve una sucursal con su sesión.
@@ -28,6 +29,9 @@ import ConsultaModelo from './ConsultaModelo'
  * cada petición—, esto sólo evita enseñar puertas que no se pueden abrir.
  */
 const SECCIONES_TIENDA = [
+  // Lo pidió el dueño el 2026-11-09: cada tienda ve las ventas de su semana y
+  // cuenta su efectivo. Va primero: es lo que se hace cada semana.
+  { id: 'corte', icono: '💵', titulo: 'Corte', sub: 'Tu semana y el conteo de la caja' },
   { id: 'revisar', icono: '🔍', titulo: 'Revisar', sub: 'Códigos y nombres, uno a uno' },
   { id: 'surtido', icono: '🚚', titulo: 'Surtido', sub: 'Lo que te toca recibir' },
 ]
@@ -96,6 +100,7 @@ export default function SucursalPanel() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
+        {seccion === 'corte' && !esBodega && <CortePanel plazaFija={plaza} />}
         {seccion === 'revisar' && <RevisarPanel />}
         {/* Bodega entra sin plaza fija: tiene que poder elegir a cuál manda.
             Una tienda entra ya en la suya, que es lo único que le incumbe. */}

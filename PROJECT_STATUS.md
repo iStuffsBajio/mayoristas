@@ -24,20 +24,30 @@ Implementada y verificada en local; **sin subir** (ver `TASKS.md` para el orden
 de despliegue): sección Depurar con candado en el servidor, marca de descontinuado
 en bodega, corrección de «Modelos nuevos», ficha de un modelo con existencia y
 rotación para el administrador, Torreón en la sincronización, y `UltimaVenta` y
-`Departamento` publicados. Las fases B (incidencias con foto) y C (panel de corte
-de la sucursal) están decididas pero no construidas.
+`Departamento` publicados.
+
+## Fase C: el corte de la sucursal
+
+Construida el mismo día: sección Corte para cada tienda y para el administrador,
+Torreón con ciclo de cuatro semanas y ranking de mayoristas por plaza. Los
+supuestos que hay que confirmar con el dueño están en `CLAUDE.md`. La fase B
+(incidencias con foto) sigue decidida y sin construir.
 
 ## Verificación de esta actualización
 
-- Frontend: `npm test` — 504 pruebas pasaron.
-- Backend: `npm test` en `backend/` — 120 pruebas pasaron, incluida la paridad
-  entre el candado del servidor y el de la página.
+- Frontend: `npm test` — 544 pruebas pasaron.
+- Backend: `npm test` en `backend/` — 134 pruebas pasaron, incluida la paridad
+  entre el candado del servidor y el de la página y lo que ve cada sesión del corte.
 - `npm run build` pasó (con la advertencia de tamaño de paquete de siempre).
-- `npm run verificar`: 4 sesiones, 17 secciones de panel y 73 cabeceras. Se
+- `npm run verificar`: 4 sesiones, 19 secciones de panel y 73 cabeceras, con
+  el corte de la tienda y del administrador. Metiendo a propósito una
+  tolerancia de un peso, falló en tres sitios. Se
   comprobó rompiendo a propósito dos piezas del candado y del filtro de Revisar
   que la verificación falla cuando debe.
 - Mirado en un Chrome real, en escritorio y a 390 px, con los inventarios de la
   corrida en seco servidos desde el navegador.
+- El corte se miró en un Chrome real (escritorio y 390 px, tienda y
+  administrador) con datos de mentira: sin desbordamiento ni errores de consola.
 - **No se comprobó:** el servidor contra el S3 real (sus pruebas usan un S3 de
   memoria) ni ninguna pantalla con datos publicados en el formato nuevo, que no
   existe hasta la próxima sincronización.

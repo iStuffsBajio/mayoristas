@@ -31,14 +31,29 @@ servidor viejo sólo afecta a quien pulse un botón de Depurar en esos minutos.
   de cliente: la corrida en seco lo comprobó, pero es público.
 - [ ] El aviso de «historial corto» de León se apaga solo el 2026-12-20.
 
+## Fase C (2026-11-09): el corte de la sucursal, para comprobar
+
+- [ ] **Tras la próxima sincronización**, abrir Corte con una tienda: la tabla
+  de piezas y el ranking de mayoristas se llenan entonces (`porDiaTipo` y
+  `mayoristasPorDia` en `ventas/<plaza>.json`). Antes lo dicen en pantalla.
+- [ ] **Capturar el fondo de caja** de cada plaza (Efectivo → parámetros). Sin él
+  la plaza sale en gris y no se juzga. Torreón incluido.
+- [ ] **Confirmar con el dueño los supuestos** de `CLAUDE.md` («Supuestos que se
+  tomaron para terminar»): fondo = `fondoFijo`, cómo se reconoce un sueldo, y
+  que el banco por banco del Excel no hace falta.
+- [ ] El primer conteo real es la primera prueba de `POST /corte/conteo` contra
+  S3: revisar `cortes/<plaza>.json` y que una tienda no pueda abrir otra plaza.
+- [ ] Avisar a las tiendas: **el sueldo se registra en el POS como salida**, con
+  la palabra «sueldo» o «nómina» en el concepto.
+
 ## Fases siguientes (decididas, no construidas)
 
 - [ ] **Fase B — incidencias manuales con foto**, sobre la bandeja de Revisar
   (un solo sistema con un campo de origen, no dos con estados distintos). Falta
   confirmar categorías y dónde se guardan las fotos (prefijo privado).
-- [ ] **Fase C — panel de corte de la sucursal**, Torreón a cuatro semanas y
-  ranking de mayoristas. Las respuestas del dueño están en `CLAUDE.md`, “El
-  panel de corte de la sucursal”, junto con lo que queda por preguntarle.
+- [x] **Fase C — panel de corte de la sucursal**, Torreón a cuatro semanas y
+  ranking de mayoristas. Construida el 2026-11-09; lo que queda es comprobarla
+  (arriba) y el cuadre por día o turno.
 
 ## Pendientes documentados
 

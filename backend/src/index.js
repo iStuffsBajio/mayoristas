@@ -9,6 +9,10 @@
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { verificarBajas, hoyMexico, PLAZAS_CON_STOCK, DIAS_MINIMOS_PARA_BAJA } from './bajas.js'
 import {
+  PLAZAS_CORTE, INICIO_DEL_CORTE, esLunes, lunesDe, validarConteo, diasParaTienda,
+  movimientosParaTienda, ventasParaTienda, parametrosParaTienda, registroDeConteo,
+} from './cortes.js'
+import {
   verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
 } from './seguridad.js'
@@ -1396,6 +1400,129 @@ async function rutaTurnos(evento, origen) {
 
 // ── Entrada ────────────────────────────────────────────────────────────────
 
+// ── El corte semanal de cada sucursal ─────────────────────────────────────
+//
+// La tienda ve las ventas de su semana, tal como salen del punto de venta, y
+// captura UNA cosa: el conteo de billetes y monedas. Todo lo demás —ventas,
+// tarjeta, gastos, sueldo— sale del POS y no lo teclea nadie. Lo decidió el
+// dueño el 2026-11-09.
+//
+// Qué puede ver cada quien lo decide `puedeSucursal`: una tienda, SÓLO su
+// plaza; el administrador, cualquiera y «todas». Lo de `caja/` y `ventas/` es
+// privado y se entrega recortado —sin los nombres de quien cerró turno ni de
+// quien cobró, y sin lo de otras plazas—: ver `src/cortes.js`.
+//
+// Lo guardado va bajo `cortes/`, privado también, un archivo por plaza.
+
+const claveCortes = plaza => `cortes/${plaza}.json`
+
+/** Todo lo que el corte de una plaza necesita, ya recortado para una tienda. */
+async function datosDeCorte(plaza, params, hoy) {
+  const [caja, ventas, conteos] = await Promise.all([
+    leerJson(`caja/${plaza}.json`),
+    leerJson(claveVentas(plaza)),
+    leerJson(claveCortes(plaza)),
+  ])
+  const nombre = SUCURSALES[plaza]?.nombre ?? plaza
+  return {
+    plaza, nombre,
+    caja: {
+      // `leerJson` devuelve `{}` cuando la clave no existe, y `{}` no es
+      // «ninguna venta»: es «no se ha extraído». Se dice aparte para que la
+      // pantalla no pinte una semana en ceros.
+      hayDatos: Array.isArray(caja?.dias) && caja.dias.length > 0,
+      respaldo: caja?.respaldo ?? null,
+      dias: diasParaTienda(caja, hoy),
+      movimientos: movimientosParaTienda(caja, hoy),
+    },
+    parametros: parametrosParaTienda(params?.[plaza]),
+    ventas: ventasParaTienda(ventas),
+    conteos,
+  }
+}
+
+/**
+ * `GET /corte?plaza=<slug|todas>`. Una tienda recibe sólo la suya.
+ *
+ * Sin `plaza`, una tienda recibe la suya y el administrador recibe todas.
+ */
+async function rutaCorte(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesión.' })
+
+  const pedida = String(evento.queryStringParameters?.plaza ?? '').trim()
+  const plaza = pedida || (sesion.admin ? 'todas' : String(sesion.sucursal ?? ''))
+
+  let plazas
+  if (plaza === 'todas') {
+    // Ver todas las plazas es del administrador, y de nadie más.
+    if (!sesion.admin) return responder(origen, 403, { error: 'Sólo el administrador ve todas las plazas.' })
+    plazas = PLAZAS_CORTE
+  } else {
+    if (!PLAZAS_CORTE.includes(plaza)) return responder(origen, 400, { error: 'Esa plaza no lleva corte.' })
+    if (!puedeSucursal(sesion, plaza)) return responder(origen, 403, { error: 'Sólo puedes ver tu plaza.' })
+    plazas = [plaza]
+  }
+
+  const params = await leerJson('caja/parametros.json')
+  const hoy = hoyMexico()
+  const datos = await Promise.all(plazas.map(p => datosDeCorte(p, params, hoy)))
+  return responder(origen, 200, {
+    hoy,
+    plazas: Object.fromEntries(datos.map(d => [d.plaza, d])),
+  })
+}
+
+/**
+ * `POST /corte/conteo`: lo único que captura la tienda.
+ *
+ * Una tienda guarda SÓLO el de su plaza; el administrador, el de cualquiera. El
+ * total lo calcula este lado, y el autor y la hora también: lo que mande el
+ * navegador no cuenta. Cada cambio deja un renglón en el historial.
+ */
+async function rutaGuardarConteo(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesión.' })
+
+  const plaza = String(cuerpo?.plaza ?? '').trim()
+  if (!PLAZAS_CORTE.includes(plaza)) return responder(origen, 400, { error: 'Esa plaza no lleva corte.' })
+  if (!puedeSucursal(sesion, plaza)) return responder(origen, 403, { error: 'Sólo puedes guardar el corte de tu plaza.' })
+
+  const semana = String(cuerpo?.semana ?? '')
+  if (!esLunes(semana)) {
+    return responder(origen, 400, { error: 'La semana se identifica por su lunes, en formato AAAA-MM-DD.' })
+  }
+  if (semana < lunesDe(INICIO_DEL_CORTE)) {
+    return responder(origen, 400, { error: 'El corte arranca el 2 de noviembre de 2026: antes no hay nada que contar.' })
+  }
+  // Una semana que todavía no empieza no se puede haber contado.
+  if (semana > lunesDe(hoyMexico())) {
+    return responder(origen, 400, { error: 'Esa semana todavía no empieza.' })
+  }
+
+  const v = validarConteo(cuerpo?.cantidades)
+  if (v.error) return responder(origen, 400, { error: v.error })
+
+  const todos = await leerJson(claveCortes(plaza))
+  const registro = registroDeConteo({
+    previo: todos[semana] ?? null, semana,
+    cantidades: v.cantidades, total: v.total,
+    observaciones: cuerpo?.observaciones, quien: quienEs(sesion),
+  })
+  const nuevo = { ...todos, [semana]: registro }
+
+  if (registro !== todos[semana]) {
+    await s3.send(new PutObjectCommand({
+      Bucket:       BUCKET,
+      Key:          claveCortes(plaza),
+      Body:         Buffer.from(JSON.stringify(nuevo)),
+      ContentType:  'application/json; charset=utf-8',
+      CacheControl: 'no-cache',
+    }))
+  }
+  return responder(origen, 200, { ok: true, registro })
+}
+
 export async function handler(evento) {
   const origen = evento.headers?.origin || evento.headers?.Origin || ''
   const metodo = evento.requestContext?.http?.method || 'GET'
@@ -1435,6 +1562,8 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/ajustes/bajas') return await rutaGuardarBajas(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/surtidos')   return await rutaSurtidos(evento, origen)
     if (metodo === 'POST' && ruta === '/surtidos')   return await rutaGuardarSurtido(evento, origen, cuerpo)
+    if (metodo === 'GET'  && ruta === '/corte')           return await rutaCorte(evento, origen)
+    if (metodo === 'POST' && ruta === '/corte/conteo')    return await rutaGuardarConteo(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/caja')            return await rutaCaja(evento, origen)
     if (metodo === 'POST' && ruta === '/caja/deposito')   return await rutaGuardarDeposito(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/caja/ajuste')     return await rutaGuardarAjusteCaja(evento, origen, cuerpo)

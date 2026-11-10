@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import {
   agregarVentas, claseDeLinea, horaDe, diaSemanaDe, pesoDelMayoreo, esPrecioDeEtiqueta, PRECIO_DE_ETIQUETA,
   DEPTO_MAYORISTAS, DEPTO_STICKERS, precioPorPlaza, PISO_PRECIO,
-  preciosDeVenta, soloPrecios, cobertura, DESCUENTO_MAXIMO,
+  preciosDeVenta, soloPrecios, cobertura, DESCUENTO_MAXIMO, tipoDePieza, TIPOS_QUE_CUENTAN,
 } from './ventasTicket.js'
 
 const ticket = (id, extra = {}) => ({
@@ -411,4 +411,92 @@ test('una venta negociada normal SI cuenta', () => {
 
 test('el umbral del descuento es el acordado', () => {
   assert.equal(DESCUENTO_MAXIMO, 80)
+})
+
+// ── El desglose del corte: tipo de pieza y lo que compra cada mayorista ─────
+
+test('SÓLO TRES TIPOS CUENTAN como pieza: fundas, hidrogel y stickers', () => {
+  assert.deepEqual(TIPOS_QUE_CUENTAN, ['funda', 'hidrogel', 'sticker'])
+  assert.equal(tipoDePieza({ codigo: 'I13T', producto: 'IPHONE 13 TPU CASE', depto: 'APPLE' }), 'funda')
+  assert.equal(tipoDePieza({ codigo: 'SGA07T', producto: 'GALAXY A07 TPU CASE', depto: 'GALAXY' }), 'funda')
+  assert.equal(tipoDePieza({ codigo: 'X', producto: 'FUNDA RARA', depto: '' }), 'funda', 'sin depto, por el nombre')
+  assert.equal(tipoDePieza({ codigo: 'SP', producto: 'STIKER PEQUEÑO', depto: 'stikers' }), 'sticker')
+  assert.equal(tipoDePieza({ codigo: 'ST', producto: 'STIKER DISEÑO', depto: '' }), 'sticker', 'por producción')
+  // Lo que se vende pero no es una de las tres.
+  assert.equal(tipoDePieza({ codigo: 'PS', producto: 'POPSOCKET', depto: 'POPSOKET' }), 'otro')
+  assert.equal(tipoDePieza({ codigo: 'LL', producto: 'LLAVERO', depto: 'Llaveros' }), 'otro')
+  assert.equal(tipoDePieza({ codigo: 'Z', producto: 'COSA SUELTA', depto: 'COSAS' }), 'otro', 'no se adivina funda')
+})
+
+test('MICAS = el departamento HIDROGEL, o cualquier nombre que lo lleve', () => {
+  // Lo dijo el dueño el 2026-11-09. La errata del catálogo también cuenta.
+  assert.equal(tipoDePieza({ codigo: 'HDA', producto: 'MICA HIDRIOGEL HD ALTA', depto: 'HIDROGEL' }), 'hidrogel')
+  assert.equal(tipoDePieza({ codigo: 'NUEVO', producto: 'LO QUE SEA', depto: 'HIDROGEL' }), 'hidrogel', 'por departamento')
+  assert.equal(tipoDePieza({ codigo: 'Q', producto: 'MICA HODROGEL TABLET', depto: '' }), 'hidrogel', 'por nombre')
+})
+
+test('un mayorista apuntado como producto NO es una pieza, de ningún tipo', () => {
+  assert.equal(tipoDePieza({ codigo: 'PT1', producto: 'NOMBRE PLAZA (1)', depto: 'MAYORISTAS' }), null)
+  assert.equal(tipoDePieza({ codigo: 'PT1', producto: 'NOMBRE PLAZA (1)', depto: 'MAYORISTA' }), null)
+})
+
+test('SIN `detalleDias` el resultado es el de siempre: nada nuevo en el archivo', () => {
+  const r = agregarVentas({ tickets: [ticket(1)], lineas: [linea(1)] })
+  assert.equal('porDiaTipo' in r, false)
+  assert.equal('mayoristasPorDia' in r, false)
+})
+
+test('piezas por día y por tipo, con «otros» aparte', () => {
+  const r = agregarVentas({
+    tickets: [ticket(1), ticket(2, { cuando: '2026-11-01 10:00:00.0000' })],
+    lineas: [
+      linea(1, { cantidad: 3 }),
+      linea(1, { codigo: 'HDA', producto: 'MICA HIDROGEL', depto: 'HIDROGEL', cantidad: 4 }),
+      linea(1, { codigo: 'SP', producto: 'STIKER PEQUEÑO', depto: 'stikers', cantidad: 10, total: 90 }),
+      linea(1, { codigo: 'PS', producto: 'POPSOCKET', depto: 'POPSOKET', cantidad: 2, total: 60 }),
+      linea(2, { cantidad: 1 }),
+    ],
+    detalleDias: 120,
+  })
+  assert.deepEqual(r.porDiaTipo, [
+    { f: '2026-10-31', fundas: 3, hidrogel: 4, stickers: 10, otros: 2 },
+    { f: '2026-11-01', fundas: 1, hidrogel: 0, stickers: 0, otros: 0 },
+  ])
+  // El ejemplo del dueño: 3 + 4 + 10 = 17, y lo de «otros» no suma.
+  const d = r.porDiaTipo[0]
+  assert.equal(d.fundas + d.hidrogel + d.stickers, 17)
+})
+
+test('LO QUE COMPRA UN MAYORISTA es el ticket entero, no la etiqueta de $0.01', () => {
+  // La línea de la etiqueta vale un centavo; lo que se vendió de verdad son las
+  // otras líneas del mismo ticket. Sin atribuírselas, el ranking de mayoristas
+  // sale todo en cero.
+  const marca = (t, quien) => linea(t, { codigo: `PT${quien}`, producto: quien, depto: 'MAYORISTAS', cantidad: 1, total: 0.01, ganancia: 0 })
+  const r = agregarVentas({
+    tickets: [ticket(1), ticket(2), ticket(3, { cancelado: 't' }), ticket(4, { cuando: '2026-11-01 11:00:00.0000' }), ticket(5)],
+    lineas: [
+      marca(1, 'LOCAL 12'), linea(1, { cantidad: 5, total: 500 }), linea(1, { codigo: 'PS', producto: 'POPSOCKET', depto: 'POPSOKET', cantidad: 3, total: 90 }),
+      marca(2, 'LOCAL 12'), linea(2, { cantidad: 2, total: 200 }),
+      marca(3, 'LOCAL 99'), linea(3, { cantidad: 9, total: 900 }),   // cancelado
+      marca(4, 'LOCAL 12'),                                          // ticket sin productos
+      linea(5, { cantidad: 7, total: 700 }),                         // venta de mostrador, sin cliente
+    ],
+    detalleDias: 120,
+  })
+  const l12 = r.mayoristasPorDia.filter(x => x.quien === 'LOCAL 12')
+  assert.deepEqual(l12.map(x => [x.f, x.tickets, x.piezas, x.dinero]), [
+    ['2026-10-31', 2, 7, 790],    // 2 tickets; 5 + 2 piezas que cuentan (los popsockets no); 500 + 90 + 200
+    ['2026-11-01', 1, 0, 0],      // un ticket sin productos sigue contando como visita
+  ])
+  assert.ok(!r.mayoristasPorDia.some(x => x.quien === 'LOCAL 99'), 'el cancelado no cuenta')
+  assert.equal(r.resumen.piezas, 5 + 3 + 2 + 7, 'y el resumen no cambia: las etiquetas siguen sin ser piezas')
+})
+
+test('el detalle se recorta a los últimos días: el corte no necesita años', () => {
+  const r = agregarVentas({
+    tickets: [ticket(1, { cuando: '2026-06-01 10:00:00.0000' }), ticket(2, { cuando: '2026-10-31 10:00:00.0000' })],
+    lineas: [linea(1), linea(2)],
+    detalleDias: 30,
+  })
+  assert.deepEqual(r.porDiaTipo.map(x => x.f), ['2026-10-31'])
 })

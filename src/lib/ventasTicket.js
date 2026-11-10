@@ -149,6 +149,59 @@ export function claseDeLinea({ depto, cantidad, total } = {}) {
   return 'producto'
 }
 
+// ── Qué tipo de pieza es ───────────────────────────────────────────────────
+//
+// Lo pidió el dueño el 2026-11-09 para el corte de cada sucursal: las «piezas
+// vendidas» cuentan ÚNICAMENTE tres tipos —fundas, hidrogel y stickers—, con
+// el desglose de cada uno y su suma. Lo demás (popsockets, llaveros, insumos)
+// se vende, pero no es una pieza de las que se cuentan.
+//
+// Se reconoce con lo que el proyecto ya sabe: los stickers por `produccion.js`
+// y el departamento, el hidrogel por `familias.js` y el departamento HIDROGEL
+// —«las micas vienen siendo básicamente todo el departamento de hidrogel, o
+// cualquier producto que lleve hidrogel en su nombre»—, y la funda por ser de
+// un departamento que es una marca de teléfono o por llevar en el nombre lo que
+// describe una funda. Lo que no cae en ninguno es `otro`, y se dice: contarlo
+// como funda por defecto inflaría la cifra con cosas que no lo son.
+
+/** Los tres tipos que cuentan como «pieza vendida». */
+export const TIPOS_QUE_CUENTAN = ['funda', 'hidrogel', 'sticker']
+
+/** Departamentos que se venden pero NO son fundas. */
+const NO_SON_FUNDAS = new Set(['popsoket', 'popsocket', 'llaveros', 'insumos', 'cajas de luz'])
+
+/** Los departamentos de Eleventa son marcas de teléfono; Samsung sale de dos formas. */
+const MARCAS_DE_TELEFONO = new Set([
+  'samsung', 'galaxy', 'apple', 'iphone', 'motorola', 'moto', 'huawei', 'oppo', 'xiaomi',
+  'redmi', 'poco', 'honor', 'vivo', 'zte', 'one plus', 'oneplus', 'realme', 'google',
+  'pixel', 'lg', 'infinix', 'tecno', 'nokia', 'sony', 'alcatel', 'blu', 'tcl',
+])
+
+/** Lo que el nombre dice de una funda cuando el departamento no ayuda. */
+const PATRON_FUNDA = /\b(TPU|HARD|DUO|SMART|CASE|3 ?EN ?1|3 ?IN ?1|MILITAR|TRANSPARENTE|CRISTAL|FUNDA|USO RUDO|ARMOR|CLEAR)\b/i
+
+/**
+ * El tipo de una línea de venta: `funda`, `hidrogel`, `sticker` u `otro`.
+ * Devuelve `null` para un mayorista apuntado como producto: eso no es una pieza.
+ */
+export function tipoDePieza({ codigo, producto, depto } = {}) {
+  const d = deptoDe(depto)
+  if (DEPTOS_MAYORISTAS.has(d)) return null
+  if (d === DEPTO_STICKERS || seProduce(codigo, producto)) return 'sticker'
+  if (d === 'hidrogel' || esProtector(codigo, producto)) return 'hidrogel'
+  if (NO_SON_FUNDAS.has(d)) return 'otro'
+  if (MARCAS_DE_TELEFONO.has(d) || PATRON_FUNDA.test(String(producto ?? ''))) return 'funda'
+  return 'otro'
+}
+
+/** La fecha `n` días antes de otra, ambas `AAAA-MM-DD`, sin husos horarios. */
+function restarDias(dia, n) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(dia ?? ''))
+  if (!m) return null
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] - n))
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`
+}
+
 /**
  * La hora local de una marca de tiempo de Eleventa.
  *
@@ -202,7 +255,7 @@ const vacio = () => ({ tickets: 0, piezas: 0, dinero: 0, ganancia: 0 })
  * el historial sigue valiendo para contar piezas y para la temporada, donde lo
  * viejo no estorba.
  */
-export function agregarVentas({ tickets, lineas, desdeDia = null }) {
+export function agregarVentas({ tickets, lineas, desdeDia = null, detalleDias = 0 }) {
   const porId = new Map()
   for (const t of tickets ?? []) porId.set(String(t.id), t)
 
@@ -213,6 +266,12 @@ export function agregarVentas({ tickets, lineas, desdeDia = null }) {
   const porCodigo = new Map()
   const porMayorista = new Map()
   const porCajero = new Map()
+  // Sólo con `detalleDias`: el desglose por día de lo que pidió el corte de la
+  // sucursal. No va en la ventana de 365 días —duplicaría el archivo— ni cambia
+  // nada de lo que ya salía.
+  const porDiaTipo = new Map()
+  const mayoristaDia = new Map()     // `${dia}|${quien}` → { tickets:Set, piezas, dinero }
+  const clienteDe = new Map()        // ticket → mayorista al que se le apuntó
   let desde = null, hasta = null
 
   const dentro = t => {
@@ -248,6 +307,20 @@ export function agregarVentas({ tickets, lineas, desdeDia = null }) {
     }
   }
 
+  // Qué mayorista es dueño de cada ticket. La línea que lo apunta vale $0.01;
+  // lo que se vendió de verdad son las OTRAS líneas del mismo ticket, así que
+  // hay que saber el cliente antes de recorrerlas. Con un ticket de dos
+  // clientes gana el primero: no es un caso que exista, pero no se duplica.
+  if (detalleDias > 0) {
+    for (const l of lineas ?? []) {
+      const t = porId.get(String(l.ticket))
+      if (!t || esSi(t.cancelado) || !dentro(t)) continue
+      if (claseDeLinea(l) !== 'etiqueta') continue
+      const quien = limpio(l.producto) || clave(l.codigo)
+      if (!clienteDe.has(String(l.ticket))) clienteDe.set(String(l.ticket), quien)
+    }
+  }
+
   for (const l of lineas ?? []) {
     const t = porId.get(String(l.ticket))
     // Una línea sin su ticket no se puede fechar ni saber si se cancelo. No
@@ -279,6 +352,12 @@ export function agregarVentas({ tickets, lineas, desdeDia = null }) {
       const h = horaDe(t.cuando)
       if (h && (!fila.ultima || h.dia > fila.ultima)) fila.ultima = h.dia
       porMayorista.set(quien, fila)
+      if (detalleDias > 0 && h && clienteDe.get(String(l.ticket)) === quien) {
+        const k = `${h.dia}|${quien}`
+        const f = mayoristaDia.get(k) ?? { dia: h.dia, quien, tickets: new Set(), piezas: 0, dinero: 0 }
+        f.tickets.add(String(l.ticket))
+        mayoristaDia.set(k, f)
+      }
       continue
     }
 
@@ -300,6 +379,28 @@ export function agregarVentas({ tickets, lineas, desdeDia = null }) {
       const fd = porDia.get(h.dia) ?? vacio()
       fd.piezas += piezas; fd.dinero += dinero
       porDia.set(h.dia, fd)
+
+      if (detalleDias > 0) {
+        const tipo = tipoDePieza(l)
+        const ft = porDiaTipo.get(h.dia) ?? { fundas: 0, hidrogel: 0, stickers: 0, otros: 0 }
+        if (tipo === 'funda') ft.fundas += piezas
+        else if (tipo === 'hidrogel') ft.hidrogel += piezas
+        else if (tipo === 'sticker') ft.stickers += piezas
+        else ft.otros += piezas
+        porDiaTipo.set(h.dia, ft)
+
+        // Lo que se llevó el mayorista: el dinero del ticket entero, y sólo las
+        // piezas que cuentan —el mismo criterio que el corte—.
+        const quien = clienteDe.get(String(l.ticket))
+        if (quien) {
+          const k = `${h.dia}|${quien}`
+          const f = mayoristaDia.get(k) ?? { dia: h.dia, quien, tickets: new Set(), piezas: 0, dinero: 0 }
+          f.tickets.add(String(l.ticket))
+          f.dinero += dinero
+          if (TIPOS_QUE_CUENTAN.includes(tipo)) f.piezas += piezas
+          mayoristaDia.set(k, f)
+        }
+      }
 
       const ds = diaSemanaDe(h.dia)
       if (ds !== null) {
@@ -359,6 +460,35 @@ export function agregarVentas({ tickets, lineas, desdeDia = null }) {
       .map(([quien, v]) => ({ quien, ...v }))
       .sort((a, b) => b.tickets - a.tickets),
     cajeros: lista(porCajero, 'cajero'),
+    ...(detalleDias > 0 ? detalleDelCorte({ porDiaTipo, mayoristaDia, hasta, detalleDias }) : {}),
+  }
+}
+
+/**
+ * El desglose por día que necesita el corte de cada sucursal.
+ *
+ *   · `porDiaTipo`        piezas por día y por tipo: fundas, hidrogel, stickers
+ *                         —las tres que cuentan— y `otros`, aparte, que no suma
+ *   · `mayoristasPorDia`  lo que compró cada mayorista cada día: tickets, piezas
+ *                         que cuentan y dinero
+ *
+ * Sólo los últimos `detalleDias` días: el corte mira semanas y el ranking de
+ * mayoristas llega a 30 días, así que el historial de años no hace falta y
+ * triplicaría el archivo.
+ */
+function detalleDelCorte({ porDiaTipo, mayoristaDia, hasta, detalleDias }) {
+  const corte = restarDias(hasta, detalleDias - 1)
+  const dentroDeLaVentana = dia => !corte || dia >= corte
+  return {
+    detalleDias,
+    porDiaTipo: [...porDiaTipo.entries()]
+      .filter(([f]) => dentroDeLaVentana(f))
+      .map(([f, v]) => ({ f, ...v }))
+      .sort((a, b) => a.f.localeCompare(b.f)),
+    mayoristasPorDia: [...mayoristaDia.values()]
+      .filter(f => dentroDeLaVentana(f.dia))
+      .map(f => ({ f: f.dia, quien: f.quien, tickets: f.tickets.size, piezas: f.piezas, dinero: f.dinero }))
+      .sort((a, b) => a.f.localeCompare(b.f) || b.dinero - a.dinero),
   }
 }
 

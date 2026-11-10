@@ -18,7 +18,8 @@ describe controles y operación de seguridad.
 | Modelos nuevos | Un código nuevo para un teléfono que ya existía no es un modelo nuevo. Eleventa no guarda fecha de creación del producto. | `CLAUDE.md`, “Un código nuevo NO es un modelo nuevo”; `src/lib/estrenos.js` |
 | Mayoristas | Lo cobrado a $0.01 es del esquema de mayoristas y no es una pieza vendida, sea cual sea el departamento. | `CLAUDE.md`, “El precio de $0.01 es del esquema de mayoristas”; `src/lib/ventasTicket.js` |
 | Torreón | Vende y manda respaldo: está en la sincronización, la extracción de ventas y el historial. `activa: false` sólo significa que un mayorista no la ve. | `CLAUDE.md`, “Torreón vende y el código decía que no” |
-| Panel de corte de sucursal | Decidido el 2026-11-09 y **todavía no construido**: cada tienda ve sus ventas del POS y sólo captura el conteo de efectivo semanal; Torreón lleva 4 semanas y un bloque mensual. | `CLAUDE.md`, “El panel de corte de la sucursal” |
+| Panel de corte de sucursal | Construido el 2026-11-09. Cada tienda ve sus ventas del POS y sólo captura el conteo de billetes y monedas; sin tolerancia (al peso); Torreón lleva un ciclo de 4 semanas acumulado y un bloque global. El servidor recorta lo que ve cada tienda (sólo su plaza, sin nombres ni faltantes). Supuestos por confirmar: fondo = `fondoFijo`, sueldo por tipo `adelanto` o por concepto. | `CLAUDE.md`, “El panel de corte de la sucursal”; `src/lib/corte.js`, `backend/src/cortes.js` |
+| Ranking de mayoristas | Cada tienda ve sólo el de su plaza y el administrador todas, por separado; rango de 7 a 30 días. | `src/lib/mayoristas.js`; `GET /corte` |
 | Trabajo entre agentes | Instrucciones compartidas en `AGENTS.md`; `CLAUDE.md` importa esa fuente y mantiene el conocimiento específico de este repo. | `AGENTS.md`, `CLAUDE.md` |
 
 Las operaciones sobre cuentas, buckets, credenciales y publicación requieren
