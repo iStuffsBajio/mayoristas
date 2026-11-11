@@ -5,6 +5,9 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-11
 
+- **Torreón en la consulta del mayorista.** La portada ya deja elegir Torreón y
+  enseña sus piezas con la fecha de su respaldo. El panel sigue sin contarla.
+
 - **El bono de puntualidad va por minutos acumulados:** 10 de tolerancia al día;
   lo que pasa se suma en la semana —hasta 20 entero, hasta 30 a la mitad, más
   nada— y proporcional para quien trabaja menos días. Los límites se editan en

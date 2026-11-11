@@ -10,7 +10,11 @@ export const SUCURSALES = [
   { slug: 'leon',           nombre: 'León',            activa: true  },
   { slug: 'san-luis',       nombre: 'San Luis Potosí', activa: true  },
   { slug: 'aguascalientes', nombre: 'Aguascalientes',  activa: true  },
-  { slug: 'torreon',        nombre: 'Torreón',         activa: false },
+  // `activa: false` sigue siendo cierto para el PANEL —Surtido, Inventarios,
+  // Revisar y el Dashboard no la cuentan—, pero su inventario se publica en
+  // cada sincronización desde el 2026-11-09 y el dueño pidió el 2026-11-11 que
+  // un mayorista la pueda consultar: `consulta` la enseña sólo en la portada.
+  { slug: 'torreon',        nombre: 'Torreón',         activa: false, consulta: true },
   { slug: 'bodega',         nombre: 'Bodega',          activa: true, interna: true },
   // Ferias no es una tienda fija: es el puesto que se monta en las ferias de
   // enero, agosto y octubre. Vende de verdad, pero un mayorista no le pide a
@@ -24,6 +28,9 @@ export const SUCURSALES = [
 export const SUCURSALES_PUBLICAS = SUCURSALES.filter(s => !s.interna)
 
 export const SUCURSALES_ACTIVAS = SUCURSALES_PUBLICAS.filter(s => s.activa)
+
+/** Las que se pueden consultar en la portada del mayorista: las activas y Torreón. */
+export const SUCURSALES_CONSULTA = SUCURSALES_PUBLICAS.filter(s => s.activa || s.consulta)
 
 /**
  * Las que tienen inventario sincronizado, bodega y ferias incluidas. Sirve

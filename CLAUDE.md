@@ -1172,8 +1172,11 @@ primera corrida:
   `node backend/scripts/cambiar-contrasena.js torreon` —se teclea en la
   ventana, a la Lambda sólo va el hash y ofrece guardarla en el `.env`, de donde
   `generar-credenciales.js` las saca todas—.
-- **Sus paneles.** `activa: false` sigue siendo cierto: un mayorista no la ve y
-  Surtido, Inventarios, Revisar y el Dashboard no la cuentan. Sólo la cuentan
+- **Sus paneles.** `activa: false` sigue siendo cierto: Surtido, Inventarios,
+  Revisar y el Dashboard no la cuentan. **Pero un mayorista SÍ la consulta**
+  desde el 2026-11-11, a petición del dueño: `consulta: true` la mete sólo en
+  la portada (`SUCURSALES_CONSULTA`), sin tocar las cuentas del panel. Hay
+  prueba en `sucursales.test.js`. Sólo la cuentan
   la ficha de un modelo, la depuración y el flujo de efectivo.
 
 ---

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { inventarioJsonUrl } from '../lib/s3'
-import { SUCURSALES_ACTIVAS } from '../lib/sucursales'
+import { SUCURSALES_CONSULTA } from '../lib/sucursales'
 import { useAuth } from '../context/AuthContext'
 import { coincideCon } from '../lib/buscar'
 import { indexarMockups, fotoPara } from '../lib/mockups'
@@ -87,7 +87,7 @@ export default function Escenario({ onIr }) {
   const [plaza, setPlaza]     = useState(() => {
     try {
       const guardada = localStorage.getItem('istuffs_plaza')
-      if (guardada && SUCURSALES_ACTIVAS.some(s => s.slug === guardada)) return guardada
+      if (guardada && SUCURSALES_CONSULTA.some(s => s.slug === guardada)) return guardada
     } catch { /* navegación privada: se elige a mano y ya */ }
     return null
   })
@@ -112,7 +112,7 @@ export default function Escenario({ onIr }) {
       const porPlaza = {}
       const cortes = {}
       const nombres = new Map()
-      await Promise.all(SUCURSALES_ACTIVAS.map(async s => {
+      await Promise.all(SUCURSALES_CONSULTA.map(async s => {
         try {
           const r = await fetch(`${inventarioJsonUrl(s.slug)}?t=${Date.now()}`, { cache: 'no-store' })
           const j = await r.json()
@@ -217,7 +217,7 @@ export default function Escenario({ onIr }) {
   const enPlaza = piezasDe(enEscena.codigo)
   const nombrePlaza = plaza === 'todas'
     ? 'las tres tiendas'
-    : SUCURSALES_ACTIVAS.find(s => s.slug === plaza)?.nombre ?? plaza
+    : SUCURSALES_CONSULTA.find(s => s.slug === plaza)?.nombre ?? plaza
   // Se está buscando sin haber dicho desde qué tienda: hay que pedirlo, y
   // pedirlo donde se está mirando, no en un aviso al pie.
   const faltaPlaza = !plaza && !!busca.trim()
@@ -229,7 +229,7 @@ export default function Escenario({ onIr }) {
   // nombres debajo sólo alarga un renglón que en el teléfono ocupa dos.
   const otras = plaza === 'todas' ? [] : Object.entries(hay)
     .filter(([s, n]) => n > 0 && s !== plaza)
-    .map(([s]) => SUCURSALES_ACTIVAS.find(x => x.slug === s)?.nombre)
+    .map(([s]) => SUCURSALES_CONSULTA.find(x => x.slug === s)?.nombre)
     .filter(Boolean)
 
   /**
@@ -249,7 +249,7 @@ export default function Escenario({ onIr }) {
       const [a, m, d] = f.split('-').map(Number)
       return Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(a, m - 1, d).getTime()) / 86400000)
     }
-    const vivas = SUCURSALES_ACTIVAS.filter(s => fechas[s.slug])
+    const vivas = SUCURSALES_CONSULTA.filter(s => fechas[s.slug])
     if (!vivas.length || !plaza) return null
 
     const cual = plaza === 'todas'
@@ -304,7 +304,7 @@ export default function Escenario({ onIr }) {
             {/* «Todas» suma las tres tiendas y eso sólo le sirve a quien mira
                 el negocio entero. A un mayorista le manda a la tienda
                 equivocada, así que no se le enseña. */}
-            {[...(conPanel ? [{ slug: 'todas', nombre: 'Todas' }] : []), ...SUCURSALES_ACTIVAS].map(s => (
+            {[...(conPanel ? [{ slug: 'todas', nombre: 'Todas' }] : []), ...SUCURSALES_CONSULTA].map(s => (
               <button key={s.slug} type="button"
                       className={'chip-plaza' + (plaza === s.slug ? ' activa' : '')}
                       aria-pressed={plaza === s.slug}
