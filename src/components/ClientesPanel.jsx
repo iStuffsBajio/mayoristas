@@ -150,7 +150,7 @@ function Ficha({ cliente: c, token, esAdmin, onCambio, onCerrar }) {
       {/* Los datos que hacen falta para venderle, y de dónde vino. */}
       {!editando ? (
         <dl style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', gap: '3px 12px', fontSize: 12.5, margin: '0 0 10px' }}>
-          <dt style={{ color: '#8598A1' }}>Teléfono que tiene</dt><dd style={{ margin: 0 }}>{c.modelo || '—'}</dd>
+          <dt style={{ color: '#8598A1' }}>Su celular</dt><dd style={{ margin: 0 }}>{c.modelo || '—'}</dd>
           <dt style={{ color: '#8598A1' }}>Ciudad</dt><dd style={{ margin: 0 }}>{c.ciudad || '—'}</dd>
           <dt style={{ color: '#8598A1' }}>Llegó por</dt>
           <dd style={{ margin: 0 }} data-origen>{FUENTE[c.origen?.fuente] ?? 'No se sabe'}{c.origen?.anuncio ? ` · ${c.origen.anuncio}` : ''}</dd>
@@ -160,7 +160,7 @@ function Ficha({ cliente: c, token, esAdmin, onCambio, onCerrar }) {
         </dl>
       ) : (
         <div style={{ display: 'grid', gap: 8, marginBottom: 10 }} data-editando-ficha>
-          {[['nombre', 'Nombre'], ['modelo', 'Teléfono que tiene (marca y modelo)'], ['ciudad', 'Ciudad'], ...('telefono' in campos ? [['telefono', 'Su número de WhatsApp']] : [])].map(([k, l]) => (
+          {[['nombre', 'Nombre'], ['modelo', 'Su celular (marca y modelo)'], ['ciudad', 'Ciudad'], ...('telefono' in campos ? [['telefono', 'Su número de WhatsApp']] : [])].map(([k, l]) => (
             <label key={k} style={{ fontSize: 12, display: 'grid', gap: 3 }}>{l}
               <input data-campo={k} value={campos[k]} onChange={ev => setCampos(x => ({ ...x, [k]: ev.target.value }))}
                      style={{ border: '1px solid #D6E0E4', borderRadius: 10, padding: '6px 10px', fontSize: 13 }} />
@@ -269,7 +269,7 @@ function Alta({ token, esAdmin, plazaFija, onHecho, onCerrar }) {
       <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         {campo('nombre', 'Nombre o negocio')}
         {campo('telefono', 'WhatsApp (10 dígitos)')}
-        {campo('modelo', 'Teléfono que tiene')}
+        {campo('modelo', 'Su celular (marca y modelo)')}
         <label style={{ fontSize: 12, display: 'grid', gap: 3 }}>Tipo
           <select data-alta="tipo" value={d.tipo} onChange={ev => setD(x => ({ ...x, tipo: ev.target.value }))}
                   style={{ border: '1px solid #D6E0E4', borderRadius: 10, padding: '6px 10px', fontSize: 13 }}>
@@ -350,7 +350,7 @@ export default function ClientesPanel({ plazaFija = null }) {
 
       {alta && <Alta token={token} esAdmin={isAdmin} plazaFija={plazaFija} onCerrar={() => setAlta(false)} onHecho={c => { setAlta(false); alCambiar(c) }} />}
 
-      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'minmax(0, 1fr)' }} className="crm-columnas">
+      <div className={`crm-columnas${ficha ? ' con-ficha' : ''}`}>
         <Seccion tema="ventas" titulo="Bandeja" sinRelleno
                  sub="Primero lo pendiente, y de ahí quien más lleva esperando."
                  extra={!alta && <button type="button" className="boton-tinta" data-nuevo-cliente onClick={() => setAlta(true)}>Dar de alta</button>}>
@@ -389,7 +389,7 @@ export default function ClientesPanel({ plazaFija = null }) {
           </div>
         </Seccion>
 
-        {ficha && <Ficha cliente={ficha} token={token} esAdmin={isAdmin} onCambio={alCambiar} onCerrar={() => setAbierto(null)} />}
+        {ficha && <div className="crm-ficha"><Ficha cliente={ficha} token={token} esAdmin={isAdmin} onCambio={alCambiar} onCerrar={() => setAbierto(null)} /></div>}
       </div>
     </div>
   )
