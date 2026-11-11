@@ -17,7 +17,9 @@ import {
   precioProducto, precioDeCombo, listaDePrecios,
 } from './herramientas.js'
 import { tipoDe, precioDe, precioCombo, TIPOS, DESCUENTO_COMBO } from './precio.js'
-import { plazaPara } from './plazas.js'
+import { plazaPara, COBERTURA, FUERA_DEL_BOT, PLAZAS_DEL_BOT } from './plazas.js'
+import { SUCURSALES_CONSULTA } from '../src/lib/sucursales.js'
+import { REGLAS } from './cerebro.js'
 
 // ── Inventarios de mentira ──────────────────────────────────────────────────
 //
@@ -78,8 +80,48 @@ test('una plaza inventada se rechaza igual que la falta de plaza', async () => {
 test('bodega y Ferias nunca son plazas del bot', () => {
   assert.equal(esPlazaPublica('bodega'), false, 'bodega es almacén, no atiende')
   assert.equal(esPlazaPublica('ferias'), false, 'Ferias cierra ocho meses al año')
-  assert.equal(esPlazaPublica('torreon'), false, 'Torreón está dada de alta pero cerrada')
   assert.equal(esPlazaPublica('leon'), true)
+})
+
+// ── El chat y la portada parten de la misma lista ──────────────────────────
+//
+// El 2026-11-11 Torreón entró en la portada y el bot siguió diciendo que no
+// existía, sin que nadie lo decidiera. Estas pruebas hacen que una diferencia
+// entre los dos tenga que escribirse, con su razón, en FUERA_DEL_BOT.
+
+test('toda plaza que enseña la portada la atiende el bot o está apartada con su razón', () => {
+  for (const s of SUCURSALES_CONSULTA) {
+    const apartada = s.slug in FUERA_DEL_BOT
+    assert.equal(
+      esPlazaPublica(s.slug), !apartada,
+      `${s.nombre} sale en la portada: o el bot la atiende o FUERA_DEL_BOT dice por qué no`
+    )
+  }
+})
+
+test('FUERA_DEL_BOT sólo aparta plazas que la portada enseña, y cada una con su porqué', () => {
+  const portada = new Set(SUCURSALES_CONSULTA.map(s => s.slug))
+  for (const [slug, razon] of Object.entries(FUERA_DEL_BOT)) {
+    assert.ok(portada.has(slug), `"${slug}" ya no está en la portada: sobra en FUERA_DEL_BOT`)
+    assert.ok(String(razon).trim().length > 20, `"${slug}" está apartada sin decir por qué`)
+  }
+})
+
+test('a toda plaza del bot se puede llegar por su ciudad', () => {
+  for (const s of PLAZAS_DEL_BOT) {
+    assert.ok(COBERTURA[s.slug]?.length, `${s.nombre} no tiene ciudades en COBERTURA: nadie llegaría a ella`)
+    assert.equal(plazaPara(s.nombre), s.slug, `escribir «${s.nombre}» tiene que llevar a ${s.slug}`)
+  }
+})
+
+test('el bot se presenta con las mismas ciudades que atiende', () => {
+  for (const s of PLAZAS_DEL_BOT) {
+    assert.ok(REGLAS.includes(s.nombre), `las reglas no mencionan ${s.nombre}`)
+  }
+  for (const slug of Object.keys(FUERA_DEL_BOT)) {
+    const nombre = SUCURSALES_CONSULTA.find(s => s.slug === slug).nombre
+    assert.ok(!REGLAS.includes(nombre), `las reglas nombran ${nombre} y el bot no la atiende`)
+  }
 })
 
 // ── Buscar no respeta ningún filtro (la regla que se rompió tres veces) ────
@@ -472,7 +514,9 @@ test('una ciudad desconocida devuelve null, no la plaza más grande', () => {
   }
 })
 
-test('Torreón no direcciona a nadie mientras esté cerrada', () => {
+test('Torreón no direcciona a nadie mientras esté apartada', () => {
+  // Cuando el dueño decida, esta prueba cambia junto con FUERA_DEL_BOT.
+  assert.equal(esPlazaPublica('torreon'), false)
   assert.equal(plazaPara('Torreón'), null)
 })
 

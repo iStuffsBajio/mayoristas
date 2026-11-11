@@ -43,7 +43,11 @@ const cliente = new Anthropic()
  * del cliente aquí dentro, o el caché se invalida en cada mensaje y se paga
  * el prompt completo cada vez.
  */
-const REGLAS = `Eres quien contesta el WhatsApp de iStuffs, tienda de fundas y micas para celular en León, San Luis Potosí y Aguascalientes.
+/** «León, San Luis Potosí y Aguascalientes», sacado de la lista y no escrito a mano. */
+const enLetra = nombres => nombres.length < 2 ? nombres.join('') : `${nombres.slice(0, -1).join(', ')} y ${nombres.at(-1)}`
+export const CIUDADES = enLetra(opcionesDePlaza().map(o => o.nombre))
+
+export const REGLAS = `Eres quien contesta el WhatsApp de iStuffs, tienda de fundas y micas para celular en ${CIUDADES}.
 
 Quien te escribe vio un anuncio y quiere una funda **para su propio teléfono**: es público, no mayorista. Casi nadie que llega por publicidad viene por mayoreo. Así que das precio al público por omisión y sólo hablas de mayoreo si la persona lo pide o dice que revende.
 
@@ -56,9 +60,9 @@ Tu trabajo, en este orden:
 
 REGLAS QUE NO SE ROMPEN:
 
-**Sin saber la tienda no das existencias.** Ni un cero. Si no sabes de dónde es, pregúntale la ciudad. Un cero sin tienda dice "no hay" cuando lo que pasa es que no sabes dónde mirar. El PRECIO sí lo puedes dar sin saber la tienda: la lista es la misma en las tres.
+**Sin saber la tienda no das existencias.** Ni un cero. Si no sabes de dónde es, pregúntale la ciudad. Un cero sin tienda dice "no hay" cuando lo que pasa es que no sabes dónde mirar. El PRECIO sí lo puedes dar sin saber la tienda: la lista es la misma en todas las tiendas.
 
-**Nunca sumes las tres tiendas.** Si un modelo está repartido —3 en León, 4 en San Luis— no existen 7 piezas para nadie. Cada tienda es su propio número y se dice con su nombre.
+**Nunca sumes entre tiendas.** Si un modelo está repartido —3 en León, 4 en San Luis— no existen 7 piezas para nadie. Cada tienda es su propio número y se dice con su nombre.
 
 **Toda existencia va con su corte.** El inventario sale de un respaldo de cada tienda, así que es la foto de un día, no el mostrador de ahora. Di "al corte del <fecha>". Si la herramienta marca el corte como viejo, avísalo sin dramatizar: "ese corte es del <fecha>, mejor que la tienda te lo confirme".
 
@@ -93,8 +97,8 @@ Si algo no sabes, dilo. "Déjame pasarte con la tienda" es una respuesta buena. 
 const SLUGS = opcionesDePlaza().map(o => o.slug)
 
 /**
- * `strict: true` en todas: garantiza que `plaza` llegue siendo uno de los tres
- * slugs y no "León" o "leon ". Sin eso hay que validar a mano en cada
+ * `strict: true` en todas: garantiza que `plaza` llegue siendo uno de los
+ * slugs del bot y no "León" o "leon ". Sin eso hay que validar a mano en cada
  * herramienta y el modelo se entera del error una vuelta más tarde.
  */
 const HERRAMIENTAS = [
@@ -115,7 +119,7 @@ const HERRAMIENTAS = [
   },
   {
     name: 'donde_hay',
-    description: 'El mismo código en las tres sucursales, desglosado. Úsala cuando la plaza del cliente está en cero, para decirle que su sucursal lo puede pedir a otra. NUNCA sumes los números que devuelve.',
+    description: 'El mismo código en cada sucursal, desglosado. Úsala cuando la plaza del cliente está en cero, para decirle que su sucursal lo puede pedir a otra. NUNCA sumes los números que devuelve.',
     strict: true,
     input_schema: {
       type: 'object',
@@ -126,7 +130,7 @@ const HERRAMIENTAS = [
   },
   {
     name: 'precio',
-    description: 'El precio de un producto. No lleva tienda: la lista es la misma en las tres. El monto YA LLEVA IVA incluido. Si devuelve monto en null no hay número que dar: di lo que trae porQueNo.',
+    description: 'El precio de un producto. No lleva tienda: la lista es la misma en todas las tiendas. El monto YA LLEVA IVA incluido. Si devuelve monto en null no hay número que dar: di lo que trae porQueNo.',
     strict: true,
     input_schema: {
       type: 'object',

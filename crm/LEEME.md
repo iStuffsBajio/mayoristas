@@ -27,7 +27,7 @@ crm/
   servidor.mjs      la ventana en el navegador
   probar.mjs        hablar con el cerebro directo
   simular.mjs       cargas de Meta por el camino completo
-  *.test.js         113 pruebas que fijan todo lo anterior
+  *.test.js         117 pruebas que fijan todo lo anterior
 ```
 
 **A quién le habla.** La publicidad va casi toda a público: quien escribe quiere
@@ -42,7 +42,7 @@ revende.
 ```bash
 npm run crm:web                       # LA VENTANA: chat en el navegador
 
-npm test                              # las 113 reglas, sin gastar un peso
+npm test                              # las 117 reglas, sin gastar un peso
 npm run crm -- --guion                # el cerebro directo, con costo
 npm run crm:simular                   # el camino COMPLETO, como lo manda Meta
 npm run crm:simular -- --anuncio      # entrando por un anuncio de San Luis
@@ -85,7 +85,7 @@ Este módulo **no reimplementa nada**. Importa de `src/lib/`:
 | `fotoPara` | `mockups.js` | Ya devuelve `exacta: false` para la foto prestada |
 | `esProtector` | `familias.js` | Los 8 códigos de micas, con las erratas del catálogo |
 | `armarMensaje`, `enlaceWhatsApp` | `whatsapp.js` | Ya quitan los emojis que rompen la URL |
-| `SUCURSALES_ACTIVAS`, `telefonoWhatsApp` | `sucursales.js` | Bodega y Ferias quedan fuera solas |
+| `SUCURSALES_CONSULTA`, `telefonoWhatsApp` | `sucursales.js` | Las mismas plazas que enseña la portada; bodega y Ferias quedan fuera solas |
 
 Si el bot tuviera su propia copia de la búsqueda, en tres meses el chat y la
 página dirían cosas distintas del mismo código. La del chat es la que ve el
@@ -296,8 +296,18 @@ según la plaza. El bot pasa a la persona con la tienda, que es lo correcto.
 `COBERTURA` en `plazas.js` es un primer tiro por cercanía en carretera. Quién
 atiende a un mayorista de Querétaro o de San Miguel lo sabe el dueño.
 
-Torreón está en `sucursales.js` con `activa: false`, así que hoy
-`plazaPara('Torreón')` devuelve `null` a propósito.
+### Torreón
+
+Desde el 2026-11-11 la portada la enseña (`consulta: true`). El bot parte de la
+misma lista, `SUCURSALES_CONSULTA`, y la aparta a mano en `FUERA_DEL_BOT`
+(`plazas.js`) con su razón, hasta que el dueño decida si atiende leads: hoy no
+tiene número de WhatsApp en `config/site.json` ni ciudades en `COBERTURA`.
+
+Lo que no puede volver a pasar es que el chat y la página diverjan sin que
+nadie lo decida. `reglas.test.js` falla si la portada enseña una plaza que no
+está ni en el bot ni apartada con su porqué, si una plaza del bot no tiene
+ciudades, o si las reglas del modelo nombran una ciudad distinta de las que
+atiende —la frase de presentación sale de la lista, no está escrita a mano—.
 
 ---
 

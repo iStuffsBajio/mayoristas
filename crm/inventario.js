@@ -13,7 +13,8 @@
 // respaldo nuevo y se vuelve a publicar el de ayer: el corte puede tener dos
 // o tres días y eso no es un fallo, es el dato.
 
-import { SUCURSALES, SUCURSALES_ACTIVAS } from '../src/lib/sucursales.js'
+import { SUCURSALES } from '../src/lib/sucursales.js'
+import { PLAZAS_DEL_BOT } from './plazas.js'
 
 const BUCKET = process.env.S3_BUCKET || 'istuffs-inventarios'
 const REGION = process.env.S3_REGION || 'us-east-1'
@@ -29,8 +30,8 @@ const cache = new Map()
 const urlDe = slug =>
   `https://${BUCKET}.s3.${REGION}.amazonaws.com/inventarios/${slug}/inventario.json`
 
-/** Las plazas de las que el bot puede hablar. Nunca bodega, nunca Ferias. */
-export const PLAZAS_PUBLICAS = new Set(SUCURSALES_ACTIVAS.map(s => s.slug))
+/** Las plazas de las que el bot puede hablar. Nunca bodega, nunca Ferias. Ver `plazas.js`. */
+export const PLAZAS_PUBLICAS = new Set(PLAZAS_DEL_BOT.map(s => s.slug))
 
 export const esPlazaPublica = slug => PLAZAS_PUBLICAS.has(String(slug ?? ''))
 
