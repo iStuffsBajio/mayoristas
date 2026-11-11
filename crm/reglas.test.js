@@ -66,7 +66,7 @@ test('sin plaza no se devuelve ningún número, ni un cero', async () => {
   assert.equal(r.error, 'falta-plaza')
   assert.equal(r.hayPiezas, undefined, 'no debe traer existencias sin plaza')
   assert.equal(r.sinExistencia, undefined)
-  assert.ok(r.opciones.length === 3, 'debe ofrecer las tres tiendas para preguntar')
+  assert.ok(r.opciones.length === 4, 'debe ofrecer las cuatro tiendas para preguntar')
 })
 
 test('una plaza inventada se rechaza igual que la falta de plaza', async () => {
@@ -166,12 +166,12 @@ test('un código que no está en el catálogo se distingue del que está en cero
 test('dondeHay desglosa por plaza y no devuelve ningún total', async () => {
   montar()
   const r = await dondeHay({ codigo: 'SGA06T' })
-  assert.equal(r.porPlaza.length, 3)
+  assert.equal(r.porPlaza.length, 4)
   assert.ok(!('total' in r), 'un total mandaría a alguien por piezas repartidas')
   assert.ok(!('piezas' in r))
   // 8 + 5 + 7 = 20, y esas veinte piezas no existen para nadie.
   const nombres = r.porPlaza.map(p => p.plaza)
-  assert.deepEqual(nombres.sort(), ['aguascalientes', 'leon', 'san-luis'])
+  assert.deepEqual(nombres.sort(), ['aguascalientes', 'leon', 'san-luis', 'torreon'])
   for (const p of r.porPlaza) assert.ok(p.corte, 'cada plaza lleva su propio corte')
 })
 
@@ -514,10 +514,14 @@ test('una ciudad desconocida devuelve null, no la plaza más grande', () => {
   }
 })
 
-test('Torreón no direcciona a nadie mientras esté apartada', () => {
-  // Cuando el dueño decida, esta prueba cambia junto con FUERA_DEL_BOT.
-  assert.equal(esPlazaPublica('torreon'), false)
-  assert.equal(plazaPara('Torreón'), null)
+test('Torreón atiende la Comarca Lagunera (2026-11-11)', () => {
+  assert.equal(esPlazaPublica('torreon'), true)
+  for (const c of ['Torreón', 'Gómez Palacio', 'Lerdo', 'Saltillo, Coahuila', 'Durango']) {
+    assert.equal(plazaPara(c), 'torreon', c)
+  }
+  // Los homónimos de otros estados no se cuelan por contención.
+  assert.notEqual(plazaPara('San Pedro Garza García'), 'torreon')
+  assert.notEqual(plazaPara('Matamoros, Tamaulipas'), 'torreon')
 })
 
 // ── La entrega del lead ────────────────────────────────────────────────────
@@ -560,7 +564,7 @@ test('el mensaje del lead va sin emojis', () => {
 })
 
 test('un lead no se entrega a una plaza que no atiende', () => {
-  for (const plaza of ['bodega', 'ferias', 'torreon', undefined]) {
+  for (const plaza of ['bodega', 'ferias', undefined]) {
     const e = entregarASucursal({ plaza, telefonos: { general: '5213315381571' }, interes: [] })
     assert.equal(e.error, 'falta-plaza', `no se entrega a ${plaza}`)
   }

@@ -5,6 +5,9 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-11
 
+- **Torreón entra al bot** (rama `crm-meta`): atiende la Comarca Lagunera,
+  Coahuila y Durango. Sin número propio, sus leads van al general.
+
 - **Clientes (CRM, fase 1, rama `crm-meta`).** Sección «Clientes» en el panel
   del administrador y de cada tienda: ficha de cada cliente o mayorista, de qué
   anuncio llegó, la conversación, tomar, pasar a otra plaza, cerrar o devolver

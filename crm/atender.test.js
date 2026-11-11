@@ -80,7 +80,7 @@ test('sin plaza sabida ni ref, no se resuelve y el cerebro pregunta', () => {
   assert.equal(resolverPlaza({ plaza: null }, null), null)
   assert.equal(resolverPlaza({ plaza: null }, { ref: 'campaña' }), null)
   // Una plaza guardada que ya no atiende tampoco vale.
-  assert.equal(resolverPlaza({ plaza: 'torreon' }, null), null)
+  assert.equal(resolverPlaza({ plaza: 'ferias' }, null), null)
 })
 
 // ── El almacén ──────────────────────────────────────────────────────────────

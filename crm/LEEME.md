@@ -325,10 +325,12 @@ atiende a un mayorista de Querétaro o de San Miguel lo sabe el dueño.
 
 ### Torreón
 
-Desde el 2026-11-11 la portada la enseña (`consulta: true`). El bot parte de la
-misma lista, `SUCURSALES_CONSULTA`, y la aparta a mano en `FUERA_DEL_BOT`
-(`plazas.js`) con su razón, hasta que el dueño decida si atiende leads: hoy no
-tiene número de WhatsApp en `config/site.json` ni ciudades en `COBERTURA`.
+Entró al bot el 2026-11-11, a petición del dueño. Atiende la Comarca Lagunera
+—Torreón, Gómez Palacio, Lerdo, San Pedro de las Colonias, Matamoros— y los
+estados de Coahuila y Durango (`COBERTURA` en `plazas.js`), como primer tiro
+por cercanía: el dueño lo afina. **Mientras no tenga su número de WhatsApp en
+el panel (Diseño → WhatsApp), sus leads llegan al número general**: el cliente
+no se pierde, pero no cae directo en la tienda.
 
 Lo que no puede volver a pasar es que el chat y la página diverjan sin que
 nadie lo decida. `reglas.test.js` falla si la portada enseña una plaza que no

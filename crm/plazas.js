@@ -25,10 +25,8 @@ import { normalizar } from '../src/lib/buscar.js'
  * plaza que no está ni en el bot ni en esta lista.
  */
 export const FUERA_DEL_BOT = {
-  torreon:
-    'Pendiente del dueño (2026-11-11). La portada la enseña, pero no tiene ' +
-    'número de WhatsApp en config/site.json —el lead caería en el general— ' +
-    'ni ciudades en COBERTURA, así que nadie llegaría a ella por su ciudad.',
+  // Vacío desde el 2026-11-11: el dueño metió Torreón al bot («agregamos a
+  // torreon»). Si alguna plaza vuelve a quedar fuera, va aquí con su razón.
 }
 
 /** Las plazas de las que el bot habla y a las que entrega. Nunca bodega ni Ferias. */
@@ -50,6 +48,15 @@ export const COBERTURA = {
   'aguascalientes': [
     'aguascalientes', 'ags', 'jesus maria', 'calvillo', 'zacatecas',
     'guadalupe zacatecas', 'fresnillo', 'jerez',
+  ],
+  // La Comarca Lagunera y los dos estados que la comparten (2026-11-11). Primer
+  // tiro por cercanía, igual que las demás: el dueño lo afina. «San Pedro» y
+  // «Matamoros» van con apellido: a secas caerían San Pedro Garza García
+  // (Monterrey) y Matamoros (Tamaulipas).
+  'torreon': [
+    'torreon', 'coahuila', 'coah', 'gomez palacio', 'lerdo', 'ciudad lerdo',
+    'matamoros coahuila', 'san pedro de las colonias', 'francisco i madero',
+    'la laguna', 'comarca lagunera', 'durango', 'dgo',
   ],
 }
 
