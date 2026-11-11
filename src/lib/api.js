@@ -352,3 +352,23 @@ export const guardarParametrosCaja = (sucursal, parametros, token) =>
  */
 export const guardarMovimientoCaja = (mov, token) =>
   pedir('/caja/movimiento', { metodo: 'POST', token, cuerpo: mov })
+
+// ── Nómina y RH ──────────────────────────────────────────────────────────────
+//
+// El administrador recibe todo; una tienda, SÓLO su plaza y sin nada de RH:
+// lo recorta el servidor. Escribir es sólo del administrador.
+
+export const nomina = token => pedir('/nomina', { token })
+
+export const guardarConfigNomina = (config, motivo, token) =>
+  pedir('/nomina/config', { metodo: 'POST', token, cuerpo: { config, motivo } })
+
+/** Justificar, cubrir, autorizar comisiones, ajustar, pagar, vacaciones. */
+export const accionNomina = (accion, token) =>
+  pedir('/nomina/accion', { metodo: 'POST', token, cuerpo: accion })
+
+export const subirFotoNomina = (datos, token) =>
+  pedir('/nomina/foto', { metodo: 'POST', token, cuerpo: { datos } })
+
+export const fotoNomina = (f, token) =>
+  pedir(`/nomina/foto?f=${encodeURIComponent(f)}`, { token })

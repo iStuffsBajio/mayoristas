@@ -48,6 +48,22 @@ servidor viejo sólo afecta a quien pulse un botón de Depurar en esos minutos.
 - [ ] Avisar a las tiendas: **el sueldo y las comisiones se registran en el POS
   como salida**, con «sueldo» o «comisión» y el nombre del trabajador.
 
+## Nómina y RH (2026-11-11): para arrancar
+
+- [ ] **Capturar en Parámetros** la fecha de ingreso de cada persona, el nombre de
+  la sobrina de Brenda y su bono, y el sueldo, el bono y el usuario del punto de
+  venta de Ángel y Ximena (Torreón).
+- [ ] **Avisar a las tiendas:** las comisiones ya NO se capturan en la caja (las
+  registra el sistema al autorizarlas); el sueldo sí, como «Sueldo ‹nombre›».
+- [ ] Tras la próxima sincronización: comprobar que llegan `comisionables` y los
+  turnos de Torreón, y que los usuarios de Torreón casan con sus registros.
+- [ ] La primera autorización real es la primera prueba contra S3 de
+  `caja/movimientos.json` desde la nómina: revisar que aparezca en Efectivo y en
+  el corte de esa plaza.
+- [ ] Unificar los horarios: «Puntualidad del personal» sigue con los fijos.
+- [ ] Fase 2 de RH (expediente, adelantos y préstamos, aguinaldo y prima
+  vacacional, finiquito, metas): propuesta, sin construir.
+
 ## Fases siguientes (decididas, no construidas)
 
 - [ ] **Fase B — incidencias manuales con foto** (el dueño la dejó para más adelante el 2026-11-09), sobre la bandeja de Revisar

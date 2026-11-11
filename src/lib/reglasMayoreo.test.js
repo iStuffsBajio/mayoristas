@@ -94,3 +94,30 @@ test('cobros electrónicos: sólo tarjeta, transferencia y mixto, con su referen
   assert.equal(r[0].total, 250)
   assert.equal(r[1].referencia, '', 'sin referencia se queda vacía, no se inventa')
 })
+
+// ── Tickets que pueden pagar comisión ─────────────────────────────────────
+import { ticketsComisionables } from './reglasMayoreo.js'
+
+test('comisionables: sólo cruces de tipos distintos, sin mayorista ni cancelados', () => {
+  const tickets = [T(1), T(2), T(3, { cancelado: 't' }), T(4), T(5)]
+  const lineas = [
+    { ...funda(1, 1), total: 250 }, { ...mica(1, 1), total: 150 },           // cruce: entra
+    { ...funda(2, 2), total: 600 },                                           // dos fundas: no
+    { ...funda(3, 1), total: 250 }, { ...mica(3, 1), total: 150 },           // cancelado
+    { ...funda(4, 1), total: 250 }, { ...mica(4, 1), total: 150 }, mayorista(4, 2), // mayorista
+    { ...funda(5, 1), total: 250 }, { ...sticker(5, 1), total: 9 },          // sticker de $9: bajo el piso
+  ]
+  const r = ticketsComisionables({ tickets, lineas })
+  assert.deepEqual(r.map(t => t.id), ['1'])
+  assert.deepEqual(r[0].lineas.map(l => [l.tipo, l.precio]), [['funda', 250], ['hidrogel', 150]])
+  assert.equal(r[0].cajero, 'ana')
+})
+
+test('comisionables: el precio es por pieza, y una línea a mayoreo no hace cruce', () => {
+  const r = ticketsComisionables({ tickets: [T(1), T(2)], lineas: [
+    { ...funda(1, 2), total: 500 }, { ...mica(1, 1), total: 150 },
+    { ...funda(2, 1), total: 250 }, { ...mica(2, 1, 't'), total: 150 },
+  ] })
+  assert.deepEqual(r.map(t => t.id), ['1'])
+  assert.equal(r[0].lineas[0].precio, 250)
+})

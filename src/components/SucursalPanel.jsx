@@ -7,6 +7,7 @@ import RevisarPanel from './RevisarPanel'
 import MovimientoPanel from './MovimientoPanel'
 import ConsultaModelo from './ConsultaModelo'
 import CortePanel from './CortePanel'
+import { MiPagoPanel } from './Nomina'
 
 /**
  * Lo que ve una sucursal con su sesión.
@@ -32,6 +33,9 @@ const SECCIONES_TIENDA = [
   // Lo pidió el dueño el 2026-11-09: cada tienda ve las ventas de su semana y
   // cuenta su efectivo. Va primero: es lo que se hace cada semana.
   { id: 'corte', icono: '💵', titulo: 'Corte', sub: 'Tu semana y el conteo de la caja' },
+  // Lo pidió el dueño el 2026-11-11: sueldo, bono y comisiones de la gente de
+  // la sucursal, de sólo lectura. Lo recorta el servidor: sólo esta plaza.
+  { id: 'mipago', icono: '💰', titulo: 'Mi pago', sub: 'Sueldo, bono y comisiones' },
   { id: 'revisar', icono: '🔍', titulo: 'Revisar', sub: 'Códigos y nombres, uno a uno' },
   { id: 'surtido', icono: '🚚', titulo: 'Surtido', sub: 'Lo que te toca recibir' },
 ]
@@ -101,6 +105,7 @@ export default function SucursalPanel() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
         {seccion === 'corte' && !esBodega && <CortePanel plazaFija={plaza} />}
+        {seccion === 'mipago' && !esBodega && <MiPagoPanel />}
         {seccion === 'revisar' && <RevisarPanel />}
         {/* Bodega entra sin plaza fija: tiene que poder elegir a cuál manda.
             Una tienda entra ya en la suya, que es lo único que le incumbe. */}

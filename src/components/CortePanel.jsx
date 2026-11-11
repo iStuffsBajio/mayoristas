@@ -718,9 +718,10 @@ function BloqueDeSemana({ b, plaza, ciclo, editable, esAdmin, onGuardar }) {
         <Lista c={C.comisiones} titulo="Comisiones" lista={b.listas.comisiones ?? []} total={b.comisiones ?? 0} vacio="Ninguna comisión registrada como salida." conTrabajador />
       </div>
       <p style={{ fontSize: 10.5, color: TINTA_TENUE, margin: '-6px 0 0', lineHeight: 1.5 }}>
-        Todo esto sale de las entradas y salidas de efectivo del punto de venta. <strong>El sueldo y las comisiones se
-        registran ahí como salida, con la palabra «sueldo» o «comisión» y el nombre del trabajador</strong>; si no se
-        registran, lo esperado queda por encima de lo que hay y se lee como faltante.
+        Todo esto sale de las entradas y salidas de efectivo del punto de venta. <strong>El sueldo se registra ahí como
+        salida, con la palabra «sueldo» y el nombre del trabajador</strong>; si no, lo esperado queda por encima de lo que
+        hay y se lee como faltante. <strong>Las comisiones NO se capturan en la caja:</strong> al autorizarlas, administración
+        las registra sola como «Comisiones de ‹nombre›», y capturarlas también las restaría dos veces.
       </p>
       <ReglasDeMayoreo lista={b.mayoreo} esAdmin={esAdmin} />
       <CobrosElectronicos lista={b.cobros} />

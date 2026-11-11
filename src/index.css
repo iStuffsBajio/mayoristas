@@ -2332,3 +2332,19 @@
   .marca-si strong { color: #456e19; }
   .marca-no strong { color: var(--muted); }
 }
+
+/* ── El recibo de nómina para imprimir y firmar ─────────────────────────────
+   En pantalla no se ve. Al imprimir, el cuerpo se marca con
+   `.imprimiendo-recibo` y sólo queda el recibo: sin menú, sin botones. Va aquí
+   y no en un guion en línea, que la política de seguridad de la página
+   bloquearía. */
+.recibo-impresion { display: none; }
+@media print {
+  body.imprimiendo-recibo * { visibility: hidden !important; }
+  body.imprimiendo-recibo .recibo-impresion,
+  body.imprimiendo-recibo .recibo-impresion * { visibility: visible !important; }
+  body.imprimiendo-recibo .recibo-impresion {
+    display: block !important; position: absolute; left: 0; top: 0; width: 100%;
+    padding: 24px; color: #000; background: #fff; font-family: inherit;
+  }
+}

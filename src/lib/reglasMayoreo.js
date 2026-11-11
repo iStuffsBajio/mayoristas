@@ -125,3 +125,44 @@ export function cobrosElectronicos({ tickets = [], desdeDia = null } = {}) {
   }
   return out.sort((a, b) => String(a.f).localeCompare(String(b.f)) || a.hora.localeCompare(b.hora))
 }
+
+// ── Los tickets que pueden pagar comisión ─────────────────────────────────
+//
+// La nómina (2026-11-11) paga comisión por un CRUCE de productos —funda, mica
+// de hidrogel, sticker— dentro del MISMO ticket, a precio público. La cuenta
+// con el 7% y los precios mínimos vive en `src/lib/nomina.js`, porque son
+// parámetros que el administrador cambia; aquí sólo se apartan los tickets que
+// PUEDEN pagarla, con sus líneas y lo que se cobró por pieza.
+//
+// Se descartan sin mirar precios: los cancelados, los que llevan mayorista y
+// los que no juntan dos tipos distintos. El piso de `PISO_COMISIONABLE` sólo
+// adelgaza el archivo: ningún mínimo del dueño está por debajo de $100.
+
+export const PISO_COMISIONABLE = 100
+const TIPOS_COMISION = new Set(['funda', 'hidrogel', 'sticker'])
+
+export function ticketsComisionables({ tickets = [], lineas = [], desdeDia = null, piso = PISO_COMISIONABLE } = {}) {
+  const porTicket = new Map()
+  for (const l of lineas ?? []) {
+    if (num(l.cantidad) <= 0) continue
+    const k = String(l.ticket)
+    if (!porTicket.has(k)) porTicket.set(k, [])
+    porTicket.get(k).push(l)
+  }
+  const out = []
+  for (const t of tickets ?? []) {
+    if (esSi(t.cancelado) || !dentroDe(desdeDia, t.cuando)) continue
+    const ls = porTicket.get(String(t.id))
+    if (!ls?.length || ls.some(l => claseDeLinea(l) === 'etiqueta')) continue
+    const utiles = ls.map(l => ({
+      codigo: limpio(l.codigo), producto: limpio(l.producto), tipo: tipoDePieza(l),
+      cantidad: num(l.cantidad), precio: Math.round((num(l.total) / num(l.cantidad)) * 100) / 100,
+      mayoreo: esSi(l.mayoreo),
+    })).filter(l => TIPOS_COMISION.has(l.tipo))
+    const tipos = new Set(utiles.filter(l => !l.mayoreo && l.precio >= piso).map(l => l.tipo))
+    if (tipos.size < 2) continue
+    const h = horaDe(t.cuando)
+    out.push({ id: limpio(t.id), folio: limpio(t.folio) || limpio(t.id), f: h?.dia ?? null, hora: horaTexto(h), cajero: limpio(t.cajero), lineas: utiles })
+  }
+  return out.sort((a, b) => String(b.f).localeCompare(String(a.f)) || b.hora.localeCompare(a.hora))
+}

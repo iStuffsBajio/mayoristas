@@ -657,9 +657,64 @@ function respuestaDeCorte(u, opciones, sesionAdmin, plazaDeSesion) {
   return r
 }
 
+// ── La nómina ────────────────────────────────────────────────────────────
+//
+// El dato pasa por el MISMO código del servidor —`recorteTienda` y
+// `aplicarAccion`, importados— así lo que se comprueba es lo que de verdad
+// recibe cada sesión. Daniela abre León toda la semana; el LUNES tarde, para
+// que el bono salga perdido y haya algo que justificar. Y un ticket con funda
+// $250 + mica $120 + sticker $100: el ejemplo del dueño, $25.90.
+const NOM = await import('../backend/src/nomina.js')
+const NOMINA = { config: { empleados: NOM.EMPLEADOS_INICIALES, parametros: null }, estado: {}, posts: [], configs: [] }
+const diasHastaHoy = Array.from({ length: 7 }, (_, i) => { const d = new Date(LUNES_HOY); d.setDate(d.getDate() + i); return isoDia(d) })
+  .filter(f => f <= isoDia(new Date()))
+const TURNOS_NOMINA = diasHastaHoy.map((f, i) => ({ slug: 'leon', persona: 'daniela coronilla', fecha: f, inicio: `${f}T${i === 0 ? '10:52' : '10:22'}:00` }))
+const COMISIONABLES_NOMINA = {
+  leon: [{ id: '9001', folio: '9001', f: isoDia(new Date()), hora: '13:05', cajero: 'daniela coronilla', lineas: [
+    { codigo: 'I13PER', producto: 'FUNDA PERSONALIZADA', tipo: 'funda', cantidad: 1, precio: 250, mayoreo: false },
+    { codigo: 'HDA', producto: 'MICA HIDRIOGEL HD ALTA', tipo: 'hidrogel', cantidad: 1, precio: 120, mayoreo: false },
+    { codigo: 'ST', producto: 'STIKER DISEÑO', tipo: 'sticker', cantidad: 1, precio: 100, mayoreo: false },
+  ] }],
+  'san-luis': [], aguascalientes: [], torreon: [],
+}
+function respuestaDeNomina(u, opciones, sesionAdmin, plazaDeSesion) {
+  const hoy = isoDia(new Date())
+  if (/\/nomina\/config/.test(u)) {
+    const c = JSON.parse(opciones?.body ?? '{}')
+    const r = NOM.limpiarConfig(c.config)
+    NOMINA.configs.push(c)
+    if (r.error) return { error: r.error }
+    NOMINA.config = r.config
+    return { ok: true, config: r.config, cambios: NOM.cambiosDeConfig(NOM.EMPLEADOS_INICIALES ? { empleados: NOM.EMPLEADOS_INICIALES } : {}, r.config) }
+  }
+  if (/\/nomina\/accion/.test(u)) {
+    const a = JSON.parse(opciones?.body ?? '{}')
+    NOMINA.posts.push(a)
+    const r = NOM.aplicarAccion(NOMINA.estado, NOMINA.config, a, { quien: 'admin' })
+    if (r.error) return { error: r.error }
+    NOMINA.estado = r.estado
+    return { ok: true, estado: r.estado }
+  }
+  if (sesionAdmin) {
+    return { hoy, config: NOMINA.config, estado: NOMINA.estado, turnos: TURNOS_NOMINA, ultimoDato: { leon: hoy }, comisionables: COMISIONABLES_NOMINA, bitacora: [] }
+  }
+  const r = NOM.recorteTienda(NOMINA.config, NOMINA.estado, plazaDeSesion)
+  // Lo que RECIBE la tienda, no sólo lo que pinta: la pantalla sólo calcula su
+  // plaza, así que el sueldo de otra llegaría en los datos sin dibujarse.
+  const ajenos = (r.config?.empleados ?? []).filter(e => e.plaza !== plazaDeSesion)
+  if (ajenos.length) errores.push(`la nómina que recibe ${plazaDeSesion} trae a ${ajenos.map(e => e.nombre).join(', ')}`)
+  if (/"ingreso"|diasVacaciones|"vacaciones"/.test(JSON.stringify(r))) errores.push(`la nómina que recibe ${plazaDeSesion} trae datos de RH`)
+  return { hoy, plaza: plazaDeSesion, config: r.config, estado: r.estado,
+    turnos: TURNOS_NOMINA.filter(t => t.slug === plazaDeSesion), ultimoDato: { [plazaDeSesion]: hoy },
+    comisionables: { [plazaDeSesion]: COMISIONABLES_NOMINA[plazaDeSesion] ?? [] } }
+}
+
 /** Lo que devuelve cada ruta, según lo que pida. `null` es un 404. */
 function respuesta(url, opciones) {
   const u = String(url)
+  if (/\/nomina(\/config|\/accion)?(\?|$)/.test(u)) {
+    return respuestaDeNomina(u, opciones, SESION_ACTUAL.isAdmin, SESION_ACTUAL.branch)
+  }
   if (/\/corte(\/conteo)?(\?|$)|\/caja\/fondo/.test(u)) {
     return respuestaDeCorte(u, opciones, SESION_ACTUAL.isAdmin, SESION_ACTUAL.branch)
   }
@@ -2722,6 +2777,85 @@ async function corteDelAdmin(window, donde) {
   return 1
 }
 
+// ── La nómina ───────────────────────────────────────────────────────────────
+
+/** «Mi pago» de la tienda: sólo su gente, el bono, la comisión y nada de RH. */
+async function miPagoDeLaTienda(window, donde) {
+  const doc = window.document
+  const raiz = doc.querySelector('[data-mi-pago]')
+  if (!raiz) { errores.push(`${donde} · «Mi pago» no se dibujó`); return 0 }
+  const recibos = [...doc.querySelectorAll('[data-recibo]')].map(x => x.getAttribute('data-recibo'))
+  if (recibos.join() !== 'daniela-jenni') errores.push(`${donde} · la tienda de León ve los recibos ${recibos.join()} y debía ver sólo el de Daniela y Jenni`)
+  const texto = raiz.textContent
+  for (const prohibido of ['Brenda', 'Andrea', 'Cesareo', 'Ximena', 'Ingreso', 'Antigüedad', 'vacaciones']) {
+    if (texto.includes(prohibido)) errores.push(`${donde} · «Mi pago» enseña «${prohibido}»`)
+  }
+  if (!/\$25\.90/.test(texto)) errores.push(`${donde} · la comisión del ejemplo del dueño no sale en $25.90`)
+  if (!doc.querySelector('[data-bono="perdido"]')) errores.push(`${donde} · el lunes a las 10:52 debía perder el bono`)
+  if (!doc.querySelector('[data-imprimir-recibo]')) errores.push(`${donde} · no hay botón de imprimir para firma`)
+  if (doc.querySelector('[data-marcar-pagado], [data-justificar], [data-autorizar-lote]')) errores.push(`${donde} · la tienda tiene botones del administrador`)
+  return 1
+}
+
+/** «Nómina y RH» del administrador: las seis vistas, autorizar y dar de alta. */
+async function nominaDelAdmin(window, donde) {
+  const doc = window.document
+  const ir = async v => { clic(window, doc.querySelector(`[data-vista-nomina="${v}"]`)); await nuevaVuelta(window, 6) }
+  const pestana = doc.querySelector('[data-vista-personal="nomina"]')
+  if (!pestana) { errores.push(`${donde} · Personal no tiene la pestaña «Nómina y RH»`); return 0 }
+  clic(window, pestana)
+  await nuevaVuelta(window, 8)
+  if (!doc.querySelector('[data-nomina]')) { errores.push(`${donde} · «Nómina y RH» no se dibujó`); return 0 }
+  const plazas = [...doc.querySelectorAll('[data-resumen-plaza]')].map(x => x.getAttribute('data-resumen-plaza'))
+  if (plazas.join() !== 'leon,san-luis,aguascalientes,torreon') errores.push(`${donde} · el resumen trae ${plazas.join()}`)
+  if (doc.body.textContent.includes('Ferias')) errores.push(`${donde} · Ferias no lleva nómina y aparece`)
+
+  // Puntualidad: el retardo del lunes se puede justificar.
+  await ir('puntualidad')
+  const just = doc.querySelector('[data-justificar]')
+  if (!just) errores.push(`${donde} · el retardo del lunes no se puede justificar`)
+  else {
+    clic(window, just); await nuevaVuelta(window, 3)
+    escribir(window, doc.querySelector('[aria-label="Motivo de la justificación"]'), 'Tráfico')
+    await nuevaVuelta(window, 2)
+    const antes = NOMINA.posts.length
+    clic(window, doc.querySelector('[data-guardar-justificacion]')); await nuevaVuelta(window, 6)
+    if (NOMINA.posts.at(-1)?.accion !== 'justificar' || NOMINA.posts.length !== antes + 1) errores.push(`${donde} · justificar no mandó la acción`)
+    await ir('resumen')
+    clic(window, doc.querySelector('[data-fila-nomina="daniela-jenni"] button')); await nuevaVuelta(window, 4)
+    if (!doc.querySelector('[data-recibo="daniela-jenni"] [data-bono="vigente"]')) errores.push(`${donde} · justificado el retardo, el bono no volvió`)
+  }
+
+  // Comisiones: autorizar manda el monto congelado.
+  await ir('comisiones')
+  const c = doc.querySelector('[data-comision="leon|9001"] input[type="checkbox"]')
+  if (!c) errores.push(`${donde} · la comisión del ticket 9001 no está en la bandeja`)
+  else {
+    clic(window, c); await nuevaVuelta(window, 2)
+    clic(window, doc.querySelector('[data-autorizar-lote]')); await nuevaVuelta(window, 6)
+    const a = NOMINA.posts.at(-1)
+    if (a?.accion !== 'comision' || a.estado !== 'autorizada' || a.items?.[0]?.monto !== 25.9) errores.push(`${donde} · autorizar no mandó $25.90: ${JSON.stringify(a)}`)
+  }
+
+  await ir('vacaciones')
+  if (doc.querySelectorAll('[data-saldo-vacaciones]').length !== 8) errores.push(`${donde} · vacaciones no lista a las 8 personas`)
+  if (!/captúrala en Parámetros/.test(doc.querySelector('[data-vacaciones]')?.textContent ?? '')) errores.push(`${donde} · la fecha de ingreso vacía no se pide`)
+
+  // Parámetros: dar de alta a alguien y guardar.
+  await ir('parametros')
+  clic(window, doc.querySelector('[data-agregar-empleado]')); await nuevaVuelta(window, 3)
+  const nuevos = [...doc.querySelectorAll('[aria-label="Nombre del registro"]')]
+  escribir(window, nuevos.at(-1), 'Persona Nueva'); await nuevaVuelta(window, 2)
+  clic(window, doc.querySelector('[data-guardar-parametros]')); await nuevaVuelta(window, 6)
+  const cfg = NOMINA.configs.at(-1)?.config
+  if (!cfg?.empleados?.some(e => e.id === 'persona-nueva' && e.nombre === 'Persona Nueva')) errores.push(`${donde} · el alta no se guardó con su identificador`)
+  if (!doc.querySelector('[data-parametros-guardados]')) errores.push(`${donde} · guardar parámetros no dice que se guardó`)
+
+  await ir('bitacora')
+  if (!doc.querySelector('[data-bitacora]')) errores.push(`${donde} · la bitácora no se dibujó`)
+  return 1
+}
+
 // ── El recorrido ───────────────────────────────────────────────────────────
 
 const SESIONES = [
@@ -2759,6 +2893,7 @@ let consultasVistas = 0
 let censurasVistas = 0
 let depuradosVistos = 0
 let cortesVistos = 0
+let nominasVistas = 0
 
 for (const [nombre, sesion] of SESIONES) {
   const { window, dichos } = await arrancar(sesion)
@@ -2841,6 +2976,12 @@ for (const [nombre, sesion] of SESIONES) {
         }
         if (/consultar modelo/i.test(t) && nombre === 'bodega') {
           consultasVistas += await consultaModelo(window, `${nombre} · ${t}`)
+        }
+        if (/mi pago/i.test(t) && nombre === 'sucursal') {
+          nominasVistas += await miPagoDeLaTienda(window, `${nombre} · ${t}`)
+        }
+        if (t.replace(/[^\p{L}\s]/gu, '').trim() === 'Personal' && nombre === 'admin') {
+          nominasVistas += await nominaDelAdmin(window, `${nombre} · ${t}`)
         }
         if (/corte/i.test(t) && nombre === 'sucursal') {
           cortesVistos += await corteDeLaTienda(window, `${nombre} · ${t}`)
@@ -2937,6 +3078,8 @@ console.log(`  seccion de modelos nuevos: ${nuevosVistos} dibujada`)
 if (!nuevosVistos) errores.push('la seccion «estan vendiendo los modelos nuevos» no se dibujo en ninguna sesion')
 console.log(`  depurar (listas y candados): ${depuradosVistos} vistas recorridas`)
 if (depuradosVistos < 4) errores.push(`«Depurar» recorrio ${depuradosVistos} vistas de 4: una baja con piezas en la red no saldria en ningun sitio`)
+console.log(`  nómina (Mi pago y Nómina y RH): ${nominasVistas} de 2 recorridos`)
+if (nominasVistas < 2) errores.push(`la nómina se recorrió ${nominasVistas} vez de 2`)
 console.log(`  corte semanal (tienda y administrador): ${cortesVistos} de 2 recorridos`)
 if (cortesVistos < 2) errores.push(`el corte semanal se recorrio ${cortesVistos} vez de 2: sin el, un faltante sin tolerancia no saldria en ningun sitio`)
 console.log(`  consultar modelo de bodega: ${consultasVistas} dibujado`)

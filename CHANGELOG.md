@@ -3,6 +3,19 @@
 Este registro resume cambios relevantes del producto y de su documentación;
 no sustituye el historial completo de Git.
 
+## 2026-11-11
+
+- **Nómina y RH.** «Mi pago» en el panel de cada sucursal (sueldo, aperturas,
+  bono de puntualidad, comisiones, total, historial y recibo para imprimir y
+  firmar) y «Nómina y RH» dentro de Personal: resumen de pago con «marcar
+  pagado», puntualidad con justificaciones y quién abrió, bandeja de comisiones
+  con foto y autorización en lote, vacaciones y antigüedad según la ley,
+  parámetros editables (empleados, sueldos, bonos, horarios, tolerancia,
+  comisión) y bitácora. Las comisiones autorizadas se registran solas como
+  salida de efectivo, y el corte ahora resta también lo capturado en la página.
+  La extracción publica los tickets con cruce de productos y trae los turnos de
+  Torreón.
+
 ## 2026-11-10
 
 - **El diseño del corte en todo el panel:** Dashboard, Ventas, Inventarios,

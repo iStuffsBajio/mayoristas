@@ -535,7 +535,7 @@ todavía no se puede juzgar: así se ejercita «muy nuevos» y de paso se compru
 que una tanda partida en días NO salga como dos ediciones.
 
 Hoy cubre: 4 sesiones · 15 pestañas · 18 secciones de panel · 145 cabeceras ·
-**el corte semanal** con la tienda —sin tolerancia, guardando los tres colores,
+**la nómina** con la tienda —sólo su gente, la comisión del ejemplo del dueño, sin datos de RH en lo que recibe— y con el administrador —justificar, autorizar, dar de alta— · **el corte semanal** con la tienda —sin tolerancia, guardando los tres colores,
 sin ver nombres de otra plaza, con sus reglas de mayoreo y sus cobros sin
 referencia— y con el administrador —todas, Torreón con su ciclo, la comisión y
 el sueldo sin nombre, asignar el fondo y contar por una plaza—; además
@@ -2457,6 +2457,89 @@ lo dejaron de hacer hace menos primero.
 por tipo. **Micas = todo el departamento HIDROGEL**, o cualquier producto con
 «hidrogel» en el nombre (el departamento existe: 7 códigos). Las ventas a
 $0.01 no cuentan como pieza.
+
+---
+
+## 🔒 CONFIRMAR — Nómina y RH (2026-11-11)
+
+El dueño pidió «Mi pago» en cada sucursal y «Nómina y RH» dentro de Personal.
+Las cuentas viven en `src/lib/nomina.js` (con pruebas); quién ve qué y lo que se
+guarda, en `backend/src/nomina.js`; todo en el prefijo privado `nomina/`
+(`config.json`, `estado.json`, `bitacora.json`, `fotos/`).
+
+### Quién es quién: el punto de venta sabe el USUARIO, no la persona
+
+La puntualidad sale de TURNOS (la primera apertura de caja del día). Medido el
+2026-11-11 con las aperturas desde el 1 de septiembre, dos plazas comparten
+usuario y se resuelven distinto, a propósito:
+
+| Plaza | Usuario | Cómo se paga |
+|---|---|---|
+| León | Daniela y Jenni usan el de Daniela | UN registro de pago; la puntualidad es de las dos |
+| Aguascalientes | la sobrina de Brenda usa el de Brenda el fin de semana | DOS registros; el calendario dice de quién es cada apertura (`registroDeUsuario`) y el administrador lo corrige día por día |
+
+Los nombres de usuario se toman tal cual del punto de venta —«Cesareo Nolasco
+Ramirez», «jenni gllardo»— y casan por palabras sin acentos (`coincideUsuario`).
+Un usuario que no casa con nadie (un empleado que ya se fue, o Torreón antes de
+capturar sus nombres) se marca y **no descuenta al titular**: podría ser él con
+otro usuario.
+
+### 🔒 Las reglas que puso el dueño
+
+- **Día cubierto:** quien cubre cobra el valor del día del titular (su sueldo
+  entre sus días programados: Cesareo $600 ÷ 2 = $300) y al titular **se le
+  descuenta solo**; el administrador puede quitar el descuento. No le cuenta
+  como falta. Si el titular está de vacaciones, no se descuenta.
+- **Falta:** descuenta el día de sueldo **y** el bono. Justificada, el
+  administrador elige perdonar el bono, el día o los dos (lo de arranque: los
+  dos). Un retardo de más de la tolerancia pierde el bono.
+- **Bono:** fijo, no proporcional. Vigente, En riesgo (un día que ya pasó y
+  todavía no tiene dato: el respaldo no ha llegado) o Perdido, con fecha y hora.
+- **Comisión:** cruce de dos productos de DISTINTO tipo en el MISMO ticket, sin
+  mayoreo ni mayorista. Mínimos: funda $220 (no hay código de funda
+  personalizada y así lo decidió el dueño, sabiendo que en León una funda normal
+  al público ronda $221), mica de hidrogel $120, sticker $100. UNA por ticket, el
+  par más caro: funda $250 + mica $120 + sticker $100 → $25.90. Sobre lo COBRADO.
+  Dos fundas solas no pagan; dos fundas y dos micas pagan una.
+- **Al autorizar una comisión, el monto se congela** (cambiar luego el 7% no la
+  mueve) **y sale sola de la caja** como `Comisiones de ‹nombre›`, una salida
+  por persona y semana en `caja/movimientos.json`. Rechazar la última la borra.
+  Por eso **las tiendas NO capturan comisiones en el punto de venta**: se
+  restarían dos veces. El sueldo sí se sigue registrando ahí.
+- **El corte también resta lo capturado en la página** (`datosDeCorte` junta
+  `caja/movimientos.json`). Antes no lo hacía: un movimiento registrado en
+  Efectivo no bajaba lo esperado del corte.
+
+### Privacidad: los sueldos NO van en el JavaScript público
+
+Los registros de arranque con sus sueldos viven en el BACKEND
+(`EMPLEADOS_INICIALES`) y sólo se entregan con sesión. En el frontend estaban
+en la primera versión y se sacaron antes de publicar: todo lo de `src/` lo puede
+leer cualquiera. Una tienda recibe SÓLO su plaza, sin fechas de ingreso, sin
+vacaciones (se convierten en días justificados sin decir por qué) y sin fotos.
+Toda la sucursal ve la nómina de su sucursal: lo decidió el dueño para no hacer
+un usuario por persona. Bodega no ve nada.
+
+`verificar` revisa lo que RECIBE la tienda, no sólo lo que pinta: la pantalla
+sólo calcula su plaza, así que un sueldo de otra plaza llegaría en los datos sin
+dibujarse. Se comprobó metiendo la fuga a propósito.
+
+### Lo demás
+
+- La **fecha de ingreso** va vacía: el dueño la captura persona por persona en
+  Parámetros. Las vacaciones siguen la ley (12, 14, 16, 18, 20 y luego +2 cada
+  cinco años), editables por persona, y vencen a los seis meses del aniversario.
+- **Recibo para firmar:** se imprime desde «Mi pago» o desde el resumen, con la
+  hoja de impresión de `index.css` (`.recibo-impresion`), sin guion en línea.
+- **Bitácora:** la escribe el servidor con autor y hora; las de configuración
+  dicen qué cambió.
+- **Horarios y tolerancia:** en la nómina son parámetros por plaza y día. La
+  pestaña «Puntualidad del personal» sigue con `HORARIOS` y `TOLERANCIA_MIN`
+  (🔒): si se cambian en la nómina, las dos pueden diferir hasta unificarlas.
+- **Torreón** entra en la extracción de turnos; sus sueldos, bonos y usuarios del
+  punto de venta se capturan en Parámetros.
+- Los tickets comisionables (`comisionables` en `ventas/<plaza>.json`, 120 días)
+  y los turnos de Torreón llegan con la siguiente sincronización.
 
 ---
 

@@ -34,7 +34,7 @@ import os from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { agregarVentas } from '../src/lib/ventasTicket.js'
-import { incidenciasDeMayoreo, cobrosElectronicos } from '../src/lib/reglasMayoreo.js'
+import { incidenciasDeMayoreo, cobrosElectronicos, ticketsComisionables } from '../src/lib/reglasMayoreo.js'
 import { reemplazosDeCancelados, resumirReemplazos } from '../src/lib/reemplazos.js'
 import { diasEnCero, DIAS_AGOTADOS } from '../src/lib/agotados.js'
 // La resolucion del respaldo se comparte con los otros extractores: del disco
@@ -304,6 +304,13 @@ async function procesar(slug) {
     }
     log(`[${slug}] reglas de mayoreo: ${reglasMayoreo.total} tickets las rompen en ${DIAS_DE_DETALLE} días`)
 
+    // Los tickets que pueden pagar comisión en la nómina: cruces de funda, mica y
+    // sticker en el mismo ticket, a precio público. La cuenta con el 7% y los
+    // mínimos la hace la página, porque son parámetros del administrador.
+    const candidatos = ticketsComisionables({ tickets, lineas, desdeDia: desdeDetalle })
+    const comisionables = { dias: DIAS_DE_DETALLE, desde: desdeDetalle, total: candidatos.length, tickets: candidatos.slice(0, 6000) }
+    log(`[${slug}] comisionables: ${candidatos.length} tickets con cruce de productos en ${DIAS_DE_DETALLE} días`)
+
     // La referencia, aparte y sin poder tumbar lo demás.
     let cobros = null
     try {
@@ -384,6 +391,7 @@ async function procesar(slug) {
       // 🔒 Señalan tickets, no cambian ninguna cifra. Ver `reglasMayoreo.js`.
       reglasMayoreo,
       cobrosElectronicos: cobros,
+      comisionables,
       // 🔒 Sospechas, nunca cifras. Ver `reemplazos.js`.
       cancelaciones: { dias: DIAS_VENTANA, resumen: resumenCancel, filas: cancelaciones.slice(0, 300) },
       // La ventana va aparte y completa: quien valore en pesos usa esta y

@@ -6,8 +6,13 @@
 // Ahora esas credenciales viven solo aquí, en variables de entorno de Lambda,
 // y el navegador solo recibe respuestas ya procesadas.
 
+import crypto from 'node:crypto'
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
 import { verificarBajas, hoyMexico, PLAZAS_CON_STOCK, DIAS_MINIMOS_PARA_BAJA } from './bajas.js'
+import {
+  PLAZAS_NOMINA, EMPLEADOS_INICIALES, limpiarConfig, cambiosDeConfig, recorteTienda, aplicarAccion,
+  salidaDeComisiones, conBitacora,
+} from './nomina.js'
 import {
   PLAZAS_CORTE, INICIO_DEL_CORTE, esLunes, lunesDe, validarConteo, diasParaTienda,
   movimientosParaTienda, ventasParaTienda, parametrosParaTienda, registroDeConteo,
@@ -1451,11 +1456,20 @@ const claveCortes = plaza => `cortes/${plaza}.json`
 
 /** Todo lo que el corte de una plaza necesita, ya recortado para una tienda. */
 async function datosDeCorte(plaza, params, hoy, esAdmin = false) {
-  const [caja, ventas, conteos] = await Promise.all([
+  const [cajaPos, ventas, conteos, deLaPagina] = await Promise.all([
     leerJson(`caja/${plaza}.json`),
     leerJson(claveVentas(plaza)),
     leerJson(claveCortes(plaza)),
+    leerJson('caja/movimientos.json'),
   ])
+  // Las salidas capturadas en la página —«Registrar movimiento» de Efectivo y
+  // las comisiones autorizadas en Nómina— salen de la caja igual que las del
+  // punto de venta. Sin ellas el corte esperaría ese dinero en el cajón y lo
+  // leería como faltante.
+  const caja = {
+    ...cajaPos,
+    movimientos: [...(Array.isArray(cajaPos?.movimientos) ? cajaPos.movimientos : []), ...Object.values(deLaPagina?.[plaza] ?? {})],
+  }
   const nombre = SUCURSALES[plaza]?.nombre ?? plaza
   return {
     plaza, nombre,
@@ -1556,6 +1570,148 @@ async function rutaGuardarConteo(evento, origen, cuerpo) {
   return responder(origen, 200, { ok: true, registro })
 }
 
+// ── Nómina y RH ────────────────────────────────────────────────────────────
+//
+// Lo pidió el dueño el 2026-11-11: «Mi pago» en cada sucursal y «Nómina y RH»
+// dentro de Personal. Las cuentas viven en `src/lib/nomina.js`; aquí, quién ve
+// qué, lo que se guarda y la bitácora. Todo bajo `nomina/`, PRIVADO.
+
+const NOMINA = { config: 'nomina/config.json', estado: 'nomina/estado.json', bitacora: 'nomina/bitacora.json' }
+const MAX_FOTO_NOMINA = 4 * 1024 * 1024
+
+async function escribirJson(clave, valor) {
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET, Key: clave,
+    Body: Buffer.from(JSON.stringify(valor)),
+    ContentType: 'application/json; charset=utf-8',
+    CacheControl: 'no-cache',
+  }))
+}
+
+const configNomina = async () => (await leerJsonONulo(NOMINA.config)) ?? { empleados: EMPLEADOS_INICIALES, parametros: null }
+
+/**
+ * `GET /nomina`. El administrador recibe todo; una tienda, SÓLO su plaza y sin
+ * nada de RH (`recorteTienda`). Bodega no tiene nómina que ver.
+ */
+async function rutaNomina(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesión.' })
+  const plaza = sesion.admin ? null : String(sesion.sucursal ?? '')
+  if (!sesion.admin && !PLAZAS_NOMINA.includes(plaza)) {
+    return responder(origen, 403, { error: 'La nómina es de las sucursales.' })
+  }
+  const plazas = sesion.admin ? PLAZAS_NOMINA : [plaza]
+
+  const [config, estado, archivo, bitacora, ...ventas] = await Promise.all([
+    configNomina(), leerJson(NOMINA.estado), leerJson('personal/turnos.json'),
+    sesion.admin ? leerJson(NOMINA.bitacora) : Promise.resolve({}),
+    ...plazas.map(p => leerJson(claveVentas(p))),
+  ])
+
+  // Veinte semanas de aperturas bastan para la nómina y el historial.
+  const d = new Date(`${hoyMexico()}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - 140)
+  const desde = d.toISOString().slice(0, 10)
+  const todos = Array.isArray(archivo?.turnos) ? archivo.turnos : []
+  const ultimoDato = {}
+  for (const t of todos) if (plazas.includes(t.slug) && (!ultimoDato[t.slug] || t.fecha > ultimoDato[t.slug])) ultimoDato[t.slug] = t.fecha
+  const turnos = todos.filter(t => plazas.includes(t.slug) && t.fecha >= desde)
+    .map(({ slug, persona, fecha, inicio }) => ({ slug, persona, fecha, inicio }))
+  const comisionables = Object.fromEntries(plazas.map((p, i) => [p, Array.isArray(ventas[i]?.comisionables?.tickets) ? ventas[i].comisionables.tickets : null]))
+
+  if (sesion.admin) {
+    return responder(origen, 200, {
+      hoy: hoyMexico(), config, estado, turnos, ultimoDato, comisionables,
+      bitacora: (bitacora?.entradas ?? []).slice(-400).reverse(),
+    })
+  }
+  const r = recorteTienda(config, estado, plaza)
+  return responder(origen, 200, { hoy: hoyMexico(), plaza, config: r.config, estado: r.estado, turnos, ultimoDato, comisionables })
+}
+
+/** `POST /nomina/config`: empleados y parámetros. Sólo el administrador. */
+async function rutaGuardarConfigNomina(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Sólo el administrador edita la nómina.' })
+  const r = limpiarConfig(cuerpo?.config)
+  if (r.error) return responder(origen, 400, { error: r.error })
+  const [antes, bitacora] = await Promise.all([configNomina(), leerJson(NOMINA.bitacora)])
+  const cambios = cambiosDeConfig(antes, r.config)
+  if (!cambios.length) return responder(origen, 200, { ok: true, config: r.config, cambios })
+  await escribirJson(NOMINA.config, r.config)
+  await escribirJson(NOMINA.bitacora, conBitacora(bitacora, {
+    cuando: new Date().toISOString(), quien: quienEs(sesion), accion: 'configuracion',
+    detalle: cambios.join(' · ').slice(0, 1500), motivo: String(cuerpo?.motivo ?? '').slice(0, 300) || null,
+  }))
+  return responder(origen, 200, { ok: true, config: r.config, cambios })
+}
+
+/**
+ * `POST /nomina/accion`: justificar, cubrir, autorizar comisiones, ajustar,
+ * pagar, vacaciones. Sólo el administrador, y cada una deja su renglón en la
+ * bitácora. Las comisiones autorizadas rehacen su SALIDA DE EFECTIVO.
+ */
+async function rutaAccionNomina(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Sólo el administrador.' })
+  const [config, estado, bitacora] = await Promise.all([configNomina(), leerJson(NOMINA.estado), leerJson(NOMINA.bitacora)])
+  const r = aplicarAccion(estado, config, cuerpo, { quien: quienEs(sesion) })
+  if (r.error) return responder(origen, 400, { error: r.error })
+
+  if (r.salidas.length) {
+    const movs = await leerJson('caja/movimientos.json')
+    const hoy = hoyMexico()
+    for (const clave of [...new Set(r.salidas)]) {
+      const [rid, lunes] = clave.split('|')
+      const reg = config.empleados.find(e => e.id === rid)
+      if (!reg) continue
+      const s = salidaDeComisiones(r.estado, reg, lunes, hoy)
+      const dePlaza = { ...(movs[reg.plaza] ?? {}) }
+      // La fecha se conserva si ya existía: el dinero salió el día de la
+      // primera autorización y moverlo cambiaría de semana el corte.
+      if (s.borrar) delete dePlaza[s.id]
+      else dePlaza[s.id] = { ...s.mov, f: dePlaza[s.id]?.f ?? s.mov.f }
+      movs[reg.plaza] = dePlaza
+    }
+    await escribirJson('caja/movimientos.json', movs)
+  }
+  await escribirJson(NOMINA.estado, r.estado)
+  await escribirJson(NOMINA.bitacora, conBitacora(bitacora, r.bitacora))
+  return responder(origen, 200, { ok: true, estado: r.estado })
+}
+
+/** `POST /nomina/foto`: la foto de respaldo de una comisión. Se mira por sus BYTES. */
+async function rutaFotoNomina(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Sólo el administrador.' })
+  const datos = String(cuerpo?.datos ?? '')
+  if (datos.length > Math.ceil(MAX_FOTO_NOMINA / 3) * 4 + 16) return responder(origen, 413, { error: 'La foto supera 4 MB.' })
+  const binario = Buffer.from(datos, 'base64')
+  if (!binario.length || binario.length > MAX_FOTO_NOMINA) return responder(origen, 400, { error: 'Foto vacía o demasiado grande.' })
+  const tipo = tipoDeImagen(binario)
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[tipo]
+  if (!ext) return responder(origen, 400, { error: 'El archivo no es una foto JPG, PNG o WebP.' })
+  const nombre = `${Date.now().toString(36)}${crypto.randomBytes(4).toString('hex')}.${ext}`
+  await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: `nomina/fotos/${nombre}`, Body: binario, ContentType: tipo, CacheControl: 'no-cache' }))
+  return responder(origen, 200, { ok: true, foto: nombre })
+}
+
+/** `GET /nomina/foto?f=`: la devuelve en base64. Sólo el administrador. */
+async function rutaVerFotoNomina(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Sólo el administrador.' })
+  const f = String(evento.queryStringParameters?.f ?? '')
+  if (!/^[a-z0-9]{6,40}\.(jpg|png|webp)$/.test(f)) return responder(origen, 400, { error: 'Foto inválida.' })
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: `nomina/fotos/${f}` }))
+    const b = Buffer.from(await r.Body.transformToByteArray())
+    return responder(origen, 200, { tipo: r.ContentType ?? 'image/jpeg', datos: b.toString('base64') })
+  } catch {
+    return responder(origen, 404, { error: 'No se encontró la foto.' })
+  }
+}
+
 export async function handler(evento) {
   const origen = evento.headers?.origin || evento.headers?.Origin || ''
   const metodo = evento.requestContext?.http?.method || 'GET'
@@ -1595,6 +1751,11 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/ajustes/bajas') return await rutaGuardarBajas(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/surtidos')   return await rutaSurtidos(evento, origen)
     if (metodo === 'POST' && ruta === '/surtidos')   return await rutaGuardarSurtido(evento, origen, cuerpo)
+    if (metodo === 'GET'  && ruta === '/nomina')          return await rutaNomina(evento, origen)
+    if (metodo === 'POST' && ruta === '/nomina/config')   return await rutaGuardarConfigNomina(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/nomina/accion')   return await rutaAccionNomina(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/nomina/foto')     return await rutaFotoNomina(evento, origen, cuerpo)
+    if (metodo === 'GET'  && ruta === '/nomina/foto')     return await rutaVerFotoNomina(evento, origen)
     if (metodo === 'GET'  && ruta === '/corte')           return await rutaCorte(evento, origen)
     if (metodo === 'POST' && ruta === '/corte/conteo')    return await rutaGuardarConteo(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/caja')            return await rutaCaja(evento, origen)
