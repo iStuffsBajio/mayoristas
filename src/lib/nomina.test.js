@@ -2,7 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   calcularComision, semanaNomina, registroDeUsuario, coincideUsuario, diasLFT, antiguedad,
-  saldoVacaciones, valorDia, PARAMETROS_INICIALES, diaIso, configCompleta, CONFIG_INICIAL as SIN_EMPLEADOS,
+  saldoVacaciones, valorDia, PARAMETROS_INICIALES, diaIso, configCompleta, CONFIG_INICIAL as SIN_EMPLEADOS, limitesBono,
 } from './nomina.js'
 import { EMPLEADOS_INICIALES } from '../../backend/src/nomina.js'
 
@@ -84,8 +84,11 @@ test('el valor de un día es el sueldo entre los días programados', () => {
 
 test('siete faltas descuentan el sueldo entero, sin centavos sueltos', () => {
   const r = semanaNomina({ config: CONFIG_INICIAL, turnos: [], lunes: LUNES, hoy: '2026-11-16', ultimoDato: { leon: '2026-11-15' }, plazas: ['leon'] })
-  assert.equal(r[0].descuentos.length, 7)
-  assert.equal(r[0].totales.total, 0)
+  const dan = r.find(x => x.registro.id === 'daniela'), jen = r.find(x => x.registro.id === 'jenni')
+  assert.equal(dan.descuentos.length, 6, 'Daniela: seis días de $333.33')
+  assert.equal(dan.totales.total, 0)
+  assert.equal(jen.descuentos.length, 0, 'Jenni no abre caja: su sueldo no depende de las aperturas')
+  assert.equal(jen.totales.total, 2000, 'pero las faltas de Daniela le quitan el bono')
 })
 
 // ── La semana ──────────────────────────────────────────────────────────────
@@ -111,15 +114,76 @@ test('una semana limpia: sueldo + bono, sin descuentos', () => {
   assert.equal(c.dias.length, 2, 'Cesareo sólo sábado y domingo')
 })
 
-test('un retardo de más de la tolerancia pierde el bono, con fecha y hora', () => {
-  const r = semanaSL(semanaCompleta({ '2026-11-11': { inicio: '2026-11-11T10:41:00' } }))
-  const a = deSL(r, 'andrea')
+// 🔒 El bono por minutos (el dueño, 2026-11-11): 10 de tolerancia al día; lo
+// que pasa de ahí se suma en la semana. Hasta 20 entero, hasta 30 la mitad,
+// más nada. Andrea abre a las 10:30 y su bono es de $300.
+const tarde = horas => semanaCompleta(Object.fromEntries(Object.entries(horas).map(([f, h]) => [f, { inicio: `${f}T${h}:00` }])))
+
+test('dentro de la tolerancia no suma nada; fuera, sólo lo que pasa de los 10', () => {
+  const a = deSL(semanaSL(tarde({ '2026-11-10': '10:40', '2026-11-11': '10:45' })), 'andrea')
+  assert.equal(a.bono.minutos, 5, '10:40 suma 0 y 10:45 suma 5, no 15')
+  assert.equal(a.bono.estado, 'vigente')
+  assert.equal(a.totales.bono, 300)
+})
+
+test('hasta 20 minutos acumulados el bono va entero', () => {
+  const a = deSL(semanaSL(tarde({ '2026-11-09': '10:50', '2026-11-12': '10:40' })), 'andrea')
+  assert.equal(a.bono.minutos, 10 + 0)
+  const b = deSL(semanaSL(tarde({ '2026-11-09': '10:50', '2026-11-12': '10:50' })), 'andrea')
+  assert.equal(b.bono.minutos, 20, 'justo 20: entero')
+  assert.equal(b.bono.estado, 'vigente')
+  assert.equal(b.totales.bono, 300)
+})
+
+test('de 21 a 30 minutos, la mitad del bono, con el día que lo cruzó', () => {
+  const a = deSL(semanaSL(tarde({ '2026-11-09': '10:50', '2026-11-12': '10:51' })), 'andrea')
+  assert.equal(a.bono.minutos, 21)
+  assert.equal(a.bono.estado, 'mitad')
+  assert.equal(a.totales.bono, 150)
+  assert.equal(a.bono.incumplimiento.fecha, '2026-11-12')
+  assert.equal(a.bono.incumplimiento.hora, '10:51')
+  assert.equal(a.totales.total, 2150)
+  const b = deSL(semanaSL(tarde({ '2026-11-09': '11:00', '2026-11-12': '10:50' })), 'andrea')
+  assert.equal(b.bono.minutos, 30, 'justo 30: todavía la mitad')
+  assert.equal(b.totales.bono, 150)
+})
+
+test('más de 30 minutos acumulados pierde el bono', () => {
+  const a = deSL(semanaSL(tarde({ '2026-11-09': '11:00', '2026-11-12': '10:51' })), 'andrea')
+  assert.equal(a.bono.minutos, 31)
   assert.equal(a.bono.estado, 'perdido')
-  assert.equal(a.bono.incumplimiento.fecha, '2026-11-11')
-  assert.equal(a.bono.incumplimiento.hora, '10:41')
   assert.equal(a.totales.bono, 0)
-  // Dentro de la tolerancia (10 min) no.
-  assert.equal(deSL(semanaSL(semanaCompleta({ '2026-11-11': { inicio: '2026-11-11T10:40:00' } })), 'andrea').bono.estado, 'vigente')
+  assert.equal(a.bono.incumplimiento.fecha, '2026-11-12')
+})
+
+test('quien trabaja menos días tiene la parte proporcional; con seis, los de cinco', () => {
+  const cfg = CONFIG_INICIAL
+  assert.deepEqual(limitesBono(cfg.empleados.find(e => e.id === 'cesareo')), { completo: 8, mitad: 12 })
+  assert.deepEqual(limitesBono(cfg.empleados.find(e => e.id === 'andrea')), { completo: 20, mitad: 30 })
+  assert.deepEqual(limitesBono(cfg.empleados.find(e => e.id === 'daniela')), { completo: 20, mitad: 30 }, 'seis días no dan más minutos')
+  // Cesareo abre a las 10:30: el sábado 10:49 suma 9 → ya pasa de 8, la mitad.
+  const c = deSL(semanaSL(tarde({ '2026-11-14': '10:49' })), 'cesareo')
+  assert.equal(c.bono.minutos, 9)
+  assert.equal(c.bono.estado, 'mitad')
+  assert.equal(c.totales.bono, 50)
+  const c2 = deSL(semanaSL(tarde({ '2026-11-14': '10:49', '2026-11-15': '10:44' })), 'cesareo')
+  assert.equal(c2.bono.minutos, 13, '9 + 4 pasa de 12: sin bono')
+  assert.equal(c2.bono.estado, 'perdido')
+})
+
+test('un retardo justificado no suma minutos', () => {
+  const horas = { '2026-11-09': '11:00', '2026-11-12': '10:51' }
+  const just = { justificaciones: { 'andrea|2026-11-09': { motivo: 'tráfico', bono: true } } }
+  const a = deSL(semanaSL(tarde(horas), just), 'andrea')
+  assert.equal(a.bono.minutos, 11)
+  assert.equal(a.bono.estado, 'vigente')
+})
+
+test('los límites del bono son parámetros', () => {
+  const config = { ...CONFIG_INICIAL, parametros: { bonoMinutos: { completo: 5, mitad: 10 } } }
+  const a = deSL(semanaSL(tarde({ '2026-11-11': '10:46' }), {}, { config }), 'andrea')
+  assert.equal(a.bono.minutos, 6)
+  assert.equal(a.bono.estado, 'mitad')
 })
 
 test('una justificación devuelve el bono', () => {
@@ -207,12 +271,66 @@ test('vacaciones: el día no es falta y, si alguien cubre, no se descuenta al ti
   assert.equal(c.bono.estado, 'vigente')
 })
 
-test('Daniela y Jenni: un registro, cualquiera de las dos abre y cuenta igual', () => {
-  const turnos = [1, 2, 3, 4, 5, 6, 7].map(i => T('leon', i === 5 ? 'jenni gllardo' : 'daniela coronilla', `2026-11-${String(8 + i).padStart(2, '0')}`, '10:30'))
-  const r = semanaNomina({ config: CONFIG_INICIAL, turnos, lunes: LUNES, hoy: '2026-11-16', ultimoDato: { leon: '2026-11-15' }, plazas: ['leon'] })
-  assert.equal(r.length, 1)
-  assert.equal(r[0].bono.estado, 'vigente')
-  assert.equal(r[0].totales.total, 2500)
+// 🔒 Daniela y Jenni (el dueño, 2026-11-11): $2,000 y $500 de bono CADA UNA,
+// cada una con su recibo, y la puntualidad de León es de las dos.
+const semanaLeon = (turnos, estado = {}) => semanaNomina({ config: CONFIG_INICIAL, estado, turnos, lunes: LUNES, hoy: '2026-11-16', ultimoDato: { leon: '2026-11-15' }, plazas: ['leon'] })
+const deLeon = (r, id) => r.find(x => x.registro.id === id)
+const leonATiempo = (ajuste = {}) => [1, 2, 3, 4, 5, 6, 7].map(i => {
+  const f = `2026-11-${String(8 + i).padStart(2, '0')}`
+  return T('leon', i === 5 ? 'jenni gllardo' : 'daniela coronilla', f, ajuste[f] ?? '10:30')
+})
+
+test('Daniela y Jenni: dos recibos, $2,000 y $500 de bono cada una', () => {
+  const r = semanaLeon(leonATiempo())
+  assert.equal(r.length, 2)
+  assert.equal(deLeon(r, 'daniela').totales.total, 2500)
+  assert.equal(deLeon(r, 'jenni').totales.total, 2500)
+  assert.deepEqual(deLeon(r, 'daniela').bono.compartidoCon, ['Jenni Gallardo'])
+})
+
+test('Jenni no abre caja: sin aperturas cobra su sueldo entero y no tiene días que evaluar', () => {
+  const r = semanaLeon(leonATiempo().filter(t => t.fecha !== '2026-11-13'))
+  const j = deLeon(r, 'jenni')
+  assert.equal(j.dias.length, 0)
+  assert.equal(j.totales.descuentos, 0)
+  assert.equal(j.totales.total, 2500)
+  assert.deepEqual(j.bono.limites, { completo: 20, mitad: 30 }, 'los límites son los de Daniela, seis días')
+})
+
+test('abrir en el día de la otra no es cobertura: no descuenta ni paga de más', () => {
+  // Jenni abre el lunes con su usuario y Daniela el viernes con el suyo.
+  const turnos = leonATiempo().map(t => (t.fecha === '2026-11-09' ? { ...t, persona: 'jenni gllardo' } : t.fecha === '2026-11-13' ? { ...t, persona: 'daniela coronilla' } : t))
+  const r = semanaLeon(turnos)
+  for (const id of ['daniela', 'jenni']) {
+    assert.equal(deLeon(r, id).totales.descuentos, 0, id)
+    assert.equal(deLeon(r, id).totales.coberturas, 0, id)
+    assert.equal(deLeon(r, id).totales.total, 2500, id)
+  }
+})
+
+test('el bono de Jenni sigue la puntualidad de Daniela', () => {
+  // Daniela suma 15 el lunes y 10 el martes: 25, al 50%, para las dos.
+  const r = semanaLeon(leonATiempo({ '2026-11-09': '10:55', '2026-11-10': '10:50' }))
+  for (const id of ['daniela', 'jenni']) {
+    assert.equal(deLeon(r, id).bono.minutos, 25, id)
+    assert.equal(deLeon(r, id).bono.estado, 'mitad', id)
+    assert.equal(deLeon(r, id).totales.bono, 250, id)
+  }
+  // El viernes Daniela descansa: esa apertura no cuenta para nadie.
+  const v = semanaLeon(leonATiempo({ '2026-11-13': '11:30' }))
+  assert.equal(deLeon(v, 'daniela').bono.estado, 'vigente')
+  assert.equal(deLeon(v, 'jenni').bono.estado, 'vigente')
+})
+
+test('lo guardado con el registro conjunto de antes se sigue leyendo', () => {
+  const estado = {
+    pagos: { 'daniela-jenni|2026-11-09': { quien: 'admin' } },
+    justificaciones: { 'daniela-jenni|2026-11-10': { motivo: 'cita médica', bono: true, sueldo: true } },
+  }
+  const r = semanaLeon(leonATiempo({ '2026-11-10': '11:30' }), estado)
+  assert.ok(deLeon(r, 'daniela').pago && deLeon(r, 'jenni').pago, 'el pago marcado sigue marcado')
+  assert.equal(deLeon(r, 'daniela').dias.find(d => d.fecha === '2026-11-10').estado, 'justificado')
+  assert.equal(deLeon(r, 'daniela').bono.estado, 'vigente')
 })
 
 test('las comisiones: pendientes no suman, autorizadas sí, y van a quien cobró', () => {

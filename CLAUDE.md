@@ -2475,8 +2475,16 @@ usuario y se resuelven distinto, a propósito:
 
 | Plaza | Usuario | Cómo se paga |
 |---|---|---|
-| León | Daniela y Jenni usan el de Daniela | UN registro de pago; la puntualidad es de las dos |
+| León | Daniela y Jenni usan el de Daniela | DOS registros —$2,000 y $500 de bono cada una, cada una su recibo—. Jenni también va, pero sólo una abre la caja: Jenni `noAbre`, cobra su sueldo fijo y su bono sigue la puntualidad de Daniela (`grupo`). El viernes, que Daniela descansa, no se evalúa |
 | Aguascalientes | la sobrina de Brenda usa el de Brenda el fin de semana | DOS registros; el calendario dice de quién es cada apertura (`registroDeUsuario`) y el administrador lo corrige día por día |
+
+Daniela y Jenni empezaron como un solo registro de $2,000 y el dueño lo corrigió
+el mismo día: cobran eso CADA UNA. Lo guardado con el registro conjunto (un pago
+marcado, una justificación) se sigue leyendo por `antes: ['daniela-jenni']`
+(`deRegistro`). Quien `noAbre` no es titular de ningún día —no se le cuentan
+faltas por aperturas— y tiene que estar en un grupo, o su bono no tendría con
+qué medirse (el servidor lo rechaza). Sus `dias` sólo dicen de quién es la caja
+ese día: a quién van las comisiones.
 
 Los nombres de usuario se toman tal cual del punto de venta —«Cesareo Nolasco
 Ramirez», «jenni gllardo»— y casan por palabras sin acentos (`coincideUsuario`).
@@ -2492,9 +2500,18 @@ otro usuario.
   como falta. Si el titular está de vacaciones, no se descuenta.
 - **Falta:** descuenta el día de sueldo **y** el bono. Justificada, el
   administrador elige perdonar el bono, el día o los dos (lo de arranque: los
-  dos). Un retardo de más de la tolerancia pierde el bono.
-- **Bono:** fijo, no proporcional. Vigente, En riesgo (un día que ya pasó y
-  todavía no tiene dato: el respaldo no ha llegado) o Perdido, con fecha y hora.
+  dos).
+- **Bono por minutos (2026-11-11, el mismo día, corrigiendo la primera
+  versión, que lo quitaba con un solo retardo):** cada día hay 10 minutos de
+  tolerancia y al acumulado de la semana va SÓLO lo que pasa de ahí —llegar 15
+  tarde suma 5—. Hasta **20** minutos el bono va entero, de 21 a **30** a la
+  mitad, más de 30 se pierde. Son topes TOTALES, no 30 adicionales. Quien
+  trabaja menos de cinco días tiene la parte proporcional (sábado y domingo: 8 y
+  12); con seis días se quedan 20 y 30 —más días no dan más minutos—. Una falta
+  sin perdonar lo quita entero y un retardo justificado no suma. Los dos límites
+  son parámetros (`bonoMinutos`) y se ajustan en `limitesBono()`.
+- **Bono:** fijo. Vigente, Al 50%, En riesgo (un día que ya pasó y todavía no
+  tiene dato: el respaldo no ha llegado) o Perdido, con el día que lo movió.
 - **Comisión:** cruce de dos productos de DISTINTO tipo en el MISMO ticket, sin
   mayoreo ni mayorista. Mínimos: funda $220 (no hay código de funda
   personalizada y así lo decidió el dueño, sabiendo que en León una funda normal
@@ -2533,7 +2550,8 @@ dibujarse. Se comprobó metiendo la fuga a propósito.
   hoja de impresión de `index.css` (`.recibo-impresion`), sin guion en línea.
 - **Bitácora:** la escribe el servidor con autor y hora; las de configuración
   dicen qué cambió.
-- **Horarios y tolerancia:** en la nómina son parámetros por plaza y día. La
+- **Horarios y tolerancia:** en la nómina son parámetros por plaza y día;
+  Torreón abre a las 10:00 y las demás a las 10:30. La
   pestaña «Puntualidad del personal» sigue con `HORARIOS` y `TOLERANCIA_MIN`
   (🔒): si se cambian en la nómina, las dos pueden diferir hasta unificarlas.
 - **Torreón** entra en la extracción de turnos; sus sueldos, bonos y usuarios del

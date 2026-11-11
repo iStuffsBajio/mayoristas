@@ -661,14 +661,14 @@ function respuestaDeCorte(u, opciones, sesionAdmin, plazaDeSesion) {
 //
 // El dato pasa por el MISMO código del servidor —`recorteTienda` y
 // `aplicarAccion`, importados— así lo que se comprueba es lo que de verdad
-// recibe cada sesión. Daniela abre León toda la semana; el LUNES tarde, para
+// recibe cada sesión. Daniela abre León toda la semana; el LUNES 45 minutos tarde —35 fuera de tolerancia, más de los 30 que admite la semana—, para
 // que el bono salga perdido y haya algo que justificar. Y un ticket con funda
 // $250 + mica $120 + sticker $100: el ejemplo del dueño, $25.90.
 const NOM = await import('../backend/src/nomina.js')
 const NOMINA = { config: { empleados: NOM.EMPLEADOS_INICIALES, parametros: null }, estado: {}, posts: [], configs: [] }
 const diasHastaHoy = Array.from({ length: 7 }, (_, i) => { const d = new Date(LUNES_HOY); d.setDate(d.getDate() + i); return isoDia(d) })
   .filter(f => f <= isoDia(new Date()))
-const TURNOS_NOMINA = diasHastaHoy.map((f, i) => ({ slug: 'leon', persona: 'daniela coronilla', fecha: f, inicio: `${f}T${i === 0 ? '10:52' : '10:22'}:00` }))
+const TURNOS_NOMINA = diasHastaHoy.map((f, i) => ({ slug: 'leon', persona: 'daniela coronilla', fecha: f, inicio: `${f}T${i === 0 ? '11:15' : '10:22'}:00` }))
 const COMISIONABLES_NOMINA = {
   leon: [{ id: '9001', folio: '9001', f: isoDia(new Date()), hora: '13:05', cajero: 'daniela coronilla', lineas: [
     { codigo: 'I13PER', producto: 'FUNDA PERSONALIZADA', tipo: 'funda', cantidad: 1, precio: 250, mayoreo: false },
@@ -2785,13 +2785,14 @@ async function miPagoDeLaTienda(window, donde) {
   const raiz = doc.querySelector('[data-mi-pago]')
   if (!raiz) { errores.push(`${donde} · «Mi pago» no se dibujó`); return 0 }
   const recibos = [...doc.querySelectorAll('[data-recibo]')].map(x => x.getAttribute('data-recibo'))
-  if (recibos.join() !== 'daniela-jenni') errores.push(`${donde} · la tienda de León ve los recibos ${recibos.join()} y debía ver sólo el de Daniela y Jenni`)
+  if (recibos.sort().join() !== 'daniela,jenni') errores.push(`${donde} · la tienda de León ve los recibos ${recibos.join()} y debía ver el de Daniela y el de Jenni, cada una el suyo`)
   const texto = raiz.textContent
   for (const prohibido of ['Brenda', 'Andrea', 'Cesareo', 'Ximena', 'Ingreso', 'Antigüedad', 'vacaciones']) {
     if (texto.includes(prohibido)) errores.push(`${donde} · «Mi pago» enseña «${prohibido}»`)
   }
   if (!/\$25\.90/.test(texto)) errores.push(`${donde} · la comisión del ejemplo del dueño no sale en $25.90`)
-  if (!doc.querySelector('[data-bono="perdido"]')) errores.push(`${donde} · el lunes a las 10:52 debía perder el bono`)
+  // La puntualidad es de las dos: el retardo de Daniela le cuesta el bono también a Jenni.
+  if (doc.querySelectorAll('[data-bono="perdido"]').length !== 2) errores.push(`${donde} · el lunes a las 11:15 (35 min fuera de tolerancia) debía perder el bono de Daniela Y de Jenni`)
   if (!doc.querySelector('[data-imprimir-recibo]')) errores.push(`${donde} · no hay botón de imprimir para firma`)
   if (doc.querySelector('[data-marcar-pagado], [data-justificar], [data-autorizar-lote]')) errores.push(`${donde} · la tienda tiene botones del administrador`)
   return 1
@@ -2822,8 +2823,10 @@ async function nominaDelAdmin(window, donde) {
     clic(window, doc.querySelector('[data-guardar-justificacion]')); await nuevaVuelta(window, 6)
     if (NOMINA.posts.at(-1)?.accion !== 'justificar' || NOMINA.posts.length !== antes + 1) errores.push(`${donde} · justificar no mandó la acción`)
     await ir('resumen')
-    clic(window, doc.querySelector('[data-fila-nomina="daniela-jenni"] button')); await nuevaVuelta(window, 4)
-    if (!doc.querySelector('[data-recibo="daniela-jenni"] [data-bono="vigente"]')) errores.push(`${donde} · justificado el retardo, el bono no volvió`)
+    clic(window, doc.querySelector('[data-fila-nomina="daniela"] button')); await nuevaVuelta(window, 4)
+    if (!doc.querySelector('[data-recibo="daniela"] [data-bono="vigente"]')) errores.push(`${donde} · justificado el retardo, el bono no volvió`)
+    clic(window, doc.querySelector('[data-fila-nomina="jenni"] button')); await nuevaVuelta(window, 4)
+    if (!doc.querySelector('[data-recibo="jenni"] [data-bono="vigente"]')) errores.push(`${donde} · justificado el retardo de Daniela, el bono de Jenni no volvió`)
   }
 
   // Comisiones: autorizar manda el monto congelado.

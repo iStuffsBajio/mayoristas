@@ -62,6 +62,25 @@ export const PARAMETROS_INICIALES = {
   excluidos: [],
   tolerancia: Object.fromEntries(PLAZAS_NOMINA.map(p => [p, TOLERANCIA_MIN])),
   horarios: Object.fromEntries(PLAZAS_NOMINA.map(p => [p, horarioPlaza(p)])),
+  // 🔒 El bono por minutos acumulados (el dueño, 2026-11-11): en una semana de
+  // lunes a viernes, hasta `completo` minutos fuera de tolerancia el bono va
+  // entero; hasta `mitad`, la mitad; más, nada. Son TOPES TOTALES de la semana.
+  bonoMinutos: { completo: 20, mitad: 30 },
+}
+
+/** Días de la semana de referencia de `bonoMinutos`: de lunes a viernes. */
+export const DIAS_SEMANA_BONO = 5
+
+/**
+ * Los límites de minutos de un registro. Quien trabaja menos días tiene la
+ * parte proporcional (2 días: 8 y 12); con más de cinco se quedan los de una
+ * semana completa: más días no dan más minutos. Así lo eligió el dueño.
+ */
+export function limitesBono(reg, params = PARAMETROS_INICIALES) {
+  const bm = { ...PARAMETROS_INICIALES.bonoMinutos, ...(params?.bonoMinutos ?? {}) }
+  const dias = reg?.dias?.length || DIAS_SEMANA_BONO
+  const f = Math.min(dias, DIAS_SEMANA_BONO) / DIAS_SEMANA_BONO
+  return { completo: redondear(num(bm.completo) * f), mitad: redondear(num(bm.mitad) * f) }
 }
 
 // Los registros de arranque —con sus sueldos— NO viven aquí: este archivo va
@@ -82,6 +101,7 @@ export function configCompleta(config) {
       minimos: { ...PARAMETROS_INICIALES.minimos, ...(p.minimos ?? {}) },
       maximos: { ...PARAMETROS_INICIALES.maximos, ...(p.maximos ?? {}) },
       tolerancia: { ...PARAMETROS_INICIALES.tolerancia, ...(p.tolerancia ?? {}) },
+      bonoMinutos: { ...PARAMETROS_INICIALES.bonoMinutos, ...(p.bonoMinutos ?? {}) },
       horarios: Object.fromEntries(PLAZAS_NOMINA.map(pl => [pl, { ...PARAMETROS_INICIALES.horarios[pl], ...(p.horarios?.[pl] ?? {}) }])),
       excluidos: Array.isArray(p.excluidos) ? p.excluidos : [],
     },
@@ -106,9 +126,22 @@ export function coincideUsuario(delRegistro, delPuntoDeVenta) {
 
 export const activosDe = (config, plaza) => (config.empleados ?? []).filter(e => e.activo !== false && e.plaza === plaza)
 
+/** Dos registros que comparten la puntualidad (Daniela y Jenni). */
+export const mismoGrupo = (a, b) => !!(a && b && a.grupo && a.grupo === b.grupo && a.plaza === b.plaza)
+
+/**
+ * Lo guardado de un registro: con su id o, si se partió de uno conjunto, con
+ * el id de antes (`antes`). Así un pago o una justificación anteriores no se
+ * pierden al separar el registro.
+ */
+export const deRegistro = (mapa, reg, sufijo) =>
+  mapa?.[`${reg.id}|${sufijo}`] ?? (reg.antes ?? []).map(a => mapa?.[`${a}|${sufijo}`]).find(Boolean) ?? null
+
 /** Quién tiene programado ese día en esa plaza: el titular. */
+// Quien `noAbre` (Jenni) no es titular de ningún día: su asistencia no se mide
+// con aperturas. Ese día no se evalúa la puntualidad de nadie.
 export const titularDelDia = (config, plaza, fecha) =>
-  activosDe(config, plaza).find(e => (e.dias ?? []).includes(diaIso(fecha))) ?? null
+  activosDe(config, plaza).find(e => !e.noAbre && (e.dias ?? []).includes(diaIso(fecha))) ?? null
 
 /**
  * A qué registro de pago le toca lo que hizo un usuario del punto de venta un
@@ -291,15 +324,18 @@ export function semanaNomina({ config: cfg, estado = {}, turnos = [], comisionab
       const titular = titularDelDia(config, plaza, fecha)
       const ap = aperturas.get(fecha) ?? null
       const forzada = estado.coberturas?.[`${plaza}|${fecha}`] ?? null
-      const abrio = forzada?.quien
+      let abrio = forzada?.quien
         ? (forzada.quien === 'nadie' ? null : regs.find(r => r.id === forzada.quien) ?? null)
         : (ap ? registroDeUsuario(config, plaza, fecha, ap.persona) : null)
       const minutos = ap ? minutosDe(ap.inicio) : null
       const abre = aMin(p.horarios?.[plaza]?.[diaIso(fecha)])
       if (!titular) continue
+      // Quien comparte la puntualidad con el titular no lo «cubre»: abrir en el
+      // día de la otra es abrir por el grupo.
+      if (abrio && mismoGrupo(abrio, titular)) abrio = titular
 
       const t = fila(titular)
-      const just = estado.justificaciones?.[`${titular.id}|${fecha}`] ?? null
+      const just = deRegistro(estado.justificaciones, titular, fecha)
       const vac = deVacaciones(titular, estado.vacaciones, fecha) || !!just?.sinDescuento
       const d = { fecha, dia: diaIso(fecha), hora: ap ? horaDe(ap.inicio) : null, usuario: ap?.persona ?? null, justificacion: just, forzada: !!forzada?.quien }
 
@@ -320,8 +356,12 @@ export function semanaNomina({ config: cfg, estado = {}, turnos = [], comisionab
         if (abrio && monto) fila(abrio).coberturas.push({ fecha, monto, titular: titular.nombre })
       } else if (abrio) {
         const tarde = minutos !== null && abre !== null ? minutos - abre : null
+        const tol = num(p.tolerancia?.[plaza] ?? TOLERANCIA_MIN)
         d.minutos = tarde
-        d.estado = tarde !== null && tarde > num(p.tolerancia?.[plaza] ?? TOLERANCIA_MIN) ? 'retardo' : 'puntual'
+        d.estado = tarde !== null && tarde > tol ? 'retardo' : 'puntual'
+        // Al acumulado de la semana sólo va lo que pasa de la tolerancia: con
+        // 10 de tolerancia, llegar 15 tarde suma 5 (el dueño, 2026-11-11).
+        if (d.estado === 'retardo') d.excedente = tarde - tol
         // Un retardo justificado no cuesta el bono, salvo que el administrador
         // haya decidido que sí.
         if (d.estado === 'retardo' && just && just.bono !== false) d.estado = 'justificado'
@@ -372,20 +412,51 @@ export function semanaNomina({ config: cfg, estado = {}, turnos = [], comisionab
     if (reg && out.has(reg.id)) out.get(reg.id).ajustes.push(a)
   }
 
-  return [...out.values()].map(r => {
-    const programados = r.dias
-    const malo = programados.find(d => (d.estado === 'retardo' || d.estado === 'falta') && !d.bonoPerdonado)
+  // 🔒 La puntualidad se mide por GRUPO: un registro solo es su propio grupo;
+  // Daniela y Jenni comparten uno, así que sus días se suman, los límites se
+  // sacan de los días de las dos y el resultado vale igual para ambas.
+  const grupos = new Map()
+  for (const r of out.values()) {
+    const k = r.registro.grupo ? `${r.plaza}|${r.registro.grupo}` : `solo|${r.registro.id}`
+    if (!grupos.has(k)) grupos.set(k, [])
+    grupos.get(k).push(r)
+  }
+  const puntualidad = new Map()
+  for (const miembros of grupos.values()) {
+    const programados = miembros.flatMap(m => m.dias).sort((a, b) => a.fecha.localeCompare(b.fecha))
     const sinDato = programados.some(d => d.estado === 'sin-dato')
-    r.bono.estado = malo ? 'perdido' : sinDato ? 'riesgo' : 'vigente'
-    r.bono.incumplimiento = malo ? { fecha: malo.fecha, hora: malo.hora, estado: malo.estado, minutos: malo.minutos ?? null } : null
-    const bono = r.bono.estado === 'perdido' ? 0 : num(r.bono.monto)
+    // 🔒 Una falta sin perdonar quita el bono entero. Los retardos se suman
+    // —sólo lo que pasa de la tolerancia— y el total decide: hasta el primer
+    // límite, entero; hasta el segundo, la mitad; más, nada.
+    const limites = limitesBono({ dias: [...new Set(miembros.filter(m => !m.registro.noAbre).flatMap(m => m.registro.dias ?? []))] }, p)
+    const falta = programados.find(d => d.estado === 'falta' && !d.bonoPerdonado)
+    let acumulado = 0, cruceMitad = null, crucePerdido = null
+    for (const d of programados) {
+      if (d.estado !== 'retardo' || !d.excedente) continue
+      acumulado += d.excedente
+      if (!cruceMitad && acumulado > limites.completo) cruceMitad = d
+      if (!crucePerdido && acumulado > limites.mitad) crucePerdido = d
+    }
+    const pct = falta || crucePerdido ? 0 : cruceMitad ? 0.5 : 1
+    const malo = falta ?? crucePerdido ?? cruceMitad
+    const res = {
+      pct, minutos: acumulado, limites,
+      estado: pct === 0 ? 'perdido' : sinDato ? 'riesgo' : pct === 0.5 ? 'mitad' : 'vigente',
+      incumplimiento: malo ? { fecha: malo.fecha, hora: malo.hora, estado: malo.estado, minutos: malo.minutos ?? null, acumulado: malo === falta ? null : acumulado } : null,
+    }
+    for (const m of miembros) puntualidad.set(m.registro.id, { ...res, compartidoCon: miembros.filter(x => x !== m).map(x => x.registro.nombre) })
+  }
+
+  return [...out.values()].map(r => {
+    Object.assign(r.bono, puntualidad.get(r.registro.id))
+    const bono = redondear(num(r.bono.monto) * r.bono.pct)
     const descuentos = r.descuentos.reduce((a, x) => a + x.monto, 0)
     const coberturas = r.coberturas.reduce((a, x) => a + x.monto, 0)
     const autorizadas = r.comisiones.filter(c => c.estado === 'autorizada').reduce((a, c) => a + num(c.monto), 0)
     const pendientes = r.comisiones.filter(c => c.estado === 'pendiente').reduce((a, c) => a + num(c.monto), 0)
     const ajustes = r.ajustes.reduce((a, x) => a + num(x.monto), 0)
     const total = redondear(num(r.sueldo) - descuentos + coberturas + bono + autorizadas + ajustes)
-    const pago = estado.pagos?.[`${r.registro.id}|${lunes}`] ?? null
+    const pago = deRegistro(estado.pagos, r.registro, lunes)
     return {
       ...r,
       totales: {

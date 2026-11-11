@@ -5,6 +5,14 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-11
 
+- **El bono de puntualidad va por minutos acumulados:** 10 de tolerancia al día;
+  lo que pasa se suma en la semana —hasta 20 entero, hasta 30 a la mitad, más
+  nada— y proporcional para quien trabaja menos días. Los límites se editan en
+  Parámetros.
+- **Daniela y Jenni, cada una con su recibo:** $2,000 y $500 de bono cada una,
+  Jenni no abre caja: cobra su sueldo fijo y su bono sigue la puntualidad de
+  Daniela («Puntualidad compartida con» y «no abre caja», en Parámetros).
+
 - **Nómina y RH.** «Mi pago» en el panel de cada sucursal (sueldo, aperturas,
   bono de puntualidad, comisiones, total, historial y recibo para imprimir y
   firmar) y «Nómina y RH» dentro de Personal: resumen de pago con «marcar

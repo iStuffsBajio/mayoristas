@@ -40,6 +40,7 @@ const COLOR_DIA = {
 const BONO = {
   vigente: { texto: 'Vigente', color: VERDE, punto: '🟢' },
   riesgo: { texto: 'En riesgo', color: AMBAR, punto: '🟡' },
+  mitad: { texto: 'Al 50%', color: AMBAR, punto: '🟠' },
   perdido: { texto: 'Perdido', color: ROJO, punto: '🔴' },
 }
 const ESTADO_COM = {
@@ -241,6 +242,17 @@ function useImprimir() {
   return [cual, setCual]
 }
 
+/** El renglón del bono: estado, minutos acumulados contra el límite y el día que lo movió. */
+function textoBono(bono, b) {
+  const partes = [`${b.punto} ${b.texto}`]
+  if (bono.estado === 'riesgo' && bono.pct === 0.5) partes.push('ya al 50%')
+  const inc = bono.incumplimiento
+  if (inc?.estado === 'falta') partes.push(`falta el ${corto(inc.fecha)}`)
+  else if (bono.limites) partes.push(`${bono.minutos ?? 0} de ${bono.limites.completo} min de retardo (al 50% hasta ${bono.limites.mitad})`)
+  if (bono.compartidoCon?.length) partes.push(`puntualidad compartida con ${bono.compartidoCon.join(' y ')}`)
+  return partes.join(' · ')
+}
+
 /** Lo que ve cada quien de un registro en una semana. */
 function Recibo({ r, lunes, onImprimir, extra }) {
   const t = r.totales
@@ -256,15 +268,17 @@ function Recibo({ r, lunes, onImprimir, extra }) {
                  sub={[t.coberturas && `+${pesos(t.coberturas)} por aperturas`, t.descuentos && `−${pesos(t.descuentos)} por días`].filter(Boolean).join(' · ') || undefined} />
           <Cifra tema={{ ...TEMAS.dinero, fuerte: b.color, suave: b.color + '14' }} titulo="Bono de puntualidad"
                  valor={r.bono.monto === null ? 'sin capturar' : pesos(r.bono.monto)}
-                 sub={`${b.punto} ${b.texto}${r.bono.incumplimiento ? ` · ${ESTADOS_DIA[r.bono.incumplimiento.estado].toLowerCase()} el ${corto(r.bono.incumplimiento.fecha)}${r.bono.incumplimiento.hora ? ` a las ${r.bono.incumplimiento.hora}` : ''}` : ''}`}
-                 data-bono={r.bono.estado} />
+                 sub={textoBono(r.bono, b)}
+                 data-bono={r.bono.estado} data-bono-minutos={r.bono.minutos ?? 0} />
           <Cifra tema={COLORES.comisiones} titulo="Comisiones autorizadas" valor={pesos(t.comisiones)}
                  sub={t.comisionesPendientes ? `${pesos(t.comisionesPendientes)} pendientes de autorizar` : undefined} />
         </Cifras>
         <Desglose r={r} />
         <div>
           <strong style={{ fontSize: 12.5, color: TINTA }}>Aperturas de la semana</strong>
-          <div style={{ marginTop: 6 }}><DiasDeLaSemana r={r} /></div>
+          {r.registro.noAbre
+            ? <p data-no-abre style={{ fontSize: 12, color: TINTA_SUAVE, margin: '6px 0 0' }}>No abre caja: su sueldo es fijo y su bono sigue la puntualidad de {r.bono.compartidoCon?.join(' y ') || 'su grupo'}.</p>
+            : <div style={{ marginTop: 6 }}><DiasDeLaSemana r={r} /></div>}
         </div>
         <div>
           <strong style={{ fontSize: 12.5, color: COLORES.comisiones.fuerte }}>Comisiones</strong>
@@ -296,8 +310,9 @@ export function MiPagoPanel() {
   return (
     <div data-mi-pago style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Aviso tono="dinero">
-        <strong>Mi pago</strong> se calcula solo con las aperturas y los tickets del punto de venta. El bono se pierde con un
-        retardo o una falta; las comisiones cuentan cuando el administrador las autoriza. Es de consulta: si algo no cuadra,
+        <strong>Mi pago</strong> se calcula solo con las aperturas y los tickets del punto de venta. Cada día hay 10 minutos de
+        tolerancia; lo que pasa de ahí se suma en la semana: hasta 20 minutos el bono va entero, hasta 30 a la mitad, y más
+        —o una falta— lo pierde (quien trabaja menos días tiene la parte proporcional). Las comisiones cuentan cuando el administrador las autoriza. Es de consulta: si algo no cuadra,
         avisa a administración.
       </Aviso>
       <SelectorSemana hoy={n.hoy} lunes={l} onCambiar={setLunes} />
@@ -533,7 +548,8 @@ function Puntualidad({ n, filas }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <Aviso tono="neutro">
-        El bono se calcula solo: un retardo de más de la tolerancia o una falta lo pierden, y una falta descuenta además el día.
+        El bono se calcula solo: los minutos que pasan de la tolerancia se suman en la semana —hasta el primer límite va
+        entero, hasta el segundo a la mitad, más lo pierde— y una falta lo pierde y descuenta además el día.
         Aquí puedes justificar —perdonando el bono, el día o los dos— y decir quién abrió cuando el punto de venta no lo sabe
         (por ejemplo, la sobrina de Brenda con su usuario). Todo queda en la bitácora.
       </Aviso>
@@ -784,6 +800,16 @@ function Parametros({ n }) {
     o[ruta.at(-1)] = v
     return { ...c, parametros: p }
   })
+  // Compartir la puntualidad: los dos registros toman el mismo grupo.
+  const compartir = (i, otroId) => setCfg(c => {
+    const emp = c.empleados.map(x => ({ ...x }))
+    const e = emp[i]
+    if (!otroId) { e.grupo = null; return { ...c, empleados: emp } }
+    const o = emp.find(x => x.id === otroId)
+    const g = o.grupo || e.grupo || o.id
+    o.grupo = g; e.grupo = g
+    return { ...c, empleados: emp }
+  })
   const agregar = () => setCfg(c => {
     let id = 'nuevo', i = 1
     while (c.empleados.some(e => e.id === id)) id = `nuevo-${++i}`
@@ -809,7 +835,7 @@ function Parametros({ n }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }} data-parametros-nomina>
       <Seccion tema={COLORES.sueldo} titulo="Empleados y registros de pago"
-               sub="Un registro es quien cobra. Si dos personas comparten registro (Daniela y Jenni), se agregan como personas. El usuario del punto de venta es el nombre con el que inicia sesión en la caja."
+               sub="Un registro es quien cobra, con su recibo. Si dos personas comparten la puntualidad (Daniela y Jenni), cada una tiene su registro y se unen en «Puntualidad compartida con». El usuario del punto de venta es el nombre con el que inicia sesión en la caja."
                extra={<Boton data-agregar-empleado onClick={agregar}>+ Agregar empleado</Boton>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {cfg.empleados.map((e, i) => (
@@ -831,6 +857,17 @@ function Parametros({ n }) {
                 ))}
                 <span style={{ color: TINTA_TENUE }}>· valor del día {pesos(valorDia(e))}</span>
               </div>
+              <label style={{ fontSize: 12 }}>Puntualidad compartida con:{' '}
+                <select aria-label="Puntualidad compartida con" data-grupo-de={e.id}
+                        value={cfg.empleados.find(o => o !== e && e.grupo && o.grupo === e.grupo && o.plaza === e.plaza)?.id ?? ''}
+                        onChange={ev => compartir(i, ev.target.value)} style={campo}>
+                  <option value="">nadie (su propia puntualidad)</option>
+                  {cfg.empleados.filter(o => o !== e && o.plaza === e.plaza).map(o => <option key={o.id} value={o.id}>{o.nombre || o.id}</option>)}
+                </select>
+                {e.grupo && (
+                  <label style={{ marginLeft: 10 }}><input type="checkbox" data-no-abre-de={e.id} checked={!!e.noAbre} onChange={ev => cambiaEmp(i, 'noAbre', ev.target.checked)} />{' '}
+                    no abre caja (sueldo fijo; el bono sigue al de quien abre)</label>
+                )}</label>
               <label style={{ fontSize: 12 }}>Usuarios del punto de venta (separados por coma):{' '}
                 <input aria-label="Usuarios del punto de venta" value={(e.usuarios ?? []).join(', ')}
                        onChange={ev => cambiaEmp(i, 'usuarios', ev.target.value.split(',').map(x => x.trim()).filter(Boolean))} style={{ ...campo, width: '100%', maxWidth: 420 }} /></label>
@@ -870,6 +907,13 @@ function Parametros({ n }) {
               ))}
             </tbody>
           </table>
+        </div>
+      </Seccion>
+      <Seccion tema="alerta" titulo="Bono de puntualidad por minutos" sub="Minutos fuera de tolerancia acumulados en una semana de lunes a viernes. Quien trabaja menos días tiene la parte proporcional.">
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', fontSize: 12.5 }}>
+          <label>Bono entero hasta <input aria-label="Minutos con bono entero" data-bono-completo value={p.bonoMinutos?.completo ?? ''} onChange={ev => cambiaParam(['bonoMinutos', 'completo'], Number(ev.target.value.replace(/\D/g, '')))} style={{ ...campo, width: 56 }} /> min</label>
+          <label>Al 50% hasta <input aria-label="Minutos con bono a la mitad" data-bono-mitad value={p.bonoMinutos?.mitad ?? ''} onChange={ev => cambiaParam(['bonoMinutos', 'mitad'], Number(ev.target.value.replace(/\D/g, '')))} style={{ ...campo, width: 56 }} /> min</label>
+          <span style={{ color: TINTA_TENUE }}>Más de eso, sin bono.</span>
         </div>
       </Seccion>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>

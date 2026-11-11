@@ -40,12 +40,19 @@ export const EMPLEADOS_INICIALES = [
     dias: [1, 2, 3, 4, 5], sueldo: 2000, bono: 300, activo: true, personas: [persona('andrea', 'Andrea Serrano Palacios')], quienPorDia: {} },
   { id: 'cesareo', nombre: 'Cesareo Nolasco Ramirez', plaza: 'san-luis', usuarios: ['cesareo nolasco ramirez'],
     dias: [6, 7], sueldo: 600, bono: 100, activo: true, personas: [persona('cesareo', 'Cesareo Nolasco Ramirez')], quienPorDia: {} },
-  // UN registro: sólo una de las dos inicia sesión cada día, con el usuario de
-  // Daniela, y la puntualidad es de las dos. Daniela descansa el viernes.
-  { id: 'daniela-jenni', nombre: 'Daniela Coronilla + Jenni Gallardo', plaza: 'leon', usuarios: ['daniela coronilla', 'jenni gllardo'],
-    dias: [1, 2, 3, 4, 5, 6, 7], sueldo: 2000, bono: 500, activo: true,
-    personas: [persona('daniela', 'Daniela Coronilla'), persona('jenni', 'Jenni Gallardo')],
-    quienPorDia: { 1: 'daniela', 2: 'daniela', 3: 'daniela', 4: 'daniela', 5: 'jenni', 6: 'daniela', 7: 'daniela' } },
+  // 🔒 Daniela y Jenni cobran $2,000 y $500 de bono CADA UNA, con su recibo
+  // (el dueño, 2026-11-11). Jenni también va, pero sólo una abre la caja y lo
+  // hace con el usuario de Daniela: Jenni `noAbre`, cobra su sueldo FIJO —sus
+  // días no se miden con aperturas— y su bono sigue el de Daniela (`grupo`).
+  // Sus `dias` sólo dicen de quién es la caja ese día (el viernes, que
+  // Daniela descansa): a quién van las comisiones. `antes` es el registro
+  // conjunto con el que se guardó lo anterior (un pago, una justificación).
+  { id: 'daniela', nombre: 'Daniela Coronilla', plaza: 'leon', usuarios: ['daniela coronilla'],
+    dias: [1, 2, 3, 4, 6, 7], sueldo: 2000, bono: 500, activo: true, grupo: 'leon', antes: ['daniela-jenni'],
+    personas: [persona('daniela', 'Daniela Coronilla')], quienPorDia: {} },
+  { id: 'jenni', nombre: 'Jenni Gallardo', plaza: 'leon', usuarios: ['jenni gllardo', 'daniela coronilla'],
+    dias: [5], sueldo: 2000, bono: 500, activo: true, grupo: 'leon', noAbre: true, antes: ['daniela-jenni'],
+    personas: [persona('jenni', 'Jenni Gallardo')], quienPorDia: {} },
   // Torreón: sueldo y bono sin capturar. Los usuarios del punto de venta se
   // confirman cuando la sincronización traiga sus turnos.
   { id: 'angel', nombre: 'Ángel', plaza: 'torreon', usuarios: ['angel'],
@@ -114,7 +121,12 @@ export function limpiarConfig(cfg) {
     for (const [d, pid] of Object.entries(e.quienPorDia ?? {})) {
       if (/^[1-7]$/.test(d) && personas.some(p => p.id === pid)) quienPorDia[d] = pid
     }
-    empleados.push({ id: eid, nombre, plaza: e.plaza, usuarios, dias: dias.sort(), sueldo, bono, activo: e.activo !== false, personas, quienPorDia })
+    const grupo = e.grupo === null || e.grupo === undefined || e.grupo === '' ? null : id(e.grupo)
+    if (e.grupo && !grupo) return { error: `${nombre}: el grupo de puntualidad no es válido.` }
+    const antes = (Array.isArray(e.antes) ? e.antes : []).map(id).filter(Boolean).slice(0, 5)
+    const noAbre = e.noAbre === true
+    if (noAbre && !grupo) return { error: `${nombre}: quien no abre caja tiene que compartir la puntualidad con alguien, o su bono no tendría con qué medirse.` }
+    empleados.push({ id: eid, nombre, plaza: e.plaza, usuarios, dias: dias.sort(), sueldo, bono, activo: e.activo !== false, grupo, noAbre, antes, personas, quienPorDia })
   }
 
   const p = cfg.parametros ?? {}
@@ -141,8 +153,13 @@ export function limpiarConfig(cfg) {
       horarios[pl][d] = String(h)
     }
   }
+  const bm = p.bonoMinutos ?? {}
+  const completo = Number(bm.completo ?? 20), mitad = Number(bm.mitad ?? 30)
+  if (![completo, mitad].every(n => Number.isInteger(n) && n >= 0 && n <= 600)) return { error: 'Los minutos del bono van de 0 a 600.' }
+  if (mitad < completo) return { error: 'El límite del bono a la mitad no puede ser menor que el del bono completo.' }
+  const bonoMinutos = { completo, mitad }
   const excluidos = (Array.isArray(p.excluidos) ? p.excluidos : []).map(c => texto(c, 30).toUpperCase()).filter(Boolean).slice(0, 300)
-  return { config: { empleados, parametros: { pctComision: pct, categorias, minimos, maximos, excluidos, tolerancia, horarios } } }
+  return { config: { empleados, parametros: { pctComision: pct, categorias, minimos, maximos, excluidos, tolerancia, horarios, bonoMinutos } } }
 }
 
 /** Qué cambió entre dos configuraciones, en palabras, para la bitácora. */
@@ -161,7 +178,7 @@ export function cambiosDeConfig(antes, despues) {
     viejos.delete(e.id)
   }
   for (const v of viejos.values()) out.push(`se quitó ${v.nombre}`)
-  if (JSON.stringify(antes?.parametros ?? null) !== JSON.stringify(despues.parametros)) out.push('parámetros (comisión, horarios o tolerancia)')
+  if (JSON.stringify(antes?.parametros ?? null) !== JSON.stringify(despues.parametros)) out.push('parámetros (comisión, horarios, tolerancia o bono)')
   return out
 }
 
