@@ -456,3 +456,74 @@ test('un mensaje sin remitente se descarta sin tocar nada', async () => {
   assert.equal(r.motivo, 'sin-remitente')
   assert.equal(e.enviados.length, 0)
 })
+
+// ── La bandeja del CRM ──────────────────────────────────────────────────────
+
+import { bandejaEnMemoria } from './bandeja.js'
+import { aplicarAccion } from '../backend/src/clientes.js'
+
+test('cada mensaje queda en la ficha del cliente, con lo que contestó el bot', async () => {
+  const bandeja = bandejaEnMemoria()
+  const { pensar } = pensarFalso()
+  await atender(mensaje({ texto: 'hola' }), { almacen: enMemoria(), bandeja, pensar, enviar: enviarFalso().enviar, leer: leerFalso().leer })
+  const c = await bandeja.leer('wa:524771234567')
+  assert.equal(c.nombre, 'Marisol')
+  assert.deepEqual(c.mensajes.map(m => [m.de, m.texto]), [['cliente', 'hola'], ['bot', 'sí, tengo 3 piezas']])
+  assert.equal(c.estado, 'bot')
+})
+
+test('cuando el bot entrega el lead, la conversación queda pendiente en esa plaza', async () => {
+  const bandeja = bandejaEnMemoria()
+  const { pensar } = pensarFalso({ entrega: { plaza: 'san-luis', enlace: 'https://wa.me/x' } })
+  await atender(mensaje(), { almacen: enMemoria(), bandeja, pensar, enviar: enviarFalso().enviar, leer: leerFalso().leer })
+  const c = await bandeja.leer('wa:524771234567')
+  assert.equal(c.estado, 'pendiente')
+  assert.equal(c.plaza, 'san-luis')
+  assert.equal(c.bitacora.at(-1).quien, 'bot')
+})
+
+test('con la tienda atendiendo, el bot apunta el mensaje y NO contesta ni piensa', async () => {
+  const bandeja = bandejaEnMemoria()
+  const almacen = enMemoria()
+  const p = pensarFalso({ entrega: { plaza: 'leon', enlace: 'x' } })
+  await atender(mensaje({ texto: 'quiero la del A06' }), { almacen, bandeja, pensar: p.pensar, enviar: enviarFalso().enviar, leer: leerFalso().leer })
+  // La tienda la toma desde el panel.
+  await bandeja.modificar('wa:524771234567', c => aplicarAccion(c, { accion: 'tomar' }, { quien: 'leon' }).cliente)
+
+  const e = enviarFalso()
+  const r = await atender(mensaje({ texto: '¿me la apartan?' }), { almacen, bandeja, pensar: p.pensar, enviar: e.enviar, leer: leerFalso().leer })
+  assert.equal(r.motivo, 'lo-atiende-la-tienda')
+  assert.equal(e.enviados.length, 0, 'el bot se calla')
+  assert.equal(p.llamadas.length, 1, 'y no gasta modelo')
+  const c = await bandeja.leer('wa:524771234567')
+  assert.equal(c.mensajes.at(-1).texto, '¿me la apartan?')
+  assert.equal(c.noLeidos, 1, 'la tienda tiene algo que leer')
+})
+
+test('el anuncio que trajo al cliente queda en su ficha, con lo que Meta pide para atribuir la venta', async () => {
+  const bandeja = bandejaEnMemoria()
+  const anuncio = { anuncio: '120', titular: 'Fundas A06', ref: 'plaza=leon', ctwaClid: 'clid-123' }
+  await atender(mensaje({ anuncio }), { almacen: enMemoria(), bandeja, pensar: pensarFalso().pensar, enviar: enviarFalso().enviar, leer: leerFalso().leer })
+  const c = await bandeja.leer('wa:524771234567')
+  assert.equal(c.origen.fuente, 'meta')
+  assert.equal(c.origen.ctwaClid, 'clid-123')
+  assert.equal(c.plaza, 'leon', 'la plaza del anuncio llega a la ficha')
+})
+
+test('si la bandeja falla, el cliente recibe su respuesta igual', async () => {
+  const rota = { modificar: async () => { throw new Error('S3 caído') } }
+  const e = enviarFalso()
+  const r = await atender(mensaje(), {
+    almacen: enMemoria(), bandeja: rota, pensar: pensarFalso().pensar, enviar: e.enviar, leer: leerFalso().leer,
+  })
+  assert.equal(r.motivo, 'contestado')
+  assert.equal(e.enviados.length, 1)
+})
+
+test('una nota de voz también queda en la ficha, como lo que fue', async () => {
+  const bandeja = bandejaEnMemoria()
+  await atender(mensaje({ tipo: 'audio', atendible: false, texto: null }), { almacen: enMemoria(), bandeja, enviar: enviarFalso().enviar, leer: leerFalso().leer })
+  const c = await bandeja.leer('wa:524771234567')
+  assert.equal(c.mensajes[0].texto, '[audio]')
+  assert.equal(c.mensajes[1].de, 'bot')
+})

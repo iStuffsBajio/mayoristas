@@ -26,6 +26,7 @@ describe controles y operación de seguridad.
 | Nómina y RH | «Mi pago» por sucursal (toda la sucursal ve la suya) y «Nómina y RH» en Personal. Faltas descuentan día y bono; el bono va por minutos fuera de tolerancia acumulados en la semana (20 entero, 30 a la mitad, proporcional a los días); día cubierto se paga a quien cubre y se descuenta al titular; comisión por cruce de productos con mínimos ($220/$120/$100), una por ticket, congelada al autorizar y registrada sola como salida de efectivo. Los sueldos sólo los entrega el servidor. | `CLAUDE.md`, “Nómina y RH”; `src/lib/nomina.js`, `backend/src/nomina.js` |
 | Ranking de mayoristas | Cada tienda ve sólo el de su plaza y el administrador todas, por separado; rango de 7 a 30 días. | `src/lib/mayoristas.js`; `GET /corte` |
 | Trabajo entre agentes | Instrucciones compartidas en `AGENTS.md`; `CLAUDE.md` importa esa fuente y mantiene el conocimiento específico de este repo. | `AGENTS.md`, `CLAUDE.md` |
+| CRM de clientes | CRM propio sobre el panel (no una plataforma externa). Fichas en `crm/clientes/`, privado; una tienda sólo ve su plaza; el bot se calla cuando una persona toma la conversación. | `crm/LEEME.md`, “La bandeja del panel”; `backend/src/clientes.js` |
 
 Las operaciones sobre cuentas, buckets, credenciales y publicación requieren
 confirmación del dueño y verificación del estado externo.

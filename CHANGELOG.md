@@ -5,6 +5,13 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-11
 
+- **Clientes (CRM, fase 1, rama `crm-meta`).** Sección «Clientes» en el panel
+  del administrador y de cada tienda: ficha de cada cliente o mayorista, de qué
+  anuncio llegó, la conversación, tomar, pasar a otra plaza, cerrar o devolver
+  al bot, y alta a mano. El bot apunta cada mensaje en la ficha y se calla
+  cuando la tienda toma la conversación. Contestar desde el panel se guarda pero
+  todavía no sale por WhatsApp.
+
 - **Torreón en la consulta del mayorista.** La portada ya deja elegir Torreón y
   enseña sus piezas con la fecha de su respaldo. El panel sigue sin contarla.
 

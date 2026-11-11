@@ -565,3 +565,17 @@ test('un lead no se entrega a una plaza que no atiende', () => {
     assert.equal(e.error, 'falta-plaza', `no se entrega a ${plaza}`)
   }
 })
+
+// ── El teléfono se normaliza igual en el bot, la página y el backend ───────
+
+import { telefonoMx } from '../backend/src/clientes.js'
+import { telefonoWhatsApp } from '../src/lib/sucursales.js'
+
+test('telefonoMx (backend) y telefonoWhatsApp (página) dicen lo mismo', () => {
+  // Son dos copias a la fuerza: el backend se despliega solo y no puede
+  // importar de src/. Si se separan, la ficha de un cliente y el enlace que
+  // arma la página apuntarían a números distintos.
+  const casos = ['477 123 4567', '+52 477 123 4567', '5214771234567', '524771234567', '0444771234567',
+    '12345', '', null, '52 55 1234 5678', '5512345678', '+1 555 123 4567']
+  for (const c of casos) assert.equal(telefonoMx(c), telefonoWhatsApp(c), String(c))
+})

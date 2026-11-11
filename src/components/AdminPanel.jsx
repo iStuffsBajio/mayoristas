@@ -11,6 +11,7 @@ import DashboardPanel from './DashboardPanel'
 import RevisarPanel from './RevisarPanel'
 import EfectivoPanel from './EfectivoPanel'
 import DepurarPanel from './DepurarPanel'
+import ClientesPanel from './ClientesPanel'
 
 const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
   <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid rgba(16,22,25,0.05)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -413,6 +414,9 @@ const SECCIONES = [
   // El corte semanal va DENTRO de Efectivo desde el 2026-11-09: salen de la
   // misma cuenta y el dueño las quiso juntas. Ver `EfectivoPanel`.
   { id: 'efectivo',    icono: '💵', titulo: 'Efectivo y corte', sub: 'Corte semanal, depósitos y faltantes' },
+  // El CRM (2026-11-11): la ficha de cada cliente y la bandeja de lo que
+  // escribió. Ver `backend/src/clientes.js`.
+  { id: 'clientes',    icono: '💬', titulo: 'Clientes',     sub: 'Fichas, mayoristas y conversaciones' },
   { id: 'personal',    icono: '🕗', titulo: 'Personal',     sub: 'Puntualidad, nómina y RH' },
   { id: 'revisar',     icono: '🔍', titulo: 'Revisar',      sub: 'Códigos y nombres, uno a uno' },
   { id: 'depurar',     icono: '🧹', titulo: 'Depurar',      sub: 'Salidas, sin rotación y bajas' },
@@ -508,6 +512,7 @@ export default function AdminPanel() {
         {seccion === 'personal'    && <PersonalConNomina />}
         {seccion === 'revisar'     && <RevisarPanel />}
         {seccion === 'depurar'     && <DepurarPanel />}
+        {seccion === 'clientes'    && <ClientesPanel />}
         {seccion === 'config'      && (
           <>
             <SeccionTabs     config={config} save={save} guardando={guardando} />

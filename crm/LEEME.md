@@ -283,6 +283,33 @@ ventana *free entry point* de Meta—, y ésos son el grueso del volumen.
 
 ---
 
+## La bandeja del panel: la ficha de cada cliente (2026-11-11)
+
+El bot guarda su conversación para el modelo (`conversaciones.js`). Eso no le
+sirve a una persona de la tienda, así que además apunta lo que se dijo en la
+**ficha del cliente**, la que ve la sección **Clientes** del panel. La ficha y
+sus reglas viven en `backend/src/clientes.js` —una sola copia, la usan el bot
+(`bandeja.js`), el backend y `verificar`— y se guarda en `crm/clientes/`,
+PRIVADO, con un índice en `crm/indice.json` porque el rol de la Lambda no puede
+listar el bucket.
+
+Tres reglas que cambian cómo se comporta el bot:
+
+- **Con una persona en medio, el bot se calla.** Lo decide la ficha
+  (`botContesta`): si la tienda tomó la conversación, el siguiente mensaje del
+  cliente se apunta y nadie más le contesta. Ni siquiera se llama al modelo.
+- **Un fallo de la bandeja no deja al cliente sin respuesta.** Si no se puede
+  leer o escribir, el bot contesta igual y lo dice en el registro.
+- **Contestar desde el panel todavía NO sale por WhatsApp**, porque la línea de
+  Meta no está encendida. Se guarda en la conversación y la pantalla lo dice.
+  Fingir que salió sería peor que no tener el botón.
+
+Una tienda ve sólo los clientes de su plaza, y uno ajeno responde igual que uno
+que no existe. Bodega no tiene sección. Dos escrituras a la vez (el bot y la
+tienda) no se pisan: cada una va con `IfMatch` y se reintenta.
+
+---
+
 ## 🔒 Lo que falta decidir
 
 ### El mayoreo de las micas
@@ -330,7 +357,8 @@ El código ya está escrito y probado. Lo que falta es desplegarlo:
    `conversaciones.js` ya expone: cambiar de almacén no debe tocar `atender.js`.
 5. **Un anuncio por plaza** con `ref=plaza=<slug>`. Es lo que hace que el lead
    llegue direccionado sin preguntar.
-6. **Bandeja en el panel**, con el login que ya existe.
+6. **Encender la respuesta desde el panel.** La bandeja ya existe (arriba); falta
+   que `POST /crm/responder` mande por la API de WhatsApp en vez de sólo guardar.
 
 ### Pendiente: leer las fotos
 

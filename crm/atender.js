@@ -26,6 +26,7 @@ import { anuncioParaElCerebro } from './webhook.js'
 import { conAnuncio } from './conversaciones.js'
 import { plazaPara } from './plazas.js'
 import { esPlazaPublica } from './inventario.js'
+import { apuntarEntrada, apuntarSalida } from './bandeja.js'
 
 /**
  * El cerebro se carga sólo cuando de verdad hace falta.
@@ -98,12 +99,15 @@ export function resolverPlaza(conversacion, anuncio) {
  * Atiende un mensaje ya leído por `leerCarga()`.
  *
  * `almacen` es cualquiera de las implementaciones de `conversaciones.js`.
+ * `bandeja`, si viene, es la del CRM (`bandeja.js`): ahí se apunta lo que se
+ * dijo y ahí se decide si el bot contesta o se calla porque atiende la tienda.
  * `enviar` y `leer` se inyectan para poder probar sin mandar nada.
  *
  * Devuelve qué pasó, para el registro: `{ atendido, motivo, respuesta, lead }`.
  */
 export async function atender(mensaje, {
   almacen,
+  bandeja = null,
   enviar = mandarRespuesta,
   leer = marcarLeido,
   pensar = pensarConElCerebro,
@@ -120,14 +124,14 @@ export async function atender(mensaje, {
   // tiene que desmarcarlo o el reintento de Meta se descarta y la persona no
   // recibe nada nunca.
   try {
-    return await procesar(mensaje, { almacen, enviar, leer, pensar })
+    return await procesar(mensaje, { almacen, bandeja, enviar, leer, pensar })
   } catch (err) {
     await almacen.olvidarMensaje(mensaje.de, mensaje.id)
     throw err
   }
 }
 
-async function procesar(mensaje, { almacen, enviar, leer, pensar }) {
+async function procesar(mensaje, { almacen, bandeja, enviar, leer, pensar }) {
   // 2. Las palomitas antes de pensar. Pensar tarda segundos.
   if (mensaje.id) {
     try { await leer(mensaje.id) } catch { /* cosmético: no se cae por esto */ }
@@ -140,11 +144,22 @@ async function procesar(mensaje, { almacen, enviar, leer, pensar }) {
   const plaza = resolverPlaza(conversacion, conversacion.anuncio)
   if (plaza) conversacion.plaza = plaza
 
+  // Lo que escribió se apunta en la bandeja ANTES de decidir nada. Y si una
+  // persona de la tienda tiene la conversación, el bot no contesta: dos voces
+  // a la vez —el bot repitiendo el precio mientras la tienda acuerda el envío—
+  // es peor que cualquiera de las dos sola.
+  const entrada = await apuntarEntrada(bandeja, mensaje, { plaza: conversacion.plaza, anuncio: conversacion.anuncio })
+  if (!entrada.contesta) {
+    await almacen.guardar(conversacion)
+    return { atendido: true, motivo: 'lo-atiende-la-tienda' }
+  }
+
   // 3. Lo que no se sabe leer se contesta fijo. No gasta modelo ni inventa.
   if (!mensaje.atendible || !mensaje.texto) {
     const texto = RESPUESTAS_FIJAS[mensaje.tipo] ?? RESPUESTAS_FIJAS.unknown
     const envio = await enviar(mensaje.de, { texto, imagenes: [] })
     await almacen.guardar(conversacion)
+    await apuntarSalida(bandeja, mensaje.de, { texto })
     return { atendido: true, motivo: 'respuesta-fija', respuesta: { texto }, envio }
   }
 
@@ -167,6 +182,7 @@ async function procesar(mensaje, { almacen, enviar, leer, pensar }) {
     const texto = 'Déjame pasarte con la tienda para que te atiendan bien. ¿De qué ciudad eres?'
     const envio = await enviar(mensaje.de, { texto, imagenes: [] })
     await almacen.guardar(conversacion)
+    await apuntarSalida(bandeja, mensaje.de, { texto })
     return {
       atendido: true,
       motivo: r.rechazado ? 'rechazado' : r.seAtoro ? 'se-atoro' : 'sin-texto',
@@ -188,6 +204,7 @@ async function procesar(mensaje, { almacen, enviar, leer, pensar }) {
     }
   }
   await almacen.guardar(conversacion)
+  await apuntarSalida(bandeja, mensaje.de, { texto: r.texto, imagenes: r.imagenes?.length ?? 0, entrega: r.entrega })
 
   return {
     atendido: true,

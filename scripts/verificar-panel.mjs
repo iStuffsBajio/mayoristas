@@ -709,11 +709,85 @@ function respuestaDeNomina(u, opciones, sesionAdmin, plazaDeSesion) {
     comisionables: { [plazaDeSesion]: COMISIONABLES_NOMINA[plazaDeSesion] ?? [] } }
 }
 
+// ── El CRM: clientes y bandeja ────────────────────────────────────────────
+//
+// Las fichas pasan por las MISMAS reglas del servidor —`backend/src/clientes.js`,
+// importado— así lo que se comprueba es lo que de verdad recibe cada sesión.
+// Tres clientes: uno de León que el bot ya pasó a la tienda (pendiente, con su
+// conversación y el anuncio del que llegó), un mayorista de León y uno de San
+// Luis, que una tienda de León NO puede ver ni en los datos.
+const CRM = await import('../backend/src/clientes.js')
+const CRM_CLIENTES = new Map()
+{
+  const alta = (datos, mensajes = [], entregar = null) => {
+    let c = CRM.nuevoCliente(datos)
+    for (const m of mensajes) c = CRM.registrarMensaje(c, m)
+    if (entregar) c = CRM.aplicarAccion(c, { accion: 'entregar', plaza: entregar }, { quien: 'bot' }).cliente
+    CRM_CLIENTES.set(c.id, c)
+  }
+  alta({ id: CRM.idDe({ canal: 'whatsapp', telefono: '4771234567' }), canal: 'whatsapp', telefono: '4771234567',
+         nombre: 'Cliente de prueba León', plaza: 'leon', quien: 'bot',
+         origen: { fuente: 'meta', anuncio: 'Fundas iPhone 17', codigo: 'IS-LEON-01' } },
+       [{ de: 'cliente', texto: '¿Tienen funda del iPhone 17 Pro?', id: 'wamid.1' },
+        { de: 'bot', texto: 'Sí, te paso con la tienda de León.' }], 'leon')
+  alta({ id: CRM.idDe({ canal: 'tienda', plaza: 'leon', clave: 'Mayorista de prueba' }), canal: 'tienda',
+         nombre: 'Mayorista de prueba', plaza: 'leon', tipo: 'mayorista', quien: 'admin', origen: { fuente: 'tienda' } })
+  alta({ id: CRM.idDe({ canal: 'whatsapp', telefono: '4449876543' }), canal: 'whatsapp', telefono: '4449876543',
+         nombre: 'CLIENTE AJENO SLP', plaza: 'san-luis', quien: 'bot', origen: { fuente: 'meta' } },
+       [{ de: 'cliente', texto: 'Hola', id: 'wamid.2' }])
+}
+const POSTS_CRM = []
+
+function respuestaDeCrm(u, opciones, sesionAdmin, plazaDeSesion) {
+  const sesion = { admin: sesionAdmin, sucursal: plazaDeSesion }
+  if (!sesionAdmin && !CRM.PLAZAS_CLIENTES.includes(plazaDeSesion)) {
+    errores.push(`la sesion de ${plazaDeSesion} pidio el CRM, que no le toca`)
+    return null
+  }
+  const quien = sesionAdmin ? 'admin' : plazaDeSesion
+  const cuerpo = JSON.parse(opciones?.body ?? '{}')
+  if (/\/crm\/clientes/.test(u)) {
+    const pedida = u.match(/plaza=([a-z-]+)/)?.[1]
+    const visibles = [...CRM_CLIENTES.values()]
+      .filter(c => CRM.puedeVer(sesion, c))
+      .filter(c => !pedida || (pedida === 'sin-plaza' ? !c.plaza : c.plaza === pedida))
+    const r = { clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles) }
+    if (!sesionAdmin && /AJENO|4449876543/.test(JSON.stringify(r))) {
+      errores.push(`la bandeja que recibe ${plazaDeSesion} trae un cliente de otra plaza`)
+    }
+    return r
+  }
+  if (/\/crm\/cliente\?/.test(u)) {
+    const c = CRM_CLIENTES.get(decodeURIComponent(u.match(/id=([^&]+)/)?.[1] ?? ''))
+    return c && CRM.puedeVer(sesion, c) ? { cliente: c } : null
+  }
+  POSTS_CRM.push({ ruta: u.replace(/^.*\/crm/, '/crm'), cuerpo })
+  const c = CRM_CLIENTES.get(cuerpo.id)
+  if (!c || !CRM.puedeVer(sesion, c)) return null
+  let sig = c
+  if (/\/crm\/responder/.test(u)) {
+    if (c.estado !== 'atendiendo' || c.atiende !== quien) sig = CRM.aplicarAccion(c, { accion: 'tomar' }, { quien }).cliente
+    sig = CRM.registrarMensaje(sig, { de: 'tienda', texto: cuerpo.texto, quien, envio: 'sin-canal' })
+    CRM_CLIENTES.set(sig.id, sig)
+    return { ok: true, cliente: sig, enviado: false, aviso: 'Quedó guardado en la conversación. Todavía no sale por WhatsApp: la línea de Meta no está encendida.' }
+  }
+  if (/\/crm\/accion/.test(u)) {
+    const r = CRM.aplicarAccion(c, { accion: cuerpo.accion, plaza: cuerpo.plaza }, { quien })
+    if (r.error) { errores.push(`CRM · ${cuerpo.accion}: ${r.error}`); return null }
+    CRM_CLIENTES.set(r.cliente.id, r.cliente)
+    return { ok: true, cliente: r.cliente }
+  }
+  return null
+}
+
 /** Lo que devuelve cada ruta, según lo que pida. `null` es un 404. */
 function respuesta(url, opciones) {
   const u = String(url)
   if (/\/nomina(\/config|\/accion)?(\?|$)/.test(u)) {
     return respuestaDeNomina(u, opciones, SESION_ACTUAL.isAdmin, SESION_ACTUAL.branch)
+  }
+  if (/\/crm\//.test(u)) {
+    return respuestaDeCrm(u, opciones, SESION_ACTUAL.isAdmin, SESION_ACTUAL.branch)
   }
   if (/\/corte(\/conteo)?(\?|$)|\/caja\/fondo/.test(u)) {
     return respuestaDeCorte(u, opciones, SESION_ACTUAL.isAdmin, SESION_ACTUAL.branch)
@@ -2861,6 +2935,50 @@ async function nominaDelAdmin(window, donde) {
 
 // ── El recorrido ───────────────────────────────────────────────────────────
 
+/**
+ * El CRM: la bandeja se dibuja, una tienda sólo ve su plaza, la ficha abre
+ * con la conversación, y contestar la toma y DICE que todavía no sale por
+ * WhatsApp —un mensaje que parece enviado y no lo está es peor que ninguno—.
+ */
+async function clientesDelPanel(window, donde, esAdmin) {
+  const doc = window.document
+  await nuevaVuelta(window, 8)
+  if (!doc.querySelector('[data-clientes]')) { errores.push(`${donde} · la bandeja de clientes no se dibujo`); return 0 }
+  const ids = [...doc.querySelectorAll('[data-cliente]')].map(b => b.getAttribute('data-cliente'))
+  const esperados = esAdmin ? 3 : 2
+  if (ids.length !== esperados) errores.push(`${donde} · la bandeja trae ${ids.length} clientes y deberian ser ${esperados}`)
+  if (!esAdmin && /AJENO/.test(doc.body.textContent)) errores.push(`${donde} · una tienda ve un cliente de otra plaza`)
+  if (esAdmin && !doc.querySelector('[data-filtro-plaza]')) errores.push(`${donde} · el administrador no tiene filtro de plaza`)
+  if (!esAdmin && doc.querySelector('[data-filtro-plaza]')) errores.push(`${donde} · una tienda tiene filtro de plaza`)
+
+  const id = 'wa:524771234567'
+  const boton = doc.querySelector(`[data-cliente="${id}"]`)
+  if (!boton) { errores.push(`${donde} · no esta el cliente de León que paso el bot (${ids.join(', ')})`); return 0 }
+  if (!esAdmin && ids[0] !== id) errores.push(`${donde} · el pendiente no va primero en la bandeja`)
+  clic(window, boton)
+  await nuevaVuelta(window, 8)
+  const ficha = doc.querySelector(`[data-ficha="${id}"]`)
+  if (!ficha) { errores.push(`${donde} · la ficha no se abrio`); return 0 }
+  if (!ficha.querySelector('[data-mensaje="cliente"]')) errores.push(`${donde} · la ficha no trae lo que escribio el cliente`)
+  if (!/Fundas iPhone 17/.test(ficha.querySelector('[data-origen]')?.textContent ?? '')) errores.push(`${donde} · la ficha no dice de que anuncio llego`)
+  if (esAdmin) return 1
+
+  const caja = ficha.querySelector('[data-respuesta]')
+  const mandar = ficha.querySelector('[data-mandar]')
+  if (!caja || !mandar) { errores.push(`${donde} · la ficha no tiene donde contestar`); return 0 }
+  if (!mandar.disabled) errores.push(`${donde} · «Mandar» esta habilitado sin texto`)
+  escribir(window, caja, 'Sí la tenemos, te la aparto.')
+  await nuevaVuelta(window, 4)
+  clic(window, doc.querySelector('[data-mandar]'))
+  await nuevaVuelta(window, 10)
+  const c = CRM_CLIENTES.get(id)
+  if (c?.estado !== 'atendiendo') errores.push(`${donde} · contestar no tomo la conversacion (estado ${c?.estado})`)
+  if (!c?.mensajes?.some(m => m.de === 'tienda')) errores.push(`${donde} · la respuesta no quedo en la conversacion`)
+  if (!doc.querySelector('[data-aviso-envio]')) errores.push(`${donde} · no dice que la respuesta todavia no sale por WhatsApp`)
+  if (!doc.querySelector(`[data-ficha="${id}"] [data-mensaje="tienda"]`)) errores.push(`${donde} · la respuesta no se pinta en la conversacion`)
+  return 1
+}
+
 const SESIONES = [
   ['sin sesión', null],
   ['sucursal',   { isAdmin: false, branch: 'leon', token: 'x' }],
@@ -2871,6 +2989,7 @@ const SESIONES = [
   ['admin',      { isAdmin: true,  branch: null,   token: 'x' }],
 ]
 
+let clientesVistos = 0
 let pestanas = 0, secciones = 0, cabeceras = 0, hallazgos = 0
 let fichasDeCodigo = 0
 let bandejasDeCosto = 0
@@ -2986,6 +3105,10 @@ for (const [nombre, sesion] of SESIONES) {
         if (t.replace(/[^\p{L}\s]/gu, '').trim() === 'Personal' && nombre === 'admin') {
           nominasVistas += await nominaDelAdmin(window, `${nombre} · ${t}`)
         }
+        if (/clientes/i.test(t) && (nombre === 'sucursal' || nombre === 'admin')) {
+          clientesVistos += await clientesDelPanel(window, `${nombre} · ${t}`, nombre === 'admin')
+        }
+        if (/clientes/i.test(t) && nombre === 'bodega') errores.push('bodega ve la seccion de clientes')
         if (/corte/i.test(t) && nombre === 'sucursal') {
           cortesVistos += await corteDeLaTienda(window, `${nombre} · ${t}`)
         }
@@ -3085,6 +3208,8 @@ console.log(`  nómina (Mi pago y Nómina y RH): ${nominasVistas} de 2 recorrido
 if (nominasVistas < 2) errores.push(`la nómina se recorrió ${nominasVistas} vez de 2`)
 console.log(`  corte semanal (tienda y administrador): ${cortesVistos} de 2 recorridos`)
 if (cortesVistos < 2) errores.push(`el corte semanal se recorrio ${cortesVistos} vez de 2: sin el, un faltante sin tolerancia no saldria en ningun sitio`)
+console.log(`  CRM (bandeja de la tienda y del administrador): ${clientesVistos} de 2 recorridos`)
+if (clientesVistos < 2) errores.push(`la bandeja de clientes se recorrio ${clientesVistos} vez de 2`)
 console.log(`  consultar modelo de bodega: ${consultasVistas} dibujado`)
 if (!consultasVistas) errores.push('«Consultar modelo» de bodega no se recorrió: bodega se queda sin poder mirar un modelo de cerca')
 console.log(`  marca de venta censurada en «Pedir»: ${censurasVistas} vista`)
