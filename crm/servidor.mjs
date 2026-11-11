@@ -21,6 +21,7 @@ import { leerCarga } from './webhook.js'
 import { atender } from './atender.js'
 import { enMemoria } from './conversaciones.js'
 import { opcionesDePlaza } from './plazas.js'
+import { costoUsd } from './modelo.js'
 
 const PUERTO = Number(process.env.CRM_PUERTO || 5174)
 const TELEFONO = '524771234567'
@@ -118,9 +119,8 @@ async function unTurno(texto, opciones) {
   }
 }
 
-/** Opus 5.5: 4 USD por millón de entrada, 20 de salida, 0.20 lo cacheado. */
-const costo = u =>
-  (u.entrada - u.cacheLeido) / 1e6 * 4 + u.cacheLeido / 1e6 * 0.20 + u.salida / 1e6 * 20
+/** Con el precio del modelo que esté puesto: ver `modelo.js`. */
+const costo = u => costoUsd(u)
 
 // ── La página ───────────────────────────────────────────────────────────────
 

@@ -29,7 +29,7 @@ import { telefonos } from './config.js'
 import { plazaPara, opcionesDePlaza } from './plazas.js'
 import { DIAS_PARA_AVISAR } from './inventario.js'
 
-const MODELO = 'claude-opus-5-5'
+import { MODELO } from './modelo.js'
 
 /** Tope de vueltas. Una consulta normal gasta 1 o 2; 6 ya es que algo se atoró. */
 const MAX_VUELTAS = 6
@@ -299,7 +299,7 @@ export async function contestar({ historial = [], entrada, contexto = {} }) {
       model: MODELO,
       max_tokens: 16000,
       // Chat: `low` es donde rinde. Subirlo no mejora una respuesta de cuatro
-      // renglones, y en Opus 5.5 el esfuerzo por omisión es `medium`, así que
+      // renglones, y en Haiku y Opus 5.5 el esfuerzo por omisión es `medium`, así que
       // hay que ponerlo explícito para que baje.
       output_config: { effort: 'low' },
       system: [

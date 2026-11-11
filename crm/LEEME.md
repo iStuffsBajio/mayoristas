@@ -268,9 +268,13 @@ tiene que cumplir con un inventario de ayer.
 
 ## El modelo y lo que cuesta
 
-`claude-opus-5-5` con `effort: 'low'`, que es donde rinde un chat de cuatro
-renglones. En Opus 5.5 el esfuerzo por omisión es `medium`, así que va explícito
-para que baje.
+`claude-haiku-5-5` con `effort: 'low'`, desde el 2026-11-11: al dueño le pareció
+caro Opus para un chat de cuatro renglones, y Haiku cuesta unas cuarenta veces
+menos por token. El modelo y su precio viven en `modelo.js`, y las tres pantallas
+de prueba calculan el costo de ahí: con el precio copiado a mano, cambiar de
+modelo las dejaba diciendo un costo falso. Para comparar sin tocar código:
+`CRM_MODELO=claude-opus-5-5 npm run crm:web`. **Falta medir con la llave** que
+Haiku no invente precios ni existencias: si falla ahí, se sube a Sonnet 5.5.
 
 Las reglas van en un bloque de sistema con `cache_control`, y lo que cambia en
 cada mensaje —la fecha de hoy, la plaza ya conocida— va **después** del corte. Al

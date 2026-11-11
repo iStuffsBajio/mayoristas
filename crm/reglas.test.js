@@ -583,3 +583,16 @@ test('telefonoMx (backend) y telefonoWhatsApp (página) dicen lo mismo', () => {
     '12345', '', null, '52 55 1234 5678', '5512345678', '+1 555 123 4567']
   for (const c of casos) assert.equal(telefonoMx(c), telefonoWhatsApp(c), String(c))
 })
+
+// ── El costo que enseñan las pruebas sale del modelo puesto ────────────────
+
+import { PRECIOS, costoUsd, MODELO } from './modelo.js'
+
+test('el costo de un turno se calcula con el precio del modelo, no con uno copiado', () => {
+  assert.ok(PRECIOS[MODELO], 'el modelo puesto tiene precio')
+  const uso = { entrada: 1_000_000, cacheLeido: 0, salida: 0 }
+  assert.equal(costoUsd(uso, 'claude-opus-5-5'), 4)
+  assert.equal(costoUsd(uso, 'claude-haiku-5-5'), 0.10)
+  // Lo leído de caché no se cobra como entrada nueva.
+  assert.equal(costoUsd({ entrada: 1_000_000, cacheLeido: 1_000_000, salida: 0 }, 'claude-opus-5-5'), 0.20)
+})
