@@ -20,6 +20,7 @@ import {
   hojaDeTabla, celda, nombreHoja,
 } from './excelEstilo.js'
 import { nombreSucursal } from './sucursales.js'
+import { huellaDe } from './incidencias.js'
 
 const MES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
              'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
@@ -201,7 +202,12 @@ export function libroDeRevisiones(cola, marcas) {
   // con cada caso— y no en el que se detectaron. La hoja se reparte como lista
   // de tareas, así que lo que se ejecuta sin pensar tiene que ir arriba.
   const filas = (cola ?? [])
-    .map(item => ({ item, marca: marcas?.[item.id] ?? null }))
+    // La respuesta se busca por HUELLA, no por `id`. Para tres de las cuatro
+    // reglas son lo mismo; para un LOTE la huella incluye sus codigos, asi
+    // que buscando por `id` un lote contestado salia en el reporte como sin
+    // contestar -y los lotes son los casos que mas renglones ordenan-. El
+    // `id` se deja de respaldo por si queda alguna respuesta vieja.
+    .map(item => ({ item, marca: marcas?.[huellaDe(item)] ?? marcas?.[item.id] ?? null }))
     .sort((a, b) => (a.item.orden ?? 9) - (b.item.orden ?? 9)
       || (b.item.peso ?? 0) - (a.item.peso ?? 0))
   if (!filas.length) return null

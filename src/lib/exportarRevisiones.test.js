@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import XLSX from 'xlsx-js-style'
 import { libroDeRevisiones } from './exportarRevisiones.js'
+import { huellaDe } from './incidencias.js'
 
 const caso = (id, extra = {}) => ({
   id, bloque: 'nombre', peso: 240, plazas: ['bodega'],
@@ -207,4 +208,29 @@ test('un patron no tiene codigo y no ensucia la hoja de codigos', () => {
   // Cambia una palabra en cientos de nombres: no es una tarea por codigo.
   const filas = tabla(libroDeRevisiones(cola, marcas), 'Códigos')
   assert.ok(!filas.some(f => f.Caso === 'pat|GALAXY>SAMSUNG'))
+})
+
+test('UN LOTE CONTESTADO sale contestado en el reporte', () => {
+  // La bandeja guarda por HUELLA y el reporte buscaba por `id`. Para tres de
+  // las cuatro reglas son lo mismo, pero la huella de un lote incluye sus
+  // codigos, asi que un lote contestado salia en el Excel como sin contestar
+  // -y los lotes son los casos que mas renglones ordenan de una vez-.
+  //
+  // No fallaba nada: el libro se generaba perfecto y con una columna en
+  // blanco donde iba la respuesta.
+  const unLote = caso('lote|sin-existencia', {
+    bloque: 'codigo', titulo: '31 codigos sin existencia',
+    codigos: [{ codigo: 'A', producto: 'UNO', piezas: 0, plazas: { leon: 0 } },
+              { codigo: 'B', producto: 'DOS', piezas: 0, plazas: { leon: 0 } }],
+  })
+  const huella = huellaDe(unLote)
+  assert.notEqual(huella, unLote.id, 'la huella de un lote NO es su id')
+
+  const libro = libroDeRevisiones([unLote], {
+    [huella]: { estado: 'si', nota: 'se borran', fecha: '2026-11-07T10:00:00Z', por: 'admin' },
+  })
+  const casos = tabla(libro, 'Casos')
+  assert.equal(casos.length, 1)
+  assert.ok(Object.values(casos[0]).some(v => String(v).includes('se borran')),
+    'la respuesta del lote tiene que aparecer en la hoja')
 })

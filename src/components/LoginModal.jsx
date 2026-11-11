@@ -7,6 +7,9 @@ const SUCURSALES = [
   { name: 'San Luis Potosí', slug: 'san-luis' },
   { name: 'Aguascalientes',  slug: 'aguascalientes' },
   { name: 'Torreón',         slug: 'torreon' },
+  // El encargado de bodega entra con el suyo. No es una sucursal que venda:
+  // es quien surte, y por eso su panel es otro -ver `SucursalPanel`-.
+  { name: 'Bodega',          slug: 'bodega' },
 ]
 
 const EyeOpen = () => (
@@ -36,6 +39,11 @@ export default function LoginModal({ onClose }) {
   const [showPass, setShowPass] = useState(false)
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
+  // El segundo factor. `pideCodigo` lo enciende el BACKEND, no la pantalla:
+  // así el día que se configure el secreto empieza a pedirse solo, sin tocar
+  // nada aquí, y si se quita deja de pedirse igual de solo.
+  const [codigo, setCodigo]     = useState('')
+  const [pideCodigo, setPide]   = useState(false)
 
   // Antes la comparación era instantánea y se le ponía una espera falsa para
   // que pareciera que hacía algo. Ahora la espera es real: la contraseña va al
@@ -45,17 +53,36 @@ export default function LoginModal({ onClose }) {
     setLoading(true)
     setError('')
     try {
-      const result = await login(branch.slug, password)
+      const result = await login(branch.slug, password, codigo)
       if (result.ok) {
         onClose()
+      } else if (result.pideCodigo) {
+        // La contraseña estaba BIEN. No se borra: obligar a teclearla otra
+        // vez por no haber puesto el código todavía convierte el segundo
+        // factor en un castigo, y un castigo diario se acaba desactivando.
+        setPide(true)
+        setCodigo('')
+        setError(result.msg || 'Escribe el código de tu app.')
       } else {
         setError(result.msg || 'Contraseña incorrecta.')
         setPassword('')
+        setCodigo('')
       }
     } finally {
       setLoading(false)
     }
   }
+
+  // Cuando el boton no puede pulsarse. Sale cinco veces -deshabilitado,
+  // fondo, color, cursor y sombra- y repetir la condicion es como se separan:
+  // alguien cambia una y el boton se ve activo estando muerto.
+  const noPuede = loading || !password.trim() || (pideCodigo && codigo.length !== 6)
+
+  // Cuando lo que falta es el CODIGO, la contraseña estaba bien: pintarla en
+  // rojo dice justo lo contrario de lo que paso, y quien lo vea la va a
+  // borrar y teclear otra vez para nada. El aviso se muda al campo que de
+  // verdad falta.
+  const malaContrasena = Boolean(error) && !pideCodigo
 
   return (
     <div
@@ -122,9 +149,9 @@ export default function LoginModal({ onClose }) {
                 placeholder="Ingresa tu contraseña"
                 required
                 autoFocus
-                style={{ width: '100%', padding: '11px 44px 11px 16px', borderRadius: 999, border: `1.5px solid ${error ? 'rgba(213,26,122,0.5)' : 'rgba(16,22,25,0.09)'}`, backgroundColor: error ? 'rgba(213,26,122,0.03)' : '#f7f8fa', fontSize: 14, color: '#101619', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
-                onFocus={e => !error && (e.target.style.borderColor = 'rgba(0,188,242,0.5)')}
-                onBlur={e => !error && (e.target.style.borderColor = 'rgba(16,22,25,0.09)')}
+                style={{ width: '100%', padding: '11px 44px 11px 16px', borderRadius: 999, border: `1.5px solid ${malaContrasena ? 'rgba(213,26,122,0.5)' : 'rgba(16,22,25,0.09)'}`, backgroundColor: malaContrasena ? 'rgba(213,26,122,0.03)' : '#f7f8fa', fontSize: 14, color: '#101619', outline: 'none', fontFamily: 'inherit', transition: 'border-color 0.15s' }}
+                onFocus={e => !malaContrasena && (e.target.style.borderColor = 'rgba(0,188,242,0.5)')}
+                onBlur={e => !malaContrasena && (e.target.style.borderColor = 'rgba(16,22,25,0.09)')}
               />
               <button
                 type="button"
@@ -134,22 +161,55 @@ export default function LoginModal({ onClose }) {
                 {showPass ? <EyeClosed /> : <EyeOpen />}
               </button>
             </div>
-            {error && (
+            {malaContrasena && (
               <p style={{ fontSize: 12, color: '#C4156F', marginTop: 7, paddingLeft: 4 }}>
                 ⚠ {error}
               </p>
             )}
           </div>
 
+          {/* Código de la app de autenticación. Solo aparece cuando el
+              servidor lo pide, que hoy es únicamente para administrador. */}
+          {pideCodigo && (
+            <div data-paso-dos>
+              <label htmlFor="codigo-2fa"
+                     style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#6C818B', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Código de tu app
+              </label>
+              <input
+                id="codigo-2fa"
+                value={codigo}
+                onChange={e => { setCodigo(e.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }}
+                placeholder="000000"
+                // `one-time-code` es lo que hace que el móvil ofrezca pegarlo
+                // y que el gestor de contraseñas no intente guardarlo.
+                autoComplete="one-time-code"
+                inputMode="numeric"
+                maxLength={6}
+                autoFocus
+                required
+                style={{ width: '100%', padding: '11px 16px', borderRadius: 999, border: `1.5px solid ${error ? 'rgba(213,26,122,0.5)' : 'rgba(16,22,25,0.09)'}`, backgroundColor: '#f7f8fa', fontSize: 20, letterSpacing: '0.4em', textAlign: 'center', color: '#101619', outline: 'none', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums' }}
+              />
+              {error && (
+                <p style={{ fontSize: 12, color: '#C4156F', marginTop: 7, paddingLeft: 4 }}>
+                  ⚠ {error}
+                </p>
+              )}
+              <p style={{ fontSize: 11, color: '#B4C3C9', marginTop: 7, paddingLeft: 4, lineHeight: 1.45 }}>
+                Los seis dígitos de Microsoft Authenticator. Cambian cada 30 segundos.
+              </p>
+            </div>
+          )}
+
           {/* Botón */}
           <button
             type="submit"
-            disabled={loading || !password.trim()}
-            style={{ width: '100%', padding: '13px 0', marginTop: 4, background: (loading || !password.trim()) ? 'rgba(16,22,25,0.05)' : 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: 999, border: 'none', color: (loading || !password.trim()) ? 'rgba(0,0,0,0.28)' : 'white', fontSize: 15, fontWeight: 700, cursor: (loading || !password.trim()) ? 'default' : 'pointer', transition: 'all 0.2s', boxShadow: (loading || !password.trim()) ? 'none' : '0 6px 20px rgba(213,26,122,0.3)', fontFamily: 'inherit' }}
+            disabled={noPuede}
+            style={{ width: '100%', padding: '13px 0', marginTop: 4, background: noPuede ? 'rgba(16,22,25,0.05)' : 'linear-gradient(135deg, #D51A7A, #FF6B1A)', borderRadius: 999, border: 'none', color: noPuede ? 'rgba(0,0,0,0.28)' : 'white', fontSize: 15, fontWeight: 700, cursor: noPuede ? 'default' : 'pointer', transition: 'all 0.2s', boxShadow: noPuede ? 'none' : '0 6px 20px rgba(213,26,122,0.3)', fontFamily: 'inherit' }}
             onMouseEnter={e => { if (!loading && password.trim()) e.currentTarget.style.transform = 'scale(1.02)' }}
             onMouseLeave={e => (e.currentTarget.style.transform = 'scale(1)')}
           >
-            {loading ? 'Verificando...' : 'Ingresar'}
+            {loading ? 'Verificando...' : pideCodigo ? 'Confirmar' : 'Ingresar'}
           </button>
         </form>
 

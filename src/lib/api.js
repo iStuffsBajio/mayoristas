@@ -15,9 +15,14 @@ const BASE = String(import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
 export const apiConfigurada = !!BASE
 
 class ErrorApi extends Error {
-  constructor(mensaje, codigo) {
+  constructor(mensaje, codigo, datos = {}) {
     super(mensaje)
     this.codigo = codigo
+    // El cuerpo entero del error. Hace falta porque el backend contesta cosas
+    // que no caben en un texto: el login dice `pideCodigo` para distinguir
+    // «la contraseña está mal» de «la contraseña está bien y falta el código
+    // de tu app». Sin esto, las dos se veían igual.
+    this.datos = datos
   }
 }
 
@@ -56,7 +61,7 @@ async function pedir(ruta, { metodo = 'GET', cuerpo, token } = {}) {
       avisarSesionVencida()
       throw new ErrorApi('Tu sesión expiró. Vuelve a iniciar sesión.', res.status)
     }
-    throw new ErrorApi(datos.error || `Error ${res.status}.`, res.status)
+    throw new ErrorApi(datos.error || `Error ${res.status}.`, res.status, datos)
   }
   return datos
 }
@@ -85,9 +90,17 @@ export function reiniciarAvisoSesion() { avisado = false }
 
 // ── Sesión ───────────────────────────────────────────────────────────────────
 
-/** Devuelve { token, sucursal, admin }. La contraseña nunca se guarda. */
-export const login = (sucursal, contrasena) =>
-  pedir('/login', { metodo: 'POST', cuerpo: { sucursal, contrasena } })
+/**
+ * Devuelve { token, sucursal, admin }. La contraseña nunca se guarda.
+ *
+ * `codigo` es el segundo factor, y sólo se le pide al administrador. Va en la
+ * misma petición que la contraseña a propósito: partirlo en dos llamadas
+ * obligaría a guardar un estado intermedio en el servidor —«esta contraseña
+ * ya se validó, falta el código»— y ese estado es justo lo que un atacante
+ * querría encontrar.
+ */
+export const login = (sucursal, contrasena, codigo) =>
+  pedir('/login', { metodo: 'POST', cuerpo: { sucursal, contrasena, codigo } })
 
 // ── Escrituras ───────────────────────────────────────────────────────────────
 
@@ -147,8 +160,100 @@ export const turnos = token => pedir('/turnos', { token })
 export const revisiones = token => pedir('/revisiones', { token })
 
 /** Guarda una respuesta. `estado` en null quita la marca. */
+/**
+ * Guarda el estado de una incidencia.
+ *
+ * `extra` lleva lo del ciclo de vida: gravedad, responsable y fecha
+ * compromiso. El backend ESCRIBE ENCIMA del registro anterior en vez de
+ * reemplazarlo, asi que cambiar solo la gravedad no borra la nota.
+ *
+ * `estado: null` retira la respuesta y la incidencia vuelve a salir como
+ * nueva, que es lo que se espera al deshacer.
+ */
+export const guardarIncidencia = (
+  id, estado,
+  { nota, gravedad, responsable, compromiso, motivo, comentario } = {}, token,
+) =>
+  pedir('/revisiones', {
+    metodo: 'POST', token,
+    cuerpo: { id, estado, nota, gravedad, responsable, compromiso, motivo, comentario },
+  })
+
+/**
+ * Guarda una excepción o una entrada del catálogo de códigos.
+ *
+ * Va al mismo sitio que las respuestas —es el único archivo por persona que
+ * ya se junta al leer— pero con el prefijo `cfg|`, y el backend lo trata por
+ * otra rama: no lleva estado. `conciliar` lo salta, porque un registro sin
+ * hallazgo se lee como «se cerró solo» y una excepción no es un caso
+ * resuelto.
+ */
+export const guardarCfg = (id, campos, token) =>
+  pedir('/revisiones', { metodo: 'POST', token, cuerpo: { id, ...campos } })
+
+/** Revocar es BORRAR: una excepción retirada que siguiera en el archivo
+ *  seguiría tapando la alerta mientras la pantalla la enseña como retirada. */
+export const borrarCfg = (id, token) =>
+  pedir('/revisiones', { metodo: 'POST', token, cuerpo: { id, borrar: true } })
+
 export const guardarRevision = (id, estado, nota, token) =>
   pedir('/revisiones', { metodo: 'POST', cuerpo: { id, estado, nota }, token })
+
+// ── Ajustes: correcciones que no tocan el dato ───────────────────────────────
+//
+// Viven al lado del inventario porque el respaldo de Eleventa lo regenera
+// cuatro veces al día: escribir encima sería borrarlo esa misma tarde.
+
+export const ajustes = token => pedir('/ajustes', { token })
+
+/** Guarda una corrección. `motivo` en null la deshace. */
+export const guardarAjuste = ({ codigo, tipo = 'ocultar', motivo, producto = '', nota = '' }, token) =>
+  pedir('/ajustes', { metodo: 'POST', cuerpo: { codigo, tipo, motivo, producto, nota }, token })
+
+/**
+ * Guarda o retira el MISMO ajuste para varios códigos, en una sola petición.
+ *
+ * Es la única forma correcta de marcar muchos: cada petición lee el archivo
+ * de la persona, lo modifica y lo reescribe entero, así que varias a la vez se
+ * pisan y la última gana. `items` es `[{ codigo, producto }]`; `motivo` en
+ * null los quita.
+ */
+export const guardarAjustes = ({ items, tipo = 'ocultar', motivo, nota = '' }, token) =>
+  pedir('/ajustes', { metodo: 'POST', cuerpo: { items, tipo, motivo, nota }, token })
+
+/**
+ * Baja definitiva de una lista de códigos. SÓLO el administrador.
+ *
+ * El servidor comprueba, leyendo los inventarios en ese momento, que ninguno
+ * tenga piezas en la red ni ventas en el último año: lo que mande esta página
+ * no cuenta como prueba. Contesta `aceptados` y `rechazados` con sus motivos;
+ * y si falta el inventario de alguna plaza, 409 y no escribe nada.
+ */
+export const guardarBajas = ({ codigos, dias = 365, nota = '' }, token) =>
+  pedir('/ajustes/bajas', { metodo: 'POST', cuerpo: { codigos, dias, nota }, token })
+
+// ── Surtidos: lo que sale de bodega a cada tienda ────────────────────────────
+//
+// Un folio lleva las líneas que salieron y la existencia que había en el
+// destino en ese momento. Ese «antes» se manda desde aquí porque es el panel
+// el que tiene el inventario del destino a la vista, y sólo existe mientras
+// todavía es antes: los respaldos por fecha se quitaron a propósito y nada más
+// va a poder reconstruirlo después.
+
+export const surtidos = token => pedir('/surtidos', { token })
+
+/** Registra una salida. El folio y el «antes» los arma `lib/surtidos.js`. */
+export const guardarSurtido = ({ folio, destino, lineas, antes }, token) =>
+  pedir('/surtidos', { metodo: 'POST', cuerpo: { folio, destino, lineas, antes }, token })
+
+/**
+ * Da un folio por visto.
+ *
+ * No reescribe sus líneas ni su «antes»: un folio editable después del alta no
+ * comprobaría nada, porque se podría ajustar hasta que cuadre.
+ */
+export const cerrarSurtido = (folio, token) =>
+  pedir('/surtidos', { metodo: 'POST', cuerpo: { folio, cerrado: true }, token })
 
 // ── Galería del catálogo ─────────────────────────────────────────────────────
 
@@ -162,3 +267,108 @@ export async function galeria(carpeta) {
     return []
   }
 }
+
+// ── Venta linea por linea ────────────────────────────────────────────────────
+//
+// SOLO ADMINISTRADOR, y no por capricho: `ventas/<plaza>.json` lleva los
+// nombres de los mayoristas y el de quien cobro cada ticket. Esa es la lista
+// de clientes del negocio, asi que el prefijo es privado y lo sirve el
+// backend, igual que `personal/` y `caja/`.
+//
+// Una plaza sin extraer devuelve 404, que NO es lo mismo que «no vendio
+// nada»: quien llame tiene que distinguirlo o la pantalla pintara un cero
+// donde lo que hay es un hueco.
+
+export const ventas = (plaza, token) =>
+  pedir(`/ventas?plaza=${encodeURIComponent(plaza)}`, { token })
+
+// ── El corte semanal de cada sucursal ────────────────────────────────────────
+//
+// A diferencia de `ventas` y `caja`, esta ruta la puede pedir una TIENDA, y el
+// servidor decide qué le devuelve: sólo su plaza, sin los nombres de quien
+// cerró turno ni de quien cobró. El administrador recibe todas.
+
+/** Sin `plaza`: una tienda recibe la suya y el administrador, todas. */
+export const corte = (plaza, token) =>
+  pedir(`/corte${plaza ? `?plaza=${encodeURIComponent(plaza)}` : ''}`, { token })
+
+/**
+ * El fondo de caja de UNA plaza. Sólo el administrador. Toca sólo el fondo:
+ * los demás parámetros de la plaza se quedan como están.
+ */
+export const guardarFondoCaja = ({ sucursal, fondoFijo }, token) =>
+  pedir('/caja/fondo', { metodo: 'POST', token, cuerpo: { sucursal, fondoFijo } })
+
+/** Lo único que captura la tienda: el conteo de billetes y monedas de una semana. */
+export const guardarConteo = ({ plaza, semana, cantidades, observaciones = '' }, token) =>
+  pedir('/corte/conteo', { metodo: 'POST', cuerpo: { plaza, semana, cantidades, observaciones }, token })
+
+// ── Flujo de efectivo ────────────────────────────────────────────────────────
+//
+// SOLO ADMINISTRADOR. Lo decidio el dueño: las plazas hacen todo directo en
+// Eleventa y nadie mas entra aqui. Y hay un motivo mas fuerte que el permiso:
+// los faltantes al cerrar turno llevan el NOMBRE de quien cerro pegado a una
+// cantidad de dinero que falta, asi que `caja/` es privado y lo sirve el
+// backend, igual que `personal/`.
+
+/**
+ * Todo lo que necesita la pestaña en una sola llamada: el flujo de las cinco
+ * plazas, los depositos marcados, los ajustes, los movimientos y los
+ * parametros.
+ *
+ * En una sola a proposito. Son nueve archivos, y pidiendolos de uno en uno la
+ * pantalla se pintaba a trozos con los semaforos cambiando de color a medida
+ * que llegaban. Un semaforo que pasa de verde a rojo solo no se lee como «ya
+ * cargo»: se lee como un fallo.
+ */
+export const caja = token => pedir('/caja', { token })
+
+/**
+ * Marca un bloque semanal como depositado, o le quita la marca.
+ *
+ * `semana` es el LUNES de la semana que cubre. Mandar `monto: null` quita la
+ * marca y el bloque vuelve a acumular, que es como se deshace un deposito
+ * apuntado por error.
+ */
+export const marcarDeposito = ({ sucursal, semana, monto, fecha, hora, folio, comprobante, deposito, nota }, token) =>
+  pedir('/caja/deposito', {
+    metodo: 'POST', token,
+    cuerpo: { sucursal, semana, monto, fecha, hora, folio, comprobante, deposito, nota },
+  })
+
+/** Corrige un dia sin tocar lo calculado. `motivo` en null deshace. */
+export const ajustarCaja = ({ sucursal, fecha, valores, motivo, nota }, token) =>
+  pedir('/caja/ajuste', { metodo: 'POST', token, cuerpo: { sucursal, fecha, valores, motivo, nota } })
+
+/** Los parametros de una sucursal. Un campo vacio se guarda nulo, no cero. */
+export const guardarParametrosCaja = (sucursal, parametros, token) =>
+  pedir('/caja/parametros', { metodo: 'POST', token, cuerpo: { sucursal, parametros } })
+
+/**
+ * Captura un movimiento de caja a mano, o lo borra con `borrar: true`.
+ *
+ * Es la via de escape, no el camino normal: desde el 2026-11-05 las plazas los
+ * registran en Eleventa y de ahi los trae el extractor.
+ */
+export const guardarMovimientoCaja = (mov, token) =>
+  pedir('/caja/movimiento', { metodo: 'POST', token, cuerpo: mov })
+
+// ── Nómina y RH ──────────────────────────────────────────────────────────────
+//
+// El administrador recibe todo; una tienda, SÓLO su plaza y sin nada de RH:
+// lo recorta el servidor. Escribir es sólo del administrador.
+
+export const nomina = token => pedir('/nomina', { token })
+
+export const guardarConfigNomina = (config, motivo, token) =>
+  pedir('/nomina/config', { metodo: 'POST', token, cuerpo: { config, motivo } })
+
+/** Justificar, cubrir, autorizar comisiones, ajustar, pagar, vacaciones. */
+export const accionNomina = (accion, token) =>
+  pedir('/nomina/accion', { metodo: 'POST', token, cuerpo: accion })
+
+export const subirFotoNomina = (datos, token) =>
+  pedir('/nomina/foto', { metodo: 'POST', token, cuerpo: { datos } })
+
+export const fotoNomina = (f, token) =>
+  pedir(`/nomina/foto?f=${encodeURIComponent(f)}`, { token })

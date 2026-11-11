@@ -1,6 +1,8 @@
+import { TEMAS } from './Diseno'
 import { useState, useEffect, useMemo } from 'react'
 import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA } from '../lib/sucursales'
-import { inventarioJsonUrl, historialUrl } from '../lib/s3'
+import { inventarioJsonUrl, historialUrl, estadisticasUrl, agotadosUrl } from '../lib/s3'
+import { censuraEn, DIAS_AGOTADOS } from '../lib/agotados'
 import {
   velocidadDiaria, velocidadCombinada, calcularSurtido, analizarBodega,
   candidatosADepurar, esTemporadaAlta, COBERTURA, MOTIVOS,
@@ -14,6 +16,14 @@ import { separarProduccion } from '../lib/produccion'
 import { useOrdenTabla } from '../lib/orden'
 import { clasePorModelo, agotadosPorUbicacion } from '../lib/clases'
 import BarrasAgotados from './BarrasAgotados'
+import { useAuth } from '../context/AuthContext'
+import { useSurtidos } from '../lib/useSurtidos'
+import { cuadrar, lineasDesdeSurtido, resumirFolios, puedeSurtir, veBodega, ESTADOS as ESTADOS_SURTIDO, DIAS_PARA_DAR_DE_ALTA } from '../lib/surtidos'
+import { salidasEntre } from '../lib/radiografia'
+import {
+  interpretar, conAjuste, aplicarAjustes, resumirAjustes, limpiarAmbito,
+  leerGuardado, guardar,
+} from '../lib/ajusteCompra'
 
 // Para la columna de reparto: «leon 9 · slp 4» cabe, los nombres largos no.
 const NOMBRE_CORTO = {
@@ -42,11 +52,16 @@ const FERIAS = SUCURSALES.find(s => s.estacional)
 // la misma fila de pestañas obligaba a leer el título para saber de qué se
 // estaba hablando; el panel las separa en dos secciones y cada una pide solo
 // las suyas.
+/** El tema de color de cada vista: el mismo significado en todas las pestañas. */
+const TEMA_DE_VISTA = {
+  venta: 'comprar', muestra: 'agotado', candidatos: 'ventas', depurar: 'alerta',
+  bodega: 'inventario', compras: 'comprar', agotados: 'agotado',
+}
+
 const VISTAS = [
   { id: 'venta',      etiqueta: 'Pedir por venta',         ambito: 'sucursales' },
   { id: 'muestra',    etiqueta: 'Sin venta y agotados',    ambito: 'sucursales' },
   { id: 'candidatos', etiqueta: 'Se venden en tienda',     ambito: 'sucursales' },
-  { id: 'nuevos',     etiqueta: 'Recién llegados',         ambito: 'sucursales' },
   { id: 'depurar',    etiqueta: 'Depurar',                 ambito: 'sucursales' },
   { id: 'bodega',     etiqueta: 'Lo que puede surtir',     ambito: 'bodega' },
   { id: 'compras',    etiqueta: '🛒 Comprar al proveedor', ambito: 'bodega' },
@@ -69,7 +84,9 @@ function Pildora({ activa, onClick, children, tenue }) {
 
 function Dato({ valor, etiqueta, nota, color }) {
   return (
-    <div style={{ flex: 1, minWidth: 104, padding: '12px 14px', background: '#fff', border: '1px solid ' + LINEA, borderRadius: 16 }}>
+    <div style={{ flex: 1, minWidth: 104, padding: '12px 14px', borderRadius: 16,
+                  background: /^#[0-9a-f]{6}$/i.test(color ?? '') ? color + '14' : 'rgba(16,22,25,0.04)',
+                  borderLeft: '4px solid ' + (color || TINTA) }}>
       <div style={{ fontSize: 22, fontWeight: 800, color: color || TINTA, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{valor}</div>
       <div style={{ fontSize: 11.5, color: TINTA_SUAVE, marginTop: 2 }}>{etiqueta}</div>
       {nota && <div style={{ fontSize: 10.5, color: TINTA_TENUE, marginTop: 1 }}>{nota}</div>}
@@ -81,13 +98,18 @@ function Aviso({ tono = AMBAR, children }) {
   const fondo = tono === AMBAR ? 'rgba(180,83,9,0.06)' : 'rgba(0,188,242,0.05)'
   const borde = tono === AMBAR ? 'rgba(180,83,9,0.22)' : 'rgba(0,188,242,0.25)'
   return (
-    <div style={{ padding: '12px 14px', borderRadius: 16, background: fondo, border: '1px solid ' + borde, marginBottom: 14 }}>
+    <div style={{ padding: '12px 14px', borderRadius: 16, background: fondo, border: '1px solid ' + borde,
+                  borderLeft: '5px solid ' + (tono === AMBAR ? AMBAR : TEMAS.ventas.fuerte), marginBottom: 14 }}>
       <p style={{ fontSize: 11.5, color: tono === AMBAR ? AMBAR : TINTA_SUAVE, margin: 0, lineHeight: 1.55 }}>{children}</p>
     </div>
   )
 }
 
-const Th = ({ children, campo, valor, orden, ...r }) => {
+// `num` se saca del resto a proposito: si cae en `...r` acaba escupido al
+// <th> como atributo del DOM y React avisa en consola de cada cabecera
+// numerica. No rompe nada, pero llena la consola de ruido y el dia que haya
+// un error de verdad no se va a ver. Solo se nota mirando un navegador.
+const Th = ({ children, campo, valor, orden, num, ...r }) => {
   const activa = orden && campo && orden.campo === campo
   const puedeOrdenar = !!(orden && campo)
 
@@ -97,7 +119,7 @@ const Th = ({ children, campo, valor, orden, ...r }) => {
       aria-sort={!puedeOrdenar ? undefined : activa ? (orden.dir === -1 ? 'descending' : 'ascending') : 'none'}
       title={puedeOrdenar ? 'Clic para ordenar' : r.title}
       style={{
-        textAlign: r.num ? 'right' : 'left', padding: '9px 10px', fontWeight: 700,
+        textAlign: num ? 'right' : 'left', padding: '9px 10px', fontWeight: 700,
         color: activa ? TINTA : TINTA_SUAVE, fontSize: 11,
         borderBottom: '1px solid ' + LINEA, whiteSpace: 'nowrap',
         cursor: puedeOrdenar ? 'pointer' : 'default',
@@ -135,6 +157,133 @@ const Celda = ({ children, num, fuerte, color, title }) => (
   </td>
 )
 
+/**
+ * La cantidad a pedir, editable con doble clic.
+ *
+ * Doble clic y no un clic: la tabla se ordena y se recorre a golpe de ratón,
+ * y con un solo clic se abriría una celda cada vez que alguien quiere mirar.
+ * El doble clic es deliberado, que es lo que tiene que ser cambiar una
+ * compra.
+ *
+ * Tres cosas que parecen detalle y no lo son:
+ *
+ *   · **Escape cancela.** Sin salida, el único camino para deshacer un
+ *     tecleo a medias es escribir el número viejo de memoria.
+ *   · **Vaciar quita el ajuste**, no pone cero. Un cero escrito sí es cero
+ *     -«de éste no pidas ninguno»-, y los dos casos existen.
+ *   · **La sugerencia original se sigue viendo** cuando hay ajuste. Un número
+ *     cambiado sin referencia no se puede revisar.
+ */
+/**
+ * Lo que llevas cambiado a mano, y cómo deshacerlo.
+ *
+ * Importa que esté a la vista. Los ajustes se guardan en el navegador y
+ * sobreviven a cerrar la pestaña, así que sin este aviso alguien puede bajar
+ * dentro de dos semanas un Excel con los ajustes de hoy puestos y no
+ * entender por qué los números no son los que calcula la pantalla. La cifra
+ * de al lado -cuánto suma o resta sobre lo sugerido- es la que lo delata de
+ * un vistazo.
+ */
+function AvisoAjustes({ filas, ambito, onLimpiar }) {
+  const r = resumirAjustes(filas)
+  if (!r.cuantos) return null
+
+  const signo = r.diferencia > 0 ? '+' : ''
+  return (
+    <div style={{
+      display: 'flex', gap: 12, alignItems: 'baseline', flexWrap: 'wrap',
+      border: '1px solid #BAE6FD', background: 'rgba(2,136,173,0.07)',
+      borderRadius: 14, padding: '10px 14px', marginBottom: 12,
+    }}>
+      <span style={{ fontSize: 12, color: '#0A5B73', flex: 1 }}>
+        <strong>{r.cuantos} {r.cuantos === 1 ? 'cantidad cambiada' : 'cantidades cambiadas'} a mano</strong>
+        {r.subidas > 0 && <> · {r.subidas} {r.subidas === 1 ? 'subida' : 'subidas'}</>}
+        {r.bajadas > 0 && <> · {r.bajadas} {r.bajadas === 1 ? 'bajada' : 'bajadas'}</>}
+        {r.diferencia !== 0 && (
+          <> · <strong>{signo}{r.diferencia} piezas</strong> sobre lo sugerido</>
+        )}
+        . El Excel sale con estos números.
+      </span>
+      <button type="button" onClick={() => onLimpiar(ambito)}
+              style={{ fontSize: 11, color: '#0A5B73', background: 'none', border: 'none',
+                       cursor: 'pointer', textDecoration: 'underline', fontWeight: 700 }}>
+        Volver a lo sugerido
+      </button>
+    </div>
+  )
+}
+
+function CeldaPedir({ fila, ambito, onCambiar, color = VERDE }) {
+  const [editando, setEditando] = useState(false)
+  const [texto, setTexto] = useState('')
+  const [error, setError] = useState(null)
+
+  const abrir = () => {
+    setTexto(String(fila.sugerido ?? ''))
+    setError(null)
+    setEditando(true)
+  }
+
+  const cerrar = guardando => {
+    if (!guardando) { setEditando(false); setError(null); return }
+    const r = interpretar(texto)
+    if (!r.ok) { setError(r.porque); return }
+    onCambiar(ambito, fila.codigo, r.quitar ? null : r.valor)
+    setEditando(false)
+    setError(null)
+  }
+
+  if (editando) {
+    return (
+      <td style={{ padding: '4px 6px', textAlign: 'right' }}>
+        <input
+          autoFocus
+          value={texto}
+          onChange={e => { setTexto(e.target.value); setError(null) }}
+          onBlur={() => cerrar(true)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') { e.preventDefault(); cerrar(true) }
+            if (e.key === 'Escape') { e.preventDefault(); cerrar(false) }
+          }}
+          title={error || 'Enter para guardar · Escape para cancelar · vacío quita el ajuste'}
+          style={{
+            width: 72, textAlign: 'right', fontWeight: 800, fontSize: 13,
+            padding: '3px 6px', borderRadius: 8,
+            border: '1.5px solid ' + (error ? ROSA : '#0288AD'),
+            fontVariantNumeric: 'tabular-nums', color: TINTA,
+          }} />
+        {error && (
+          <div style={{ fontSize: 10, color: ROSA, maxWidth: 150, lineHeight: 1.3 }}>{error}</div>
+        )}
+      </td>
+    )
+  }
+
+  return (
+    <td onDoubleClick={abrir}
+        data-pedir={fila.codigo}
+        data-ajustado={fila.ajustado ? '1' : '0'}
+        title={fila.ajustado
+          ? `Lo cambiaste tú. La cuenta decía ${fila.sugeridoOriginal}. Doble clic para volver a cambiarlo; vacío lo deja como estaba.`
+          : 'Doble clic para cambiar la cantidad'}
+        style={{
+          padding: '7px 10px', textAlign: 'right', cursor: 'pointer',
+          color: fila.ajustado ? '#0288AD' : color, fontWeight: 800,
+          fontVariantNumeric: 'tabular-nums',
+          // Un subrayado punteado: dice «esto se puede tocar» sin gritar.
+          textDecoration: 'underline dotted',
+          textUnderlineOffset: 3,
+        }}>
+      {fila.sugerido || (fila.sugerido === 0 ? '0' : '—')}
+      {fila.ajustado && (
+        <span style={{ display: 'block', fontSize: 10, fontWeight: 600, color: TINTA_TENUE }}>
+          antes {fila.sugeridoOriginal}
+        </span>
+      )}
+    </td>
+  )
+}
+
 const Modelo = ({ f }) => (
   <>
     <Celda>
@@ -151,7 +300,110 @@ const Modelo = ({ f }) => (
  *
  * Trae `{ vista, filtro }`: la pestana que abrir y que subconjunto marcar.
  */
+/**
+ * Lo que ya salio de bodega, y si llego.
+ *
+ * El estado no lo marca nadie: lo decide el respaldo de la tienda. Cuando el
+ * ALTA aparece -hasta cuatro dias, que puso el dueño- el folio cuadra o
+ * enseña la diferencia; pasados esos dias sin aparecer, es otro problema y se
+ * dice distinto: nadie lo ha dado de alta.
+ */
+function Folios({ cuadres, resumen, onCerrar, puedeCerrar }) {
+  const COLOR = {
+    [ESTADOS_SURTIDO.CUADRA]:     VERDE,
+    [ESTADOS_SURTIDO.DIFERENCIA]: ROSA,
+    [ESTADOS_SURTIDO.TARDE]:      AMBAR,
+    [ESTADOS_SURTIDO.EN_CAMINO]:  TINTA_TENUE,
+  }
+  const TEXTO = {
+    [ESTADOS_SURTIDO.CUADRA]:     'Cuadra',
+    [ESTADOS_SURTIDO.DIFERENCIA]: 'Diferencia',
+    [ESTADOS_SURTIDO.TARDE]:      'Sin dar de alta',
+    [ESTADOS_SURTIDO.EN_CAMINO]:  'En camino',
+  }
+
+  const abiertos = cuadres.filter(c => !c.cerrado)
+  if (!abiertos.length) return null
+
+  return (
+    <section style={{ border: '1px solid ' + LINEA, borderRadius: 22, padding: '18px 20px', marginBottom: 18 }}>
+      <h4 style={{ fontSize: 13, fontWeight: 800, color: TINTA, margin: '0 0 4px' }}>
+        Lo que ya salio de bodega
+      </h4>
+      <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '0 0 14px', lineHeight: 1.55 }}>
+        {resumen.enCamino > 0 && <>{resumen.enCamino} en camino. </>}
+        {resumen.diferencia > 0 && (
+          <><strong style={{ color: ROSA }}>{resumen.diferencia} con diferencia</strong>
+            {resumen.piezasQueFaltan > 0 && <> ({resumen.piezasQueFaltan} piezas que faltan)</>}. </>
+        )}
+        {resumen.tarde > 0 && (
+          <><strong style={{ color: AMBAR }}>{resumen.tarde} sin dar de alta</strong> pasados los {DIAS_PARA_DAR_DE_ALTA} dias. </>
+        )}
+        Nadie cuenta nada a mano: el conteo es el alta que hace la tienda en su propia caja, y se
+        compara descontando lo que vendio mientras recibia.
+      </p>
+
+      <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {abiertos.map(c => (
+          <li key={c.folio} data-folio={c.folio} data-estado={c.estado}
+              style={{ borderTop: '1px solid ' + LINEA, paddingTop: 10 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'baseline', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: COLOR[c.estado] }}>
+                {TEXTO[c.estado]}
+              </span>
+              <span style={{ fontSize: 12.5, color: TINTA, fontWeight: 700 }}>
+                {NOMBRE_CORTO[c.destino] ?? c.destino}
+              </span>
+              <span style={{ fontSize: 11.5, color: TINTA_TENUE, flex: 1 }}>
+                {c.folio} · {c.dias === 0 ? 'hoy' : `hace ${c.dias} d`} ·
+                {' '}{c.piezasQueSalieron} pz salieron
+                {c.estado !== ESTADOS_SURTIDO.EN_CAMINO && c.estado !== ESTADOS_SURTIDO.TARDE
+                  && <>, {c.piezasQueEntraron} entraron</>}
+              </span>
+              {puedeCerrar && (
+                <button type="button" onClick={() => onCerrar(c.folio)}
+                        style={{ fontSize: 11, color: TINTA_SUAVE, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                  Dar por visto
+                </button>
+              )}
+            </div>
+
+            {/* Solo las lineas que no cuadran. Las que cuadran no hay que
+                mirarlas, y enseñarlas esconderia las dos que importan. */}
+            {c.conDiferencia.length > 0 && (
+              <ul style={{ listStyle: 'none', margin: '8px 0 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {c.conDiferencia.slice(0, 6).map(f => (
+                  <li key={f.codigo} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr auto', gap: 10, fontSize: 11.5 }}>
+                    {/* El CODIGO delante: una diferencia de piezas es alerta
+                        sensible, y eso se persigue por codigo, no por nombre. */}
+                    <span style={{ fontWeight: 800, color: TINTA, minWidth: '8ch' }}>{f.codigo}</span>
+                    <span style={{ color: TINTA_SUAVE, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={f.producto}>{f.producto}</span>
+                    <span style={{ fontWeight: 800, color: f.diferencia < 0 ? ROSA : AMBAR, whiteSpace: 'nowrap' }}>
+                      {f.diferencia < 0 ? `faltan ${-f.diferencia}` : `sobran ${f.diferencia}`}
+                      {' '}<span style={{ color: TINTA_TENUE, fontWeight: 600 }}>
+                        (salieron {f.piezas}, entraron {f.entraron})
+                      </span>
+                    </span>
+                  </li>
+                ))}
+                {c.filas.some(f => f.sinVender) && (
+                  <li style={{ fontSize: 11, color: AMBAR }}>
+                    Sin el archivo de venta de esa plaza, estas cuentas no descuentan lo que se
+                    vendio mientras recibia: la diferencia puede ser mercancia que se vendio.
+                  </li>
+                )}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = null }) {
+  const TEMA_AMBITO = TEMAS[ambito === 'bodega' ? 'comprar' : 'inventario']
   const sucursales = SUCURSALES_ACTIVAS
   const opciones = useMemo(() => [TODAS, ...sucursales, ...(FERIAS ? [FERIAS] : [])], [sucursales])
 
@@ -184,6 +436,45 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   const [datos, setDatos]   = useState(null)
   const [cargando, setCargando] = useState(true)
 
+  // El registro de lo que ya salio. Va por capacidad y no por «admin»: cuando
+  // exista el usuario del encargado de bodega lo hereda sin tocar esto.
+  const { token, isAdmin, session } = useAuth()
+  const { folios, registrar, cerrar, sinRed: sinRedSurtidos } = useSurtidos(token)
+
+  // Por CAPACIDAD, no por «admin». Estaba atado a admin y con eso el usuario
+  // del encargado de bodega -que es quien manda la mercancía- no habría
+  // podido registrar nada, aunque el backend sí le dejara.
+  const puedeRegistrar = puedeSurtir({ isAdmin, plaza: session?.branch })
+
+  // Una tienda no ve lo de bodega. Va por SESION y no por el ambito de la
+  // pantalla: el administrador mira el surtido de las sucursales con
+  // `ambito="sucursales"` y ahi si debe verlo todo.
+  const conBodega = veBodega({ isAdmin, plaza: session?.branch })
+  // Los ajustes a mano sobre lo que se va a pedir. Se leen del navegador una
+  // sola vez: si se leyeran en cada dibujo, escribir una cifra la pisaria con
+  // la guardada en el dibujo siguiente.
+  const [ajustes, setAjustes] = useState(() =>
+    leerGuardado(typeof window === 'undefined' ? null : window.localStorage))
+
+  const cambiarAjuste = (ambito, codigo, valor) => {
+    setAjustes(previos => {
+      const nuevos = conAjuste(previos, ambito, codigo, valor)
+      guardar(typeof window === 'undefined' ? null : window.localStorage, nuevos)
+      return nuevos
+    })
+  }
+
+  const quitarAjustes = ambito => {
+    setAjustes(previos => {
+      const nuevos = limpiarAmbito(previos, ambito)
+      guardar(typeof window === 'undefined' ? null : window.localStorage, nuevos)
+      return nuevos
+    })
+  }
+
+  const [registrando, setRegistrando] = useState(false)
+  const [avisoSurtido, setAvisoSurtido] = useState(null)
+
   useEffect(() => {
     let cancelado = false
     setCargando(true)
@@ -193,9 +484,17 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
         catch { return null }
       }
       const slugs = [...sucursales.map(s => s.slug), BODEGA.slug, ...(FERIAS ? [FERIAS.slug] : [])]
+      // La estadistica diaria entra aqui por una sola razon: sin ella no se
+      // puede saber cuanto vendio la tienda mientras recibia, y restar
+      // existencias a secas acusa de piezas que se vendieron. Ver
+      // `lib/surtidos.js`.
       const pares = await Promise.all(slugs.map(async slug => [slug, {
         inv:  await bajar(inventarioJsonUrl(slug)),
         hist: await bajar(historialUrl(slug)),
+        est:  await bajar(estadisticasUrl(slug)),
+        // Los días en cero de cada código, del kárdex: dicen si un ritmo bajo
+        // es poca demanda o mostrador vacío. Ver `lib/agotados.js`.
+        ago:  await bajar(agotadosUrl(slug)),
       }]))
       if (!cancelado) { setDatos(Object.fromEntries(pares)); setCargando(false) }
     })()
@@ -364,8 +663,18 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     if (!datos || !bodegaInv) return null
     const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
     const inventarios = Object.fromEntries(sucursales.map(s => [s.slug, datos[s.slug]?.inv]))
-    return calcularCompraBodega({ historiales, inventarios, productosBodega: bodegaInv.productos })
-  }, [datos, sucursales, bodegaInv])
+    const r = calcularCompraBodega({ historiales, inventarios, productosBodega: bodegaInv.productos })
+    // Lo mismo aqui: el ajuste entra antes de la tabla y del Excel.
+    const conAjustes = aplicarAjustes(r.filas, ajustes, 'compra')
+    // Y el total se vuelve a sumar de las filas AJUSTADAS. La libreria lo
+    // calculo con las originales, asi que dejarlo tal cual ponia la cabecera
+    // a decir una cifra y la tabla otra, sin que nada avisara.
+    return {
+      ...r,
+      filas: conAjustes,
+      totalPiezas: conAjustes.reduce((a, f) => a + (Number(f.sugerido) || 0), 0),
+    }
+  }, [datos, sucursales, bodegaInv, ajustes])
 
   // Modelos en cero que siguen vendiéndose y siguen vigentes. No es lo mismo
   // que algo se acabe porque ya nadie lo pide que porque se surtió mal.
@@ -421,11 +730,46 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     [compras],
   )
 
-  const porVenta  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.VENTA && f.sugerido > 0).sort((a, b) => b.sugerido - a.sugerido || a.cobertura - b.cobertura), [filas])
+  // El ambito del surtido es la PLAZA: «mandar 50 a Leon» y «mandar 50 a San
+  // Luis» son dos decisiones distintas y no pueden pisarse.
+  const ambitoSurtido = `surtido:${sel}`
+
+  const porVenta = useMemo(() => {
+    const base = filas
+      .filter(f => f.motivo === MOTIVOS.VENTA && f.sugerido > 0)
+      .sort((a, b) => b.sugerido - a.sugerido || a.cobertura - b.cobertura)
+    // El ajuste se aplica ANTES de que las filas lleguen a ningun sitio: asi
+    // la tabla, los totales y el Excel salen del mismo numero. Ajustando solo
+    // la tabla, el Excel seguiria bajando la sugerencia y nadie lo notaria
+    // hasta tener el pedido delante.
+    return aplicarAjustes(base, ajustes, ambitoSurtido)
+  }, [filas, ajustes, ambitoSurtido])
   const muestras  = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.SIN_VENTA_CERO).sort((a, b) => a.producto.localeCompare(b.producto)), [filas])
   const candidatos = useMemo(() => filas.filter(f => f.motivo === MOTIVOS.CANDIDATO).sort((a, b) => b.enTiendas - a.enTiendas), [filas])
 
   const piezasVenta = porVenta.reduce((a, f) => a + f.sugerido, 0)
+
+  // ── Venta censurada: lo que vendió poco porque no había ──
+  //
+  // Lo preguntó el dueño el 2026-11-09 con el HONOR X8D: «quiero saber si eso
+  // se debe a que estaba agotado o si realmente es un número confiable». El
+  // ritmo sale de lo vendido, y lo que no está en el mostrador no se vende:
+  // un modelo agotado semanas sale con ritmo bajo, se le pide poco y se vuelve
+  // a agotar.
+  //
+  // 🔒 Se MARCA, no se corrige. Subir la cantidad por esto es decisión del
+  // dueño: el «Pedir» sigue saliendo exactamente de la misma cuenta.
+  const agotadosPorPlaza = useMemo(
+    () => (datos ? Object.fromEntries(Object.entries(datos).map(([k, d]) => [k, d?.ago])) : {}),
+    [datos])
+  const censuraDe = f => (esFeria ? [] : censuraEn(
+    agotadosPorPlaza, f.codigo,
+    esTodas ? (f.plazas ?? []).map(p => p.slug) : [sel]))
+  const censuradas = useMemo(
+    () => (vista === 'venta' ? porVenta.filter(f => censuraDe(f).length > 0).length : 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [porVenta, agotadosPorPlaza, sel, esTodas, esFeria, vista])
+  const hayKardex = Object.values(agotadosPorPlaza).some(Boolean)
   const nombreSel = opciones.find(o => o.slug === sel)?.nombre ?? ''
 
   // Se baja el libro entero, no solo la vista que se está mirando: las cuatro
@@ -437,16 +781,42 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
       : { cobertura, esAlta, diasHistorial },
     porVenta,
     muestras,
-    bodega,
     depurar: depurar.filas,
     nuevos: depurar.nuevos,
-    agotados: agotados?.filas ?? [],
-    compras: compras?.filas ?? [],
     candidatos: esFeria ? candidatos : null,
-    bodegaStock,
     esFeria,
-    fuga: agotados ?? null,
+    // Todo lo de bodega sale del libro para una sucursal. El boton dice
+    // «completo» y lo era: se llevaba el plan de compra al proveedor, los
+    // agotados con su dinero perdido y el stock entero de bodega.
+    //
+    // Van en LISTA VACIA y no en null: `descargarSurtido` hace `bodega.length`
+    // sin mirar, y un null le reventaria en la cara a quien pulse el boton.
+    bodega:      conBodega ? bodega : [],
+    agotados:    conBodega ? (agotados?.filas ?? []) : [],
+    compras:     conBodega ? (compras?.filas ?? []) : [],
+    bodegaStock: conBodega ? bodegaStock : null,
+    fuga:        conBodega ? (agotados ?? null) : null,
   })
+
+  // Cada folio, cuadrado contra el respaldo de su destino.
+  //
+  // El gancho va AQUI, por encima de los returns tempranos: un useMemo
+  // colocado despues de un `if (cargando) return` cambia el numero de ganchos
+  // entre dibujos y deja la pantalla entera en blanco. Ya paso una vez.
+  const cuadres = useMemo(() => {
+    if (!datos) return []
+    const hoy = new Date()
+    return Object.values(folios).map(f => {
+      const d = datos[f.destino]
+      // Lo que la tienda vendio desde que salio la caja. Sin este termino la
+      // cuenta sale corta y acusa de piezas que estan en una bolsa de cliente.
+      const desde = String(f.cuando).slice(0, 10)
+      const vendidas = d?.est ? salidasEntre(d.est, desde, hoy.toISOString().slice(0, 10)) : null
+      return { ...cuadrar(f, { inventarioDestino: d?.inv, vendidas, hoy }), cerrado: f.cerrado ?? null }
+    }).sort((a, b) => String(b.cuando).localeCompare(String(a.cuando)))
+  }, [folios, datos])
+
+  const resumenFolios = useMemo(() => resumirFolios(cuadres), [cuadres])
 
   if (cargando) {
     return (
@@ -459,8 +829,14 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
-      <div style={{ marginBottom: 14 }}>
-        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+      {/* La cabecera de la pestaña, con la franja de su tema: surtir es
+          inventario; la bodega, comprar. El mismo color que en el tablero. */}
+      <div style={{ marginBottom: 14, borderLeft: '5px solid ' + TEMA_AMBITO.fuerte, background: TEMA_AMBITO.suave,
+                    borderRadius: 14, padding: '10px 14px' }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 800, color: TEMA_AMBITO.fuerte, margin: 0 }}>
+          {ambito === 'bodega' ? 'Bodega: qué comprar y qué puede surtir' : 'Surtido: qué mandar a cada tienda'}
+        </h3>
+        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '2px 0 0', lineHeight: 1.5 }}>
           A qué ritmo sale cada modelo, cuántos días quieres aguantar, y cuánto falta para llegar ahí.
           Es la cuenta que harías a mano, hecha sobre todo el historial disponible.
         </p>
@@ -547,6 +923,8 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
         </Aviso>
       )}
 
+      <AvisoAjustes filas={porVenta} ambito={ambitoSurtido} onLimpiar={quitarAjustes} />
+
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <Dato valor={porVenta.length} etiqueta="modelos a pedir" nota="porque se venden" color={VERDE} />
         <Dato valor={piezasVenta} etiqueta="piezas en total" />
@@ -563,6 +941,19 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
         ))}
       </div>
 
+      {/* La vista elegida, con la franja de SU tema: lo que se agota en rosa,
+          lo que se compra en morado, lo que hay en verde azulado. */}
+      {(() => {
+        const v = VISTAS.find(x => x.id === vista)
+        const t = TEMAS[TEMA_DE_VISTA[vista] ?? 'neutro']
+        return v ? (
+          <div data-franja-vista={vista} style={{ borderLeft: '5px solid ' + t.fuerte, background: t.suave, borderRadius: 12,
+                        padding: '7px 12px', marginBottom: 12, fontSize: 12.5, fontWeight: 800, color: t.fuerte }}>
+            {v.etiqueta.replace(/^[^\p{L}]+/u, '')}
+          </div>
+        ) : null
+      })()}
+
       {/* ── Pedir por venta ── */}
       {vista === 'venta' && (porVenta.length === 0
         ? <p style={{ fontSize: 13, color: TINTA_TENUE }}>Nada que pedir: todo lo que se vende alcanza para {cobertura} días.</p>
@@ -571,6 +962,20 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
               <strong style={{ color: TINTA }}>{porVenta.length}</strong> modelos, <strong style={{ color: TINTA }}>{piezasVenta}</strong> piezas
               {porVenta.length > TOPE && ` — se listan los primeros ${TOPE}`}
             </p>
+            {censuradas > 0 && (
+              <p data-censuradas={censuradas} style={{ fontSize: 12, color: AMBAR, margin: '0 0 10px', lineHeight: 1.5 }}>
+                <strong>{censuradas}</strong> {censuradas === 1 ? 'modelo lleva' : 'modelos llevan'} ⚠ en el ritmo:
+                estuvieron en cero una cuarta parte o más de los últimos {DIAS_AGOTADOS} días. Su venta se
+                quedó corta porque no había, así que lo que se pide también puede quedarse corto. La
+                cantidad no se corrige sola: es para que la mires.
+              </p>
+            )}
+            {!hayKardex && !esFeria && (
+              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '0 0 10px', lineHeight: 1.5 }}>
+                Todavía no se sabe qué modelos vendieron poco por estar agotados: los días en cero
+                salen del kárdex y aparecen después de la siguiente sincronización.
+              </p>
+            )}
             <Tabla encabezados={<>
               <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
               <Th campo="existencia" orden={ord} num style={{ textAlign: 'right' }}>Tiene</Th>
@@ -579,17 +984,35 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
               <Th campo="sugerido" orden={ord} num style={{ textAlign: 'right' }}>Pedir</Th>
               {esTodas && <Th title="De dónde sale cada pieza del total">Para quién</Th>}
               {esFeria && <Th campo="esteMes" orden={ord} num style={{ textAlign: 'right' }} title="Piezas vendidas en lo que va de esta feria">Este mes</Th>}
-              {bodegaStock && !esFeria && <Th campo="enBodega" valor={f => bodegaStock[f.codigo] ?? null} orden={ord} num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
+              {conBodega && bodegaStock && !esFeria && <Th campo="enBodega" valor={f => bodegaStock[f.codigo] ?? null} orden={ord} num style={{ textAlign: 'right' }} title="Existencia en bodega de ese modelo">En bodega</Th>}
             </>}>
               {ord.ordenar(porVenta).slice(0, TOPE).map((f, i) => (
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={f} />
                   <Celda num>{f.existencia}</Celda>
-                  <Celda num color={TINTA_SUAVE}>{f.ritmo.toFixed(2)}</Celda>
+                  {(() => {
+                    const cen = censuraDe(f)
+                    if (!cen.length) return <Celda num color={TINTA_SUAVE}>{f.ritmo.toFixed(2)}</Celda>
+                    const peor = cen[0]
+                    const detalle = cen
+                      .map(x => `${NOMBRE_CORTO[x.slug] ?? x.slug}: en cero ${Math.round(x.diasEnCero)} de ${x.diasMedidos} días`)
+                      .join(' · ')
+                    return (
+                      <Celda num color={TINTA_SUAVE}
+                             title={`${detalle}. El ritmo se queda corto: no se vendió porque no había.`}>
+                        {f.ritmo.toFixed(2)}
+                        <span data-censurada={f.codigo}
+                              style={{ display: 'block', fontSize: 10, fontWeight: 700, color: AMBAR, whiteSpace: 'nowrap' }}>
+                          ⚠ en cero {Math.round(peor.diasEnCero)}/{peor.diasMedidos} d
+                          {esTodas ? ` · ${NOMBRE_CORTO[peor.slug] ?? peor.slug}` : ''}
+                        </span>
+                      </Celda>
+                    )
+                  })()}
                   <Celda num color={f.cobertura !== null && f.cobertura < 7 ? ROSA : TINTA_SUAVE}>
                     {f.cobertura === null ? '—' : `${Math.floor(f.cobertura)} d`}
                   </Celda>
-                  <Celda num fuerte color={VERDE}>{f.sugerido}</Celda>
+                  <CeldaPedir fila={f} ambito={ambitoSurtido} onCambiar={cambiarAjuste} />
                   {esTodas && (
                     <Celda color={TINTA_SUAVE}>
                       {(f.plazas ?? []).map(p => `${NOMBRE_CORTO[p.slug] ?? p.slug} ${p.piezas}`).join(' · ') || '—'}
@@ -772,51 +1195,78 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
       {vista === 'compras' && (!compras
         ? <Aviso>Hace falta el inventario de bodega para calcular la compra.</Aviso>
         : <>
-            <div style={{ marginBottom: 14, padding: '12px 14px', borderRadius: 16, background: 'rgba(94,148,34,0.05)', border: '1px solid rgba(94,148,34,0.25)' }}>
-              <p style={{ fontSize: 13, color: TINTA, margin: '0 0 4px', fontWeight: 700 }}>
-                Compra para que bodega aguante {compras.nMeses} meses
-                {compras.alta && <span style={{ color: ROSA }}> · temporada alta</span>}
+            {/* Una línea, y el método debajo sólo si se pide.
+                Esto ocupaba seis párrafos fijos. Cinco de los seis explicaban
+                CÓMO se calcula, y eso no cambia de un día para otro: se lee
+                una vez y a partir de ahí es un muro que hay que saltar para
+                llegar a la tabla. Lo que sí es noticia -un mes sin dato- se
+                queda fuera del plegable, porque avisa de que la cuenta de hoy
+                vale menos. */}
+            <div style={{ marginBottom: 14, padding: '10px 14px', borderRadius: 16, background: 'rgba(94,148,34,0.05)', border: '1px solid rgba(94,148,34,0.25)' }}>
+              <p style={{ fontSize: 12.5, color: TINTA, margin: 0, lineHeight: 1.5 }}>
+                <strong>Compra para que bodega aguante {compras.nMeses} meses</strong>
+                {compras.alta && <span style={{ color: ROSA, fontWeight: 700 }}> · temporada alta</span>}
+                <span style={{ color: TINTA_SUAVE }}>
+                  {' '}— cubre {compras.objetivo.join(' y ')}, con la referencia
+                  de {compras.referencia.join(' y ')}.
+                </span>
               </p>
-              <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: 0, lineHeight: 1.55 }}>
-                Cubre <strong style={{ color: TINTA }}>{compras.objetivo.join(' y ')}</strong>, y la referencia
-                es lo que se vendió en <strong style={{ color: TINTA }}>{compras.referencia.join(' y ')}</strong> —
-                los mismos meses del año pasado, en todas las plazas y ferias juntas. Comparar contra el mes
-                pasado no diría nada sobre diciembre.
-              </p>
+
+              {/* Esto NO se pliega: dice que la cuenta de hoy sale coja. */}
               {compras.faltantes.length > 0 && (
                 <p style={{ fontSize: 11, color: AMBAR, margin: '6px 0 0' }}>
                   Sin dato para {compras.faltantes.join(', ')}: la referencia de esos meses sale incompleta.
                 </p>
               )}
-              {compras.estimadas.length > 0 && (
-                <p style={{ fontSize: 11, color: AMBAR, margin: '6px 0 0', lineHeight: 1.5 }}>
-                  {compras.estimadas.map(e => (
-                    <span key={e.plaza}>
-                      <strong>{e.plaza}</strong> no tiene dato de {e.meses.join(', ')} —empezó a medirse
-                      en {e.desde}— así que su aporte va <strong>estimado en unas {e.piezas} piezas</strong>:
-                      su propio ritmo, corregido por la temporada
-                      (×{compras.factorTemporada.toFixed(2)}) que midieron las plazas que sí tienen esos meses.
-                      Dejarla en cero sería decir que no vendió nada, y es la plaza que más vende.{' '}
-                    </span>
-                  ))}
-                </p>
-              )}
-              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
-                Cada modelo se compra por lo que vendió él, no por lo que vendió su familia: una funda de
-                iPhone 13 no se sustituye con una de iPhone 17.
-                Se detectaron <strong style={{ color: TINTA_SUAVE }}>{compras.cambios.length} relevos</strong> de
-                generación en el propio catálogo, confirmados con la fecha de alta, y sirven para dos cosas:
-                estimar un modelo recién llegado y avisar de cuáles conviene vigilar.
-              </p>
-              <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '6px 0 0', lineHeight: 1.5 }}>
-                Un modelo recién llegado no tiene historial propio y el cálculo lo daría por cero, así que
-                nadie lo compraría hasta que ya se hubiera agotado. Para esos se usa lo que vendió la
-                generación inmediatamente anterior —una sola, no todas sumadas— y sólo si consta su fecha
-                real de entrada. Y se marca con ⚡ lo que se está agotando más rápido de lo que la
-                referencia predecía: ahí es donde la cuenta se queda corta sola, y suele pasar justo con
-                lo nuevo.
-              </p>
+
+              <details data-metodo-compra style={{ marginTop: 6 }}>
+                <summary style={{ fontSize: 11, color: TINTA_SUAVE, cursor: 'pointer', listStyle: 'revert' }}>
+                  Cómo se calcula esta compra
+                </summary>
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <p style={{ fontSize: 11, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+                    La referencia son los mismos meses del año pasado, en todas las plazas y ferias juntas.
+                    Comparar contra el mes pasado no diría nada sobre diciembre.
+                  </p>
+
+                  {/* La plaza sin historial entra aquí y no arriba: es una
+                      condición que lleva meses igual y seguirá igual hasta
+                      que cumpla el año. Enseñarla fija cada día la convertía
+                      en ruido, y el dueño pidió ocultarla. */}
+                  {compras.estimadas.length > 0 && (
+                    <p style={{ fontSize: 11, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+                      {compras.estimadas.map(e => (
+                        <span key={e.plaza}>
+                          <strong>{e.plaza}</strong> no tiene dato de {e.meses.join(', ')} —empezó a medirse
+                          en {e.desde}— así que su aporte va estimado en unas <strong>{e.piezas} piezas</strong>:
+                          su propio ritmo, corregido por la temporada
+                          (×{compras.factorTemporada.toFixed(2)}) que midieron las plazas que sí tienen esos
+                          meses. Dejarla en cero sería decir que no vendió nada, y es la plaza que más vende.{' '}
+                        </span>
+                      ))}
+                    </p>
+                  )}
+
+                  <p style={{ fontSize: 11, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+                    Cada modelo se compra por lo que vendió él, no por lo que vendió su familia: una funda de
+                    iPhone 13 no se sustituye con una de iPhone 17.
+                    Se detectaron <strong>{compras.cambios.length} relevos</strong> de generación en el propio
+                    catálogo, confirmados con la fecha de alta, y sirven para dos cosas: estimar un modelo
+                    recién llegado y avisar de cuáles conviene vigilar.
+                  </p>
+                  <p style={{ fontSize: 11, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+                    Un modelo recién llegado no tiene historial propio y el cálculo lo daría por cero, así que
+                    nadie lo compraría hasta que ya se hubiera agotado. Para esos se usa lo que vendió la
+                    generación inmediatamente anterior —una sola, no todas sumadas— y sólo si consta su fecha
+                    real de entrada. Y se marca con ⚡ lo que se está agotando más rápido de lo que la
+                    referencia predecía: ahí es donde la cuenta se queda corta sola, y suele pasar justo con
+                    lo nuevo.
+                  </p>
+                </div>
+              </details>
             </div>
+
+            <AvisoAjustes filas={compras.filas} ambito="compra" onLimpiar={quitarAjustes} />
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
               <Dato valor={compras.filas.filter(f => f.sugerido > 0).length} etiqueta="modelos a comprar" color={VERDE} />
@@ -847,8 +1297,28 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
                          title={f.enCatalogo ? undefined : 'Bodega no maneja este código'}>
                     {f.enCatalogo ? f.existencia : '—'}
                   </Celda>
-                  <Celda num color={'#0288AD'}>{f.vendidas2m || '—'}</Celda>
-                  <Celda num fuerte color={VERDE}>{f.sugerido || '—'}</Celda>
+                  {(() => {
+                    // Las tiendas donde estuvo en cero: su venta de dos meses
+                    // es la de un mostrador vacío, y comprar por ella se queda
+                    // corto. 🔒 Se marca, la cantidad no se toca.
+                    const cen = censuraEn(agotadosPorPlaza, f.codigo, sucursales.map(x => x.slug))
+                    return (
+                      <Celda num color={'#0288AD'}
+                             title={cen.length
+                               ? cen.map(x => `${NOMBRE_CORTO[x.slug] ?? x.slug}: en cero ${Math.round(x.diasEnCero)} de ${x.diasMedidos} días`).join(' · ')
+                                 + '. La venta se queda corta: no se vendió porque no había.'
+                               : undefined}>
+                        {f.vendidas2m || '—'}
+                        {cen.length > 0 && (
+                          <span data-censurada={f.codigo}
+                                style={{ display: 'block', fontSize: 10, fontWeight: 700, color: AMBAR, whiteSpace: 'nowrap' }}>
+                            ⚠ en cero en {cen.map(x => NOMBRE_CORTO[x.slug] ?? x.slug).join(', ')}
+                          </span>
+                        )}
+                      </Celda>
+                    )
+                  })()}
+                  <CeldaPedir fila={f} ambito="compra" onCambiar={cambiarAjuste} />
                   <Celda num color={f.plazasEnCero === f.plazasTotal && f.plazasTotal > 0 ? ROSA : AMBAR}>
                     {f.plazasTotal ? `${f.plazasEnCero}/${f.plazasTotal}` : '—'}
                   </Celda>
@@ -925,43 +1395,6 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
             </Tabla>
           </>)}
 
-      {/* ── Recién llegados ── */}
-      {vista === 'nuevos' && (
-        <>
-          <Aviso tono="info">
-            Modelos que entraron hace menos de {DIAS_RECIEN_LLEGADO} días y todavía no se han
-            vendido. No son inventario muerto: todavía no se han visto vender, que no es lo mismo.
-            Por eso no aparecen en Depurar. Sólo entran los que tienen fecha de entrada real: si
-            un modelo ya existía cuando arranca el historial de su sucursal, no hay forma de saber
-            cuándo llegó y no se cuenta como nuevo.
-          </Aviso>
-          {depurar.nuevos.length === 0
-            ? <p style={{ fontSize: 13, color: TINTA_TENUE }}>
-                {depurar.suficiente ? 'No hay modelos recién llegados sin venta.' : 'Hace falta más historial para separarlos.'}
-              </p>
-            : <Tabla encabezados={<>
-                <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
-                <Th campo="existencia" orden={ord} num style={{ textAlign: 'right' }}>Piezas</Th>
-                <Th campo="alta" orden={ord}>Entró</Th>
-                <Th campo="alta" orden={ord} num style={{ textAlign: 'right' }}>Lleva</Th>
-              </>}>
-                {ord.ordenar(depurar.nuevos).slice(0, TOPE).map((d, i) => {
-                  const dias = diasEnCatalogo(d.alta)
-                  return (
-                    <tr key={d.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
-                      <Modelo f={d} />
-                      <Celda num>{d.existencia}</Celda>
-                      <Celda color={TINTA_SUAVE}>{d.alta}</Celda>
-                      <Celda num color={dias !== null && dias < 90 ? VERDE : TINTA_SUAVE}>
-                        {dias === null ? '—' : `${dias} d`}
-                      </Celda>
-                    </tr>
-                  )
-                })}
-              </Tabla>}
-        </>
-      )}
-
       {/* ── Depurar ── */}
       {vista === 'depurar' && (!depurar.suficiente
         ? <Aviso>
@@ -976,7 +1409,11 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
               todavía ocupando lugar. Es una propuesta para que la revises, no una orden: un modelo
               puede estar ahí por garantía o por un cliente puntual.
               Suman {depurar.filas.reduce((a, d) => a + d.existencia, 0)} piezas paradas.
-              {depurar.nuevos.length > 0 && ` Otros ${depurar.nuevos.length} tampoco se han vendido, pero llegaron hace menos de ${DIAS_RECIEN_LLEGADO} días y están en «Recién llegados».`}
+              {/* «Recién llegados» se traslado a Ventas el 2026-11-07, y alli
+                  contesta algo mas grande: de todo lo que entro, que vende y
+                  que no. Aqui solo se dice que NO estan en esta lista, para
+                  que nadie los de de baja creyendo que se le olvidaron. */}
+              {depurar.nuevos.length > 0 && ` Otros ${depurar.nuevos.length} tampoco se han vendido, pero llegaron hace menos de ${DIAS_RECIEN_LLEGADO} días: cómo les va está en Ventas, en «¿Están vendiendo los modelos nuevos?».`}
               {depurar.sinFecha > 0 && ` ${depurar.sinFecha} quedan fuera por no saber cuándo entraron.`}
             </Aviso>
             <Tabla encabezados={<>
@@ -1000,6 +1437,61 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
             </Tabla>
           </>)}
 
+      <Folios cuadres={cuadres} resumen={resumenFolios}
+              onCerrar={async f => { try { await cerrar(f) } catch { setAvisoSurtido('No se pudo cerrar el folio.') } }}
+              puedeCerrar={puedeRegistrar} />
+
+      {avisoSurtido && <Aviso>{avisoSurtido}</Aviso>}
+      {sinRedSurtidos && (
+        <Aviso>
+          No se pudieron leer los surtidos registrados. Una lista vacia aqui diria que no hay nada
+          pendiente, y lo que pasa es que no se pudo mirar.
+        </Aviso>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* Registrar lo que sale.
+          Parte de lo CALCULADO y no de un formulario en blanco: lo que se
+          registra tiene que ser lo que se mando, y teclear doscientos codigos
+          a mano es la forma mas segura de que esto no se llene nunca.
+          Pide una plaza concreta porque el «antes» es de UN inventario: desde
+          «Todas» no hay destino contra el que comparar. */}
+      {puedeRegistrar && !esFeria && vista === 'venta' && (
+        sel === TODAS.slug ? (
+          <p style={{ fontSize: 11.5, color: TINTA_TENUE, margin: 0 }}>
+            Para registrar un surtido, elige primero la tienda a la que va: lo que se compara
+            despues es el inventario de ESA tienda.
+          </p>
+        ) : porVenta.length === 0 ? null : (
+          <button type="button" disabled={registrando}
+            onClick={async () => {
+              setAvisoSurtido(null)
+              setRegistrando(true)
+              try {
+                const lineas = lineasDesdeSurtido(porVenta)
+                const f = await registrar({
+                  // Quién lo registró, de verdad: el folio es una bitácora y
+                  // firmarlo todo como «admin» la vacía de la mitad de su
+                  // valor. El backend lo vuelve a resolver de la sesión, así
+                  // que esto no es el permiso: es la etiqueta.
+                  destino: sel, lineas, quien: isAdmin ? 'admin' : session?.branch,
+                  inventarioDestino: datos?.[sel]?.inv,
+                })
+                setAvisoSurtido(`Registrado el folio ${f.folio}: ${lineas.length} codigos, `
+                  + `${lineas.reduce((a, l) => a + l.piezas, 0)} piezas. Se comprobara solo cuando `
+                  + `${nombreSel} lo de de alta.`)
+              } catch (e) {
+                setAvisoSurtido(e?.message || 'No se pudo registrar el surtido.')
+              }
+              setRegistrando(false)
+            }}
+            className="px-4 py-2 text-sm font-semibold transition-all"
+            style={{ borderRadius: 999, border: '1.5px solid transparent', cursor: registrando ? 'wait' : 'pointer', fontWeight: 800, color: '#101619', background: 'linear-gradient(#fff, #fff) padding-box, var(--degradado-letra) border-box' }}>
+            {registrando ? 'Registrando...' : `Registrar este surtido a ${nombreSel}`}
+          </button>
+        )
+      )}
+
       {(
         <button type="button" onClick={exportar}
           className="px-4 py-2 text-sm font-semibold transition-all"
@@ -1007,6 +1499,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
           Bajar el reporte completo en Excel
         </button>
       )}
+      </div>
 
       <p style={{ fontSize: 11, color: TINTA_TENUE, margin: '14px 0 0', lineHeight: 1.55, paddingTop: 12, borderTop: '1px solid ' + LINEA }}>
         El ritmo sale de dividir lo vendido entre los días con dato, no entre los del calendario: si una

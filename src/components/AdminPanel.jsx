@@ -6,9 +6,11 @@ import { SUCURSALES_PUBLICAS as SUCURSALES, telefonoWhatsApp } from '../lib/sucu
 import EstadisticasPanel from './EstadisticasPanel'
 import InventariosPanel from './InventariosPanel'
 import SurtidoPanel from './SurtidoPanel'
-import PersonalPanel from './PersonalPanel'
+import PersonalConNomina from './Nomina'
 import DashboardPanel from './DashboardPanel'
 import RevisarPanel from './RevisarPanel'
+import EfectivoPanel from './EfectivoPanel'
+import DepurarPanel from './DepurarPanel'
 
 const Section = ({ title, emoji, children, onSave, guardando, guardado }) => (
   <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid rgba(16,22,25,0.05)', padding: '24px 22px', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
@@ -408,8 +410,12 @@ const SECCIONES = [
   { id: 'inventarios', icono: '📦', titulo: 'Inventarios',  sub: 'Existencias y faltantes' },
   { id: 'surtido',     icono: '🚚', titulo: 'Surtido',      sub: 'Qué mandar a cada plaza' },
   { id: 'bodega',      icono: '🏬', titulo: 'Bodega',       sub: 'Compra y cobertura' },
-  { id: 'personal',    icono: '🕗', titulo: 'Personal',     sub: 'Puntualidad y retardos' },
+  // El corte semanal va DENTRO de Efectivo desde el 2026-11-09: salen de la
+  // misma cuenta y el dueño las quiso juntas. Ver `EfectivoPanel`.
+  { id: 'efectivo',    icono: '💵', titulo: 'Efectivo y corte', sub: 'Corte semanal, depósitos y faltantes' },
+  { id: 'personal',    icono: '🕗', titulo: 'Personal',     sub: 'Puntualidad, nómina y RH' },
   { id: 'revisar',     icono: '🔍', titulo: 'Revisar',      sub: 'Códigos y nombres, uno a uno' },
+  { id: 'depurar',     icono: '🧹', titulo: 'Depurar',      sub: 'Salidas, sin rotación y bajas' },
   { id: 'config',      icono: '🎨', titulo: 'Diseño',       sub: 'Textos, colores y contacto' },
 ]
 
@@ -498,8 +504,10 @@ export default function AdminPanel() {
         {seccion === 'inventarios' && <InventariosPanel />}
         {seccion === 'surtido'     && <SurtidoPanel ambito="sucursales" foco={foco} />}
         {seccion === 'bodega'      && <SurtidoPanel ambito="bodega" foco={foco} />}
-        {seccion === 'personal'    && <PersonalPanel />}
+        {seccion === 'efectivo'    && <EfectivoPanel />}
+        {seccion === 'personal'    && <PersonalConNomina />}
         {seccion === 'revisar'     && <RevisarPanel />}
+        {seccion === 'depurar'     && <DepurarPanel />}
         {seccion === 'config'      && (
           <>
             <SeccionTabs     config={config} save={save} guardando={guardando} />

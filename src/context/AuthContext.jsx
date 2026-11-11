@@ -38,12 +38,12 @@ export function AuthProvider({ children }) {
   // navegador daba por bueno. No es un error: es que caducó.
   const [vencida, setVencida] = useState(false)
 
-  const login = async (branchSlug, password) => {
+  const login = async (branchSlug, password, codigo) => {
     if (!apiConfigurada) {
       return { ok: false, msg: 'El servidor de acceso no está configurado todavía.' }
     }
     try {
-      const r = await loginApi(branchSlug, password)
+      const r = await loginApi(branchSlug, password, codigo)
       const s = {
         branch:  r.sucursal,
         isAdmin: !!r.admin,
@@ -53,7 +53,14 @@ export function AuthProvider({ children }) {
       try { sessionStorage.setItem(CLAVE_SESION, JSON.stringify(s)) } catch { /* modo privado */ }
       return { ok: true }
     } catch (err) {
-      return { ok: false, msg: err.message || 'No se pudo iniciar sesión.' }
+      // `pideCodigo` sube tal cual: es la diferencia entre «la contraseña
+      // está mal» y «la contraseña está bien, falta el código», y la pantalla
+      // tiene que poder decir cuál de las dos es.
+      return {
+        ok: false,
+        msg: err.message || 'No se pudo iniciar sesión.',
+        pideCodigo: Boolean(err.datos?.pideCodigo),
+      }
     }
   }
 

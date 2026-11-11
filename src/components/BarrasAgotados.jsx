@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { CLASE_A, CLASE_B } from '../lib/clases'
+import { TEMAS } from './Diseno'
 
 /**
  * Agotados por ubicación: barras apiladas, un renglón por plaza.
@@ -49,11 +50,14 @@ export default function BarrasAgotados({ datos, titulo = 'Agotados por ubicació
   const hay = datos.some(d => d.total > 0)
 
   return (
-    <figure className="grafica">
-      <figcaption>
-        <h4>{titulo}</h4>
-        <p>Modelos en cero, por clase de venta</p>
+    // Con la cabecera del tema «agotado» del diseño de la casa (`Diseno.jsx`):
+    // en el tablero se distingue de un vistazo de lo que es venta o inventario.
+    <figure className="grafica" style={{ padding: 0, overflow: 'hidden', border: '1px solid ' + TEMAS.agotado.borde, borderRadius: 20 }}>
+      <figcaption style={{ background: TEMAS.agotado.suave, borderBottom: '1px solid ' + TEMAS.agotado.borde, padding: '10px 16px', margin: 0 }}>
+        <h4 style={{ color: TEMAS.agotado.fuerte, fontSize: 13, fontWeight: 800, margin: 0 }}>{titulo}</h4>
+        <p style={{ margin: '2px 0 0', fontSize: 11 }}>Modelos en cero, por clase de venta</p>
       </figcaption>
+      <div style={{ padding: '14px 16px' }}>
 
       {hay ? (
         <div className="grafica-filas">
@@ -131,6 +135,7 @@ export default function BarrasAgotados({ datos, titulo = 'Agotados por ubicació
       )}
 
       <p className="grafica-nota">La barra se escala sobre {tope} modelos.</p>
+      </div>
     </figure>
   )
 }

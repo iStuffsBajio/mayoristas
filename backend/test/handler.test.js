@@ -153,6 +153,17 @@ test('una sesion firmada con otro secreto no sirve', async () => {
 
 import { S3Client } from '@aws-sdk/client-s3'
 
+/**
+ * Unos bytes que de verdad EMPIEZAN como la imagen que dicen ser.
+ *
+ * Ya no basta con cualquier cosa: la ruta comprueba la firma del archivo,
+ * porque el tipo lo manda el navegador y no prueba nada. Estas pruebas
+ * empezaron a fallar justo cuando se añadio esa comprobacion, que es la señal
+ * de que la comprobacion sirve.
+ */
+const JPEG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(32, 7)])
+  .toString('base64')
+
 test('el inventario guardado conserva el codigo del producto', async () => {
   const enviados = []
   const original = S3Client.prototype.send
@@ -198,7 +209,7 @@ test('la imagen del pedido lleva el modelo en el nombre del archivo', async () =
       cuerpo: {
         sucursal: 'leon',
         tipo: 'image/jpeg',
-        datos: Buffer.from('imagen falsa').toString('base64'),
+        datos: JPEG,
         nombre: 'Juan Pérez',
         modelo: 'IPHONE 17 PRO MAX',
       },
@@ -227,7 +238,7 @@ test('un modelo con caracteres raros no puede salirse de la carpeta', async () =
     await pedir('POST', '/diseno', {
       cuerpo: {
         sucursal: 'leon', tipo: 'image/jpeg',
-        datos: Buffer.from('x').toString('base64'),
+        datos: JPEG,
         nombre: '../../../etc/passwd',
         modelo: '../../otra-carpeta',
       },
@@ -284,5 +295,661 @@ test('se contesta si o no, y lo viejo se sigue aceptando', async () => {
   for (const estado of ['si', 'no', 'pendiente', 'ignorado']) {
     const r = await pedir('POST', '/revisiones', { token: tokenLeon(), cuerpo: { id: 'x', estado } })
     assert.notEqual(r.statusCode, 400, `rechazo el estado ${estado}`)
+  }
+})
+
+// ── Ajustes ─────────────────────────────────────────────────────────────────
+//
+// Son las correcciones que se hacen en la pagina sin tocar el dato: viven al
+// lado del inventario porque el respaldo de Eleventa lo regenera cuatro veces
+// al dia y cualquier cosa escrita encima se borraria sola.
+
+test('los ajustes piden sesion', async () => {
+  assert.equal((await pedir('GET', '/ajustes')).statusCode, 403)
+  assert.equal((await pedir('POST', '/ajustes', { cuerpo: { codigo: 'X', motivo: 'otro' } })).statusCode, 403)
+})
+
+test('una sucursal puede ocultar un codigo que ya no existe', async () => {
+  const r = await pedir('POST', '/ajustes', {
+    token: tokenLeon(),
+    cuerpo: { tipo: 'ocultar', codigo: 'I11T-WiHRPYpaKVFJXXD', motivo: 'codigo-duplicado' },
+  })
+  assert.notEqual(r.statusCode, 403)
+  assert.notEqual(r.statusCode, 400)
+})
+
+test('sin codigo no hay ajuste: no se puede aplicar a nada', async () => {
+  const r = await pedir('POST', '/ajustes', { token: tokenAdmin(), cuerpo: { motivo: 'otro' } })
+  assert.equal(r.statusCode, 400)
+})
+
+test('un motivo inventado se rechaza', async () => {
+  // La lista es cerrada para que el reporte de cada sucursal se pueda contar.
+  const r = await pedir('POST', '/ajustes', {
+    token: tokenAdmin(), cuerpo: { codigo: 'X', motivo: 'porque si' },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('un tipo de ajuste desconocido se rechaza', async () => {
+  const r = await pedir('POST', '/ajustes', {
+    token: tokenAdmin(), cuerpo: { tipo: 'borrar-todo', codigo: 'X', motivo: 'otro' },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('motivo nulo es deshacer la correccion, no un error', async () => {
+  const r = await pedir('POST', '/ajustes', {
+    token: tokenAdmin(), cuerpo: { codigo: 'X', motivo: null },
+  })
+  assert.notEqual(r.statusCode, 400)
+})
+
+// ── Surtidos ────────────────────────────────────────────────────────────────
+//
+// El registro de lo que sale de bodega. Lo que se fija aqui es el permiso y la
+// validacion; las cuentas -cuanto entro de verdad- viven en
+// `src/lib/surtidos.js` con sus propias pruebas.
+
+test('los surtidos piden sesion', async () => {
+  assert.equal((await pedir('GET', '/surtidos')).statusCode, 403)
+  assert.equal((await pedir('POST', '/surtidos', { cuerpo: { folio: 'F', destino: 'leon' } })).statusCode, 403)
+})
+
+test('una sucursal NO registra salidas: eso es de bodega', async () => {
+  // El permiso va por capacidad, no por «admin»: cuando exista el usuario del
+  // encargado de bodega lo hereda sin tocar la ruta.
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenLeon(),
+    cuerpo: { folio: 'F1', destino: 'leon', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.equal(r.statusCode, 403)
+})
+
+test('un surtido sin piezas no es un surtido', async () => {
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenAdmin(),
+    cuerpo: { folio: 'F2', destino: 'leon', lineas: [{ codigo: 'X', piezas: 0 }] },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('un destino que no es una sucursal se rechaza', async () => {
+  // Morelia no existe para esta pagina, y un folio a ninguna parte no se
+  // puede comprobar contra ningun respaldo.
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenAdmin(),
+    cuerpo: { folio: 'F3', destino: 'morelia', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('sin folio no se guarda nada', async () => {
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenAdmin(), cuerpo: { destino: 'leon', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+// ── Venta linea por linea ───────────────────────────────────────────────────
+//
+// Vive en un prefijo privado porque lleva NOMBRES: los de los mayoristas y el
+// de quien cobro cada ticket. Esa es la lista de clientes del negocio.
+
+test('la venta por linea es solo del administrador', async () => {
+  // Ni su propia plaza: la lista de mayoristas con cuanto compra cada uno es
+  // informacion del dueño, no del mostrador.
+  assert.equal((await pedir('GET', '/ventas', { query: { plaza: 'leon' } })).statusCode, 403)
+  assert.equal((await pedir('GET', '/ventas', { token: tokenLeon(), query: { plaza: 'leon' } })).statusCode, 403)
+})
+
+test('una plaza inventada se rechaza antes de tocar S3', async () => {
+  // Morelia se ignora a proposito en toda la pagina.
+  const r = await pedir('GET', '/ventas', { token: tokenAdmin(), query: { plaza: 'morelia' } })
+  assert.equal(r.statusCode, 400)
+})
+
+test('sin plaza no se adivina ninguna', async () => {
+  assert.equal((await pedir('GET', '/ventas', { token: tokenAdmin() })).statusCode, 400)
+})
+
+// ── El usuario de bodega ────────────────────────────────────────────────────
+
+const tokenBodega = () => crearSesion({ sucursal: 'bodega', admin: false }, SECRETO)
+
+test('bodega SI puede registrar una salida, y una tienda no', async () => {
+  // El permiso va por capacidad (`PUEDE_SURTIR`), no atado a admin: el
+  // encargado de bodega es quien manda la mercancia.
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenBodega(),
+    cuerpo: { folio: 'B1', destino: 'leon', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.notEqual(r.statusCode, 403)
+})
+
+test('bodega no es un destino valido: no se surte a si misma', async () => {
+  const r = await pedir('POST', '/surtidos', {
+    token: tokenBodega(),
+    cuerpo: { folio: 'B2', destino: 'bodega', lineas: [{ codigo: 'X', piezas: 2 }] },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('bodega puede corregir y contestar la cola, como cualquiera con sesion', async () => {
+  // Importa que pueda: su panel tiene la seccion de Revisar. Y lo que
+  // escriba tiene que volver a leerse, que es lo que fallaba.
+  assert.notEqual((await pedir('POST', '/ajustes', {
+    token: tokenBodega(), cuerpo: { codigo: 'X', motivo: 'ya-no-existe' },
+  })).statusCode, 403)
+  assert.notEqual((await pedir('GET', '/revisiones', { token: tokenBodega() })).statusCode, 403)
+})
+
+test('bodega NO entra en lo que es solo del dueño', async () => {
+  // La venta linea por linea lleva la lista de mayoristas; el efectivo lleva
+  // los faltantes con nombre y apellido. Ninguna de las dos es suya.
+  assert.equal((await pedir('GET', '/ventas', {
+    token: tokenBodega(), query: { plaza: 'leon' } })).statusCode, 403)
+  assert.equal((await pedir('GET', '/caja', { token: tokenBodega() })).statusCode, 403)
+  assert.equal((await pedir('GET', '/turnos', { token: tokenBodega() })).statusCode, 403)
+})
+
+// ── El ciclo de vida de una incidencia ──────────────────────────────────────
+
+test('los estados viejos se siguen aceptando: hay respuestas guardadas con ellos', async () => {
+  for (const estado of ['si', 'no', 'pendiente', 'ignorado']) {
+    const r = await pedir('POST', '/revisiones', { token: tokenAdmin(), cuerpo: { id: 'x', estado } })
+    assert.notEqual(r.statusCode, 400, estado)
+  }
+})
+
+test('los estados nuevos del ciclo de vida se aceptan', async () => {
+  for (const estado of ['revisando', 'en-origen', 'descartada']) {
+    const r = await pedir('POST', '/revisiones', { token: tokenAdmin(), cuerpo: { id: 'x', estado } })
+    assert.notEqual(r.statusCode, 400, estado)
+  }
+})
+
+test('un estado inventado se rechaza', async () => {
+  const r = await pedir('POST', '/revisiones', {
+    token: tokenAdmin(), cuerpo: { id: 'x', estado: 'resuelta-del-todo' },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('una gravedad inventada se rechaza', async () => {
+  // La lista es cerrada para que el orden de la bandeja signifique algo.
+  const r = await pedir('POST', '/revisiones', {
+    token: tokenAdmin(), cuerpo: { id: 'x', estado: 'revisando', gravedad: 'urgentisima' },
+  })
+  assert.equal(r.statusCode, 400)
+})
+
+test('las cuatro gravedades de verdad se aceptan', async () => {
+  for (const gravedad of ['critica', 'alta', 'media', 'baja']) {
+    const r = await pedir('POST', '/revisiones', {
+      token: tokenAdmin(), cuerpo: { id: 'x', estado: 'revisando', gravedad },
+    })
+    assert.notEqual(r.statusCode, 400, gravedad)
+  }
+})
+
+// ── El HISTORIAL de una incidencia ─────────────────────────────────────────
+//
+// Es la razon por la que se rediseño la pestaña de Revisar. Palabras del
+// dueño: «no se guardaban registros de los movimientos». Antes solo quedaba
+// el ULTIMO estado de cada caso, asi que no habia forma de saber quien lo
+// movio, cuando, ni cuantas veces habia vuelto.
+//
+// Se escribe en el SERVIDOR a proposito: el autor y la hora los pone este lado
+// con la sesion en la mano. Dejandoselo al navegador, cualquiera podria mandar
+// un historial con el nombre de otro, y un registro que se puede escribir a
+// gusto no prueba nada.
+
+/**
+ * Un S3 de mentira que RECUERDA lo que se le escribio.
+ *
+ * Hace falta que recuerde: el historial se acumula sobre el registro anterior,
+ * y con un S3 que siempre devuelve vacio cada guardado empezaria de cero y la
+ * prueba pasaria sin comprobar lo unico que importa.
+ */
+function s3ConMemoria() {
+  const archivos = new Map()
+  const original = S3Client.prototype.send
+  S3Client.prototype.send = async function (cmd) {
+    const clave = cmd.input?.Key
+    const nombre = cmd.constructor?.name ?? ''
+    if (nombre.startsWith('Put')) {
+      archivos.set(clave, Buffer.from(cmd.input.Body).toString('utf8'))
+      return {}
+    }
+    if (nombre.startsWith('Get')) {
+      if (!archivos.has(clave)) throw new Error('NoSuchKey')
+      const texto = archivos.get(clave)
+      return { Body: { transformToString: async () => texto } }
+    }
+    return {}
+  }
+  return {
+    leer: clave => JSON.parse(archivos.get(clave) ?? '{}'),
+    restaurar: () => { S3Client.prototype.send = original },
+  }
+}
+
+const guardarCaso = (cuerpo, token = tokenAdmin()) =>
+  pedir('POST', '/revisiones', { token, cuerpo })
+
+test('CADA MOVIMIENTO deja un renglon en el historial, con quien y cuando', async () => {
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cod|A', estado: 'revisando' })
+    await guardarCaso({ id: 'cod|A', estado: 'en-origen', responsable: 'Brenda' })
+    const r = await guardarCaso({ id: 'cod|A', estado: 'descartada', motivo: 'no-es-error' })
+
+    const h = s3.leer('revisiones/admin.json')['cod|A'].historial
+    assert.equal(h.length, 3, 'un renglon por movimiento')
+    assert.deepEqual(h.map(x => x.estado), ['revisando', 'en-origen', 'descartada'])
+    for (const x of h) {
+      assert.equal(x.quien, 'admin', 'el autor lo pone el servidor, no el cliente')
+      assert.ok(!Number.isNaN(Date.parse(x.cuando)), 'y la hora tambien')
+    }
+    assert.equal(h[2].motivo, 'no-es-error')
+    // Se devuelve el registro para que la pantalla pueda enseñar el ultimo
+    // movimiento sin esperar a la siguiente recarga.
+    assert.equal(JSON.parse(r.body).registro.historial.length, 3)
+  } finally { s3.restaurar() }
+})
+
+test('GUARDAR LO MISMO DOS VECES no apunta dos renglones', async () => {
+  // Volver a pulsar Guardar sin tocar nada llenaria el historial de renglones
+  // identicos y lo volveria ilegible, que es la otra forma de no tener
+  // registro.
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cod|B', estado: 'revisando', nota: 'la veo yo' })
+    await guardarCaso({ id: 'cod|B', estado: 'revisando', nota: 'la veo yo' })
+    assert.equal(s3.leer('revisiones/admin.json')['cod|B'].historial.length, 1)
+
+    // Pero un cambio de verdad SI se apunta.
+    await guardarCaso({ id: 'cod|B', estado: 'revisando', nota: 'la ve Brenda' })
+    assert.equal(s3.leer('revisiones/admin.json')['cod|B'].historial.length, 2)
+  } finally { s3.restaurar() }
+})
+
+test('la nota oficial y los comentarios NO se pisan entre si', async () => {
+  // La nota es la razon de la decision; el comentario es lo que se dicen entre
+  // quienes trabajan el caso. Mezclandolos, apuntar algo borraria la razon.
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cod|C', estado: 'revisando', nota: 'lo pide un cliente' })
+    await guardarCaso({ id: 'cod|C', estado: 'revisando', comentario: 'hablado con bodega' })
+    const g = s3.leer('revisiones/admin.json')['cod|C']
+    assert.equal(g.nota, 'lo pide un cliente', 'la nota sigue entera')
+    assert.equal(g.comentarios.length, 1)
+    assert.equal(g.comentarios[0].texto, 'hablado con bodega')
+    assert.equal(g.comentarios[0].quien, 'admin')
+  } finally { s3.restaurar() }
+})
+
+test('un motivo inventado se rechaza: la lista es cerrada', async () => {
+  // Un motivo a mano no se puede contar ni agrupar, y la pantalla de causas se
+  // queda sin de donde salir: «se corrigio», «ya se corrigio» y «corregido»
+  // serian tres motivos distintos.
+  assert.equal((await guardarCaso(
+    { id: 'x', estado: 'descartada', motivo: 'porque-yo-lo-digo' })).statusCode, 400)
+  for (const motivo of ['corregido-aqui', 'se-dio-de-baja', 'no-es-error', 'otro']) {
+    assert.notEqual((await guardarCaso(
+      { id: 'x', estado: 'descartada', motivo })).statusCode, 400, motivo)
+  }
+})
+
+// ── Las excepciones y el catalogo ──────────────────────────────────────────
+
+test('UNA EXCEPCION NO LLEVA ESTADO y se guarda igual', async () => {
+  // Va por su propia rama: pasandola por la validacion de estados se
+  // rechazaria entera, porque no tiene ninguno.
+  const s3 = s3ConMemoria()
+  try {
+    const r = await guardarCaso({
+      id: 'cfg|exc|1', alcance: 'codigo', codigo: 'i13t',
+      regla: 'codigo-huerfano', motivo: 'se liquida', vence: '2026-12-31',
+    })
+    assert.equal(r.statusCode, 200)
+    const e = s3.leer('revisiones/admin.json')['cfg|exc|1']
+    assert.equal(e.alcance, 'codigo')
+    assert.equal(e.codigo, 'I13T', 'el codigo se guarda en mayusculas, como el catalogo')
+    assert.equal(e.vence, '2026-12-31')
+    assert.equal(e.por, 'admin')
+  } finally { s3.restaurar() }
+})
+
+test('un alcance inventado se rechaza', async () => {
+  assert.equal((await guardarCaso(
+    { id: 'cfg|exc|2', alcance: 'todo-el-negocio', motivo: 'x' })).statusCode, 400)
+})
+
+test('REVOCAR UNA EXCEPCION LA BORRA, no la marca', async () => {
+  // Una excepcion revocada que se quedara en el archivo seguiria tapando la
+  // alerta mientras la pantalla la enseña como retirada: el peor de los dos
+  // mundos, porque nadie volveria a mirarla.
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cfg|exc|3', alcance: 'caso', huella: 'cod|A', motivo: 'x' })
+    assert.ok(s3.leer('revisiones/admin.json')['cfg|exc|3'])
+    await guardarCaso({ id: 'cfg|exc|3', borrar: true })
+    assert.equal(s3.leer('revisiones/admin.json')['cfg|exc|3'], undefined)
+  } finally { s3.restaurar() }
+})
+
+test('el catalogo de errores se guarda editado y no toca las incidencias', async () => {
+  const s3 = s3ConMemoria()
+  try {
+    await guardarCaso({ id: 'cod|VIVA', estado: 'revisando' })
+    await guardarCaso({
+      id: 'cfg|cat|nombre', regla: 'nombre',
+      significa: 'otra explicacion', causa: 'otra causa', hacer: 'otra cosa',
+    })
+    const todo = s3.leer('revisiones/admin.json')
+    assert.equal(todo['cfg|cat|nombre'].significa, 'otra explicacion')
+    assert.equal(todo['cfg|cat|nombre'].estado, undefined, 'la config no tiene estado')
+    assert.equal(todo['cod|VIVA'].estado, 'revisando', 'la incidencia sigue intacta')
+  } finally { s3.restaurar() }
+})
+
+// ── Lo que endurecio la auditoria de seguridad del 2026-11-07 ─────────────
+
+import {
+  nuevoSecretoTotp, codigoTotp, verificarTotp, pareceImagen, desdeBase32,
+  registrarIntentoFallido, demasiadosIntentos, limpiarIntentos, olvidarIntentos,
+} from '../src/seguridad.js'
+
+test('EL FRENO DE INTENTOS NO SE PUEDE REINICIAR INUNDANDOLO', async () => {
+  // Hacia `intentos.clear()` al llegar a 5000 entradas. Eso no era un detalle
+  // de memoria: era un interruptor para apagar el freno. Cinco mil intentos
+  // desde direcciones inventadas vaciaban el mapa entero -el contador del
+  // atacante incluido- y le devolvian ocho intentos limpios, las veces que
+  // hiciera falta.
+  olvidarIntentos()
+  for (let i = 0; i < 8; i++) registrarIntentoFallido('atacante')
+  assert.equal(demasiadosIntentos('atacante'), true, 'ocho fallos bloquean')
+
+  for (let i = 0; i < 6000; i++) registrarIntentoFallido('ruido' + i)
+  assert.equal(demasiadosIntentos('atacante'), true, 'inundar con 6000 no lo libera')
+
+  // Ni treinta mil: lo bloqueado no se desaloja por falta de sitio, solo
+  // cuando se le cumple el plazo.
+  for (let i = 0; i < 30000; i++) registrarIntentoFallido('mas' + i)
+  assert.equal(demasiadosIntentos('atacante'), true, 'ni con 30000')
+
+  limpiarIntentos('atacante')
+  assert.equal(demasiadosIntentos('atacante'), false, 'un acierto si lo libera')
+  olvidarIntentos()
+})
+
+test('UNA IMAGEN SE COMPRUEBA POR SUS BYTES, no por lo que dice el navegador', async () => {
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(8)])
+  assert.equal(pareceImagen(png, 'image/png'), true)
+  assert.equal(pareceImagen(png, 'image/jpeg'), false, 'un PNG no pasa por JPEG')
+  // Lo que de verdad importa: cualquier cosa con nombre de imagen.
+  assert.equal(pareceImagen(Buffer.from('<script>alert(1)</script>!!'), 'image/png'), false)
+  assert.equal(pareceImagen(Buffer.from('MZ' + 'x'.repeat(30)), 'image/jpeg'), false, 'un ejecutable tampoco')
+  assert.equal(pareceImagen(Buffer.alloc(2), 'image/png'), false, 'ni algo mas corto que la firma')
+})
+
+test('el envio de diseños publico tiene freno', async () => {
+  // Es la unica ruta por la que un desconocido escribe en el Dropbox del
+  // negocio. Sin freno, llenarlo cuesta un bucle.
+  olvidarIntentos()
+  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(16)]).toString('base64')
+  const enviar = () => pedir('POST', '/diseno', {
+    cuerpo: { sucursal: 'leon', tipo: 'image/jpeg', datos: jpeg, nombre: 'x' },
+  })
+  let bloqueado = false
+  for (let i = 0; i < 12; i++) {
+    const r = await enviar()
+    if (r.statusCode === 429) { bloqueado = true; break }
+  }
+  assert.equal(bloqueado, true, 'a fuerza de enviar tiene que cortar')
+  olvidarIntentos()
+})
+
+test('UN ARCHIVO QUE NO ES LA IMAGEN QUE DICE SER se rechaza', async () => {
+  olvidarIntentos()
+  const r = await pedir('POST', '/diseno', {
+    cuerpo: {
+      sucursal: 'leon', tipo: 'image/png',
+      datos: Buffer.from('<svg onload=alert(1)>').toString('base64'),
+      nombre: 'x',
+    },
+  })
+  assert.equal(r.statusCode, 400)
+  olvidarIntentos()
+})
+
+test('LA PLAZA DEL LOGIN SE VALIDA antes de leer ninguna variable', async () => {
+  // Lo que tecleaba el usuario elegia que variable de entorno se leia:
+  // `HASH_${sucursal}`. Entrando como «admin» se cogia HASH_ADMIN y salia una
+  // sesion NO administradora con plaza «admin», que `puedeSurtir` aceptaba.
+  olvidarIntentos()
+  const r = await pedir('POST', '/login', {
+    cuerpo: { sucursal: 'admin', contrasena: 'clave-admin' },
+  })
+  // «Administrador» es lo que el desplegable del login ofrece como plaza, asi
+  // que ESTO ES EL CAMINO NORMAL y tiene que seguir funcionando: la rama del
+  // admin se evalua antes de mirar ninguna plaza.
+  //
+  // Sin este aserto estricto, la lista blanca podria dejar fuera al
+  // administrador y la prueba pasaria igual. Es el guardian de ese despliegue.
+  assert.equal(r.statusCode, 200, 'elegir «Administrador» tiene que seguir entrando')
+  const d = cuerpoDe(r)
+  assert.equal(d.admin, true)
+  assert.equal(d.sucursal, 'all', 'jamas una sesion de plaza llamada «admin»')
+
+  // Y la plaza inventada no alcanza NINGUNA variable de entorno.
+  for (const falsa of ['admin', 'SESION_SECRETO', 'bodega-x', '../admin']) {
+    const q = await pedir('POST', '/login', { cuerpo: { sucursal: falsa, contrasena: 'clave-leon' } })
+    assert.equal(q.statusCode, 401, `«${falsa}» no puede entrar con la clave de Leon`)
+  }
+  olvidarIntentos()
+})
+
+test('LA CONFIGURACION PUBLICA solo admite las claves que la pagina usa', async () => {
+  // `config/site.json` es el unico archivo que la politica del bucket abre al
+  // publico ademas de los inventarios. Aqui se aceptaba cualquier objeto, asi
+  // que un descuido publicaba lo que fuera en una URL que lee cualquiera.
+  const malo = await pedir('POST', '/config', {
+    token: tokenAdmin(),
+    cuerpo: { config: { hero: { titulo: 'x' }, claveDelBanco: '1234' } },
+  })
+  assert.equal(malo.statusCode, 400)
+  assert.match(cuerpoDe(malo).error, /claveDelBanco/)
+
+  // El caso bueno SI escribe, asi que necesita el S3 de mentira: sin el la
+  // ruta falla con 500 por no poder guardar, y la prueba no diria nada de la
+  // validacion.
+  const s3 = s3ConMemoria()
+  try {
+    const bueno = await pedir('POST', '/config', {
+      token: tokenAdmin(),
+      cuerpo: { config: { hero: { titulo: 'x' }, colores: {}, whatsapp: {} } },
+    })
+    assert.equal(bueno.statusCode, 200)
+    const guardado = s3.leer('config/site.json')
+    assert.equal(guardado.hero.titulo, 'x')
+    assert.equal(guardado.claveDelBanco, undefined)
+  } finally { s3.restaurar() }
+})
+
+// ── Segundo factor del administrador ──────────────────────────────────────
+
+test('UN SECRETO TOTP SIRVE EN CUALQUIER APP de autenticacion', () => {
+  // Es RFC 6238 estandar: Microsoft Authenticator, Google Authenticator,
+  // Authy y 1Password leen el mismo codigo.
+  const secreto = nuevoSecretoTotp()
+  assert.match(secreto, /^[A-Z2-7]{32}$/, 'base32, que es lo que leen las apps')
+
+  const ahora = Date.now()
+  const codigo = codigoTotp(secreto, Math.floor(ahora / 1000 / 30))
+  assert.match(codigo, /^\d{6}$/)
+  assert.equal(verificarTotp(codigo, secreto, { ahora }), true)
+  assert.equal(verificarTotp('000000', secreto, { ahora }), false)
+  assert.equal(verificarTotp(codigo, nuevoSecretoTotp(), { ahora }), false, 'otro secreto no vale')
+})
+
+test('el codigo aguanta el desfase de reloj, pero no una ventana entera', () => {
+  // Un segundo factor que falla por diez segundos de desfase se acaba
+  // desactivando, que es peor que no tenerlo. Pero la tolerancia tiene
+  // limite: con una ventana amplia, un codigo visto de reojo sigue valiendo
+  // minutos despues.
+  const secreto = nuevoSecretoTotp()
+  const ahora = Date.now()
+  const codigo = codigoTotp(secreto, Math.floor(ahora / 1000 / 30))
+  assert.equal(verificarTotp(codigo, secreto, { ahora: ahora + 30_000 }), true, '30 s despues vale')
+  assert.equal(verificarTotp(codigo, secreto, { ahora: ahora - 30_000 }), true, '30 s antes vale')
+  assert.equal(verificarTotp(codigo, secreto, { ahora: ahora + 120_000 }), false, 'dos minutos no')
+})
+
+test('SIN TOTP_ADMIN CONFIGURADA el login no cambia', async () => {
+  // Asi se puede dar de alta el secreto sin riesgo de quedarse fuera: el dia
+  // que la variable exista, empieza a pedirse, y ni un minuto antes.
+  olvidarIntentos()
+  delete process.env.TOTP_ADMIN
+  const r = await pedir('POST', '/login', { cuerpo: { sucursal: 'all', contrasena: 'clave-admin' } })
+  assert.equal(r.statusCode, 200)
+  assert.equal(cuerpoDe(r).admin, true)
+  olvidarIntentos()
+})
+
+test('CON TOTP_ADMIN el administrador NO entra sin codigo', async () => {
+  olvidarIntentos()
+  const secreto = nuevoSecretoTotp()
+  process.env.TOTP_ADMIN = secreto
+  try {
+    const sinCodigo = await pedir('POST', '/login', {
+      cuerpo: { sucursal: 'all', contrasena: 'clave-admin' },
+    })
+    assert.equal(sinCodigo.statusCode, 401, 'la contraseña sola ya no basta')
+    assert.equal(cuerpoDe(sinCodigo).pideCodigo, true, 'y la pagina tiene que saber por que')
+
+    const malo = await pedir('POST', '/login', {
+      cuerpo: { sucursal: 'all', contrasena: 'clave-admin', codigo: '123456' },
+    })
+    assert.equal(malo.statusCode, 401)
+
+    const bueno = await pedir('POST', '/login', {
+      cuerpo: {
+        sucursal: 'all', contrasena: 'clave-admin',
+        codigo: codigoTotp(secreto, Math.floor(Date.now() / 1000 / 30)),
+      },
+    })
+    assert.equal(bueno.statusCode, 200)
+    assert.equal(cuerpoDe(bueno).admin, true)
+  } finally {
+    delete process.env.TOTP_ADMIN
+    olvidarIntentos()
+  }
+})
+
+test('un codigo malo CUENTA como intento fallido', async () => {
+  // Si no, el segundo factor se podria probar a fuerza bruta -son seis
+  // digitos- con la contraseña ya en la mano.
+  olvidarIntentos()
+  process.env.TOTP_ADMIN = nuevoSecretoTotp()
+  try {
+    let bloqueado = false
+    for (let i = 0; i < 12; i++) {
+      const r = await pedir('POST', '/login', {
+        cuerpo: { sucursal: 'all', contrasena: 'clave-admin', codigo: '000000' },
+      })
+      if (r.statusCode === 429) { bloqueado = true; break }
+    }
+    assert.equal(bloqueado, true)
+  } finally {
+    delete process.env.TOTP_ADMIN
+    olvidarIntentos()
+  }
+})
+
+test('una SUCURSAL no necesita codigo: su panel no lleva nombres ni dinero', async () => {
+  // Pedirle un codigo del movil a quien esta en el mostrador seria un estorbo
+  // diario a cambio de proteger un inventario que de todas formas se publica,
+  // y un estorbo diario acaba en la contraseña pegada en un papel.
+  olvidarIntentos()
+  process.env.TOTP_ADMIN = nuevoSecretoTotp()
+  try {
+    const r = await pedir('POST', '/login', { cuerpo: { sucursal: 'leon', contrasena: 'clave-leon' } })
+    assert.equal(r.statusCode, 200)
+    assert.equal(cuerpoDe(r).admin, false)
+  } finally {
+    delete process.env.TOTP_ADMIN
+    olvidarIntentos()
+  }
+})
+
+test('UN PNG MAL ETIQUETADO no pierde el pedido', async () => {
+  // `file.type` llega VACIO cuando el navegador no reconoce la extension, y
+  // la pagina manda «image/jpeg» por defecto. Si el tipo se comprobara contra
+  // esa etiqueta, un PNG de verdad con el nombre raro se rechazaria: eso es
+  // un pedido de un cliente que se pierde sin que nadie se entere.
+  //
+  // El tipo se DEDUCE de los bytes, asi que pasa igual, y ademas se guarda
+  // con la extension correcta -si no, en la tienda no abriria-.
+  olvidarIntentos()
+  const llamadas = []
+  const original = globalThis.fetch
+  globalThis.fetch = async (url, opciones) => {
+    llamadas.push({ url: String(url), arg: opciones?.headers?.['Dropbox-API-Arg'] })
+    if (String(url).includes('oauth2/token')) return { ok: true, json: async () => ({ access_token: 'x', expires_in: 3600 }) }
+    return { ok: true, json: async () => ({ name: 'a.png' }) }
+  }
+  try {
+    const png = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 3),
+    ]).toString('base64')
+    const r = await pedir('POST', '/diseno', {
+      cuerpo: { sucursal: 'leon', tipo: 'image/jpeg', datos: png, nombre: 'Ana' },
+    })
+    assert.equal(r.statusCode, 200, 'un PNG de verdad entra aunque diga ser JPEG')
+    const ruta = JSON.parse(llamadas.find(l => l.url.includes('files/upload')).arg).path
+    assert.match(ruta, /\.png$/, 'y se guarda como .png, no como .jpg')
+  } finally {
+    globalThis.fetch = original
+    olvidarIntentos()
+  }
+})
+
+test('y lo que NO es una imagen sigue sin pasar, diga lo que diga', async () => {
+  olvidarIntentos()
+  for (const tipo of ['image/png', 'image/jpeg', '']) {
+    const r = await pedir('POST', '/diseno', {
+      cuerpo: {
+        sucursal: 'leon', tipo,
+        datos: Buffer.from('MZ\x90\x00\x03\x00\x00\x00ejecutable').toString('base64'),
+        nombre: 'x',
+      },
+    })
+    assert.equal(r.statusCode, 400, `con tipo «${tipo}»`)
+  }
+  olvidarIntentos()
+})
+
+test('LOS CODIGOS COINCIDEN CON EL ESTANDAR (vectores del RFC 6238)', () => {
+  // Esta es la prueba que decide si el segundo factor sirve de algo. Todo lo
+  // demas puede estar bien -el secreto, la base32, el reloj- y aun asi dar
+  // numeros que la app del movil no muestra. Entonces el administrador no
+  // entra NUNCA a su propio panel, y el fallo parece del telefono.
+  //
+  // Son los vectores oficiales: el secreto es el ASCII '12345678901234567890'
+  // y los codigos estan publicados en el RFC. Si estos seis salen, cualquier
+  // app que cumpla el estandar -Microsoft Authenticator, Google, Authy,
+  // 1Password- enseña lo mismo que calcula el servidor.
+  const SECRETO = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'
+  assert.equal(desdeBase32(SECRETO).toString('ascii'), '12345678901234567890',
+    'la base32 tiene que decodificar al secreto del RFC')
+
+  for (const [t, esperado] of [
+    [59, '287082'], [1111111109, '081804'], [1111111111, '050471'],
+    [1234567890, '005924'], [2000000000, '279037'], [20000000000, '353130'],
+  ]) {
+    assert.equal(codigoTotp(SECRETO, Math.floor(t / 30)), esperado, `en T=${t}`)
   }
 })

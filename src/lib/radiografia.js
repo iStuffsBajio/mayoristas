@@ -292,25 +292,54 @@ export function brechas({ ritmoPorPlaza, inventarios, precios, plazas, nombres =
 
 // ── 5. Dónde está el dinero y dónde está parado ─────────────────────────────
 
-/** Costo de un producto según las plazas que venden. Bodega no cuenta. */
-export function costoPorModelo(inventarios, excluir = ['bodega']) {
-  const suma = {}
-  for (const [slug, inv] of Object.entries(inventarios ?? {})) {
-    if (excluir.includes(slug)) continue
-    for (const p of inv?.productos ?? []) {
-      const c = String(p.Codigo ?? '').trim()
-      const costo = num(p.Costo)
-      if (!c || costo <= 0) continue
-      ;(suma[c] ??= []).push(costo)
-    }
-  }
+/**
+ * 🔒 El costo sale de BODEGA, y sólo de bodega.
+ *
+ * Es al revés que el precio, y conviene no confundirlos:
+ *
+ *   · **Precio** -público y mayoreo- de las plazas que VENDEN. En bodega es
+ *     basura heredada: el iPhone 15 figura con precio igual al costo.
+ *   · **Costo** de BODEGA. Es quien compra, así que es quien lo sabe. En las
+ *     sucursales lo captura otra persona y puede equivocarse: hoy el mismo
+ *     iPhone 15 dice 36 en bodega y 55 en Aguascalientes, y no hay forma de
+ *     saber cuál es el bueno mirando la pantalla.
+ *
+ * Lo decidió el dueño el 2026-11-05 y tiene un precio que hay que conocer:
+ * bodega tiene el costo en cero en 111 de los modelos que se venden, así que
+ * el 43% de las piezas vendidas se queda HOY sin margen calculable. No se
+ * rellena con el de la sucursal: un margen inventado es peor que uno que
+ * falta, y esa lista es justo el trabajo pendiente de captura.
+ */
+export function costoPorModelo(inventarios, desde = 'bodega') {
   const out = {}
-  for (const [c, xs] of Object.entries(suma)) {
-    const o = xs.sort((a, b) => a - b)
-    const m = Math.floor(o.length / 2)
-    out[c] = o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2
+  for (const p of inventarios?.[desde]?.productos ?? []) {
+    const c = String(p.Codigo ?? '').trim()
+    const costo = num(p.Costo)
+    if (c && costo > 0) out[c] = costo
   }
   return out
+}
+
+/**
+ * Lo que se vende y bodega no tiene costeado. Es la lista de trabajo: cada
+ * renglón es un costo que alguien tiene que capturar, ordenado por lo que
+ * más se mueve.
+ */
+export function sinCostear({ salidas, costos, inventarios, nombres = {}, desde = 'bodega' }) {
+  const enBodega = new Set(
+    (inventarios?.[desde]?.productos ?? []).map(p => String(p.Codigo ?? '').trim()))
+
+  return Object.entries(salidas ?? {})
+    .filter(([c, piezas]) => piezas > 0 && !costos?.[c])
+    .map(([codigo, piezas]) => ({
+      codigo,
+      producto: nombres[codigo] || codigo,
+      piezas,
+      // Dos problemas distintos con la misma cara: uno se arregla capturando
+      // un número y el otro dando de alta el producto.
+      caso: enBodega.has(codigo) ? 'costo-en-cero' : 'no-esta-en-bodega',
+    }))
+    .sort((a, b) => b.piezas - a.piezas)
 }
 
 /**

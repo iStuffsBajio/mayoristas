@@ -27,6 +27,9 @@ const CLAVES = [
   ['HASH_SAN_LUIS',       ['PASS_SLP',     'VITE_PASS_SLP']],
   ['HASH_AGUASCALIENTES', ['PASS_AGS',     'VITE_PASS_AGS']],
   ['HASH_TORREON',        ['PASS_TORREON', 'VITE_PASS_TORREON']],
+  // El encargado de bodega. No es una sucursal que venda: es quien surte, y
+  // su panel es otro. Ver `SucursalPanel`.
+  ['HASH_BODEGA',         ['PASS_BODEGA',  'VITE_PASS_BODEGA']],
 ]
 
 const leer = nombres => nombres.map(n => process.env[n]).find(Boolean)

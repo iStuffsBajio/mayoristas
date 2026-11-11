@@ -34,8 +34,10 @@ El script no reemplaza un inventario bueno a ciegas. Antes de publicar:
 Un fallo en una sucursal no detiene a las demás: cada una se procesa aparte y el
 registro indica cuál falló y por qué.
 
-Pendiente recomendado: activar **versionado del bucket** de S3 desde la consola de
-AWS. La llave que usa la página es de solo objetos y no puede hacerlo.
+El versionado del bucket se activó en AWS el 2026-11-07, según la comprobación
+registrada en [CLAUDE.md](CLAUDE.md). Antes de depender de una versión anterior
+para recuperar datos, confirma que siga activo en la consola de AWS. La llave
+que usa la página es de solo objetos y no puede cambiar esa configuración.
 
 ### Ejecucion en la nube (GitHub Actions)
 

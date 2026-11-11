@@ -125,3 +125,21 @@ test('nada de esto revienta con datos vacíos', () => {
   assert.deepEqual(desviaciones(null), [])
   assert.equal(valorDe('X', 5, null), 0)
 })
+
+test('VALORDE ACEPTA LAS DOS FORMAS, y esto arreglo un fallo invisible', () => {
+  // `promedioEntrePlazas` devuelve { codigo: { promedio } } y `soloPrecios`
+  // -lo que la pestaña de Ventas pasa a toda la radiografia- devuelve
+  // { codigo: 123 }. Con un numero esto daba NaN, y NaN es falsy: las cifras
+  // en pesos de esa pestaña no reventaban, se escondian solas, porque se
+  // pintan con `if (cifra)`. Parecia que faltaba el dato.
+  assert.equal(valorDe('A', 2, { A: { promedio: 100 } }), 200)
+  assert.equal(valorDe('A', 2, { A: 100 }), 200)
+
+  // Lo que no es un precio da CERO, nunca NaN: un NaN se propaga por toda la
+  // suma y deja en blanco la cifra entera, no solo ese renglon.
+  assert.equal(valorDe('A', 2, { A: {} }), 0)
+  assert.equal(valorDe('A', 2, { A: 'ochenta' }), 0)
+  assert.equal(valorDe('Z', 2, { A: 100 }), 0)
+  assert.equal(valorDe('A', 0, { A: 100 }), 0)
+  assert.equal(valorDe('A', -3, { A: 100 }), 0, 'una cantidad negativa no vale dinero')
+})

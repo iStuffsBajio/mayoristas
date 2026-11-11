@@ -51,6 +51,7 @@ const SUCURSALES = {
   'aguascalientes': { nombre: 'Aguascalientes',  carpeta: 'ags' },
   'bodega':         { nombre: 'Bodega',          carpeta: 'BODEGA' },
   'ferias':         { nombre: 'Ferias',          carpeta: 'ferias' },
+  'torreon':        { nombre: 'Torreón',         carpeta: 'TORREON' },
 }
 
 const arg = n => process.argv.find(a => a.startsWith(`--${n}=`))?.split('=')[1]

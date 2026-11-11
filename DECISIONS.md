@@ -1,0 +1,31 @@
+# Índice de decisiones técnicas y de negocio
+
+Este archivo ayuda a encontrar la decisión vigente sin copiar el registro
+detallado. `CLAUDE.md` conserva el razonamiento histórico; `SEGURIDAD.md`
+describe controles y operación de seguridad.
+
+| Área | Decisión vigente | Registro detallado |
+|---|---|---|
+| Reglas de negocio | Los valores marcados **CONFIRMAR** en `CLAUDE.md` requieren aprobación del dueño para cambiarse. | `CLAUDE.md`, “Reglas de negocio” y secciones **CONFIRMAR** |
+| Búsqueda y datos | Conservar los comportamientos descritos para búsqueda, ventas, inventario y datos de Eleventa; verificar casos medidos antes de refactorizar. | `CLAUDE.md`, secciones **CONFIRMAR** y **VERIFICAR** |
+| Secretos | Las credenciales no van en el bundle del navegador ni en variables `VITE_*`; el backend guarda las credenciales de servidor. | `SEGURIDAD.md`; `CLAUDE.md`, “Lo que YA se rotó” |
+| Configuración pública | `config/site.json` puede ser público sólo con las secciones permitidas por el backend; no debe contener datos privados. | `backend/src/index.js`; `CLAUDE.md`, “config/site.json es público” |
+| Inventarios | La publicación valida respaldos y protege el inventario existente contra archivos incompletos o más antiguos. | `README.md`, “Protección de los datos” y “Por qué es seguro que corran las dos” |
+| Seguridad de S3 | Mantener separados los datos públicos y privados y limitar permisos a prefijos requeridos. Verificar aplicación en AWS por separado. | `infra/istuffs-s3-policy.json`; `CLAUDE.md`, “Lo que se cambió en AWS, y lo que queda” |
+| Venta censurada | Los días en cero salen del kárdex y se publican en `inventarios/<plaza>/agotados.json` (público: sin nombres). «Pedir» y «Comprar» los **marcan**; corregir la cantidad con ellos queda pendiente de decisión del dueño. | `CLAUDE.md`, “Una venta baja con el mostrador vacío no es poca demanda”; `src/lib/agotados.js` |
+| Bajas de catálogo | Nada con piezas en la red ni con ventas en 365 días se da de baja. El candado manda en el servidor (`POST /ajustes/bajas`, lee S3 en el momento) y, sin el inventario de cualquier plaza, no se baja nada. La baja apunta la decisión; no borra de Eleventa. | `CLAUDE.md`, “Depurar el catálogo”; `backend/src/bajas.js`, `src/lib/depuracion.js` |
+| Última venta | Sale del kárdex (`UltimaVenta`, movimientos con `VENTA_ID`), no de `UltimoMov` —que cuenta recuentos— ni del historial por mes, que sólo llega a oct-2025. | `CLAUDE.md`, “Depurar el catálogo” |
+| Modelos nuevos | Un código nuevo para un teléfono que ya existía no es un modelo nuevo. Eleventa no guarda fecha de creación del producto. | `CLAUDE.md`, “Un código nuevo NO es un modelo nuevo”; `src/lib/estrenos.js` |
+| Mayoristas | Lo cobrado a $0.01 es del esquema de mayoristas y no es una pieza vendida, sea cual sea el departamento. | `CLAUDE.md`, “El precio de $0.01 es del esquema de mayoristas”; `src/lib/ventasTicket.js` |
+| Torreón | Vende y manda respaldo: está en la sincronización, la extracción de ventas y el historial. `activa: false` sólo significa que un mayorista no la ve. | `CLAUDE.md`, “Torreón vende y el código decía que no” |
+| Panel de corte de sucursal | Construido el 2026-11-09. Cada tienda ve sus ventas del POS y sólo captura el conteo de billetes y monedas; sin tolerancia (al peso); Torreón lleva un ciclo de 4 semanas acumulado y un bloque global. El servidor recorta lo que ve cada tienda (sólo su plaza, sin nombres ni faltantes). El fondo de caja lo asigna el administrador por plaza (`POST /caja/fondo`, sólo el fondo). Sueldo y comisión se reconocen por el concepto («sueldo»/«comisión» + nombre); sin nombre se señala. | `CLAUDE.md`, “El panel de corte de la sucursal”; `src/lib/corte.js`, `backend/src/cortes.js` |
+| Reglas de mayoreo | 🔒 Del dueño: no hay mayoreo sin funda o mica de hidrogel en el ticket, y la etiqueta del mayorista va tantas veces como productos. Se SEÑALAN por ticket en el corte; no cambian ninguna cifra. | `CLAUDE.md`, “Las reglas de mayoreo”; `src/lib/reglasMayoreo.js` |
+| Cobros electrónicos | Se identifican por `VENTATICKETS.REFERENCIA` (banco + autorización o clave de rastreo). Se extrae aparte y en `try/catch`. | `CLAUDE.md`, “Los cobros con tarjeta o transferencia” |
+| Efectivo y corte | Una sola pestaña del administrador con subsecciones (Resumen, Corte semanal, Depósitos, Faltantes, Parámetros) y los mismos colores por concepto (`coloresCaja.js`). Las tiendas ven sólo su Corte. | `CLAUDE.md`, “Corte y Efectivo van en la MISMA pestaña” |
+| Diseño del panel | Todas las pestañas usan las piezas de `Diseno.jsx` y la paleta de `coloresCaja.js`; cada sección lleva el color de su tema (ventas azul, inventario verde azulado, agotado rosa, comprar morado, dinero verde, revisar ámbar). | `CLAUDE.md`, “El diseño del corte es el diseño de TODO el panel” |
+| Nómina y RH | «Mi pago» por sucursal (toda la sucursal ve la suya) y «Nómina y RH» en Personal. Faltas descuentan día y bono; el bono va por minutos fuera de tolerancia acumulados en la semana (20 entero, 30 a la mitad, proporcional a los días); día cubierto se paga a quien cubre y se descuenta al titular; comisión por cruce de productos con mínimos ($220/$120/$100), una por ticket, congelada al autorizar y registrada sola como salida de efectivo. Los sueldos sólo los entrega el servidor. | `CLAUDE.md`, “Nómina y RH”; `src/lib/nomina.js`, `backend/src/nomina.js` |
+| Ranking de mayoristas | Cada tienda ve sólo el de su plaza y el administrador todas, por separado; rango de 7 a 30 días. | `src/lib/mayoristas.js`; `GET /corte` |
+| Trabajo entre agentes | Instrucciones compartidas en `AGENTS.md`; `CLAUDE.md` importa esa fuente y mantiene el conocimiento específico de este repo. | `AGENTS.md`, `CLAUDE.md` |
+
+Las operaciones sobre cuentas, buckets, credenciales y publicación requieren
+confirmación del dueño y verificación del estado externo.

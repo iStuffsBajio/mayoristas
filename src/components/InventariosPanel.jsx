@@ -1,11 +1,20 @@
+import { TEMAS } from './Diseno'
 import { useState, useEffect, useMemo } from 'react'
 // Aqui si entra la bodega: es inventario y el panel es solo de administrador.
-import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA } from '../lib/sucursales'
-import { inventarioJsonUrl, estadisticasUrl } from '../lib/s3'
+import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA, nombreSucursal } from '../lib/sucursales'
+import { inventarioJsonUrl, estadisticasUrl, historialUrl } from '../lib/s3'
+import { clasePorModelo, CLASES } from '../lib/clases'
+import { useAuth } from '../context/AuthContext'
+import { useAjustes } from '../lib/useAjustes'
+import { historialDeBajas, resumenDeBajas } from '../lib/ajustes'
+import { descargarArchivoDeBajas } from '../lib/exportarBajas'
+import { sinOcultos, MOTIVOS } from '../lib/ajustes'
+import { guardarAjuste } from '../lib/api'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
 import { seProduce } from '../lib/produccion'
 import { filtrarYBuscar, hayBusqueda } from '../lib/buscar'
 import { useOrdenTabla } from '../lib/orden'
+import { diasDesde } from '../lib/fechas'
 import { nivelStock, COLOR_NIVEL, UMBRAL_VERDE, UMBRAL_NARANJA } from './StockBadge'
 import { descargarInventario, descargarInventarioConsolidado } from '../lib/exportarInventario'
 
@@ -14,6 +23,8 @@ const TINTA_SUAVE = '#4A5A61'
 const TINTA_TENUE = '#8598A1'
 const LINEA       = '#D6E0E4'
 const ROSA        = '#C4156F'
+const AMBAR       = '#B45309'
+const VERDE       = '#5E9422'
 
 const TODAS = { slug: 'todas', nombre: 'Todas las sucursales' }
 
@@ -85,17 +96,51 @@ function Venta({ n }) {
   return <span style={{ color: TINTA, fontWeight: 700, fontSize: 12.5, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
 }
 
-function Contador({ n, etiqueta, color, activo, onClick }) {
+/**
+ * Un recuadro con su desglose por clase.
+ *
+ * El número solo no basta para decidir. «99 agotados» puede ser limpieza de
+ * catálogo —99 de clase C, que casi no se venden— o la venta de la semana
+ * —12 de clase A—, y en la pantalla se veían igual.
+ *
+ * La A va primero y en el color del recuadro porque es la que manda: entre
+ * las cuatro tiendas, los modelos de clase A son el 58% de la venta con el
+ * 12% del catálogo.
+ */
+function Contador({ n, etiqueta, color, activo, onClick, clases, id }) {
+  const hay = clases && (clases.A || clases.B || clases.C)
   return (
-    <button type="button" onClick={onClick}
+    <button type="button" onClick={onClick} data-filtro={id}
       style={{
-        flex: 1, minWidth: 92, padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
-        background: activo ? 'rgba(0,188,242,0.06)' : '#fff',
-        border: `1px solid ${activo ? 'rgba(0,188,242,0.45)' : LINEA}`,
+        flex: 1, minWidth: 108, padding: '10px 12px', textAlign: 'left', cursor: 'pointer',
+        background: color + (activo ? '22' : '0F'),
+        border: `1.5px solid ${activo ? color : 'transparent'}`,
+        borderLeft: '4px solid ' + color,
         borderRadius: 16,
+        boxShadow: activo ? `0 2px 10px ${color}26` : 'none',
       }}>
       <div style={{ fontSize: 20, fontWeight: 800, color, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{n}</div>
       <div style={{ fontSize: 11, color: TINTA_SUAVE, marginTop: 2 }}>{etiqueta}</div>
+      {hay ? (
+        <div data-clases style={{ fontSize: 10.5, marginTop: 4, fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ color, fontWeight: 800 }}>A {clases.A}</span>
+          <span style={{ color: TINTA_SUAVE }}> · B {clases.B} · C {clases.C}</span>
+          {/* Los que no tienen clase TIENEN que decirse. Sin esto salia
+              «99 agotados · A 0 · B 2 · C 32»: treinta y cuatro de noventa y
+              nueve. Un desglose que no suma el total se lee como un error de
+              la pagina, y de paso esconde el dato bueno -que 65 modelos no
+              tienen venta con la que clasificarlos-. */}
+          {clases.sinClase > 0 && (
+            <span style={{ color: TINTA_TENUE }} title="Sin venta registrada con la que clasificarlos">
+              {' · '}{clases.sinClase} sin clase
+            </span>
+          )}
+        </div>
+      ) : (
+        // Hueco del mismo alto: sin él, los recuadros con desglose y sin él
+        // quedan de distinta altura y la fila se ve rota.
+        <div style={{ fontSize: 10.5, marginTop: 4, color: 'transparent' }}>·</div>
+      )}
     </button>
   )
 }
@@ -104,9 +149,10 @@ function Contador({ n, etiqueta, color, activo, onClick }) {
 function antiguedad(inv) {
   const f = inv?.respaldo?.fecha
   if (!f) return null
-  const [y, m, d] = f.split('-').map(Number)
-  const dias = Math.floor((Date.now() - new Date(y, m - 1, d).getTime()) / 86400000)
-  return { dias, fecha: f }
+  // La misma cuenta que el dashboard, del mismo sitio. Esta ya era correcta
+  // -leia la fecha como local- pero estaba escrita aparte, y por eso las dos
+  // pantallas pudieron separarse sin que nadie lo notara.
+  return { dias: diasDesde(f), fecha: f }
 }
 
 function colorAntiguedad(dias) {
@@ -139,6 +185,151 @@ function ThOrd({ children, campo, valor, orden, num, title, extra }) {
   )
 }
 
+/**
+ * El archivo de bajas: todo lo que se ha quitado desde aquí.
+ *
+ * Lo pidió el dueño el 2026-11-08: «quisiera saber si lo borro, a dónde se va
+ * o dónde queda ese registro… me gustaría tener un archivo o un lugar para
+ * consultar eso».
+ *
+ * La primera parte de la respuesta está en la propia pantalla, y había que
+ * decirla: **la ✕ no borra nada**. No puede. `inventario.json` se regenera
+ * desde el respaldo de Eleventa cuatro veces al día, así que lo que la página
+ * escribiera encima se borraría esa misma tarde. Lo que hace es dejar una
+ * nota al lado, y la nota es lo que se consulta aquí.
+ *
+ * La segunda parte era un agujero de verdad. La única pantalla que enseñaba
+ * estas notas —«Corregidos aquí, pendientes en la caja», en Revisar— filtra
+ * por pendiente, así que en cuanto el código desaparecía del respaldo el
+ * renglón **se caía de la vista**. El registro seguía entero en el archivo,
+ * porque nada lo borra nunca, pero no había dónde mirarlo: el control se
+ * perdía justo cuando el trabajo se había hecho bien.
+ *
+ * Va aquí y no en Revisar porque aquí es donde se pulsa la ✕. Una lista que
+ * vive en otra pestaña es una lista que nadie abre.
+ */
+function ArchivoDeBajas({ correcciones, inventarios, onDeshacer }) {
+  const [abierto, setAbierto] = useState(false)
+  const [verTodo, setVerTodo] = useState(false)
+
+  const filas = useMemo(
+    () => historialDeBajas(correcciones, inventarios ?? {}),
+    [correcciones, inventarios])
+  const r = useMemo(() => resumenDeBajas(filas), [filas])
+
+  if (!filas.length) return null
+
+  const visibles = verTodo ? filas : filas.slice(0, 25)
+
+  return (
+    <section data-archivo-bajas
+             style={{ marginTop: 16, border: '1px solid ' + LINEA, borderLeft: '5px solid ' + TEMAS.neutro.fuerte,
+                      background: TEMAS.neutro.suave, borderRadius: 18, padding: '12px 14px' }}>
+      <button type="button" onClick={() => setAbierto(v => !v)}
+              data-abrir-archivo
+              style={{ display: 'flex', alignItems: 'baseline', gap: 9, flexWrap: 'wrap',
+                       width: '100%', background: 'none', border: 'none', padding: 0,
+                       cursor: 'pointer', textAlign: 'start', fontFamily: 'inherit' }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: TINTA }}>
+          Lo que has dado de baja
+        </span>
+        <span style={{ fontSize: 12, color: TINTA_SUAVE }}>
+          <strong>{r.total}</strong> {r.total === 1 ? 'código' : 'códigos'} ·{' '}
+          <strong style={{ color: r.pendientes ? AMBAR : VERDE }}>{r.pendientes}</strong>{' '}
+          {r.pendientes === 1 ? 'sigue' : 'siguen'} en la caja ·{' '}
+          {r.resueltas} ya no {r.resueltas === 1 ? 'está' : 'están'}
+          {r.insisten > 0 && (
+            <strong style={{ color: ROSA }}>
+              {' '}· {r.insisten} {r.insisten === 1 ? 'lleva' : 'llevan'} más de 3 semanas
+            </strong>
+          )}
+        </span>
+        <span style={{ marginInlineStart: 'auto', fontSize: 11, color: TINTA_TENUE }}>
+          {abierto ? 'Ocultar ▲' : 'Ver ▼'}
+        </span>
+      </button>
+
+      {abierto && (<>
+        <p style={{ fontSize: 11.5, color: TINTA_SUAVE, margin: '9px 0 0', lineHeight: 1.55 }}>
+          La <strong>✕</strong> no borra nada de Eleventa, y no puede: el respaldo se regenera
+          cuatro veces al día y cualquier cosa escrita encima se borraría esa misma tarde. Lo que
+          hace es apuntar la decisión aquí y dejar de contar ese código en los recuadros. Un
+          renglón pasa a <strong>«ya no está»</strong> solo, cuando el respaldo llega sin él;
+          nadie marca nada.
+        </p>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '10px 0' }}>
+          <button type="button" className="rev-saltar" data-bajar-archivo
+                  onClick={() => descargarArchivoDeBajas(correcciones, inventarios ?? {})}>
+            Bajar el archivo en Excel
+          </button>
+          {filas.length > 25 && (
+            <button type="button" className="rev-saltar" onClick={() => setVerTodo(v => !v)}>
+              {verTodo ? 'Ver sólo los 25 primeros' : `Ver los ${filas.length}`}
+            </button>
+          )}
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+            <thead>
+              <tr style={{ color: TINTA_TENUE, fontSize: 10.5 }}>
+                <th style={{ textAlign: 'left', fontWeight: 600, padding: '4px 0' }}>Código</th>
+                <th style={{ textAlign: 'left', fontWeight: 600 }}>Modelo</th>
+                <th style={{ textAlign: 'left', fontWeight: 600 }}>Por qué</th>
+                <th style={{ textAlign: 'left', fontWeight: 600 }}>Se marcó</th>
+                <th style={{ textAlign: 'left', fontWeight: 600 }}>Estado</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {visibles.map(f => (
+                <tr key={f.clave ?? f.codigo}
+                    data-baja-archivada={f.codigo}
+                    style={{ borderTop: '1px solid ' + LINEA }}>
+                  <td style={{ padding: '5px 0', fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>
+                    {f.codigo}
+                  </td>
+                  <td style={{ color: TINTA_SUAVE, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                      title={f.producto}>
+                    {f.producto || '—'}
+                  </td>
+                  <td style={{ color: TINTA_SUAVE }}>{MOTIVOS[f.motivo] ?? f.motivo}</td>
+                  <td style={{ color: TINTA_TENUE, whiteSpace: 'nowrap' }}>
+                    {String(f.cuando ?? '').slice(0, 10)}
+                    {f.quien && <span> · {f.quien}</span>}
+                  </td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    {f.resuelto
+                      ? <span style={{ color: VERDE }}>ya no está</span>
+                      : <span style={{ color: f.insiste ? ROSA : AMBAR }}>
+                          sigue en {(f.plazas ?? []).map(nombreSucursal).join(', ')}
+                          {f.insiste && ` · ${f.dias} d`}
+                        </span>}
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    {/* Deshacer sólo tiene sentido mientras el código sigue
+                        ahí: devolverlo a los recuadros cuando ya no existe no
+                        devolvería nada, y el renglón es historia. */}
+                    {!f.resuelto && onDeshacer && (
+                      <button type="button" className="rev-saltar"
+                              data-deshacer-baja={f.codigo}
+                              onClick={() => onDeshacer(f.codigo)}
+                              style={{ fontSize: 10.5 }}>
+                        Deshacer
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </>)}
+    </section>
+  )
+}
+
 export default function InventariosPanel() {
   // Se eligen todas, pero "Todas" solo suma las tiendas: bodega es almacén y
   // ferias vende por temporadas. Mezclarlas tapaba los faltantes de mostrador
@@ -159,6 +350,25 @@ export default function InventariosPanel() {
   const [busqueda, setBusqueda] = useState('')
   const [inventarios, setInventarios] = useState(null)
   const [estadisticas, setEstadisticas] = useState(null)
+  const [historiales, setHistoriales] = useState(null)
+
+  // Dar de baja un código desde aquí. Usa la MISMA capa de ajustes que la
+  // cola de revisión: no hay dos formas de dar de baja, hay una. Lo que se
+  // marca aquí deja de contarse en los recuadros y aparece en Revisar como
+  // pendiente de borrar en la caja de cada plaza.
+  const { token, isAdmin } = useAuth()
+  const { correcciones, ocultos, setCorrecciones } = useAjustes(token)
+  const [bajando, setBajando] = useState(null)
+  const [avisoBaja, setAvisoBaja] = useState(null)
+
+  // Filtrar por clase. Un agotado de clase A y uno de clase C son dos
+  // problemas distintos y hasta ahora caían en la misma lista.
+  const [clase, setClase] = useState('todas')
+
+  // Dar de baja es una decision de negocio: solo el administrador. Una tienda
+  // ve su inventario, pero no decide que sale del catalogo de la red. El
+  // backend lo vuelve a comprobar; esto solo evita enseñar el boton.
+  const puedeDarDeBaja = isAdmin
   const [cargando, setCargando]       = useState(true)
 
   useEffect(() => {
@@ -173,13 +383,18 @@ export default function InventariosPanel() {
       }
       // Las estadísticas van en la misma tanda: son el archivo que ya alimenta
       // el panel de movimiento y pesan unos pocos KB.
+      // El historial entra para poder decir de qué CLASE es cada modelo
+      // agotado. «99 agotados» no dice si hay que correr: 99 de clase C es
+      // limpieza de catálogo y 12 de clase A es la venta de la semana.
       const pares = await Promise.all(activas.map(async s => [s.slug, {
         inv:  await bajar(inventarioJsonUrl(s.slug)),
         est:  await bajar(estadisticasUrl(s.slug)),
+        hist: await bajar(historialUrl(s.slug)),
       }]))
       if (cancelado) return
       setInventarios(Object.fromEntries(pares.map(([k, v]) => [k, v.inv])))
       setEstadisticas(Object.fromEntries(pares.map(([k, v]) => [k, v.est])))
+      setHistoriales(Object.fromEntries(pares.map(([k, v]) => [k, v.hist])))
       setCargando(false)
     })()
     return () => { cancelado = true }
@@ -250,13 +465,77 @@ export default function InventariosPanel() {
 
   // Un sticker en cero no es un agotado: se imprime cuando hace falta. Si se
   // cuenta como existencia, ensucia el semaforo y la lista de resurtido.
-  const sinProduccion = useMemo(() => filas.filter(f => !seProduce(f.codigo, f.producto)), [filas])
+  const sinProduccion = useMemo(() => {
+    const vivas = filas.filter(f => !seProduce(f.codigo, f.producto))
+    // Lo dado de baja deja de contar AQUI tambien, no solo en el dashboard.
+    // Si siguiera contandose, la decision no se notaria en ningun numero y
+    // habria que acordarse de que ya se tomo.
+    return sinOcultos(vivas, ocultos)
+  }, [filas, ocultos])
+
+  // La clase sale del historial de TODAS las plazas, no de la que se esté
+  // mirando: un modelo es clase A del negocio, no de un mostrador. Si cambiara
+  // al cambiar de pastilla, la misma funda sería A en León y C en Ferias y la
+  // palabra dejaría de significar nada.
+  const clases = useMemo(
+    () => (historiales ? clasePorModelo(Object.values(historiales)) : {}),
+    [historiales])
 
   const conteos = useMemo(() => {
     const c = {}
-    for (const f of FILTROS) c[f.id] = sinProduccion.filter(x => f.prueba(valorDe(x))).length
+    for (const f of FILTROS) {
+      const filas = sinProduccion.filter(x => f.prueba(valorDe(x)))
+      c[f.id] = filas.length
+      // El desglose por clase. Sin él, «99 agotados» no dice si hay que
+      // correr: 99 de clase C es limpieza de catálogo y 12 de clase A es la
+      // venta de la semana.
+      const porClase = Object.fromEntries(CLASES.map(k => [k, 0]))
+      let sinClase = 0
+      for (const x of filas) {
+        // `codigo` en minuscula: asi vienen las filas de este panel. Con
+        // `Codigo` salia undefined, ninguna clase casaba y el desglose no se
+        // dibujaba — sin error y sin que nada se viera roto.
+        const k = clases[String(x.codigo ?? '').trim().toUpperCase()]
+        if (k && k in porClase) porClase[k]++
+        else sinClase++
+      }
+      c[`${f.id}_clases`] = { ...porClase, sinClase }
+    }
     return c
-  }, [sinProduccion, esTodas])
+  }, [sinProduccion, esTodas, clases])
+
+  // El filtro de clase va DESPUES de los recuadros a proposito: los recuadros
+  // tienen que seguir enseñando el total y su desglose aunque haya un filtro
+  // puesto, o se pierde la referencia de sobre cuanto se esta filtrando.
+  const porClase = useMemo(() => {
+    if (clase === 'todas') return sinProduccion
+    return sinProduccion.filter(f => clases[String(f.codigo ?? '').trim().toUpperCase()] === clase)
+  }, [sinProduccion, clases, clase])
+
+  const darDeBaja = async fila => {
+    setAvisoBaja(null)
+    setBajando(fila.codigo)
+    try {
+      await guardarAjuste({
+        codigo: fila.codigo, motivo: 'dado-de-baja', producto: fila.producto,
+      }, token)
+      // Se refleja de inmediato sin esperar a recargar: la clave es la misma
+      // que arma `claveDe` en `ajustes.js`.
+      setCorrecciones(prev => ({
+        ...prev,
+        [`ocultar|${String(fila.codigo).trim().toUpperCase()}`]: {
+          clave: `ocultar|${String(fila.codigo).trim().toUpperCase()}`,
+          tipo: 'ocultar', codigo: String(fila.codigo).trim().toUpperCase(),
+          producto: fila.producto, motivo: 'dado-de-baja',
+          cuando: new Date().toISOString(),
+        },
+      }))
+      setAvisoBaja(`${fila.codigo} dado de baja. Deja de contar aquí, y en Revisar queda pendiente de borrarlo en la caja de cada plaza.`)
+    } catch (e) {
+      setAvisoBaja(e?.mensaje || 'No se pudo dar de baja. Comprueba la sesión.')
+    }
+    setBajando(null)
+  }
 
   const buscando = hayBusqueda(busqueda)
 
@@ -265,8 +544,8 @@ export default function InventariosPanel() {
   const porExistencia = useMemo(() => {
     if (buscando) return sinProduccion
     const prueba = FILTROS.find(f => f.id === filtro)?.prueba ?? (() => true)
-    return sinProduccion.filter(f => prueba(valorDe(f)))
-  }, [sinProduccion, filtro, esTodas, buscando])
+    return porClase.filter(f => prueba(valorDe(f)))
+  }, [porClase, sinProduccion, filtro, esTodas, buscando])
 
   const visibles = useMemo(() => {
     // `filtrarYBuscar` es quien decide que al buscar NO se aplica el filtro de
@@ -274,7 +553,11 @@ export default function InventariosPanel() {
     // no aquí: se rompió tres veces por estar suelta dentro del componente.
     const prueba = FILTROS.find(f => f.id === filtro)?.prueba ?? (() => true)
     const lista = filtrarYBuscar({
-      filas: sinProduccion,
+      // Buscando se pasa la lista ENTERA, sin el filtro de clase. Es la misma
+      // regla que la del filtro de existencia y por el mismo motivo: buscar
+      // es ir por un modelo concreto, y si existe tiene que aparecer, sea de
+      // la clase que sea. Esa regla se rompio tres veces por estar suelta.
+      filas: buscando ? sinProduccion : porClase,
       busqueda,
       pasaFiltro: f => prueba(valorDe(f)),
     }).filter(f => !soloConVenta || !hayVentas || f.v30 > 0)
@@ -289,7 +572,7 @@ export default function InventariosPanel() {
     if (orden === 'vendidos') return lista.sort((a, b) => b.v30 - a.v30 || valorDe(a) - valorDe(b) || porNombre(a, b))
     const dir = orden === 'menor' ? 1 : -1
     return lista.sort((a, b) => (valorDe(a) - valorDe(b)) * dir || porNombre(a, b))
-  }, [sinProduccion, filtro, orden, busqueda, soloConVenta, hayVentas, esTodas, ord.campo, ord.dir])
+  }, [sinProduccion, porClase, buscando, filtro, orden, busqueda, soloConVenta, hayVentas, esTodas, ord.campo, ord.dir])
 
   const etiquetaFiltro = FILTROS.find(f => f.id === filtro)?.etiqueta ?? 'todos'
 
@@ -298,13 +581,35 @@ export default function InventariosPanel() {
     else descargarInventario(visibles, sucursal.nombre, etiquetaFiltro)
   }
 
+  /**
+   * Devuelve un código a los recuadros.
+   *
+   * Se pinta al momento y se manda después, igual que la baja: el trabajo va
+   * al ritmo de quien decide, no al de la red.
+   */
+  const deshacerBaja = async codigo => {
+    const clave = `ocultar|${String(codigo).toUpperCase()}`
+    setCorrecciones(prev => {
+      const s = { ...prev }
+      delete s[clave]
+      return s
+    })
+    // Sin motivo, el backend retira el ajuste. Es la misma puerta por la que
+    // se dio de baja, al revés.
+    if (token) await guardarAjuste({ codigo, motivo: null }, token).catch(() => {})
+  }
+
   const faltantes = inventarios ? tiendas.filter(s => !inventarios[s.slug]).map(s => s.nombre) : []
 
   return (
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
-      <div style={{ marginBottom: 16 }}>
-        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: 0, lineHeight: 1.5 }}>
+      <div style={{ marginBottom: 16, borderLeft: '5px solid ' + TEMAS.inventario.fuerte, background: TEMAS.inventario.suave,
+                    borderRadius: 14, padding: '10px 14px' }}>
+        <h3 style={{ fontSize: 13.5, fontWeight: 800, color: TEMAS.inventario.fuerte, margin: 0 }}>
+          Existencias {sel === TODAS.slug ? 'de todas las tiendas' : `de ${sucursal.nombre}`}
+        </h3>
+        <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '2px 0 0', lineHeight: 1.5 }}>
           El inventario que la página está mostrando ahora mismo. Arranca filtrado por lo
           urgente, que es lo que sirve para salir a resurtir.
         </p>
@@ -356,15 +661,43 @@ export default function InventariosPanel() {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-            <Contador n={conteos.agotado} etiqueta="agotados"  color={ROSA}      activo={filtro === 'agotado'} onClick={() => setFiltro('agotado')} />
-            <Contador n={conteos.urgente} etiqueta="urgentes"  color="#D51A7A"   activo={filtro === 'urgente'} onClick={() => setFiltro('urgente')} />
-            <Contador n={conteos.bajo}    etiqueta="limitados" color="#d97706"   activo={filtro === 'bajo'}    onClick={() => setFiltro('bajo')} />
-            <Contador n={conteos.ok}      etiqueta="en stock"  color="#16a34a"   activo={filtro === 'ok'}      onClick={() => setFiltro('ok')} />
-            <Contador n={conteos.todos}   etiqueta="modelos"   color={TINTA}     activo={filtro === 'todos'}   onClick={() => setFiltro('todos')} />
+            <Contador id="agotado" n={conteos.agotado} etiqueta="agotados"  color={ROSA}      clases={conteos.agotado_clases} activo={filtro === 'agotado'} onClick={() => setFiltro('agotado')} />
+            <Contador id="urgente" n={conteos.urgente} etiqueta="urgentes"  color="#D51A7A"   clases={conteos.urgente_clases} activo={filtro === 'urgente'} onClick={() => setFiltro('urgente')} />
+            <Contador id="bajo" n={conteos.bajo}    etiqueta="limitados" color="#d97706"   clases={conteos.bajo_clases}    activo={filtro === 'bajo'}    onClick={() => setFiltro('bajo')} />
+            <Contador id="ok" n={conteos.ok}      etiqueta="en stock"  color="#16a34a"   clases={conteos.ok_clases}      activo={filtro === 'ok'}      onClick={() => setFiltro('ok')} />
+            <Contador id="todos" n={conteos.todos}   etiqueta="modelos"   color={TINTA}     clases={conteos.todos_clases}   activo={filtro === 'todos'}   onClick={() => setFiltro('todos')} />
           </div>
+
+          {/* Filtrar por clase. Va DESPUES de los recuadros: ellos siguen
+              enseñando el total y su desglose aunque haya filtro puesto, que
+              es la referencia de sobre cuanto se esta filtrando. */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: TINTA_TENUE }}>Clase:</span>
+            {[['todas', 'Todas'], ['A', 'A'], ['B', 'B'], ['C', 'C']].map(([k, t]) => (
+              <button key={k} type="button" onClick={() => setClase(k)}
+                      data-clase-filtro={k}
+                      className={clase === k ? 'chip-plaza activa' : 'chip-plaza'}>
+                {t}
+              </button>
+            ))}
+            {clase !== 'todas' && (
+              <span style={{ fontSize: 11, color: TINTA_SUAVE }}>
+                {porClase.length} de {sinProduccion.length} modelos
+              </span>
+            )}
+          </div>
+
+          {avisoBaja && (
+            <p style={{ fontSize: 11.5, color: '#0A5B73', background: 'rgba(2,136,173,0.07)',
+                        border: '1px solid #BAE6FD', borderRadius: 12, padding: '8px 12px',
+                        margin: '0 0 10px' }}>
+              {avisoBaja}
+            </p>
+          )}
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
             <input
+              aria-label="Buscar productos por nombre, modelo o código"
               value={busqueda}
               onChange={e => setBusqueda(e.target.value)}
               placeholder="Buscar: a16, iphone 15, tpu..."
@@ -446,8 +779,42 @@ export default function InventariosPanel() {
                       <td style={{ padding: '7px 12px', color: TINTA, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {f.producto}
                       </td>
-                      <td style={{ padding: '7px 8px', color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>
-                        {f.codigo}
+                      {/* El codigo, con su clase y la opcion de darlo de baja.
+                          En ROJO cuando esta agotado en todas partes -no hay
+                          nada que vender- y en AMBAR cuando es clase C, que
+                          es la que se acaba depurando. */}
+                      <td style={{ padding: '7px 8px', fontFamily: 'ui-monospace, monospace', fontSize: 11, whiteSpace: 'nowrap' }}>
+                        {(() => {
+                          const k = clases[String(f.codigo ?? '').trim().toUpperCase()]
+                          const total = valorDe(f)
+                          const color = total <= 0 ? '#DC2626' : k === 'C' ? '#B45309' : TINTA_TENUE
+                          return (
+                            <>
+                              <span style={{ color }}>{f.codigo}</span>
+                              {k && (
+                                <span style={{
+                                  marginInlineStart: 5, fontSize: 9.5, fontWeight: 800,
+                                  fontFamily: 'inherit',
+                                  color: k === 'A' ? '#5E9422' : k === 'B' ? '#0288AD' : '#B45309',
+                                }}>{k}</span>
+                              )}
+                              {puedeDarDeBaja && (
+                                <button type="button"
+                                        data-baja={f.codigo}
+                                        disabled={bajando === f.codigo}
+                                        onClick={() => darDeBaja(f)}
+                                        title={`Dar de baja ${f.codigo} en todas las plazas. Deja de contar en los recuadros y pasa a Revisar como pendiente de borrarlo en la caja.`}
+                                        style={{
+                                          marginInlineStart: 6, border: 'none', background: 'none',
+                                          cursor: bajando === f.codigo ? 'wait' : 'pointer',
+                                          color: TINTA_TENUE, fontSize: 11, padding: '0 2px',
+                                        }}>
+                                  {bajando === f.codigo ? '…' : '✕'}
+                                </button>
+                              )}
+                            </>
+                          )
+                        })()}
                       </td>
                       {esTodas
                         ? <>
@@ -503,6 +870,9 @@ export default function InventariosPanel() {
               </p>
             )}
           </div>
+
+          <ArchivoDeBajas correcciones={correcciones} inventarios={inventarios}
+                          onDeshacer={deshacerBaja} />
         </>
       )}
     </div>

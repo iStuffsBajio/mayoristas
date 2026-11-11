@@ -252,9 +252,11 @@ en la misma instancia de Lambda. Es una molestia para el atacante, no una
 defensa completa. La defensa real es que las contraseñas sean largas y estén
 hasheadas. Si hace falta algo serio, se mueve a DynamoDB.
 
-**La configuración del sitio no es de lectura pública.** Por eso el panel de
-administración guarda cambios que ningún visitante ve. Hay que dar lectura
-pública al prefijo `config/*` en la política del bucket.
+**La configuración del sitio es pública.** `config/site.json` contiene sólo
+las seis secciones que usa la página y el backend rechaza claves adicionales.
+La política del bucket permite leer ese archivo; no publiques ahí credenciales
+ni información privada. Esta descripción corresponde al endurecimiento
+registrado en [CLAUDE.md](CLAUDE.md) el 2026-11-07.
 
 **Para la tienda en línea.** Los datos de pago nunca deben pasar por este
 backend ni guardarse en el sitio. Se usa una pasarela como Mercado Pago, que

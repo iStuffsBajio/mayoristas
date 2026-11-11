@@ -26,7 +26,13 @@ import { TOLERANCIA_MIN, MINUTOS_PARA_RELEVO, HORARIOS, resumirSemana } from './
 // ── Los números que decidieron las ventas, no el código ──────────────────────
 
 test('los valores de negocio siguen siendo los acordados', () => {
-  assert.deepEqual(MESES_ALTA, [11, 12],            'temporada alta: noviembre y diciembre')
+  // Enero entró el 2026-11-05, por decisión del dueño y con la medición de los
+  // tickets detrás: es el SEGUNDO mes más fuerte -x1.19 a x1.49- y estaba
+  // cayendo en «temporada baja». Noviembre se queda aunque venda POCO, porque
+  // la cobertura compra días al ritmo de hoy y diciembre corre al doble: 60
+  // días comprados en noviembre aguantan 18 de diciembre en León. El porqué
+  // completo está en `surtido.js`, sobre la constante.
+  assert.deepEqual(MESES_ALTA, [1, 11, 12],         'temporada alta: enero, noviembre y diciembre')
   assert.deepEqual(COBERTURA, { baja: 30, alta: 60 })
   assert.deepEqual(MESES_COBERTURA, { normal: 2, alta: 3 })
   assert.equal(DIAS_PARA_DEPURAR, 90)

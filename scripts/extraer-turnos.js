@@ -53,6 +53,9 @@ const SUCURSALES = [
   { slug: 'san-luis',       nombre: 'San Luis Potosí', carpeta: 'SLP' },
   { slug: 'aguascalientes', nombre: 'Aguascalientes',  carpeta: 'ags' },
   { slug: 'ferias',         nombre: 'Ferias',          carpeta: 'ferias' },
+  // Torreón abre desde el 2026-11-11 para la nómina: Ángel de lunes a viernes y
+  // Ximena el fin de semana. Si su carpeta no responde, se omite como las demás.
+  { slug: 'torreon',        nombre: 'Torreón',         carpeta: 'TORREON' },
 ]
 
 const arg = n => process.argv.find(a => a.startsWith(`--${n}=`))?.split('=')[1]

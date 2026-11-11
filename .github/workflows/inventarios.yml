@@ -21,10 +21,32 @@ on:
     # recupera en la siguiente en vez de esperar al dia siguiente.
     # El minuto 17 evita la congestion del inicio de hora, que es justo lo
     # que provoca los retrasos.
+    #
+    # ── OJO: ESTO ES UTC, Y MEXICO VA SEIS HORAS DETRAS ─────────────────
+    #
+    # Para saber la hora de Mexico hay que RESTAR 6. Y eso cruza la
+    # medianoche: `17 0` no es «a las 00:17 de Mexico», es **las 18:17 del
+    # dia ANTERIOR**. Por eso un cron con dia de la semana puesto cae en el
+    # dia equivocado: pedir «domingo a las 18:17» con `17 0 * * 0` daria el
+    # SABADO por la tarde.
+    #
+    # Aqui no pasa porque todas son diarias, pero si alguna vez se pone un
+    # dia concreto, hay que correrlo uno hacia adelante.
+    - cron: '17 0 * * *'    # 18:17 del dia anterior en Mexico
     - cron: '17 3 * * *'    # 21:17 del dia anterior en Mexico, tras el cierre
     - cron: '17 9 * * *'    # 03:17, recoge lo que subio de madrugada
     - cron: '17 15 * * *'   # 09:17, antes de abrir
     - cron: '17 21 * * *'   # 15:17, media tarde
+    #
+    # La de las 18:17 la pidio el dueño el 2026-11-08: los domingos cierran
+    # antes y la venta del dia aparecia hasta las 21:17. Va TODOS los dias y
+    # no solo el domingo, que fue su decision: una corrida de mas no hace
+    # daño -si el respaldo no ha llegado, esa pasada no trae nada nuevo- y
+    # una corrida que solo existe un dia de la semana es la que nadie se
+    # acuerda de revisar cuando falla.
+    #
+    # NO sustituye a la de las 21:17: entre semana las tiendas suben su
+    # respaldo a partir de las 20:30, asi que a las 18:17 todavia no esta.
   workflow_dispatch:
     inputs:
       dry_run:
@@ -181,6 +203,40 @@ jobs:
       # veces seria tirar el doble de datos para leer dos tablas del mismo
       # archivo. Si falla, no tumba la sincronizacion de inventarios, que es
       # lo que de verdad no puede faltar.
+      - name: Extraer la venta linea por linea
+        if: ${{ inputs.dry_run != true }}
+        continue-on-error: true
+        env:
+          GBAK: fb-gbak
+          ISQL: fb-isql
+          FB_PREFIJO: ${{ env.PREFIJO_FB }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_APP_KEY:       ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET:    ${{ secrets.DROPBOX_APP_SECRET }}
+          S3_BUCKET:             ${{ secrets.S3_BUCKET }}
+          S3_REGION:             ${{ secrets.S3_REGION }}
+          S3_ACCESS_KEY:         ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY:         ${{ secrets.S3_SECRET_KEY }}
+        run: |
+          node scripts/extraer-ventas-linea.js --origen=dropbox 2>&1 | tee -a /tmp/diagnostico.txt
+
+      - name: Extraer el flujo de efectivo
+        if: ${{ inputs.dry_run != true }}
+        continue-on-error: true
+        env:
+          GBAK: fb-gbak
+          ISQL: fb-isql
+          FB_PREFIJO: ${{ env.PREFIJO_FB }}
+          DROPBOX_REFRESH_TOKEN: ${{ secrets.DROPBOX_REFRESH_TOKEN }}
+          DROPBOX_APP_KEY:       ${{ secrets.DROPBOX_APP_KEY }}
+          DROPBOX_APP_SECRET:    ${{ secrets.DROPBOX_APP_SECRET }}
+          S3_BUCKET:             ${{ secrets.S3_BUCKET }}
+          S3_REGION:             ${{ secrets.S3_REGION }}
+          S3_ACCESS_KEY:         ${{ secrets.S3_ACCESS_KEY }}
+          S3_SECRET_KEY:         ${{ secrets.S3_SECRET_KEY }}
+        run: |
+          node scripts/extraer-caja.mjs --origen=dropbox 2>&1 | tee -a /tmp/diagnostico.txt
+
       - name: Extraer turnos del personal
         if: ${{ inputs.dry_run != true }}
         continue-on-error: true
