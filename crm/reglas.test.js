@@ -865,3 +865,13 @@ test('las fotos se sirven por omisión de un dominio que sí contesta', () => {
   assert.equal(sitio, 'https://istuffsbajio.com')
   assert.doesNotMatch(sitio, /amplifyapp/)
 })
+
+test('las reglas permiten emojis pero con tope, no «nada de emojis»', async () => {
+  // El dueño los pidió el 2026-11-12: una atención menos plana. Lo que se
+  // fija es que haya tope y que no se vuelva a escribir la prohibición total.
+  const { REGLAS } = await import('./cerebro.js')
+  assert.doesNotMatch(REGLAS, /nada de emojis/i)
+  assert.match(REGLAS, /Emojis:/)
+  assert.match(REGLAS, /nunca más/i)
+  assert.match(REGLAS, /ninguno junto a un precio/i)
+})

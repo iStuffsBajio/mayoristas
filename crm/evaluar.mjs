@@ -280,7 +280,12 @@ function preciosPermitidos(historial) {
 
 function revisarGlobal({ texto, di, historial, palabras }) {
   const fallos = []
-  if (EMOJI.test(texto)) fallos.push('emoji')
+  // Los emojis se permiten (2026-11-12, a pedido del dueño: «una atención más
+  // moderna, no tan plana de texto»), pero con tope: más de dos, o dos pegados,
+  // ya se lee como anuncio y no como persona.
+  const emojis = texto.match(new RegExp(EMOJI.source, 'gu')) ?? []
+  if (emojis.length > 2) fallos.push(`demasiados emojis (${emojis.length})`)
+  if (new RegExp(EMOJI.source + '\\s*' + EMOJI.source, 'u').test(texto)) fallos.push('emojis pegados')
 
   // La jerga sólo cuenta si NO la dijo el cliente: si él escribe «tpu», repetirlo
   // es contestarle, no recitar el catálogo.
