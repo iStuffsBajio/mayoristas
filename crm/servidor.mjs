@@ -21,7 +21,7 @@ import { leerCarga } from './webhook.js'
 import { atender } from './atender.js'
 import { enMemoria } from './conversaciones.js'
 import { opcionesDePlaza } from './plazas.js'
-import { costoUsd } from './modelo.js'
+import { costoUsd, MODELO } from './modelo.js'
 
 const PUERTO = Number(process.env.CRM_PUERTO || 5174)
 const TELEFONO = '524771234567'
@@ -442,7 +442,10 @@ const servidor = http.createServer(async (req, res) => {
 
 servidor.listen(PUERTO, () => {
   const hayLlave = !!(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN)
-  console.log(`\n  Ventana del bot:  http://localhost:${PUERTO}\n`)
+  console.log(`\n  Ventana del bot:  http://localhost:${PUERTO}`)
+  // Es lo primero que se quiere saber cuando preocupa el costo, y el modelo se
+  // puede cambiar con una variable de entorno sin que nada en pantalla avise.
+  console.log(`  Modelo:           ${MODELO}\n`)
   console.log(hayLlave
     ? '  Llave de la API: puesta. Todo funciona.\n'
     : '  Llave de la API: NO puesta.\n' +

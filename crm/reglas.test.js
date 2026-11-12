@@ -795,3 +795,37 @@ test('«transparente» no encuentra las TPU de color', async () => {
   const codigos = r.hayPiezas.map(x => x.codigo).sort()
   assert.deepEqual(codigos, ['I11TC', 'I11TR'], 'la cristal y la que se llama transparente, y NO la morada')
 })
+
+// ── El modelo por omisión ──────────────────────────────────────────────────
+
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+
+const RAIZ = fileURLToPath(new URL('..', import.meta.url))
+
+/** Lee `MODELO` en un proceso aparte, con el entorno que se le diga. */
+function modeloCon(entorno) {
+  const env = { ...process.env }
+  delete env.CRM_MODELO
+  return execFileSync(
+    process.execPath,
+    ['--input-type=module', '-e', "import('./crm/modelo.js').then(m => console.log(m.MODELO))"],
+    { cwd: RAIZ, env: { ...env, ...entorno }, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+  ).trim()
+}
+
+test('el bot usa Haiku 5.5 por omisión', () => {
+  // Lo pidió el dueño: el más barato que pase las pruebas, y Haiku las pasa
+  // (`npm run crm:evaluar`). Sin esta prueba, cambiarlo por «uno mejor» no lo
+  // notaría nadie y el costo se multiplicaría por cuarenta sin que nada avisara.
+  // Se lee en un proceso aparte para que un CRM_MODELO puesto en el entorno de
+  // quien corre las pruebas no la falsee.
+  assert.equal(modeloCon({}), 'claude-haiku-5-5')
+})
+
+test('sólo CRM_MODELO cambia el modelo, y sólo a uno con precio', () => {
+  assert.equal(modeloCon({ CRM_MODELO: 'claude-sonnet-5-5' }), 'claude-sonnet-5-5')
+  // Un modelo sin precio en la tabla no arranca: el costo que enseñan las tres
+  // pantallas de prueba saldría falso, y con ese número se decide qué modelo usar.
+  assert.throws(() => modeloCon({ CRM_MODELO: 'claude-inventado-9' }), /tabla de precios/)
+})
