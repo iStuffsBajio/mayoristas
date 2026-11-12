@@ -108,7 +108,16 @@ export function conAnuncio(c, anuncio) {
 
 // ── Las implementaciones ────────────────────────────────────────────────────
 
-function conMetodos(leerCrudo, escribirCrudo) {
+/**
+ * Los cuatro métodos del almacén, sobre un leer y un escribir crudos.
+ *
+ * Se exporta desde el 2026-11-11 para que el almacén de S3 (`almacen-s3.js`)
+ * salga de aquí mismo en vez de copiar `yaAtendido` y `olvidarMensaje`: son
+ * las dos funciones que ya costaron un «el cliente no recibe nada nunca», y
+ * una segunda copia es una segunda oportunidad de romperlas.
+ */
+
+export function conMetodos(leerCrudo, escribirCrudo) {
   return {
     /** La conversación de un teléfono. Si caducó, devuelve una nueva. */
     async obtener(telefono, opts) {
