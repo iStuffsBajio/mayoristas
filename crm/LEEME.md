@@ -677,3 +677,34 @@ El proyecto vive dentro de OneDrive y eso ya causó dos problemas reales:
 
 Conviene excluir `node_modules/` de la sincronización, y si vuelve a aparecer un
 archivo con `-DESKTOP-` en el nombre, **ésa es la versión nueva**, no la otra.
+
+---
+
+## Los datos de cada tienda y los emojis (2026-11-12)
+
+Lo pidió el dueño tras probar el bot: preguntó el domicilio y el bot no tenía con
+qué contestar, porque el sistema sólo conocía el NOMBRE de cada sucursal.
+
+**`sucursales-info.js`** guarda lo que el bot dice de cada tienda: domicilio,
+enlace de mapa y horario. La herramienta `datos_de_sucursal` lo entrega.
+
+- **Lo que no está, no se dice.** Un campo `null` es «no se sabe». El bot dice
+  que la tienda se lo confirma: una hora inventada manda a alguien a una puerta
+  cerrada. Hay escenarios en el evaluador que fallan si el bot da una hora.
+- **Toda plaza del bot tiene que estar en la lista**, aunque sea con `null`; hay
+  prueba. Añadir una tienda obliga a decidir qué se dice de ella.
+- **El enlace de mapa va limpio.** Se usa el `cid` de Google
+  (`https://www.google.com/maps?cid=…`), que sale del enlace largo: la parte
+  hexadecimal tras los dos puntos de `!1s0x…:0x…`, pasada a decimal. El enlace
+  copiado de Google Maps trae rastreadores (`entry=ttu&g_ep=…`).
+- **Hoy sólo León tiene datos.** San Luis, Aguascalientes y Torreón esperan el
+  enlace, el domicilio y el horario que pase el dueño. León no tiene horario.
+
+**Emojis.** Permitidos con tope: uno o dos por mensaje, al saludar, celebrar o
+despedir; ninguno junto a un precio ni en una lista. El evaluador castiga más de
+dos o dos pegados, no la presencia. El mensaje del lead que va a la tienda sigue
+SIN emojis (se rompen al pasar por la URL del enlace de wa.me).
+
+**El evaluador quita los enlaces del texto** antes de revisar cantidades y
+precios (un «%20pz» de una dirección contaba como cantidad). Para comprobar un
+enlace hay `debeCrudo`, que mira el texto tal cual salió.

@@ -875,3 +875,43 @@ test('las reglas permiten emojis pero con tope, no «nada de emojis»', async ()
   assert.match(REGLAS, /nunca más/i)
   assert.match(REGLAS, /ninguno junto a un precio/i)
 })
+
+// ── Los datos de cada tienda ────────────────────────────────────────────────
+
+import { INFO, datosDeSucursal } from './sucursales-info.js'
+
+test('toda plaza del bot está en la lista de datos, aunque sea sin datos todavía', () => {
+  // Añadir una tienda obliga a decidir qué se dice de ella; si no, el bot
+  // contestaría «no tengo datos» de una tienda nueva sin que nadie lo notara.
+  for (const p of PLAZAS_DEL_BOT) {
+    assert.ok(p.slug in INFO, `${p.slug} no está en sucursales-info.js`)
+  }
+})
+
+test('León tiene domicilio y un enlace de mapa limpio, sin rastreadores', () => {
+  const d = datosDeSucursal({ plaza: 'leon' })
+  assert.match(d.domicilio, /5 de Mayo 216/)
+  assert.match(d.domicilio, /37000/)
+  assert.match(d.mapa, /^https:\/\/www\.google\.com\/maps\?cid=\d+$/)
+  assert.doesNotMatch(d.mapa, /entry=|g_ep=|data=/)
+})
+
+test('lo que no se sabe NO se rellena: sin horario, la herramienta lo dice', () => {
+  const d = datosDeSucursal({ plaza: 'leon' })
+  assert.equal('horario' in d, false, 'no hay campo horario inventado')
+  assert.match(d.nota, /horario/)
+  assert.match(d.nota, /no lo inventes/i)
+})
+
+test('una tienda sin datos devuelve un error que manda a la tienda, no un hueco', () => {
+  for (const plaza of ['san-luis', 'aguascalientes', 'torreon', 'no-existe', undefined]) {
+    const d = datosDeSucursal({ plaza })
+    assert.equal(d.error, 'sin-datos', String(plaza))
+    assert.match(d.nota, /no los inventes/i)
+  }
+})
+
+test('el bot tiene la herramienta y la regla de no inventar horarios', () => {
+  assert.match(REGLAS, /datos_de_sucursal/)
+  assert.match(REGLAS, /NO lo inventes/)
+})

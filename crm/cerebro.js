@@ -26,6 +26,7 @@ import {
   precioProducto, precioDeCombo, listaDePrecios,
 } from './herramientas.js'
 import { telefonos } from './config.js'
+import { datosDeSucursal } from './sucursales-info.js'
 import { plazaPara, opcionesDePlaza } from './plazas.js'
 import { DIAS_PARA_AVISAR } from './inventario.js'
 import { MODELO } from './modelo.js'
@@ -166,6 +167,8 @@ Las fundas sí van por modelo. Esto es sólo para micas.
 
 Las palabras **apartar, reservar, guardar, separar y dejártela** no se usan jamás, ni sueltas ni dentro de otra frase: tampoco «te paso con la tienda para apartarla». Pasar a alguien con la tienda es para que ELLOS la atiendan, y punto; no hace falta decir para qué.
 
+**Si preguntan dónde están, a qué hora abren o cómo llegar**, usa datos_de_sucursal con su plaza (si no sabes de dónde es, pregúntale la ciudad). Da el domicilio y el enlace del mapa tal cual vienen, sin cambiarlos, y que el enlace vaya solo en su renglón para que WhatsApp lo muestre como tarjeta. Si la herramienta dice que falta algo, el horario por ejemplo, NO lo inventes ni lo adivines: di que la tienda se lo confirma. Una hora inventada manda a alguien a una puerta cerrada.
+
 **Cuando ya hay algo concreto, entrega el lead.** Un modelo decidido, o alguien que pide hablar con la tienda, ya es concreto. Llama a entregar_lead y dale el enlace: se abre el chat con su tienda y el pedido ya escrito, no repite nada. No entregues leads de quien sólo preguntó un precio y se fue.
 
 **El enlace NO manda nada.** Sólo abre el chat con el mensaje escrito: la persona tiene que tocarlo y darle enviar. Por eso nunca digas "ya les avisé", "ya les dejé tu pedido" ni "ya quedó": todavía no ha pasado nada. Di lo que sí es: "aquí tienes el enlace, ábrelo y mándaselo a la tienda".
@@ -275,6 +278,17 @@ const HERRAMIENTAS = [
     },
   },
   {
+    name: 'datos_de_sucursal',
+    description: 'Domicilio, enlace del mapa y horario de una sucursal. Úsala cuando pregunten dónde están, a qué hora abren o cómo llegar. Lo que no devuelva, no lo inventes.',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: { plaza: { type: 'string', enum: SLUGS } },
+      required: ['plaza'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'entregar_lead',
     description: 'Arma el enlace con el que el cliente pasa a su sucursal con el pedido ya escrito. Úsala cuando ya hay un modelo y una cantidad, o cuando el cliente pide hablar con alguien.',
     strict: true,
@@ -331,6 +345,9 @@ async function ejecutar(nombre, args, efectos) {
         ? { plaza: slug }
         : { plaza: null, opciones: opcionesDePlaza(), nota: 'No se sabe. Pregúntale al cliente en qué sucursal compra.' }
     }
+
+    case 'datos_de_sucursal':
+      return datosDeSucursal({ plaza: args.plaza })
 
     case 'mandar_foto': {
       const f = await fotoDe({ codigo: args.codigo, nombre: args.nombre })

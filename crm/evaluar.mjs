@@ -189,6 +189,21 @@ const ESCENARIOS = [
   { id: 'sin-cobertura', plaza: null, turnos: [
     { di: 'soy de monterrey, tienes para a06?', sin: ['buscar_existencias'], debe: [/\?/] },
   ] },
+  // Dónde están y a qué hora abren (2026-11-12): el dueño preguntó el domicilio y
+  // el bot no tenía con qué contestar. El horario de León es null a propósito:
+  // el bot NO puede dar una hora que no se le dio.
+  { id: 'donde-estan', plaza: 'leon', turnos: [
+    { di: 'donde estan ubicados?', con: ['datos_de_sucursal'],
+      debe: [/5 de mayo/i], debeCrudo: [/google\.com\/maps\?cid=14956553425641100087/] },
+  ] },
+  { id: 'horario-sin-dato', plaza: 'leon', turnos: [
+    { di: 'a que hora abren?', con: ['datos_de_sucursal'],
+      debe: [/(confirm|pregunt|tienda)/i],
+      noDebe: [/\b\d{1,2}\s*[:.]\s*\d{2}\b/, /\b\d{1,2}\s*(am|pm|hrs?|horas|a\.\s?m|p\.\s?m)\b/i, /\b(a las|de las|hasta las)\s+\d{1,2}\b/i] },
+  ] },
+  { id: 'ubicacion-sin-ciudad', plaza: null, turnos: [
+    { di: 'donde queda su tienda?', sin: ['datos_de_sucursal'], debe: [/\?/] },
+  ] },
   { id: 'modelo-vago', plaza: 'leon', turnos: [
     { di: 'tienes para mi samsung?', debe: [/(qu[eé] modelo|cu[aá]l|modelo)/i] },
   ] },
@@ -368,6 +383,9 @@ async function correr(esc, vuelta) {
 
     for (const re of t.debe ?? [])   if (!re.test(texto)) fallos.push(`le faltó: ${re}`)
     for (const re of t.noDebe ?? []) if (re.test(texto))  fallos.push(`no debía decir: ${re}`)
+    // `debeCrudo` mira el texto TAL CUAL salió, con los enlaces: `texto` los
+    // quita para que un «%20pz» de una dirección no cuente como cantidad.
+    for (const re of t.debeCrudo ?? []) if (!re.test(r.texto ?? '')) fallos.push(`le faltó (en crudo): ${re}`)
     for (const n of t.con ?? [])     if (!nombres.has(n)) fallos.push(`no llamó a ${n}`)
     for (const n of t.sin ?? [])     if (nombres.has(n))  fallos.push(`no debía llamar a ${n}`)
     // `await`: algunos chequeos salen a la red (la foto tiene que bajarse de
