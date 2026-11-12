@@ -148,6 +148,8 @@ const COMO_SE_LE_DICE = {
 }
 
 /** Lo que del nombre describe la FUNDA y no el teléfono. Se quita. */
+const COLOR = /\b(NEGRO|BLANCO|AZUL|ROJO|ROSA|VERDE|MORADO|SALMON|AMARILLO|GRIS|LILA|MENTA|BEIGE|CAFE|NARANJA|DORADO|PLATA)\b/i
+
 const PALABRAS_DE_CATALOGO =
   /\b(TPU|HARD|DUO|SMART|CASE2|CASE|3 ?EN ?1|3 ?IN ?1|CRISTAL|GLASS|MILITAR|TRANSPARENTE|FUNDA|PROTECTOR|USO RUDO|ARMOR|CLEAR|MICA|H[IO]DR[IO]{1,2}GEL)\b/gi
 
@@ -168,7 +170,20 @@ export function nombreParaCliente(codigo, producto) {
   // Alta», «Privacidad»— y pegarlo detrás de «para» inventa un modelo.
   if (esMica(tipo)) return como
 
+  // El color es lo ÚNICO que distingue dos códigos del mismo teléfono y mismo
+  // tipo, y quien compra pregunta por él. Antes se quedaba pegado al teléfono
+  // —«para iPhone 11 Azul»— o, en las transparentes, se tiraba con la jerga.
+  // «Funda» es femenino: morado → morada. Los que no cambian (azul, rosa, verde,
+  // gris, lila, menta, beige, café, naranja, plata, salmón) se dejan como están.
+  const FEMENINO = { NEGRO: 'negra', BLANCO: 'blanca', ROJO: 'roja', MORADO: 'morada', AMARILLO: 'amarilla', DORADO: 'dorada' }
+  const crudo = String(producto ?? '').toUpperCase().match(COLOR)?.[1]
+  const color = crudo ? (FEMENINO[crudo] ?? crudo.toLowerCase()) : null
+  const transparente = /\bTRANSPARENTE\b/i.test(producto)
+  const adjetivo = tipo === 'tpu-cristal' ? '' : (color ?? (transparente ? 'transparente' : ''))
+
   const telefono = String(producto ?? '')
+    .replace(COLOR, ' ')
+    .replace(/\bTRANSPARENTE\b/gi, ' ')
     .replace(PALABRAS_DE_CATALOGO, ' ')
     .replace(/\s{2,}/g, ' ')
     .trim()
@@ -180,7 +195,8 @@ export function nombreParaCliente(codigo, producto) {
     // La marca se escribe como la escribe la marca.
     .replace(/\bIphone\b/g, 'iPhone')
 
-  return telefono ? `${como} para ${telefono}` : como
+  const conAdjetivo = adjetivo ? `${como} ${adjetivo}` : como
+  return telefono ? `${conAdjetivo} para ${telefono}` : conAdjetivo
 }
 
 /**
@@ -260,7 +276,11 @@ function aliasDe(p) {
   // MILITAR no va con uso rudo: los «MILITAR TPU CASE» son TPU y valen 250.
   const tipo = tipoDe(p.Codigo, n)
   if (tipo === 'uso-rudo') extra.push('USO RUDO 3 EN 1')
-  if (tipo === 'tpu')      extra.push('TRANSPARENTE SILICON')
+  // «Transparente» se busca por lo que el catálogo ya dice: de 544 TPU sólo 10 se
+  // llaman TRANSPARENTE y 36 llevan color. Ponerle el alias a todas —lo que se
+  // hizo primero— hacía que quien pedía una transparente recibiera una morada.
+  // El tipo «cristal» sí es claro por definición.
+  if (tipo === 'tpu-cristal') extra.push('TRANSPARENTE CLARA')
 
   return extra.join(' ')
 }

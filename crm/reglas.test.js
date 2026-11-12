@@ -473,8 +473,12 @@ test('se encuentra por tipo, como pregunta la gente', async () => {
   assert.ok(rudo.totalHallados >= 1, '«uso rudo» debe encontrar los 3 en 1')
   assert.equal(rudo.hayPiezas[0].tipo, 'Uso rudo 3 en 1')
 
+  // Esta prueba afirmaba antes que «transparente a06» encontraba la TPU, «porque
+  // los TPU son los transparentes». Era una suposición sin datos: de 544 TPU
+  // del catálogo real sólo 10 se llaman transparentes y 36 llevan color, así
+  // que se la daba a quien no la pedía. La TPU normal NO es «transparente».
   const transp = await buscarEnPlaza({ plaza: 'leon', texto: 'transparente a06' })
-  assert.equal(transp.totalHallados, 1, 'los TPU son los transparentes')
+  assert.equal(transp.totalHallados, 0, 'la TPU normal no es una transparente')
 })
 
 // ── La foto prestada se declara ────────────────────────────────────────────
@@ -748,4 +752,46 @@ test('el pie de una foto prestada sigue avisando', async () => {
   // es la foto, no que suene bonito.
   const f = await fotoDe({ codigo: 'SGS26UT', nombre: 'SAMSUNG S26 ULTRA TPU CASE' })
   if (f && !f.exacta) assert.match(f.pie, /^Foto de referencia: es del /)
+})
+
+// ── El color y «transparente» no se pierden ni se regalan ─────────────────
+
+test('el color se dice como adjetivo de la funda, no pegado al teléfono', () => {
+  // Antes salía «Funda de goma flexible para iPhone 11 Azul», que parece un
+  // modelo de teléfono llamado «11 Azul».
+  assert.equal(nombreParaCliente('I11AZ', 'IPHONE 11 AZUL TPU CASE'),
+    'Funda de goma flexible azul para iPhone 11')
+})
+
+test('el color concuerda con «funda», que es femenino', () => {
+  assert.match(nombreParaCliente('a', 'IPHONE 11 MORADO TPU CASE'), /morada/)
+  assert.match(nombreParaCliente('b', 'IPHONE 11 NEGRO TPU CASE'),  /negra/)
+  assert.match(nombreParaCliente('c', 'IPHONE 11 BLANCO TPU CASE'), /blanca/)
+  // Los invariables se dejan como están.
+  assert.match(nombreParaCliente('d', 'IPHONE 11 AZUL TPU CASE'), /azul/)
+})
+
+test('una TPU «transparente» lo dice, y una cristal no lo repite', () => {
+  assert.equal(nombreParaCliente('I11T', 'IPHONE 11 TRANSPARENTE TPU CASE'),
+    'Funda de goma flexible transparente para iPhone 11')
+  // «Funda transparente» ya es el nombre del tipo cristal: no «transparente transparente».
+  assert.equal(nombreParaCliente('I11TC', 'IPHONE 11 TPU CRISTAL'), 'Funda transparente para iPhone 11')
+})
+
+test('«transparente» no encuentra las TPU de color', async () => {
+  // De 544 TPU del catálogo real sólo 10 se llaman TRANSPARENTE y 36 llevan
+  // color. El alias que se puso primero —TRANSPARENTE a todas las TPU— hacía
+  // que quien pedía una transparente recibiera una morada.
+  olvidar()
+  sembrar('leon', {
+    nombre: 'León', corte: '2026-11-10', dias: 1, viejo: false,
+    productos: [
+      producto('I11TR', 'IPHONE 11 TRANSPARENTE TPU CASE', 3),
+      producto('I11MO', 'IPHONE 11 MORADO TPU CASE', 2),
+      producto('I11TC', 'IPHONE 11 TPU CRISTAL', 5),
+    ],
+  })
+  const r = await buscarEnPlaza({ plaza: 'leon', texto: 'iphone 11 transparente' })
+  const codigos = r.hayPiezas.map(x => x.codigo).sort()
+  assert.deepEqual(codigos, ['I11TC', 'I11TR'], 'la cristal y la que se llama transparente, y NO la morada')
 })

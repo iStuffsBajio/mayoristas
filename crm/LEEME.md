@@ -27,7 +27,8 @@ crm/
   servidor.mjs      la ventana en el navegador
   probar.mjs        hablar con el cerebro directo
   simular.mjs       cargas de Meta por el camino completo
-  *.test.js         117 pruebas que fijan todo lo anterior
+  evaluar.mjs       mide a un modelo contra 29 escenarios, con inventario sembrado
+  *.test.js         143 pruebas que fijan todo lo anterior
 ```
 
 **A quién le habla.** La publicidad va casi toda a público: quien escribe quiere
@@ -59,7 +60,7 @@ chat.
 Los mensajes que **no gastan modelo** (audio, foto, ubicación) funcionan sin
 llave de la API. Para los de texto hace falta `ANTHROPIC_API_KEY`.
 
-### Los cuatro niveles miden cosas distintas, y los cuatro hacen falta
+### Los cinco niveles miden cosas distintas, y los cinco hacen falta
 
 | | Qué comprueba | Necesita API |
 |---|---|---|
@@ -67,6 +68,7 @@ llave de la API. Para los de texto hace falta `ANTHROPIC_API_KEY`.
 | `npm run crm -- --guion` | que el **modelo las obedece** | sí |
 | `npm run crm:simular` | que la **fontanería** funciona | sólo los que piensan |
 | `npm run crm:web` | cómo **queda** la conversación en un teléfono | sólo los que piensan |
+| `npm run crm:evaluar` | cuántas veces el modelo **obedece**, medido sobre 29 escenarios | sí, ~$0.04 por corrida |
 
 El tercero atrapa lo que los dos primeros no ven: el descarte de repetidos, la
 plaza que sale del anuncio, el historial que se guarda. De ahí salió el fallo
@@ -269,12 +271,58 @@ tiene que cumplir con un inventario de ayer.
 ## El modelo y lo que cuesta
 
 `claude-haiku-5-5` con `effort: 'low'`, desde el 2026-11-11: al dueño le pareció
-caro Opus para un chat de cuatro renglones, y Haiku cuesta unas cuarenta veces
-menos por token. El modelo y su precio viven en `modelo.js`, y las tres pantallas
-de prueba calculan el costo de ahí: con el precio copiado a mano, cambiar de
-modelo las dejaba diciendo un costo falso. Para comparar sin tocar código:
-`CRM_MODELO=claude-opus-5-5 npm run crm:web`. **Falta medir con la llave** que
-Haiku no invente precios ni existencias: si falla ahí, se sube a Sonnet 5.5.
+caro Opus para un chat de cuatro renglones, y Haiku cuesta **cuarenta veces
+menos** por token. El modelo y su precio viven en `modelo.js`, y las tres
+pantallas de prueba calculan el costo de ahí. Para comparar sin tocar código:
+`CRM_MODELO=claude-sonnet-5-5 npm run crm:evaluar`.
+
+### Medido con la llave, el 2026-11-11
+
+`npm run crm:evaluar` pone a un modelo frente a 29 escenarios con inventario
+sembrado y comprueba lo que se puede decidir con una regla. Haiku, 3 pasadas por
+escenario, con el prompt definitivo:
+
+| | respuestas sin fallo |
+|---|---|
+| Escenarios que se fueron afinando mirando sus fallos (21) | 63/63 · 100% |
+| **Escenarios reservados, que el prompt nunca vio (8)** | 21/24 · 88% |
+| Total | 108/111 · 97% |
+
+Dos de los tres fallos de los reservados eran un falso positivo del evaluador
+—Haiku dijo «no puedo apartar nada», que es lo correcto— y se corrigió el
+evaluador; el tercero es de estilo, 57 palabras donde el tope es 50. Sobre las
+111 respuestas guardadas, **ninguna ofrece apartar**, ninguna inventa un precio y
+ninguna da una cantidad de inventario.
+
+**Cuesta unas 0.4 milésimas de dólar por respuesta**: toda la evaluación, 111
+respuestas, salió en $0.04 USD. Una conversación de 8 turnos ronda los $0.003.
+
+**El número que importa es el de los reservados, no el de los afinados.** Un
+prompt ajustado a sus propios escenarios los pasa por construcción; pasar los que
+no ha visto es lo que se parece a lo que pasará de verdad. Con tres pasadas por
+escenario, 24 respuestas dan un margen de error grande: léase «entre 85% y 100%»,
+no «88%».
+
+### Tres cosas que midiéndolo salieron mal, y por qué
+
+- **Un ejemplo de lo que NO hacer lo copiaba el modelo.** El prompt decía «no
+  ofrezcas dos cosas a la vez, como *¿te la aparto o te paso con la tienda?*», y
+  Haiku ofrecía apartar en 11 de 63 respuestas, cuando el bot no puede apartar
+  nada. Al quitar el ejemplo malo y decir una vez, arriba, qué SÍ se puede
+  proponer, bajó a cero. Un ejemplo marcado como malo sigue siendo un ejemplo.
+- **Nombrar las palabras prohibidas las induce.** Al listar «apartar, reservar…»
+  Haiku empezó a decir «no puedo apartar nada»: correcto, pero la palabra
+  apareció. Es el precio de prohibir por escrito; el evaluador distingue ofrecer
+  de negarse a ofrecer.
+- **Leer las respuestas encontró lo que ninguna expresión vio.** «Ya les dejé tu
+  pedido»: falso, el enlace no manda nada hasta que la persona lo toca. Salió en 1
+  de 195 respuestas. Un evaluador automático no sustituye leer.
+
+### Cuándo volver a correrlo
+
+Cada vez que cambie **el prompt** (`REGLAS` en `cerebro.js`), **el modelo**, o una
+**herramienta** que le devuelva datos distintos. Un cambio de una frase en el
+prompt movió resultados en esta misma sesión.
 
 Las reglas van en un bloque de sistema con `cache_control`, y lo que cambia en
 cada mensaje —la fecha de hoy, la plaza ya conocida— va **después** del corte. Al
