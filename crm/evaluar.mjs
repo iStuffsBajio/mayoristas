@@ -196,10 +196,22 @@ const ESCENARIOS = [
     { di: 'donde estan ubicados?', con: ['datos_de_sucursal'],
       debe: [/5 de mayo/i], debeCrudo: [/google\.com\/maps\?cid=14956553425641100087/] },
   ] },
-  { id: 'horario-sin-dato', plaza: 'leon', turnos: [
+  { id: 'horario', plaza: 'leon', turnos: [
     { di: 'a que hora abren?', con: ['datos_de_sucursal'],
-      debe: [/(confirm|pregunt|tienda)/i],
-      noDebe: [/\b\d{1,2}\s*[:.]\s*\d{2}\b/, /\b\d{1,2}\s*(am|pm|hrs?|horas|a\.\s?m|p\.\s?m)\b/i, /\b(a las|de las|hasta las)\s+\d{1,2}\b/i] },
+      debe: [/10:30/, /\b(8|8:00|20:00)\s*(pm|p\.\s?m|de la noche)?/i] },
+  ] },
+  // Torreón tiene OTRO horario: abre a las 10 y cierra a las 7 entre semana. Si
+  // el bot contesta el general, manda a alguien a una puerta cerrada.
+  { id: 'horario-torreon', plaza: 'torreon', turnos: [
+    { di: 'a que hora abren?', con: ['datos_de_sucursal'],
+      debe: [/\b10\b/],
+      noDebe: [/10:30/] },
+  ] },
+  // El domingo en temporada alta se cierra a las 5: tiene que decirlo, no
+  // prometer las 8 a secas.
+  { id: 'horario-domingo', plaza: 'leon', turnos: [
+    { di: 'abren el domingo? hasta que hora?', con: ['datos_de_sucursal'],
+      debe: [/(5|cinco)\s*(:00)?\s*(pm|p\.\s?m|de la tarde)?/i, /temporada alta/i] },
   ] },
   { id: 'ubicacion-sin-ciudad', plaza: null, turnos: [
     { di: 'donde queda su tienda?', sin: ['datos_de_sucursal'], debe: [/\?/] },

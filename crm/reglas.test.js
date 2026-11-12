@@ -897,14 +897,53 @@ test('León tiene domicilio y un enlace de mapa limpio, sin rastreadores', () =>
 })
 
 test('lo que no se sabe NO se rellena: sin horario, la herramienta lo dice', () => {
-  const d = datosDeSucursal({ plaza: 'leon' })
+  // Una tienda de mentira: las cuatro reales ya tienen horario, y esta regla
+  // tiene que seguir valiendo el día que se añada una sin él.
+  const info = { x: { domicilio: 'Calle 1', mapa: null, horario: null } }
+  const d = datosDeSucursal({ plaza: 'x', info })
+  assert.equal(d.domicilio, 'Calle 1')
   assert.equal('horario' in d, false, 'no hay campo horario inventado')
-  assert.match(d.nota, /horario/)
+  assert.equal('mapa' in d, false, 'no hay mapa inventado')
+  assert.match(d.nota, /horario ni mapa|mapa ni horario/)
   assert.match(d.nota, /no lo inventes/i)
 })
 
-test('una tienda sin datos devuelve un error que manda a la tienda, no un hueco', () => {
-  for (const plaza of ['san-luis', 'aguascalientes', 'torreon', 'no-existe', undefined]) {
+test('las cuatro tiendas tienen domicilio, mapa y horario, como se dictó', () => {
+  for (const p of PLAZAS_DEL_BOT) {
+    const d = datosDeSucursal({ plaza: p.slug })
+    assert.equal(d.error, undefined, p.slug)
+    assert.ok(d.domicilio && d.mapa && d.horario, `${p.slug} está incompleta`)
+    assert.equal(d.nota, undefined, `${p.slug} no debería traer aviso de faltantes`)
+    assert.match(d.mapa, /^https:\/\/www\.google\.com\/maps/)
+    assert.doesNotMatch(d.mapa, /entry=|g_ep=|data=/)
+  }
+})
+
+test('los horarios dicen lo que dictó el dueño', () => {
+  for (const slug of ['leon', 'san-luis', 'aguascalientes']) {
+    const h = datosDeSucursal({ plaza: slug }).horario
+    assert.match(h, /10:30 am a 8:00 pm/, slug)
+    assert.match(h, /domingos en temporada alta cerramos a las 5:00 pm/, slug)
+    assert.match(h, /Navidad y Reyes/, slug)
+  }
+  const t = datosDeSucursal({ plaza: 'torreon' }).horario
+  assert.match(t, /lunes a jueves de 10:00 am a 7:00 pm/)
+  assert.match(t, /viernes a domingo de 10:00 am a 7:30 pm/)
+})
+
+test('los enlaces de mapa de cada tienda son distintos entre sí', () => {
+  const enlaces = PLAZAS_DEL_BOT.map(p => datosDeSucursal({ plaza: p.slug }).mapa)
+  assert.equal(new Set(enlaces).size, enlaces.length)
+})
+
+test('Torreón usa una búsqueda por dirección porque no tiene ficha en Google', () => {
+  const m = datosDeSucursal({ plaza: 'torreon' }).mapa
+  assert.match(m, /maps\/search\/\?api=1&query=/)
+  assert.match(decodeURIComponent(m), /Hidalgo 1334/)
+})
+
+test('una tienda que no existe devuelve un error que manda a la tienda, no un hueco', () => {
+  for (const plaza of ['bodega', 'ferias', 'no-existe', undefined]) {
     const d = datosDeSucursal({ plaza })
     assert.equal(d.error, 'sin-datos', String(plaza))
     assert.match(d.nota, /no los inventes/i)
