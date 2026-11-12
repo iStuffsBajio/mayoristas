@@ -1,0 +1,26 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "FichasYConversacionesSoloBajoCrm",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": "arn:aws:s3:::istuffs-inventarios/crm/*"
+    },
+    {
+      "Sid": "LeerYBorrarDeSuCola",
+      "Effect": "Allow",
+      "Action": ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"],
+      "Resource": "arn:aws:sqs:REGION:CUENTA:istuffs-crm-mensajes.fifo"
+    },
+    {
+      "Sid": "SuRegistro",
+      "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"],
+      "Resource": [
+        "arn:aws:logs:REGION:CUENTA:log-group:/aws/lambda/istuffs-crm-trabajador",
+        "arn:aws:logs:REGION:CUENTA:log-group:/aws/lambda/istuffs-crm-trabajador:*"
+      ]
+    }
+  ]
+}

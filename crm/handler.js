@@ -21,76 +21,13 @@
 // archivo: SQS es la obvia en AWS, y para correr en una sola máquina vale
 // `colaEnMemoria()`.
 
-import { verificarEnganche, firmaValida, leerCarga } from './webhook.js'
 import { atenderCarga } from './atender.js'
 
-/** Lo que `recibir` devuelve, listo para una Lambda con URL o un API Gateway. */
-const respuesta = (codigo, cuerpo, tipo = 'application/json') => ({
-  statusCode: codigo,
-  headers: { 'Content-Type': tipo, 'Cache-Control': 'no-store' },
-  body: typeof cuerpo === 'string' ? cuerpo : JSON.stringify(cuerpo),
-})
-
-/**
- * El extremo que habla con Meta. Tiene que ser rápido y nada más.
- *
- * `evento` es el de una Lambda con URL de función: `rawPath`, `rawQueryString`,
- * `headers`, `body` y `isBase64Encoded`.
- *
- * **El cuerpo se usa crudo.** Volver a serializar el JSON antes de validar la
- * firma la rompe, porque cambia los bytes sin cambiar los datos. Es el fallo
- * clásico de este endpoint y no da ninguna pista.
- */
-export async function recibir(evento, { encolar } = {}) {
-  const metodo = evento?.requestContext?.http?.method ?? evento?.httpMethod ?? 'GET'
-
-  // El enganche: Meta llama una vez con GET y espera el challenge en texto
-  // plano, sin JSON alrededor, o no acepta el endpoint.
-  if (metodo === 'GET') {
-    const q = evento?.queryStringParameters ?? {}
-    const r = verificarEnganche(q)
-    return r.ok
-      ? respuesta(200, r.challenge, 'text/plain')
-      : respuesta(403, { error: 'verificacion', motivo: r.motivo })
-  }
-
-  if (metodo !== 'POST') return respuesta(405, { error: 'metodo' })
-
-  const crudo = evento?.isBase64Encoded
-    ? Buffer.from(evento.body ?? '', 'base64')
-    : (evento?.body ?? '')
-
-  const firma = evento?.headers?.['x-hub-signature-256']
-            ?? evento?.headers?.['X-Hub-Signature-256']
-
-  // Sin firma válida no se procesa nada: quien conozca la URL podría inyectar
-  // conversaciones y hacer que el bot le escriba a números ajenos.
-  if (!firmaValida(crudo, firma)) return respuesta(401, { error: 'firma' })
-
-  let carga
-  try {
-    carga = JSON.parse(crudo.toString('utf8'))
-  } catch {
-    // Un cuerpo ilegible se acusa con 200 igual: devolver un error hace que
-    // Meta reintente para siempre algo que nunca va a poder leerse.
-    return respuesta(200, { ok: true, ignorado: 'json' })
-  }
-
-  const { mensajes, estados } = leerCarga(carga)
-
-  if (mensajes.length && encolar) {
-    try {
-      await encolar(mensajes)
-    } catch (err) {
-      // Si la cola falla, SÍ conviene el error: Meta reintenta y el mensaje no
-      // se pierde. Es el único caso donde reintentar es lo que queremos.
-      console.error('No se pudo encolar', err)
-      return respuesta(500, { error: 'cola' })
-    }
-  }
-
-  return respuesta(200, { ok: true, mensajes: mensajes.length, estados: estados.length })
-}
+// `recibir()` se mudó a `backend/src/meta-webhook.js` el 2026-11-11: la ruta
+// `/meta/webhook` vive en la Lambda del backend, que no puede importar de
+// `crm/`. Se reexporta para que quien ya lo importaba de aquí —el servidor
+// local, el simulador, las pruebas— no note la mudanza.
+export { recibir } from '../backend/src/meta-webhook.js'
 
 /**
  * El extremo que piensa. Corre en otra invocación, sin prisa.

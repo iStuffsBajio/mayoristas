@@ -85,6 +85,14 @@ function Renglon({ c, activo, onAbrir, verPlaza }) {
         <Etiqueta estado={c.estado} />
         {c.tipo === 'mayorista' && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#6D28D9' }}>Mayorista</span>}
         {verPlaza && <span style={{ fontSize: 11, color: '#4A5A61' }}>{c.plaza ? nombreSucursal(c.plaza) : 'Sin plaza'}</span>}
+        {/* A éste NADIE le contestó: el bot falló y el mensaje se quedó sin
+            respuesta. Va en rojo y no en ámbar a propósito: «pendiente» es
+            alguien a quien ya se le dijo que lo atienden; esto es silencio. */}
+        {c.sinRespuesta && (
+          <span data-sin-respuesta style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: '#B91C1C', borderRadius: 999, padding: '0 7px' }}>
+            Sin respuesta
+          </span>
+        )}
         {c.noLeidos > 0 && (
           <span data-no-leidos={c.noLeidos} style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: '#B45309', borderRadius: 999, padding: '0 7px' }}>
             {c.noLeidos} sin leer
@@ -146,6 +154,14 @@ function Ficha({ cliente: c, token, esAdmin, onCambio, onCerrar }) {
       <p style={{ fontSize: 12, color: '#4A5A61', margin: '0 0 10px' }}>
         <Etiqueta estado={c.estado} /> {e.nota}{c.atiende ? ` · la tiene ${quienDijo(c.atiende)}` : ''}
       </p>
+
+      {c.sinRespuesta && (
+        <p data-ficha-sin-respuesta role="alert"
+           style={{ fontSize: 12.5, color: '#7F1D1D', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '8px 10px', margin: '0 0 10px' }}>
+          <strong>Nadie le ha contestado.</strong> El bot no pudo responderle su mensaje de {hora(c.sinRespuesta.desde)} y dejó
+          de intentarlo. Hay que contestarle; el aviso se quita en cuanto alguien le responda o se cierre la conversación.
+        </p>
+      )}
 
       {/* Los datos que hacen falta para venderle, y de dónde vino. */}
       {!editando ? (
@@ -348,11 +364,23 @@ export default function ClientesPanel({ plazaFija = null }) {
         <Cifra tema="neutro" titulo="Clientes" valor={cuenta?.total ?? '—'} sub={isAdmin ? 'De todas las plazas' : `De ${nombreSucursal(plazaFija)}`} />
       </Cifras>
 
+      {/* Sólo sale cuando hay alguno: un aviso rojo permanente en cero enseña a
+          no mirarlo. */}
+      {cuenta?.sinRespuesta > 0 && (
+        <p data-aviso-sin-respuesta role="alert"
+           style={{ fontSize: 13, color: '#7F1D1D', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 12, padding: '10px 12px', margin: 0 }}>
+          <strong>{cuenta.sinRespuesta === 1 ? 'Hay 1 cliente al que nadie le contestó.' : `Hay ${cuenta.sinRespuesta} clientes a los que nadie les contestó.`}</strong>{' '}
+          {cuenta.sinRespuesta === 1
+            ? 'El bot no pudo responderle. Va al principio de la bandeja, marcado «Sin respuesta».'
+            : 'El bot no pudo responderles. Van al principio de la bandeja, marcados «Sin respuesta».'}
+        </p>
+      )}
+
       {alta && <Alta token={token} esAdmin={isAdmin} plazaFija={plazaFija} onCerrar={() => setAlta(false)} onHecho={c => { setAlta(false); alCambiar(c) }} />}
 
       <div className={`crm-columnas${ficha ? ' con-ficha' : ''}`}>
         <Seccion tema="ventas" titulo="Bandeja" sinRelleno
-                 sub="Primero lo pendiente, y de ahí quien más lleva esperando."
+                 sub="Primero a quien nadie le contestó; luego lo pendiente, y de ahí quien más lleva esperando."
                  extra={!alta && <button type="button" className="boton-tinta" data-nuevo-cliente onClick={() => setAlta(true)}>Dar de alta</button>}>
           <div style={{ padding: '10px 12px', display: 'grid', gap: 8, borderBottom: '1px solid #EEF2F4' }}>
             <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>

@@ -18,6 +18,8 @@ import {
   movimientosParaTienda, ventasParaTienda, parametrosParaTienda, registroDeConteo,
 } from './cortes.js'
 import * as CRM from './clientes.js'
+import { almacenDeClientes, Conflicto } from './clientes-s3.js'
+import { esRutaDeMeta, rutaMetaWebhook } from './meta.js'
 import {
   verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
@@ -1584,117 +1586,13 @@ async function rutaGuardarConteo(evento, origen, cuerpo) {
 // escritura va condicionada a la versión que se leyó (`IfMatch`): si alguien
 // escribió en medio, se vuelve a leer y se aplica otra vez, en vez de que la
 // última escritura borre a la otra sin avisar.
+//
+// El guardado en sí vive en `clientes-s3.js`, porque el bot escribe las mismas
+// fichas y no puede haber dos copias.
 
-const PREFIJO_CLIENTES = 'crm/clientes/'
-const claveCliente = id => `${PREFIJO_CLIENTES}${CRM.archivoDe(id)}`
-
-async function leerCliente(id) {
-  if (!CRM.idValido(id)) return null
-  try {
-    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: claveCliente(id) }))
-    const v = JSON.parse(await r.Body.transformToString())
-    return v && typeof v === 'object' ? { cliente: v, etag: r.ETag ?? null } : null
-  } catch {
-    return null
-  }
-}
-
-class Conflicto extends Error {}
-
-async function escribirCliente(c, etag) {
-  try {
-    await s3.send(new PutObjectCommand({
-      Bucket: BUCKET, Key: claveCliente(c.id),
-      Body: Buffer.from(JSON.stringify(c)),
-      ContentType: 'application/json; charset=utf-8',
-      CacheControl: 'no-cache',
-      // Uno nuevo sólo se crea si no existe; uno leído sólo se reescribe si
-      // nadie lo tocó desde que se leyó.
-      ...(etag ? { IfMatch: etag } : { IfNoneMatch: '*' }),
-    }))
-  } catch (err) {
-    const codigo = err?.$metadata?.httpStatusCode
-    if (codigo === 412 || codigo === 409 || err?.name === 'PreconditionFailed') throw new Conflicto()
-    throw err
-  }
-  await actualizarIndice([c])
-}
-
-/**
- * Lee, aplica `fn` y escribe, reintentando si alguien escribió en medio.
- * `fn(cliente)` devuelve `{ cliente }` o `{ error }`.
- */
-async function modificarCliente(id, fn) {
-  for (let intento = 0; intento < 4; intento++) {
-    const leido = await leerCliente(id)
-    if (!leido || leido.cliente.fusionadoEn) return { error: 'No existe ese cliente.', codigo: 404 }
-    const r = fn(leido.cliente)
-    if (r.error) return { ...r, codigo: r.codigo ?? 400 }
-    if (r.cliente === leido.cliente) return r
-    try {
-      await escribirCliente({ ...r.cliente, version: (leido.cliente.version ?? 0) + 1 }, leido.etag)
-      return r
-    } catch (err) {
-      if (!(err instanceof Conflicto)) throw err
-    }
-  }
-  return { error: 'Alguien más estaba escribiendo en este cliente. Vuelve a intentarlo.', codigo: 409 }
-}
-
-/**
- * El índice de la bandeja: el resumen de cada cliente en UN archivo.
- *
- * No se lista la carpeta, y no por velocidad: listar pide `s3:ListBucket`, y el
- * rol de la Lambda sólo tiene `GetObject` y `PutObject` (ver «Despliegue» en
- * CLAUDE.md). Funcionaría en las pruebas y fallaría en producción. Con el
- * índice, la bandeja es una sola lectura, y se escribe con la misma condición
- * de versión que cada cliente: dos escrituras a la vez se reintentan, no se
- * borran entre ellas.
- */
-const CLAVE_INDICE_CLIENTES = 'crm/indice.json'
-
-async function leerIndiceClientes() {
-  try {
-    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: CLAVE_INDICE_CLIENTES }))
-    const v = JSON.parse(await r.Body.transformToString())
-    return { indice: v && typeof v.clientes === 'object' ? v : { clientes: {} }, etag: r.ETag ?? null, existe: true }
-  } catch {
-    return { indice: { clientes: {} }, etag: null, existe: false }
-  }
-}
-
-async function actualizarIndice(cambios) {
-  for (let intento = 0; intento < 6; intento++) {
-    const { indice, etag, existe } = await leerIndiceClientes()
-    const clientes = { ...indice.clientes }
-    for (const c of cambios) {
-      if (c.fusionadoEn) delete clientes[c.id]
-      else clientes[c.id] = CRM.resumen(c)
-    }
-    try {
-      await s3.send(new PutObjectCommand({
-        Bucket: BUCKET, Key: CLAVE_INDICE_CLIENTES,
-        Body: Buffer.from(JSON.stringify({ clientes, actualizado: new Date().toISOString() })),
-        ContentType: 'application/json; charset=utf-8', CacheControl: 'no-cache',
-        ...(existe && etag ? { IfMatch: etag } : { IfNoneMatch: '*' }),
-      }))
-      return true
-    } catch (err) {
-      const codigo = err?.$metadata?.httpStatusCode
-      if (!(codigo === 412 || codigo === 409 || err?.name === 'PreconditionFailed')) throw err
-    }
-  }
-  // El cliente YA se guardó; lo que no entró es su renglón en la lista. Se
-  // dice en el registro en vez de tirar la petición: la siguiente escritura
-  // de ese cliente lo vuelve a poner.
-  console.warn('crm: no se pudo actualizar el índice tras 6 intentos', cambios.map(c => c.id))
-  return false
-}
-
-async function listarClientes() {
-  const { indice } = await leerIndiceClientes()
-  return { clientes: Object.values(indice.clientes ?? {}) }
-}
+const {
+  leerCliente, escribirCliente, modificarCliente, listarClientes,
+} = almacenDeClientes({ s3, bucket: BUCKET })
 
 /** Bodega no atiende clientes. Una tienda sí, la suya. El administrador, todas. */
 function sesionCrm(evento) {
@@ -1994,6 +1892,12 @@ export async function handler(evento) {
   const origen = evento.headers?.origin || evento.headers?.Origin || ''
   const metodo = evento.requestContext?.http?.method || 'GET'
   const ruta   = (evento.rawPath || '/').replace(/\/+$/, '') || '/'
+
+  // El webhook de Meta va ANTES que todo lo demás, y no es un descuido: lo de
+  // abajo comprueba el origen, parsea el cuerpo como JSON y contesta JSON, y
+  // las tres cosas lo rompen. Meta no manda `Origin`, su firma se valida sobre
+  // los bytes crudos, y el enganche espera texto plano. Ver `meta.js`.
+  if (esRutaDeMeta(ruta)) return rutaMetaWebhook(evento)
 
   if (metodo === 'OPTIONS') return { statusCode: 204, headers: cabeceras(origen), body: '' }
 

@@ -3,8 +3,9 @@
 El bot que atiende la publicidad: contesta por WhatsApp qué hay y a cuánto,
 manda la foto y entrega el cliente a su tienda.
 
-Está completo y probado de punta a punta. Lo que falta es **desplegarlo**, y eso
-depende del papeleo de Meta, no del código.
+Está completo y probado de punta a punta, **incluida la estructura para
+producción** (webhook, cola, trabajador y almacenes en S3). Lo que falta es
+aplicarla en AWS —va a mano, los pasos están abajo— y el papeleo de Meta.
 
 ```
 crm/
@@ -18,17 +19,23 @@ crm/
 
   ── la fontanería ──
   webhook.js        enganche, firma y lectura de la carga de Meta
+                    (reexporta backend/src/meta-webhook.js: ver «Producción»)
   whatsapp-api.js   mandar texto e imágenes por la Cloud API
   conversaciones.js dónde se guarda lo ya hablado
   atender.js        de un mensaje recibido a una respuesta mandada
   handler.js        el acuse rápido y el trabajador, separados
+
+  ── producción ──
+  almacen-s3.js     conversaciones y fichas en S3, con escritura condicional
+  trabajador.js     la segunda Lambda: lee de la cola y llama a trabajar()
+  falsos.js         un S3 y una cola FIFO de mentira, para las pruebas
 
   ── probarlo ──
   servidor.mjs      la ventana en el navegador
   probar.mjs        hablar con el cerebro directo
   simular.mjs       cargas de Meta por el camino completo
   evaluar.mjs       mide a un modelo contra 29 escenarios, con inventario sembrado
-  *.test.js         143 pruebas que fijan todo lo anterior
+  *.test.js         172 pruebas que fijan todo lo anterior
 ```
 
 **A quién le habla.** La publicidad va casi toda a público: quien escribe quiere
@@ -194,7 +201,8 @@ la siguiente invocación, con lo que el mensaje se pierde sin que nada falle.
 
 Por eso `handler.js` son dos extremos: `recibir()` valida y encola en
 milisegundos, `trabajar()` piensa en otra invocación. Entre los dos va una cola
-—SQS en AWS, `colaEnMemoria()` en una sola máquina—.
+—SQS FIFO en AWS, `colaEnMemoria()` en una sola máquina—. Cómo queda en AWS
+está en «La estructura de producción».
 
 ### La firma se valida sobre el cuerpo CRUDO
 
@@ -358,7 +366,15 @@ Tres reglas que cambian cómo se comporta el bot:
 
 Una tienda ve sólo los clientes de su plaza, y uno ajeno responde igual que uno
 que no existe. Bodega no tiene sección. Dos escrituras a la vez (el bot y la
-tienda) no se pisan: cada una va con `IfMatch` y se reintenta.
+tienda) no se pisan: cada una va con `IfMatch` y se reintenta. El bot y el panel
+usan el MISMO almacén (`backend/src/clientes-s3.js`), así que la ficha y su
+renglón en el índice los escribe un solo código.
+
+**«Sin respuesta».** Si el bot no pudo contestarle a alguien y se rindió, la
+ficha lo dice (`marcarSinRespuesta`): sube al principio de la bandeja con una
+marca roja, el panel avisa arriba cuántos hay, y la ficha explica qué pasó. Se
+quita sola cuando alguien le contesta o la tienda cierra la conversación. No
+cambia el estado: el bot puede contestar el siguiente mensaje.
 
 ---
 
@@ -392,27 +408,252 @@ atiende —la frase de presentación sale de la lista, no está escrita a mano�
 
 ---
 
-## Lo que sigue (fase 2, cuando Meta apruebe)
+## La estructura de producción (2026-11-11)
 
-El código ya está escrito y probado. Lo que falta es desplegarlo:
+```
+Meta ──POST──▶ /meta/webhook ──▶ cola FIFO ──▶ trabajador ──▶ WhatsApp
+               (backend, ms)     (SQS)         (Lambda aparte)
+                                   │                 │
+                                   ▼                 ▼
+                              cola de fallidos   S3: crm/conversaciones/
+                                                     crm/clientes/  crm/indice.json
+```
 
-1. **Las variables.** `META_APP_SECRET`, `META_VERIFY_TOKEN`, `WHATSAPP_TOKEN`,
-   `WHATSAPP_PHONE_NUMBER_ID`, `ANTHROPIC_API_KEY`, `CRM_SITIO`. Ninguna lleva
-   prefijo `VITE_`: Vite incrusta en el JavaScript público toda variable que
-   empiece así, y por eso estuvieron meses a la vista la llave de AWS y las cinco
-   contraseñas.
-2. **`WHATSAPP_VERSION`** está en `v23.0` por omisión. Hay que ponerle la que
-   ofrezca el panel de la app, porque las versiones de la Graph API caducan.
-3. **Conectar `recibir()`** a una URL pública. Puede ser una ruta más del backend
-   que ya existe o una Lambda propia; lo que no puede es contestar y pensar en la
-   misma invocación.
-4. **La cola y el almacén de verdad.** `colaEnMemoria()` y `enArchivo()` son para
-   probar. En la nube van SQS y Neon, con la misma interfaz que
-   `conversaciones.js` ya expone: cambiar de almacén no debe tocar `atender.js`.
-5. **Un anuncio por plaza** con `ref=plaza=<slug>`. Es lo que hace que el lead
+Todo el código está escrito y probado con un S3 y una cola de mentira
+(`falsos.js`). **En AWS no se ha aplicado nada**: no hay colas, ni función, ni
+permisos. Eso va a mano, con los pasos de abajo.
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| Ruta `/meta/webhook` | `backend/src/meta.js`, registrada en `index.js` | GET: el enganche. POST: valida la firma y encola. Milisegundos |
+| Lectura del webhook y `recibir()` | `backend/src/meta-webhook.js` | Se mudó de `crm/` porque el zip del backend sólo lleva `backend/src`. `crm/webhook.js` y `crm/handler.js` lo reexportan: una sola copia |
+| Cola | SQS FIFO, parámetros en `infra/crm-colas.json` | Grupo = teléfono, deduplicación = id del mensaje de Meta |
+| Trabajador | `crm/trabajador.js` | Recibe de la cola y llama a `trabajar()` |
+| Conversaciones | `enS3()` en `crm/almacen-s3.js` | Un archivo por teléfono en `crm/conversaciones/` |
+| Fichas | `bandejaEnS3()`, sobre `backend/src/clientes-s3.js` | Las mismas llaves y el mismo índice que el panel |
+
+### Por qué una cola FIFO, y qué garantiza
+
+La gente manda «hola» y «tienes para iphone 13?» en dos mensajes seguidos.
+Atendidos a la vez, los dos leen la conversación antes de que el otro la guarde
+y el segundo pisa al primero. Con el **teléfono como grupo**, SQS no entrega el
+segundo mensaje de un teléfono hasta que el primero se borró —o se rindió—.
+Teléfonos distintos sí van a la vez.
+
+Y el **id del mensaje de Meta como id de deduplicación**: si Meta repite el
+envío dentro de los cinco minutos que SQS recuerda, la cola ni lo acepta.
+Pasado ese rato lo para `yaAtendido()`, que vive en la conversación.
+
+### Las escrituras van condicionadas, y eso es lo que evita perder datos
+
+S3 no tiene transacciones. Tiene `If-Match` («escribe sólo si sigue siendo lo
+que leí») y con eso basta:
+
+- **La ficha.** El bot apunta un mensaje mientras alguien de la tienda edita la
+  misma ficha. Sin condición gana el último y lo del otro desaparece sin que
+  nada falle. Con ella, el segundo recibe un 412, vuelve a leer y aplica su
+  cambio encima. Hasta 5 veces (`REINTENTOS_FICHA`).
+- **La conversación.** La cola ya impide dos trabajadores con el mismo
+  teléfono; la condición está para el día que no (una entrega doble de SQS).
+  De dos que marquen el mismo mensaje a la vez, sólo uno escribe: una
+  respuesta, no dos.
+
+Y `enS3()` **no se traga los errores de lectura**: sólo «no existe» es una
+conversación nueva. Un S3 caído leído como «nueva» haría que el bot saludara de
+cero a media plática.
+
+### 🔒 El límite de concurrencia de la cuenta es 10, y el trabajador lo comparte
+
+Las diez ejecuciones simultáneas de la cuenta son para TODO: el panel, el login
+y ahora el bot. Un turno del bot dura segundos —piensa— y una petición del
+panel, milisegundos; sin tope, una racha de mensajes de un anuncio podría
+ocupar las diez y dejar el panel sin sitio.
+
+- El disparador de la cola lleva **`MaximumConcurrency: 2`**, el mínimo que SQS
+  permite. El bot ocupa como mucho 2 de las 10; quedan 8 para el panel.
+- **No** se usa concurrencia reservada: AWS exige dejar 10 sin reservar y la
+  cuenta tiene exactamente 10, así que no se puede reservar ni una.
+- Con dos a la vez y turnos de 5 a 15 segundos salen de 8 a 24 respuestas por
+  minuto. Lo que no cabe **espera en la cola**, no se pierde. Para 5,000
+  mensajes al mes sobra; si un anuncio trajera más de eso por minuto, lo que
+  toca es pedir a AWS que suba el límite de la cuenta, no subir este número.
+- El webhook corre en el backend y también cuenta, pero dura milisegundos.
+
+### Los tiempos
+
+| | Valor | Dónde |
+|---|---|---|
+| Tiempo límite del trabajador | **90 s** | `TIEMPO_TRABAJADOR_S` y la función |
+| Margen para cerrar bien | 10 s | `MARGEN_MS` |
+| Visibilidad de la cola | **180 s** | `VISIBILIDAD_S` y la cola |
+| Tiempo límite del cliente de Claude | lo pone el dueño | `crm/cerebro.js` |
+
+La visibilidad es MAYOR que el tiempo de la función: si fuera menor, SQS daría
+por perdido un turno que sigue pensando y se lo entregaría a otra invocación.
+No es mucho mayor a propósito: un turno que falla no se reintenta hasta que la
+visibilidad vence, y mientras tanto ese teléfono espera.
+
+El trabajador no espera a que la Lambda lo mate. A los 80 segundos cierra él:
+desmarca el mensaje, le dice a SQS que falló y al turno abandonado le prohíbe
+mandar. Sin eso, una función muerta por tiempo deja el mensaje marcado como
+visto y su reintento se descarta por «repetido»: el cliente no recibe nada.
+
+**El tiempo límite del cliente de Claude tiene que quedar por debajo de 80 s**
+contando sus propios reintentos, o quien corta es el trabajador y no el
+cliente.
+
+### Cuando el bot no puede: reintentos, fallidos y el aviso en el panel
+
+- SQS entrega cada mensaje hasta **3 veces** (`MAX_ENTREGAS`). Entre una y
+  otra pasan los 180 s de visibilidad.
+- En la **tercera** que falla, el trabajador marca la ficha como «sin
+  respuesta» ANTES de rendirse: primera de la bandeja, en rojo, con un aviso
+  arriba. Crea la ficha si no existía.
+- El mensaje pasa a la **cola de fallidos** (`istuffs-crm-fallidos.fifo`), que
+  lo guarda 14 días como evidencia. El aviso es la ficha, no esa cola.
+- Si ni siquiera se pudo marcar la ficha (S3 caído), queda la alarma de
+  CloudWatch sobre la cola de fallidos (`alarma` en `infra/crm-colas.json`).
+- El bot **no se queda callado** con ese cliente: si vuelve a escribir y ya
+  funciona, le contesta y la marca se quita.
+
+Hay un caso más fino, y también sale en el panel: la función muere a media
+respuesta (sin memoria) con el mensaje ya marcado como visto. El reintento lo
+ve «repetido»; el trabajador mira la ficha, y si después de ese mensaje no
+habló nadie, lo marca «sin respuesta» en vez de darlo por contestado. No lo
+contesta a ciegas porque la respuesta pudo haber salido.
+
+### El paquete del trabajador
+
+```bash
+npm run crm:empaquetar     # → scripts/out/crm-trabajador/index.mjs
+```
+
+El backend se sube como zip de `backend/src` + `backend/node_modules`. El
+trabajador no puede: importa de `crm/`, de `backend/src/` y de `src/lib/`, y
+sus dos paquetes (`@anthropic-ai/sdk`, `@aws-sdk/client-s3`) están en el
+`package.json` de la RAÍZ. Así que `scripts/empaquetar-crm.mjs` lo arma en **un
+solo archivo** siguiendo los `import` de verdad:
+
+- El empaquetador es **esbuild**, el que ya trae Vite. No se instaló nada.
+- Las dependencias salen del `node_modules` de la raíz (`npm ci`), las mismas
+  versiones con las que corren las pruebas. Nada se deja «para que lo ponga
+  Lambda». Aunque exista `backend/node_modules`, el SDK de AWS sale de la raíz:
+  si no, el paquete llevaría dos copias.
+- Después de armarlo **lo carga** y llama al handler con un evento vacío. Un
+  import que falta no falla al empaquetar: falla al arrancar la función.
+- Dentro no va ningún dato ni ningún secreto. El inventario, los teléfonos de
+  las tiendas y el índice de fotos se leen por HTTPS al contestar.
+
+Hoy pesa unos 2.7 MB: 20 archivos de la casa y el resto, los dos SDK.
+
+### Las variables (nombres; los valores no van en ningún archivo)
+
+| Función | Variable | Para qué |
+|---|---|---|
+| `istuffs-backend` | `META_APP_SECRET` | validar la firma del webhook |
+| `istuffs-backend` | `META_VERIFY_TOKEN` | el enganche (GET) |
+| `istuffs-backend` | `CRM_COLA_URL` | la URL de `istuffs-crm-mensajes.fifo` |
+| `istuffs-crm-trabajador` | `ANTHROPIC_API_KEY` | el modelo |
+| `istuffs-crm-trabajador` | `WHATSAPP_TOKEN` | mandar por la Cloud API |
+| `istuffs-crm-trabajador` | `WHATSAPP_PHONE_NUMBER_ID` | el número de la casa |
+| `istuffs-crm-trabajador` | `WHATSAPP_VERSION` | la versión de la Graph API (por omisión `v23.0`; caducan) |
+| `istuffs-crm-trabajador` | `S3_BUCKET`, `S3_REGION` | dónde están las fichas y el inventario |
+| `istuffs-crm-trabajador` | `CRM_SITIO` | de dónde se sirven las fotos |
+| `istuffs-crm-trabajador` | `CRM_MODELO` | opcional; por omisión Haiku (`modelo.js`) |
+
+Ninguna lleva prefijo `VITE_`: Vite incrusta en el JavaScript público toda
+variable que empiece así. Y sin `CRM_COLA_URL` el webhook contesta **500**, no
+200: Meta guarda el mensaje y reintenta en vez de darlo por entregado.
+
+### Los permisos, en `infra/`
+
+Se aplican a mano. En los cuatro hay que sustituir `REGION` y `CUENTA`.
+
+| Archivo | A quién | Qué da |
+|---|---|---|
+| `crm-trabajador-rol.json` | el rol nuevo del trabajador | S3 sólo bajo `crm/*`, leer y borrar de su cola, su registro |
+| `crm-backend-encolar.json` | el rol del backend | `sqs:SendMessage` en la cola, nada más |
+| `crm-ci-desplegar.json` | el usuario que despliega desde GitHub | publicar el código de la función nueva |
+| `istuffs-s3-policy.json` | el usuario que sube inventarios | ahora también niega `crm/*`: la automatización no toca clientes |
+
+`crm-colas.json` no es una política: son los parámetros de las colas, de la
+función, del disparador y de la alarma. **Sus números tienen que coincidir con
+`crm/trabajador.js`** y hay una prueba que falla si se separan.
+
+El trabajador no necesita permiso para leer el inventario: lo lee por HTTPS
+del prefijo público, como cualquier visitante.
+
+### Desplegarlo: los pasos, en orden
+
+El orden importa: Meta no se conecta hasta el final, cuando todo lo de atrás
+ya está probado. Hasta el paso 14 no le llega nada a ningún cliente.
+
+1. **Crear la cola de fallidos** `istuffs-crm-fallidos.fifo` (SQS, tipo FIFO)
+   con los atributos de `fallidos` en `infra/crm-colas.json`.
+2. **Crear la cola** `istuffs-crm-mensajes.fifo` con los atributos de `cola`:
+   visibilidad 180 s, retención 1 día, y como cola de mensajes fallidos la del
+   paso 1 con **máximo de recepciones 3**. Deduplicación por contenido:
+   **desactivada** (el id lo pone el backend).
+3. **Crear el rol del trabajador** (IAM, para Lambda) y pegarle
+   `infra/crm-trabajador-rol.json` como política en línea.
+4. **Crear la función** `istuffs-crm-trabajador` con los datos de `funcion`:
+   Node.js 22, handler `index.handler`, tiempo límite **90 s**, 512 MB, y el rol
+   del paso 3. El código inicial da igual: lo pone el paso 7.
+5. **Ponerle sus variables** (la tabla de arriba). Con el guion de la casa, que
+   nunca imprime un valor y no pisa las demás:
+   `LAMBDA_FUNCION=istuffs-crm-trabajador node backend/scripts/anadir-variable-lambda.js NOMBRE=valor --aplicar`
+6. **Darle permiso al despliegue**: pegar `infra/crm-ci-desplegar.json` al
+   usuario cuyas llaves son `AWS_DEPLOY_ACCESS_KEY` en GitHub.
+7. **Publicar el código**: en GitHub, Actions → «Desplegar trabajador del
+   CRM» → Run workflow. Corre las pruebas del CRM, empaqueta y sube.
+8. **Crear el disparador** de la función con los datos de `disparador`: origen
+   la cola del paso 2, **lote de 1**, **simultaneidad máxima 2**, y «Informar
+   de errores de elementos del lote» **activado** (`ReportBatchItemFailures`).
+   Sin esa casilla, un turno fallido se da por bueno y SQS borra el mensaje.
+9. **Darle permiso al backend para encolar**: pegar
+   `infra/crm-backend-encolar.json` al rol `istuffs-backend-role-…`.
+10. **Variables del backend**, con el mismo guion (NUNCA con el CLI a pelo,
+    que reemplaza el conjunto entero): `META_APP_SECRET`, `META_VERIFY_TOKEN`
+    y `CRM_COLA_URL`.
+11. **Publicar el backend**: sale solo al fusionar a `main` (toca `backend/`),
+    o Actions → «Desplegar backend» → Run workflow.
+12. **Crear la alarma** de `alarma` en CloudWatch, con aviso al correo: salta
+    si la cola de fallidos tiene algún mensaje.
+13. **Probar el enganche sin Meta.** Abrir en el navegador, con el token real:
+    `https://<URL del backend>/meta/webhook?hub.mode=subscribe&hub.verify_token=<token>&hub.challenge=123`
+    Tiene que contestar `123` a secas. Con otro token, 403.
+14. **Conectar Meta**: en la app, WhatsApp → Configuración → Webhook. URL de
+    devolución de llamada: la del paso 13 sin los parámetros. Token de
+    verificación: el de `META_VERIFY_TOKEN`. Suscribir el campo **`messages`**.
+15. **Probar de verdad**: escribir «hola» al número desde un teléfono. La
+    respuesta llega en segundos y la conversación aparece en Clientes.
+
+**Para apagarlo** sin perder nada: deshabilitar el disparador del paso 8. Los
+mensajes se quedan en la cola hasta un día y se atienden al volver a
+habilitarlo. Para cortar del todo, quitar la suscripción del paso 14.
+
+### Lo que NO se ha podido comprobar
+
+- **Nada de esto ha corrido contra el SQS ni el S3 de verdad.** Las pruebas
+  usan falsos que imitan `If-Match`, el orden por grupo y la cola de fallidos.
+  La primera prueba real es el paso 15.
+- **El paquete se carga, pero no ha atendido un turno** fuera de las pruebas:
+  eso necesita la llave y el bucket.
+- **Un turno abandonado por tiempo que estuviera justo mandando** en ese
+  instante puede llegar además del reintento. La bandera lo evita antes y
+  después del envío, no durante.
+- **Contestar desde el panel sigue sin salir por WhatsApp** (abajo, punto 2).
+
+---
+
+## Lo que sigue
+
+1. **Un anuncio por plaza** con `ref=plaza=<slug>`. Es lo que hace que el lead
    llegue direccionado sin preguntar.
-6. **Encender la respuesta desde el panel.** La bandeja ya existe (arriba); falta
+2. **Encender la respuesta desde el panel.** La bandeja ya existe (arriba); falta
    que `POST /crm/responder` mande por la API de WhatsApp en vez de sólo guardar.
+   Hasta entonces, a un cliente «sin respuesta» hay que escribirle desde el
+   WhatsApp de la tienda.
 
 ### Pendiente: leer las fotos
 
