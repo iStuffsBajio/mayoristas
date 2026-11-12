@@ -32,9 +32,22 @@ import { fileURLToPath } from 'node:url'
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url))
 
-/** De dónde se sirven las fotos. Tienen que ser URLs públicas: WhatsApp las
- *  descarga él mismo, no se le pueden mandar bytes de un disco. */
-const SITIO = (process.env.CRM_SITIO || 'https://main.d1oyjxqpnx8yet.amplifyapp.com')
+/**
+ * De dónde se sirven las fotos. Tienen que ser URLs públicas: WhatsApp las
+ * descarga él mismo, no se le pueden mandar bytes de un disco.
+ *
+ * El valor por omisión fue durante dos semanas un dominio de Amplify que NO
+ * responde. Nadie lo notó porque nada fallaba: el bot mandaba la foto con su
+ * pie, y en la ventana de prueba la burbuja salía con el pie y sin imagen,
+ * que se lee como «la imagen tarda». En WhatsApp habría sido un enlace muerto
+ * en cada foto. Comprobado el 2026-11-12: `istuffsbajio.com/mockups/` sirve el
+ * índice y las imágenes con su tipo; el de Amplify no contesta.
+ *
+ * En producción se fija con `CRM_SITIO` (ver la lista de variables del
+ * LEEME), y `npm run crm:evaluar` comprueba que la foto que manda el bot se
+ * pueda bajar de verdad.
+ */
+export const SITIO = (process.env.CRM_SITIO || 'https://istuffsbajio.com')
   .replace(/\/+$/, '')
 
 /** Cuántos renglones se le devuelven al modelo como máximo. */

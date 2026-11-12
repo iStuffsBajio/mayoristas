@@ -33,7 +33,28 @@ import { MODELO } from './modelo.js'
 /** Tope de vueltas. Una consulta normal gasta 1 o 2; 6 ya es que algo se atoró. */
 const MAX_VUELTAS = 6
 
-const cliente = new Anthropic()
+/**
+ * Cuánto se espera a Claude en UNA llamada, y cuántas veces se reintenta.
+ *
+ * Sin esto el SDK espera **diez minutos** por llamada y reintenta dos veces, y
+ * en producción el bot corre en una Lambda con 90 s de tiempo límite y sólo
+ * DOS ejecuciones a la vez —la cuenta de AWS tiene un límite de 10 y las otras
+ * ocho son del panel—. Dos llamadas colgadas congelaban el bot entero.
+ *
+ * Lo que manda es el peor caso de una llamada: el SDK reintenta también cuando
+ * se agota el tiempo, así que puede tardar `TIEMPO_POR_LLAMADA_MS × (1 +
+ * REINTENTOS)`. Eso tiene que caber en lo que el trabajador deja para pensar:
+ * 90 s menos 10 de margen para cerrar bien (`crm/trabajador.js`). Hay prueba.
+ *
+ * Una respuesta de Haiku tarda unos 2 s medidos; 20 s es holgura de sobra para
+ * un día lento y corta antes de que una llamada colgada se coma el turno. Si
+ * el turno entero no cabe —varias vueltas lentas seguidas—, quien corta es el
+ * trabajador, que reintenta el mensaje sin mandar nada dos veces.
+ */
+export const TIEMPO_POR_LLAMADA_MS = 20_000
+export const REINTENTOS = 1
+
+const cliente = new Anthropic({ timeout: TIEMPO_POR_LLAMADA_MS, maxRetries: REINTENTOS })
 
 // ── Las reglas, que son el 90% de este archivo ──────────────────────────────
 

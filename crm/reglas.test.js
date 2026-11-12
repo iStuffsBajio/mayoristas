@@ -829,3 +829,39 @@ test('sólo CRM_MODELO cambia el modelo, y sólo a uno con precio', () => {
   // pantallas de prueba saldría falso, y con ese número se decide qué modelo usar.
   assert.throws(() => modeloCon({ CRM_MODELO: 'claude-inventado-9' }), /tabla de precios/)
 })
+
+// ── Tiempos y sitio de las fotos, para producción ──────────────────────────
+
+import { TIEMPO_POR_LLAMADA_MS, REINTENTOS } from './cerebro.js'
+
+test('una llamada a Claude cabe en lo que el trabajador deja para pensar', () => {
+  // El trabajador tiene 90 s y guarda 10 para cerrar bien (crm/trabajador.js).
+  // El SDK reintenta también cuando se agota el tiempo, así que el peor caso de
+  // UNA llamada es el tiempo por llamada multiplicado por los intentos. Sin
+  // tope propio el SDK esperaba diez minutos, y con dos ejecuciones a la vez
+  // dos llamadas colgadas congelaban el bot entero.
+  const peorCaso = TIEMPO_POR_LLAMADA_MS * (1 + REINTENTOS)
+  assert.ok(peorCaso <= 80_000, `el peor caso de una llamada es ${peorCaso} ms y el trabajador deja 80 000`)
+  assert.ok(TIEMPO_POR_LLAMADA_MS >= 10_000, 'tan corto cortaría respuestas normales en un día lento')
+})
+
+/** Lee una exportación en un proceso aparte, sin las variables de quien corre las pruebas. */
+function exportadoEnLimpio(modulo, nombre, quitar) {
+  const env = { ...process.env }
+  for (const v of quitar) delete env[v]
+  return execFileSync(
+    process.execPath,
+    ['--input-type=module', '-e', `import('./${modulo}').then(m => console.log(m.${nombre}))`],
+    { cwd: RAIZ, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+  ).trim()
+}
+
+test('las fotos se sirven por omisión de un dominio que sí contesta', () => {
+  // Durante dos semanas el valor por omisión fue un dominio de Amplify que no
+  // responde, y nada fallaba: el bot mandaba una URL bien formada a ninguna
+  // parte. Que la foto se BAJE de verdad lo comprueba `npm run crm:evaluar`,
+  // que sí sale a la red; esto fija que no se vuelva a poner aquél.
+  const sitio = exportadoEnLimpio('crm/herramientas.js', 'SITIO', ['CRM_SITIO'])
+  assert.equal(sitio, 'https://istuffsbajio.com')
+  assert.doesNotMatch(sitio, /amplifyapp/)
+})

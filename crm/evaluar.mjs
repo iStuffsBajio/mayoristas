@@ -157,8 +157,25 @@ const ESCENARIOS = [
   ] },
   { id: 'foto', plaza: 'leon', turnos: [
     { di: 'mandame foto de la del a06',
-      chequeo: ({ r }) => !(r.imagenes?.length >= 1) ? 'no mandó ninguna foto'
-                         : r.imagenes.some(i => /\bcase\b/i.test(i.pie)) ? `el pie de la foto lleva «case»: ${r.imagenes[0].pie}` : null },
+      chequeo: async ({ r }) => {
+        if (!(r.imagenes?.length >= 1)) return 'no mandó ninguna foto'
+        if (r.imagenes.some(i => /\bcase\b/i.test(i.pie))) return `el pie de la foto lleva «case»: ${r.imagenes[0].pie}`
+        // Que la foto SE PUEDA BAJAR, no sólo que haya una URL. Durante dos
+        // semanas el sitio por omisión fue un dominio que no contesta y todo
+        // pasaba en verde: el bot mandaba una URL bien formada a ninguna parte.
+        // WhatsApp la descarga él mismo y, si falla, el cliente ve un hueco.
+        for (const img of r.imagenes) {
+          try {
+            const res = await fetch(img.url, { method: 'HEAD', signal: AbortSignal.timeout(10_000) })
+            const tipo = res.headers.get('content-type') ?? ''
+            if (!res.ok) return `la foto no se puede bajar (${res.status}): ${img.url}`
+            if (!tipo.startsWith('image/')) return `la foto no es una imagen (${tipo || 'sin tipo'}): ${img.url}`
+          } catch (err) {
+            return `la foto no responde: ${img.url} (${err?.name ?? err})`
+          }
+        }
+        return null
+      } },
   ] },
   { id: 'cierre', plaza: 'leon', turnos: [
     { di: 'quiero la funda para a06', debe: [/250/] },
@@ -348,7 +365,9 @@ async function correr(esc, vuelta) {
     for (const re of t.noDebe ?? []) if (re.test(texto))  fallos.push(`no debía decir: ${re}`)
     for (const n of t.con ?? [])     if (!nombres.has(n)) fallos.push(`no llamó a ${n}`)
     for (const n of t.sin ?? [])     if (nombres.has(n))  fallos.push(`no debía llamar a ${n}`)
-    const extra = t.chequeo?.({ r, texto, palabras, llamadas })
+    // `await`: algunos chequeos salen a la red (la foto tiene que bajarse de
+    // verdad). Sin él, una promesa es «verdadera» y contaría como fallo siempre.
+    const extra = await t.chequeo?.({ r, texto, palabras, llamadas })
     if (extra) fallos.push(extra)
 
     turnos.push({ di: t.di, texto, fallos, palabras, ms: Date.now() - t0, uso: r.uso, herramientas: [...nombres] })
