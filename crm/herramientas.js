@@ -20,7 +20,7 @@
 //     «lo manejo y se acabó».
 
 import { filtrarYBuscar, normalizar } from '../src/lib/buscar.js'
-import { indexarMockups, fotoPara } from '../src/lib/mockups.js'
+import { indexarMockups, fotoPara, familiaDe } from '../src/lib/mockups.js'
 import { esProtector } from '../src/lib/familias.js'
 import { nombreSucursal, telefonoWhatsApp } from '../src/lib/sucursales.js'
 import { armarMensaje, enlaceWhatsApp } from '../src/lib/whatsapp.js'
@@ -65,14 +65,22 @@ export async function fotoDe(producto) {
   const idx = await indiceFotos()
   const f = fotoPara({ codigo: producto.codigo ?? producto.Codigo, nombre: producto.nombre ?? producto.Producto }, idx)
   if (!f) return null
-  const comoSeLlama = producto.nombre ?? producto.Producto
+  // El pie va con el nombre de CLIENTE, no con el del catálogo. El de
+  // catálogo dice «SAMSUNG S25 ULTRA TPU CASE», y eso aparecía debajo de la
+  // foto que le llega a alguien que vio un anuncio.
+  const codigo = producto.codigo ?? producto.Codigo
+  const bruto  = producto.nombre ?? producto.Producto
   return {
     url: `${SITIO}/mockups/${f.archivo}`,
     // `exacta: false` significa que la foto es de otro teléfono de la misma
     // gama. Se dice SIEMPRE. Enseñarla callando es enseñar con toda seguridad
     // una funda que no es, y por WhatsApp el cliente la reenvía.
     exacta: f.exacta,
-    pie: f.exacta ? comoSeLlama : `Foto de referencia: es del ${f.modelo}`,
+    pie: f.exacta
+      ? nombreParaCliente(codigo, bruto)
+      // En la advertencia el modelo prestado va tal cual: lo que importa es
+      // que se reconozca de qué teléfono es la foto, no que suene bonito.
+      : `Foto de referencia: es del ${f.modelo}`,
   }
 }
 
@@ -94,6 +102,10 @@ const unRenglon = (p, cliente) => {
     codigo: p.Codigo,
     nombre: p.Producto,
     piezas: Number(p.Existencia) || 0,
+    // `nombre` es el del catálogo y sirve para las herramientas; `comoSeDice`
+    // es el que puede salir en el chat. El de catálogo lleva «CASE» y «3 IN
+    // 1», que a quien vio un anuncio no le dicen nada.
+    comoSeDice: nombreParaCliente(p.Codigo, p.Producto),
     familia: esProtector(p.Codigo, p.Producto) ? 'mica/hidrogel' : 'funda',
     tipo: pr.nombreTipo ?? null,
     precio: pr.decir ? pr.monto : null,
@@ -107,6 +119,69 @@ const unRenglon = (p, cliente) => {
 /** Las plazas que se le ofrecen al cliente cuando hay que preguntarle. */
 const opciones = () =>
   [...PLAZAS_PUBLICAS].map(s => ({ slug: s, nombre: nombreSucursal(s) }))
+
+/**
+ * Cómo se le llama a cada tipo DELANTE DE UN CLIENTE.
+ *
+ * El catálogo está escrito para quien surte, no para quien compra: «SAMSUNG
+ * S25 ULTRA TPU CASE» y «SAMSUNG S25 ULTRA 3 IN 1». A un mayorista eso le
+ * dice todo; a alguien que vio un anuncio no le dice nada, y encima está
+ * eligiendo entre $250 y $300 sin saber qué diferencia paga.
+ *
+ * 🔒 Las dos primeras son palabras del dueño: TPU es «goma flexible» y la
+ * otra es «uso rudo», sin el «3 en 1». Las demás son neutras a propósito
+ * —describir mal una funda se ve perfecto en pantalla y nadie lo revisa, que
+ * es la misma razón por la que una foto prestada se declara—.
+ */
+const COMO_SE_LE_DICE = {
+  'tpu':               'Funda de goma flexible',
+  'uso-rudo':          'Funda de uso rudo',
+  'hard':              'Funda rígida',
+  'tpu-cristal':       'Funda transparente',
+  'duo':               'Funda Duo',
+  'mica-hd':           'Mica de hidrogel',
+  'mica-mate':         'Mica mate',
+  'mica-privacidad':   'Mica de privacidad',
+  'mica-uso-rudo':     'Mica de uso rudo',
+  'mica-tablet-hd':    'Mica de hidrogel para tablet',
+  'mica-tablet-mate':  'Mica mate para tablet',
+}
+
+/** Lo que del nombre describe la FUNDA y no el teléfono. Se quita. */
+const PALABRAS_DE_CATALOGO =
+  /\b(TPU|HARD|DUO|SMART|CASE2|CASE|3 ?EN ?1|3 ?IN ?1|CRISTAL|GLASS|MILITAR|TRANSPARENTE|FUNDA|PROTECTOR|USO RUDO|ARMOR|CLEAR|MICA|H[IO]DR[IO]{1,2}GEL)\b/gi
+
+/**
+ * El nombre del producto como se le dice a un cliente.
+ *
+ * «SAMSUNG S25 ULTRA TPU CASE» → «Funda de goma flexible para Samsung S25
+ * Ultra». Si no se reconoce el tipo se devuelve el nombre tal cual, que es
+ * feo pero nunca falso.
+ */
+export function nombreParaCliente(codigo, producto) {
+  const tipo = tipoDe(codigo, producto)
+  const como = COMO_SE_LE_DICE[tipo]
+  if (!como) return producto
+
+  // Una mica no lleva teléfono: son genéricas y se cortan a la medida. Lo que
+  // queda de su nombre tras quitar las palabras de catálogo es basura —«HD
+  // Alta», «Privacidad»— y pegarlo detrás de «para» inventa un modelo.
+  if (esMica(tipo)) return como
+
+  const telefono = String(producto ?? '')
+    .replace(PALABRAS_DE_CATALOGO, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+    // Mayúsculas de catálogo a algo que se lee: SAMSUNG S25 ULTRA → Samsung
+    // S25 Ultra. Lo que ya es número o sigla corta se deja en paz.
+    .split(' ')
+    .map(w => (w.length > 2 && /^[A-ZÁÉÍÓÚÑ]+$/.test(w) ? w[0] + w.slice(1).toLowerCase() : w))
+    .join(' ')
+    // La marca se escribe como la escribe la marca.
+    .replace(/\bIphone\b/g, 'iPhone')
+
+  return telefono ? `${como} para ${telefono}` : como
+}
 
 /**
  * Texto extra por el que un producto también se puede encontrar.
@@ -126,16 +201,60 @@ const opciones = () =>
  * como está escrito en el catálogo también sigue encontrando, y nadie tiene
  * que corregir Eleventa para que el chat funcione.
  */
+/**
+ * Marcas que el catálogo escribe de más de una forma.
+ *
+ * ── El fallo que arregla ──────────────────────────────────────────────────
+ *
+ * En León hay **189 productos Samsung: 171 escritos «SAMSUNG» y 18
+ * «GALAXY»**. Quien escribía «galaxy a06» recibía «no manejamos para ese
+ * modelo» teniendo siete piezas en el mostrador, y quien escribía «samsung
+ * a07» lo mismo al revés. El bot le decía a un cliente con el dinero en la
+ * mano que no vendemos lo que sí vendemos.
+ *
+ * Y Motorola es peor: **97 de 98 se escriben «MOTO»**, así que «motorola g54»
+ * no encontraba nada. «apple 13» tampoco: los 157 son «IPHONE».
+ *
+ * Lo cazó una conversación de prueba con el modelo de verdad. Ninguna prueba
+ * unitaria lo veía, porque todas buscaban con la palabra que el catálogo usa.
+ *
+ * La tabla no se inventa aquí: sale de la que `mockups.js` ya usa para
+ * emparejar fotos (`familiaDe`), que es la misma pregunta —qué marca es esto—
+ * resuelta una sola vez.
+ */
+const SINONIMOS_MARCA = {
+  APPLE:    'APPLE IPHONE',
+  SAMSUNG:  'SAMSUNG GALAXY',
+  XIAOMI:   'XIAOMI REDMI POCO',
+  MOTOROLA: 'MOTOROLA MOTO',
+  HUAWEI:   'HUAWEI NOVA MATE PURA',
+  GOOGLE:   'GOOGLE PIXEL',
+  REALME:   'REALME OPPO',
+  HONOR:    'HONOR',
+  OPPO:     'OPPO',
+  VIVO:     'VIVO',
+  ZTE:      'ZTE',
+}
+
 function aliasDe(p) {
   const extra = []
   const n = String(p.Producto ?? '')
+  const protector = esProtector(p.Codigo, n)
 
   // Las tres escrituras conviven; se normalizan a la buena.
   if (/h[io]dr[io]{1,2}gel/i.test(n)) extra.push('HIDROGEL')
 
+  // La marca, en todas sus formas. **Sólo para fundas**: `familiaDe` da
+  // HUAWEI para «MICA HIDROGEL MATE» —porque «MATE» es uno de sus modelos— y
+  // sin esta guarda, buscar «huawei» devolvería micas.
+  if (!protector) {
+    const sinonimos = SINONIMOS_MARCA[familiaDe(n)]
+    if (sinonimos) extra.push(sinonimos)
+  }
+
   // Toda mica se encuentra por «mica» y por «protector de pantalla», aunque
   // su nombre no lleve ninguna de las dos palabras.
-  if (esProtector(p.Codigo, n)) extra.push('MICA PROTECTOR PANTALLA HIDROGEL')
+  if (protector) extra.push('MICA PROTECTOR PANTALLA HIDROGEL')
 
   // El tipo por el que la gente pregunta: «uso rudo», «3 en 1», «transparente».
   // MILITAR no va con uso rudo: los «MILITAR TPU CASE» son TPU y valen 250.

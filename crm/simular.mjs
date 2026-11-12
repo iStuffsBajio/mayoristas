@@ -21,6 +21,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { leerCarga } from './webhook.js'
 import { atenderCarga } from './atender.js'
+import { costoDeUso } from './cerebro.js'
 import { enArchivo } from './conversaciones.js'
 
 const args = process.argv.slice(2)
@@ -99,7 +100,7 @@ const leer = async () => {}
 
 // ── Un paso ─────────────────────────────────────────────────────────────────
 
-const total = { entrada: 0, salida: 0, cacheLeido: 0 }
+const total = { entrada: 0, salida: 0, cacheLeido: 0, cacheEscrito: 0 }
 
 async function paso(etiqueta, cargaDeMeta, quien = 'tú') {
   if (etiqueta) console.log(`\n${GRIS}── ${etiqueta} ──${FIN}`)
@@ -133,10 +134,7 @@ async function paso(etiqueta, cargaDeMeta, quien = 'tú') {
 }
 
 function resumen() {
-  // Opus 5.5: 4 USD por millón de entrada, 20 de salida, 0.20 lo cacheado.
-  const usd = (total.entrada - total.cacheLeido) / 1e6 * 4
-            + total.cacheLeido / 1e6 * 0.20
-            + total.salida / 1e6 * 20
+  const usd = costoDeUso(total)
   console.log(`\n${GRIS}── total ──${FIN}`)
   console.log(`entrada ${total.entrada} · caché ${total.cacheLeido} · salida ${total.salida}`)
   console.log(`costo de la conversación: ${usd.toFixed(4)} USD`)

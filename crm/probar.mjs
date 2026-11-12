@@ -12,7 +12,7 @@
 
 import readline from 'node:readline/promises'
 import { stdin, stdout } from 'node:process'
-import { contestar } from './cerebro.js'
+import { contestar, costoDeUso } from './cerebro.js'
 
 const args = process.argv.slice(2)
 const valorDe = n => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : null }
@@ -65,17 +65,13 @@ async function turno(historial, texto, etiqueta) {
 
 if (args.includes('--guion')) {
   let historial = []
-  const uso = { entrada: 0, salida: 0, cacheLeido: 0 }
+  const uso = { entrada: 0, salida: 0, cacheLeido: 0, cacheEscrito: 0 }
   for (const [etiqueta, texto] of GUION) {
     const r = await turno(historial, texto, etiqueta)
     historial = r.historial
     for (const k of Object.keys(uso)) uso[k] += r.uso[k]
   }
-  // Opus 5.5: 4 USD por millón de entrada, 20 por millón de salida; lo leído
-  // de caché va a 0.20. Es el costo de UNA conversación completa.
-  const usd = (uso.entrada - uso.cacheLeido) / 1e6 * 4
-            + uso.cacheLeido / 1e6 * 0.20
-            + uso.salida / 1e6 * 20
+  const usd = costoDeUso(uso)
   console.log(`\n${GRIS}── total del guión ──${FIN}`)
   console.log(`entrada ${uso.entrada} · caché ${uso.cacheLeido} · salida ${uso.salida}`)
   console.log(`costo de la conversación: ${usd.toFixed(4)} USD`)

@@ -21,13 +21,17 @@ import { leerCarga } from './webhook.js'
 import { atender } from './atender.js'
 import { enMemoria } from './conversaciones.js'
 import { opcionesDePlaza } from './plazas.js'
+// La cuenta del costo vive en `cerebro.js`: tenerla copiada aquí dio un costo
+// NEGATIVO en pantalla, porque restaba el caché de la entrada y la API los
+// reporta como contadores separados.
+import { costoDeUso as costo } from './cerebro.js'
 
 const PUERTO = Number(process.env.CRM_PUERTO || 5174)
 const TELEFONO = '524771234567'
 
 const almacen = enMemoria()
 let contador = 0
-const total = { entrada: 0, salida: 0, cacheLeido: 0 }
+const total = { entrada: 0, salida: 0, cacheLeido: 0, cacheEscrito: 0 }
 
 /** La carga tal como la manda Meta, para que el camino sea el de verdad. */
 function cargaDeMeta(texto, { tipo = 'text', nombre = 'Marisol', anuncio = null } = {}) {
@@ -117,10 +121,6 @@ async function unTurno(texto, opciones) {
     total: { ...total, usd: costo(total) },
   }
 }
-
-/** Opus 5.5: 4 USD por millón de entrada, 20 de salida, 0.20 lo cacheado. */
-const costo = u =>
-  (u.entrada - u.cacheLeido) / 1e6 * 4 + u.cacheLeido / 1e6 * 0.20 + u.salida / 1e6 * 20
 
 // ── La página ───────────────────────────────────────────────────────────────
 
@@ -378,7 +378,7 @@ $('#reiniciar').addEventListener('click', async () => {
   msgs.innerHTML = ''
   nota('Conversación borrada')
   pintarPanel({ plaza: null, anuncio: null, motivo: '—', herramientas: [], lead: null,
-                total: { entrada: 0, cacheLeido: 0, salida: 0, usd: 0 } })
+                total: { entrada: 0, cacheLeido: 0, cacheEscrito: 0, salida: 0, usd: 0 } })
 })
 
 nota('El bot de verdad, con el inventario de verdad. Lo único simulado es el envío a WhatsApp.')

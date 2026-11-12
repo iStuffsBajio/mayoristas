@@ -14,9 +14,10 @@ import assert from 'node:assert/strict'
 import { sembrar, olvidar, diasDeAtraso, esPlazaPublica } from './inventario.js'
 import {
   buscarEnPlaza, dondeHay, fotoDe, entregarASucursal,
-  precioProducto, precioDeCombo, listaDePrecios,
+  precioProducto, precioDeCombo, listaDePrecios, nombreParaCliente,
 } from './herramientas.js'
 import { tipoDe, precioDe, precioCombo, TIPOS, DESCUENTO_COMBO } from './precio.js'
+import { costoDeUso } from './cerebro.js'
 import { plazaPara } from './plazas.js'
 
 // ── Inventarios de mentira ──────────────────────────────────────────────────
@@ -520,4 +521,155 @@ test('un lead no se entrega a una plaza que no atiende', () => {
     const e = entregarASucursal({ plaza, telefonos: { general: '5213315381571' }, interes: [] })
     assert.equal(e.error, 'falta-plaza', `no se entrega a ${plaza}`)
   }
+})
+
+// ── El costo de un turno ───────────────────────────────────────────────────
+
+test('el costo nunca sale negativo cuando el caché pega', () => {
+  // El fallo real: la fórmula restaba lo leído de caché de la entrada, y la
+  // API reporta los tres como contadores SEPARADOS, no como partes de un
+  // total. En cuanto el caché pegaba, la pantalla enseñaba -$0.0006.
+  const conCache = { entrada: 500, salida: 300, cacheLeido: 12000, cacheEscrito: 0 }
+  assert.ok(costoDeUso(conCache) > 0, 'un turno con caché cuesta algo, no menos que nada')
+
+  // Y cada contador suma por su cuenta, al precio que le toca.
+  assert.equal(costoDeUso({ entrada: 1e6 }),      4)
+  assert.equal(costoDeUso({ salida: 1e6 }),       20)
+  assert.equal(costoDeUso({ cacheLeido: 1e6 }),   0.20)
+  assert.equal(costoDeUso({ cacheEscrito: 1e6 }), 5)
+})
+
+test('el caché abarata de verdad, que es la razón de usarlo', () => {
+  const sinCache = costoDeUso({ entrada: 12500, salida: 300 })
+  const conCache = costoDeUso({ entrada: 500, cacheLeido: 12000, salida: 300 })
+  assert.ok(conCache < sinCache, 'leer del caché tiene que costar menos que no usarlo')
+})
+
+test('un uso vacío o a medias cuesta cero, no NaN', () => {
+  // Un NaN se propaga por toda la suma y deja la cifra en blanco, que se ve
+  // igual que un fallo de carga.
+  for (const u of [{}, undefined, { entrada: 0 }]) {
+    assert.equal(costoDeUso(u), 0)
+  }
+})
+
+// ── La marca se escribe de dos formas en el mismo catálogo ─────────────────
+
+test('«galaxy» y «samsung» encuentran lo mismo, lo escriba como lo escriba el catálogo', async () => {
+  // En León hay 189 productos Samsung: 171 escritos SAMSUNG y 18 GALAXY.
+  // Quien escribía «galaxy a06» recibía «no manejamos» teniendo 7 piezas en
+  // el mostrador. Lo cazó una conversación con el modelo de verdad; ninguna
+  // prueba lo veía, porque todas buscaban con la palabra del catálogo.
+  olvidar()
+  sembrar('leon', {
+    nombre: 'León', corte: '2026-11-10', dias: 1, viejo: false,
+    productos: [
+      producto('SGA06T', 'SAMSUNG A06 TPU CASE', 7),   // el catálogo dice SAMSUNG
+      producto('SGA07T', 'GALAXY A07 TPU CASE', 10),   // y aquí dice GALAXY
+    ],
+  })
+  for (const texto of ['samsung a06', 'galaxy a06']) {
+    const r = await buscarEnPlaza({ plaza: 'leon', texto })
+    assert.equal(r.totalHallados, 1, `"${texto}" debe encontrar el A06`)
+  }
+  for (const texto of ['samsung a07', 'galaxy a07']) {
+    const r = await buscarEnPlaza({ plaza: 'leon', texto })
+    assert.equal(r.totalHallados, 1, `"${texto}" debe encontrar el A07`)
+  }
+})
+
+test('cada marca se encuentra por todos sus nombres', async () => {
+  olvidar()
+  sembrar('leon', {
+    nombre: 'León', corte: '2026-11-10', dias: 1, viejo: false,
+    productos: [
+      producto('MTG54T', 'MOTO G54 TPU CASE', 5),        // 97 de 98 dicen MOTO
+      producto('I13T',   'IPHONE 13 TPU CASE', 4),       // los 157 dicen IPHONE
+      producto('XRN13T', 'REDMI NOTE 13 TPU CASE', 3),
+      producto('GP8T',   'PIXEL 8 TPU CASE', 2),
+    ],
+  })
+  const casos = [
+    ['motorola g54', 'MTG54T'], ['moto g54',  'MTG54T'],
+    ['apple 13',     'I13T'],   ['iphone 13', 'I13T'],
+    ['xiaomi note 13', 'XRN13T'], ['redmi note 13', 'XRN13T'],
+    ['google 8',     'GP8T'],   ['pixel 8',   'GP8T'],
+  ]
+  for (const [texto, codigo] of casos) {
+    const r = await buscarEnPlaza({ plaza: 'leon', texto })
+    assert.equal(r.totalHallados, 1, `"${texto}" no encontró nada`)
+    assert.equal(r.hayPiezas[0].codigo, codigo, `"${texto}"`)
+  }
+})
+
+test('buscar una marca NO devuelve micas', async () => {
+  // `familiaDe` da HUAWEI para «MICA HIDROGEL MATE», porque MATE es uno de
+  // sus modelos. Sin la guarda, buscar «huawei» devolvía protectores.
+  olvidar()
+  sembrar('leon', {
+    nombre: 'León', corte: '2026-11-10', dias: 1, viejo: false,
+    productos: [
+      producto('HM10', 'HUAWEI MATE 10 HARD CASE', 5),
+      producto('MT',   'MICA HIDROGEL MATE', 21),
+    ],
+  })
+  const r = await buscarEnPlaza({ plaza: 'leon', texto: 'huawei' })
+  assert.equal(r.totalHallados, 1)
+  assert.equal(r.hayPiezas[0].codigo, 'HM10', 'una mica mate no es un Huawei')
+})
+
+// ── Cómo se le llama a un producto delante de un cliente ──────────────────
+
+test('la palabra «case» del catálogo no sale nunca', () => {
+  // El catálogo está escrito para quien surte: «SAMSUNG S25 ULTRA TPU CASE».
+  // Eso aparecía como pie de la foto que le llega a quien vio un anuncio.
+  const casos = [
+    ['SGS25UT', 'SAMSUNG S25 ULTRA TPU CASE'],
+    ['I13',     'IPHONE 13 HARD CASE'],
+    ['I11D',    'IPHONE 11 DUO CASE'],
+  ]
+  for (const [c, n] of casos) {
+    assert.doesNotMatch(nombreParaCliente(c, n), /\bcase\b/i, n)
+  }
+})
+
+test('cada tipo se dice con las palabras del dueño', () => {
+  assert.match(nombreParaCliente('SGS25UT', 'SAMSUNG S25 ULTRA TPU CASE'), /goma flexible/)
+  assert.match(nombreParaCliente('SGS25U3', 'SAMSUNG S25 ULTRA 3 IN 1'),   /uso rudo/)
+  // «3 en 1» es jerga de catálogo y no se repite.
+  assert.doesNotMatch(nombreParaCliente('SGS25U3', 'SAMSUNG S25 ULTRA 3 IN 1'), /3 ?[ei]n ?1/i)
+})
+
+test('el teléfono se conserva y se escribe como se escribe', () => {
+  assert.equal(nombreParaCliente('SGS25UT', 'SAMSUNG S25 ULTRA TPU CASE'),
+    'Funda de goma flexible para Samsung S25 Ultra')
+  // iPhone lleva su i minúscula; «Iphone» se lee como error de la tienda.
+  assert.match(nombreParaCliente('I13T', 'IPHONE 13 TPU CASE'), /iPhone 13/)
+})
+
+test('una mica no lleva teléfono, porque es genérica', () => {
+  // Quitando las palabras de catálogo queda basura —«HD Alta», «Privacidad»—
+  // y pegarla detrás de «para» inventaba un modelo que no existe.
+  for (const [c, n] of [['HDA', 'MICA HIDRIOGEL HD ALTA'], ['PV', 'HIDROGEL PRIVACIDAD'], ['HDR', 'HD USO RUDO']]) {
+    assert.doesNotMatch(nombreParaCliente(c, n), / para /, n)
+  }
+  assert.equal(nombreParaCliente('MT', 'MICA HIDROGEL MATE'), 'Mica mate')
+})
+
+test('lo que no se reconoce se deja tal cual, feo pero nunca falso', () => {
+  assert.equal(nombreParaCliente('EM', 'EXHIBIDOR MAYORISTA'), 'EXHIBIDOR MAYORISTA')
+})
+
+test('la búsqueda devuelve el nombre de cliente junto al de catálogo', async () => {
+  montar()
+  const r = await buscarEnPlaza({ plaza: 'leon', texto: 'a06' })
+  assert.equal(r.hayPiezas[0].nombre, 'SAMSUNG A06 TPU CASE', 'el de catálogo, para las herramientas')
+  assert.match(r.hayPiezas[0].comoSeDice, /goma flexible/, 'y el de cliente, para el chat')
+})
+
+test('el pie de una foto prestada sigue avisando', async () => {
+  // La advertencia no se traduce: lo que importa es reconocer de qué teléfono
+  // es la foto, no que suene bonito.
+  const f = await fotoDe({ codigo: 'SGS26UT', nombre: 'SAMSUNG S26 ULTRA TPU CASE' })
+  if (f && !f.exacta) assert.match(f.pie, /^Foto de referencia: es del /)
 })
