@@ -13,7 +13,7 @@ import {
   verificarEnganche, firmaValida, leerCarga, anuncioDe,
   anuncioParaElCerebro, creaDescartador,
 } from './webhook.js'
-import { recortar, TOPE_TEXTO, TOPE_PIE, mandarTexto, mandarImagen, mandarRespuesta } from './whatsapp-api.js'
+import { recortar, TOPE_TEXTO, TOPE_PIE, mandarTexto, mandarImagen, mandarRespuesta, paraEnvio } from './whatsapp-api.js'
 
 const SECRETO = 'secreto-de-la-app'
 const firmar = cuerpo =>
@@ -307,4 +307,23 @@ test('sin credenciales no se manda nada y se dice por qué', async () => {
     () => mandarTexto('52477', 'hola', { fetchImpl: fetchFalso().impl }),
     /WHATSAPP_TOKEN/,
   )
+})
+
+test('un número de México 521… se manda como 52… (el «1» sobra para Meta)', async (t) => {
+  // La primera prueba real, el 2026-11-12: el webhook trajo 5213315381571, el
+  // número estaba en la lista como 523315381571 y la API contestó (#131030).
+  assert.equal(paraEnvio('5213315381571'), '523315381571')
+  assert.equal(paraEnvio('524771234567'), '524771234567') // ya sin «1»: no se toca
+  assert.equal(paraEnvio('16315551181'), '16315551181')   // otro país: no se toca
+  assert.equal(paraEnvio('52133153815'), '52133153815')   // largo distinto: no se toca
+  assert.equal(paraEnvio(undefined), '')
+
+  process.env.WHATSAPP_TOKEN = 'TOK'
+  process.env.WHATSAPP_PHONE_NUMBER_ID = 'PNID'
+  t.after(() => { delete process.env.WHATSAPP_TOKEN; delete process.env.WHATSAPP_PHONE_NUMBER_ID })
+  const f = fetchFalso()
+  await mandarTexto('5213315381571', 'hola', { fetchImpl: f.impl })
+  await mandarImagen('5213315381571', 'https://x/y.webp', 'pie', { fetchImpl: f.impl })
+  assert.equal(f.llamadas[0].cuerpo.to, '523315381571')
+  assert.equal(f.llamadas[1].cuerpo.to, '523315381571')
 })
