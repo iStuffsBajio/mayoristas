@@ -24,9 +24,9 @@
 //
 // Dos implementaciones con la misma interfaz: `enMemoria()` para las pruebas y
 // para correr en una sola máquina, y `enArchivo()` para probar el bot en
-// local sin perder las conversaciones al reiniciar. En la nube va una tercera
-// contra Neon, con la misma interfaz, y por eso vive detrás de ella: cambiar
-// de almacén no debe tocar el orquestador.
+// local sin perder las conversaciones al reiniciar. En la nube va una tercera,
+// `enS3()` en `almacen-s3.js`, con la misma interfaz, y por eso vive detrás de
+// ella: cambiar de almacén no debe tocar el orquestador.
 
 import fs from 'node:fs'
 import path from 'node:path'

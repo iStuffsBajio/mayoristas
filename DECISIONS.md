@@ -27,6 +27,7 @@ describe controles y operación de seguridad.
 | Ranking de mayoristas | Cada tienda ve sólo el de su plaza y el administrador todas, por separado; rango de 7 a 30 días. | `src/lib/mayoristas.js`; `GET /corte` |
 | Trabajo entre agentes | Instrucciones compartidas en `AGENTS.md`; `CLAUDE.md` importa esa fuente y mantiene el conocimiento específico de este repo. | `AGENTS.md`, `CLAUDE.md` |
 | CRM de clientes | CRM propio sobre el panel (no una plataforma externa). Fichas en `crm/clientes/`, privado; una tienda sólo ve su plaza; el bot se calla cuando una persona toma la conversación. | `crm/LEEME.md`, “La bandeja del panel”; `backend/src/clientes.js` |
+| Producción del CRM | El webhook de Meta es una ruta del backend (`/meta/webhook`) que sólo valida y encola; piensa una segunda Lambda detrás de una cola SQS FIFO con el teléfono como grupo. Conversaciones y fichas en S3 bajo `crm/` con escritura condicional (no Neon). El trabajador ocupa como mucho 2 de las 10 ejecuciones de la cuenta. A los 3 intentos fallidos la ficha queda «sin respuesta» en el panel. AWS se aplica a mano desde `infra/`; el despliegue del trabajador es manual. | `crm/LEEME.md`, “La estructura de producción”; `crm/trabajador.js`, `backend/src/meta.js`, `infra/crm-*.json` |
 
 Las operaciones sobre cuentas, buckets, credenciales y publicación requieren
 confirmación del dueño y verificación del estado externo.

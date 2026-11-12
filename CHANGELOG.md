@@ -5,6 +5,13 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-11
 
+- **Estructura de producción del CRM** (rama `fable/estructura-produccion`,
+  sin aplicar en AWS). Ruta `/meta/webhook` en el backend, cola SQS FIFO por
+  teléfono, trabajador en una segunda Lambda, y conversaciones y fichas en S3
+  con escritura condicional. Si el bot falla tres veces con un cliente, la
+  bandeja lo enseña primero y en rojo como «Sin respuesta». Los permisos y
+  parámetros de AWS van en `infra/` y los pasos en `crm/LEEME.md`.
+
 - **Torreón entra al bot** (rama `crm-meta`): atiende la Comarca Lagunera,
   Coahuila y Durango. Sin número propio, sus leads van al general.
 

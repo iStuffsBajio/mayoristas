@@ -1,0 +1,67 @@
+name: Desplegar trabajador del CRM
+
+# Publica el codigo del trabajador del bot (crm/trabajador.js) en su funcion
+# Lambda, istuffs-crm-trabajador. Es la SEGUNDA funcion: el webhook de Meta
+# vive en el backend y se publica con «Desplegar backend».
+#
+# Es MANUAL a proposito, y asi se queda mientras el bot se estrena: se pulsa
+# «Run workflow» desde la pestaña Actions. Publicar solo con cada cambio de
+# crm/ pondria en produccion un cambio de las reglas del bot que nadie paso
+# por `npm run crm:evaluar`, y eso lo contestaria un cliente de verdad.
+#
+# No toca variables ni permisos: las llaves viven como variables de la funcion
+# y se ponen una vez, a mano. Los pasos estan en crm/LEEME.md.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: desplegar-crm
+  cancel-in-progress: false
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Las dependencias del trabajador salen de la RAIZ, no de backend/: ahi
+      # estan @anthropic-ai/sdk y @aws-sdk/client-s3, y ahi esta esbuild (lo
+      # trae Vite). `npm ci` instala lo que dice package-lock.json, las mismas
+      # versiones con las que corren las pruebas.
+      - name: Instalar dependencias
+        run: npm ci --silent
+
+      - name: Pruebas del CRM
+        env:
+          TZ: America/Mexico_City
+        run: node --test crm/*.test.js
+
+      - name: Empaquetar
+        run: |
+          npm run crm:empaquetar
+          cd scripts/out/crm-trabajador
+          zip -q ../../../crm-trabajador.zip index.mjs
+          ls -lh ../../../crm-trabajador.zip
+
+      - name: Configurar credenciales de AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_DEPLOY_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_DEPLOY_SECRET_KEY }}
+          aws-region:            ${{ secrets.S3_REGION }}
+
+      - name: Publicar en Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name istuffs-crm-trabajador \
+            --zip-file fileb://crm-trabajador.zip \
+            --no-cli-pager > /dev/null
+          aws lambda wait function-updated --function-name istuffs-crm-trabajador
+          echo "Trabajador del CRM actualizado."

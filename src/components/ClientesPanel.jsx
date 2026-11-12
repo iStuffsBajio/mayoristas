@@ -159,7 +159,7 @@ function Ficha({ cliente: c, token, esAdmin, onCambio, onCerrar }) {
         <p data-ficha-sin-respuesta role="alert"
            style={{ fontSize: 12.5, color: '#7F1D1D', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 10, padding: '8px 10px', margin: '0 0 10px' }}>
           <strong>Nadie le ha contestado.</strong> El bot no pudo responderle su mensaje de {hora(c.sinRespuesta.desde)} y dejó
-          de intentarlo. Contéstale tú desde aquí abajo; el aviso se quita en cuanto alguien le responda o se cierre la conversación.
+          de intentarlo. Hay que contestarle; el aviso se quita en cuanto alguien le responda o se cierre la conversación.
         </p>
       )}
 
@@ -370,7 +370,9 @@ export default function ClientesPanel({ plazaFija = null }) {
         <p data-aviso-sin-respuesta role="alert"
            style={{ fontSize: 13, color: '#7F1D1D', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 12, padding: '10px 12px', margin: 0 }}>
           <strong>{cuenta.sinRespuesta === 1 ? 'Hay 1 cliente al que nadie le contestó.' : `Hay ${cuenta.sinRespuesta} clientes a los que nadie les contestó.`}</strong>{' '}
-          El bot no pudo responderles. Van al principio de la bandeja, marcados «Sin respuesta».
+          {cuenta.sinRespuesta === 1
+            ? 'El bot no pudo responderle. Va al principio de la bandeja, marcado «Sin respuesta».'
+            : 'El bot no pudo responderles. Van al principio de la bandeja, marcados «Sin respuesta».'}
         </p>
       )}
 
