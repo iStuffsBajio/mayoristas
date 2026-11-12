@@ -19,6 +19,7 @@ import {
 } from './cortes.js'
 import * as CRM from './clientes.js'
 import { almacenDeClientes, Conflicto } from './clientes-s3.js'
+import { esRutaDeMeta, rutaMetaWebhook } from './meta.js'
 import {
   verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
@@ -1891,6 +1892,12 @@ export async function handler(evento) {
   const origen = evento.headers?.origin || evento.headers?.Origin || ''
   const metodo = evento.requestContext?.http?.method || 'GET'
   const ruta   = (evento.rawPath || '/').replace(/\/+$/, '') || '/'
+
+  // El webhook de Meta va ANTES que todo lo demás, y no es un descuido: lo de
+  // abajo comprueba el origen, parsea el cuerpo como JSON y contesta JSON, y
+  // las tres cosas lo rompen. Meta no manda `Origin`, su firma se valida sobre
+  // los bytes crudos, y el enganche espera texto plano. Ver `meta.js`.
+  if (esRutaDeMeta(ruta)) return rutaMetaWebhook(evento)
 
   if (metodo === 'OPTIONS') return { statusCode: 204, headers: cabeceras(origen), body: '' }
 
