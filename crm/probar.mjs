@@ -66,7 +66,7 @@ async function turno(historial, texto, etiqueta) {
 
 if (args.includes('--guion')) {
   let historial = []
-  const uso = { entrada: 0, salida: 0, cacheLeido: 0 }
+  const uso = { entrada: 0, salida: 0, cacheLeido: 0, cacheEscrito: 0 }
   for (const [etiqueta, texto] of GUION) {
     const r = await turno(historial, texto, etiqueta)
     historial = r.historial

@@ -100,7 +100,7 @@ const leer = async () => {}
 
 // ── Un paso ─────────────────────────────────────────────────────────────────
 
-const total = { entrada: 0, salida: 0, cacheLeido: 0 }
+const total = { entrada: 0, salida: 0, cacheLeido: 0, cacheEscrito: 0 }
 
 async function paso(etiqueta, cargaDeMeta, quien = 'tú') {
   if (etiqueta) console.log(`\n${GRIS}── ${etiqueta} ──${FIN}`)

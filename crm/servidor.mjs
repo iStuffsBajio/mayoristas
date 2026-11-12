@@ -28,7 +28,7 @@ const TELEFONO = '524771234567'
 
 const almacen = enMemoria()
 let contador = 0
-const total = { entrada: 0, salida: 0, cacheLeido: 0 }
+const total = { entrada: 0, salida: 0, cacheLeido: 0, cacheEscrito: 0 }
 
 /** La carga tal como la manda Meta, para que el camino sea el de verdad. */
 function cargaDeMeta(texto, { tipo = 'text', nombre = 'Marisol', anuncio = null } = {}) {
@@ -378,7 +378,7 @@ $('#reiniciar').addEventListener('click', async () => {
   msgs.innerHTML = ''
   nota('Conversación borrada')
   pintarPanel({ plaza: null, anuncio: null, motivo: '—', herramientas: [], lead: null,
-                total: { entrada: 0, cacheLeido: 0, salida: 0, usd: 0 } })
+                total: { entrada: 0, cacheLeido: 0, cacheEscrito: 0, salida: 0, usd: 0 } })
 })
 
 nota('El bot de verdad, con el inventario de verdad. Lo único simulado es el envío a WhatsApp.')
