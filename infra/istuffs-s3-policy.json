@@ -20,7 +20,8 @@
         "arn:aws:s3:::istuffs-inventarios/revisiones/*",
         "arn:aws:s3:::istuffs-inventarios/ajustes/*",
         "arn:aws:s3:::istuffs-inventarios/surtidos/*",
-        "arn:aws:s3:::istuffs-inventarios/config/*"
+        "arn:aws:s3:::istuffs-inventarios/config/*",
+        "arn:aws:s3:::istuffs-inventarios/crm/*"
       ]
     }
   ]

@@ -5,6 +5,23 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-11
 
+- **Estructura de producción del CRM** (rama `fable/estructura-produccion`,
+  sin aplicar en AWS). Ruta `/meta/webhook` en el backend, cola SQS FIFO por
+  teléfono, trabajador en una segunda Lambda, y conversaciones y fichas en S3
+  con escritura condicional. Si el bot falla tres veces con un cliente, la
+  bandeja lo enseña primero y en rojo como «Sin respuesta». Los permisos y
+  parámetros de AWS van en `infra/` y los pasos en `crm/LEEME.md`.
+
+- **Torreón entra al bot** (rama `crm-meta`): atiende la Comarca Lagunera,
+  Coahuila y Durango. Sin número propio, sus leads van al general.
+
+- **Clientes (CRM, fase 1, rama `crm-meta`).** Sección «Clientes» en el panel
+  del administrador y de cada tienda: ficha de cada cliente o mayorista, de qué
+  anuncio llegó, la conversación, tomar, pasar a otra plaza, cerrar o devolver
+  al bot, y alta a mano. El bot apunta cada mensaje en la ficha y se calla
+  cuando la tienda toma la conversación. Contestar desde el panel se guarda pero
+  todavía no sale por WhatsApp.
+
 - **Torreón en la consulta del mayorista.** La portada ya deja elegir Torreón y
   enseña sus piezas con la fecha de su respaldo. El panel sigue sin contarla.
 

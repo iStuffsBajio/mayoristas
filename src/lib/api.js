@@ -372,3 +372,26 @@ export const subirFotoNomina = (datos, token) =>
 
 export const fotoNomina = (f, token) =>
   pedir(`/nomina/foto?f=${encodeURIComponent(f)}`, { token })
+
+// ── Clientes y bandeja del CRM ───────────────────────────────────────────────
+//
+// Una tienda recibe SÓLO los clientes de su plaza: lo recorta el servidor, no
+// esta capa. `plaza` es opcional y sólo el administrador puede pedir otra.
+
+export const clientesCrm = (plaza, token) =>
+  pedir(`/crm/clientes${plaza ? `?plaza=${encodeURIComponent(plaza)}` : ''}`, { token })
+
+export const clienteCrm = (id, token) =>
+  pedir(`/crm/cliente?id=${encodeURIComponent(id)}`, { token })
+
+export const altaClienteCrm = (nuevo, token) =>
+  pedir('/crm/cliente', { metodo: 'POST', cuerpo: { nuevo }, token })
+
+export const editarClienteCrm = (id, campos, token) =>
+  pedir('/crm/cliente', { metodo: 'POST', cuerpo: { id, campos }, token })
+
+export const accionClienteCrm = ({ id, accion, plaza, motivo }, token) =>
+  pedir('/crm/accion', { metodo: 'POST', cuerpo: { id, accion, plaza, motivo }, token })
+
+export const responderClienteCrm = (id, texto, token) =>
+  pedir('/crm/responder', { metodo: 'POST', cuerpo: { id, texto }, token })

@@ -17,6 +17,9 @@ import {
   PLAZAS_CORTE, INICIO_DEL_CORTE, esLunes, lunesDe, validarConteo, diasParaTienda,
   movimientosParaTienda, ventasParaTienda, parametrosParaTienda, registroDeConteo,
 } from './cortes.js'
+import * as CRM from './clientes.js'
+import { almacenDeClientes, Conflicto } from './clientes-s3.js'
+import { esRutaDeMeta, rutaMetaWebhook } from './meta.js'
 import {
   verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
@@ -1570,6 +1573,179 @@ async function rutaGuardarConteo(evento, origen, cuerpo) {
   return responder(origen, 200, { ok: true, registro })
 }
 
+// ── Clientes y bandeja del CRM ─────────────────────────────────────────────
+//
+// Lo pidió el dueño el 2026-11-11 y eligió construirlo sobre lo que ya hay. La
+// regla —estados, quién ve qué, la ficha— vive en `clientes.js`; aquí, guardar
+// y comprobar la sesión. Todo bajo `crm/clientes/`, PRIVADO: la lista de
+// clientes es el negocio.
+//
+// Un archivo por cliente, como `revisiones/<quien>.json`: el bot y la tienda
+// escriben a la vez en clientes distintos sin pisarse. Y para el MISMO cliente
+// —el bot apunta lo que escribió la persona mientras la tienda contesta— cada
+// escritura va condicionada a la versión que se leyó (`IfMatch`): si alguien
+// escribió en medio, se vuelve a leer y se aplica otra vez, en vez de que la
+// última escritura borre a la otra sin avisar.
+//
+// El guardado en sí vive en `clientes-s3.js`, porque el bot escribe las mismas
+// fichas y no puede haber dos copias.
+
+const {
+  leerCliente, escribirCliente, modificarCliente, listarClientes,
+} = almacenDeClientes({ s3, bucket: BUCKET })
+
+/** Bodega no atiende clientes. Una tienda sí, la suya. El administrador, todas. */
+function sesionCrm(evento) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return { error: 'Requiere sesión.' }
+  if (!sesion.admin && !CRM.PLAZAS_CLIENTES.includes(sesion.sucursal)) return { error: 'Esta sesión no atiende clientes.' }
+  return { sesion }
+}
+
+/** `GET /crm/clientes?plaza=<slug>`. Una tienda recibe SÓLO los de su plaza. */
+async function rutaClientes(evento, origen) {
+  const { sesion, error } = sesionCrm(evento)
+  if (error) return responder(origen, 403, { error })
+
+  const pedida = String(evento.queryStringParameters?.plaza ?? '').trim()
+  if (pedida && !sesion.admin && pedida !== sesion.sucursal) {
+    return responder(origen, 403, { error: 'Sólo puedes ver los clientes de tu plaza.' })
+  }
+
+  const { clientes } = await listarClientes()
+  const visibles = clientes
+    .filter(c => CRM.puedeVer(sesion, c))
+    .filter(c => !pedida || (pedida === 'sin-plaza' ? !c.plaza : c.plaza === pedida))
+  return responder(origen, 200, { clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles) })
+}
+
+/** `GET /crm/cliente?id=<id>`: la ficha entera, con la conversación. */
+async function rutaCliente(evento, origen) {
+  const { sesion, error } = sesionCrm(evento)
+  if (error) return responder(origen, 403, { error })
+  const leido = await leerCliente(String(evento.queryStringParameters?.id ?? ''))
+  // Uno ajeno responde igual que uno que no existe: decir «existe, pero no es
+  // tuyo» ya es decir que ese teléfono es cliente de otra plaza.
+  if (!leido || leido.cliente.fusionadoEn || !CRM.puedeVer(sesion, leido.cliente)) {
+    return responder(origen, 404, { error: 'No existe ese cliente.' })
+  }
+  return responder(origen, 200, { cliente: leido.cliente })
+}
+
+/**
+ * `POST /crm/cliente`: dar de alta (`{ nuevo: {...} }`) o editar la ficha
+ * (`{ id, campos }`). Una tienda da de alta sólo en su plaza.
+ */
+async function rutaGuardarCliente(evento, origen, cuerpo) {
+  const { sesion, error } = sesionCrm(evento)
+  if (error) return responder(origen, 403, { error })
+  const quien = quienEs(sesion)
+
+  if (cuerpo?.nuevo) {
+    const n = cuerpo.nuevo
+    const plaza = sesion.admin ? (CRM.PLAZAS_CLIENTES.includes(n.plaza) ? n.plaza : null) : sesion.sucursal
+    const conTelefono = CRM.telefonoMx(n.telefono)
+    if (n.telefono && !conTelefono) return responder(origen, 400, { error: 'Ese no es un teléfono mexicano de 10 dígitos.' })
+    const id = conTelefono
+      ? CRM.idDe({ canal: 'whatsapp', telefono: conTelefono })
+      : CRM.idDe({ canal: 'tienda', plaza, clave: n.nombre })
+    if (!id) return responder(origen, 400, { error: 'Hace falta un teléfono, o un nombre y una plaza.' })
+
+    const base = CRM.nuevoCliente({ id, canal: 'tienda', telefono: conTelefono, nombre: n.nombre, plaza, tipo: n.tipo, origen: { fuente: 'tienda' }, quien })
+    if (!base) return responder(origen, 400, { error: 'No se pudo dar de alta.' })
+    const r = CRM.editarFicha(base, { ciudad: n.ciudad, modelo: n.modelo, notas: n.notas ?? '' }, { quien })
+    if (r.error) return responder(origen, 400, { error: r.error })
+    try {
+      await escribirCliente(r.cliente, null)
+    } catch (err) {
+      if (err instanceof Conflicto) return responder(origen, 409, { error: 'Ya hay un cliente con ese teléfono o ese nombre. Búscalo en la lista.' })
+      throw err
+    }
+    return responder(origen, 200, { ok: true, cliente: r.cliente })
+  }
+
+  const id = String(cuerpo?.id ?? '')
+  const leido = await leerCliente(id)
+  if (!leido || leido.cliente.fusionadoEn || !CRM.puedeVer(sesion, leido.cliente)) {
+    return responder(origen, 404, { error: 'No existe ese cliente.' })
+  }
+
+  const r = await modificarCliente(id, c => CRM.editarFicha(c, cuerpo?.campos ?? {}, { quien }))
+  if (r.error) return responder(origen, r.codigo, { error: r.error })
+
+  // Se le capturó teléfono a quien no lo tenía: pasa a su llave de WhatsApp,
+  // para que el día que escriba el bot lo reconozca.
+  const paso = CRM.aWhatsApp(r.cliente, { quien })
+  if (paso) {
+    try {
+      await escribirCliente(paso.nuevo, null)
+    } catch (err) {
+      if (err instanceof Conflicto) {
+        return responder(origen, 409, { error: 'Ese teléfono ya es de otro cliente. Se guardó el resto de la ficha, pero no se vincularon.' })
+      }
+      throw err
+    }
+    await modificarCliente(id, () => ({ cliente: paso.viejo }))
+    return responder(origen, 200, { ok: true, cliente: paso.nuevo, vinculado: true })
+  }
+  return responder(origen, 200, { ok: true, cliente: r.cliente })
+}
+
+/**
+ * `POST /crm/accion { id, accion, plaza?, motivo? }`.
+ *
+ * `entregar` NO está aquí: es del bot. Una persona que quiere pasar un cliente
+ * a otra plaza lo transfiere, y eso deja su nombre en la bitácora.
+ */
+async function rutaAccionCliente(evento, origen, cuerpo) {
+  const { sesion, error } = sesionCrm(evento)
+  if (error) return responder(origen, 403, { error })
+  const accion = String(cuerpo?.accion ?? '')
+  if (!['tomar', 'transferir', 'cerrar', 'devolver', 'leido'].includes(accion)) {
+    return responder(origen, 400, { error: 'Esa acción no existe.' })
+  }
+  const id = String(cuerpo?.id ?? '')
+  const r = await modificarCliente(id, c => {
+    if (!CRM.puedeVer(sesion, c)) return { error: 'No existe ese cliente.', codigo: 404 }
+    return CRM.aplicarAccion(c, { accion, plaza: cuerpo?.plaza, motivo: cuerpo?.motivo }, { quien: quienEs(sesion) })
+  })
+  if (r.error) return responder(origen, r.codigo, { error: r.error })
+  return responder(origen, 200, { ok: true, cliente: r.cliente })
+}
+
+/**
+ * `POST /crm/responder { id, texto }`.
+ *
+ * Contestar es tomar: si estaba pendiente, queda a nombre de quien contestó y
+ * el bot se calla. El MENSAJE se guarda siempre; mandarlo por WhatsApp hace
+ * falta la línea de Meta, que todavía no está encendida, y la respuesta lo dice
+ * en vez de fingir que salió.
+ */
+async function rutaResponderCliente(evento, origen, cuerpo) {
+  const { sesion, error } = sesionCrm(evento)
+  if (error) return responder(origen, 403, { error })
+  const texto = String(cuerpo?.texto ?? '').trim()
+  if (!texto) return responder(origen, 400, { error: 'Escribe algo antes de mandar.' })
+  if (texto.length > CRM.MAX_TEXTO) return responder(origen, 400, { error: 'El mensaje es demasiado largo.' })
+  const quien = quienEs(sesion)
+
+  const r = await modificarCliente(String(cuerpo?.id ?? ''), c => {
+    if (!CRM.puedeVer(sesion, c)) return { error: 'No existe ese cliente.', codigo: 404 }
+    let sig = c
+    if (c.estado !== 'atendiendo' || c.atiende !== quien) {
+      const t = CRM.aplicarAccion(c, { accion: 'tomar' }, { quien })
+      if (t.error) return t
+      sig = t.cliente
+    }
+    return { cliente: CRM.registrarMensaje(sig, { de: 'tienda', texto, quien, envio: 'sin-canal' }) }
+  })
+  if (r.error) return responder(origen, r.codigo, { error: r.error })
+  return responder(origen, 200, {
+    ok: true, cliente: r.cliente, enviado: false,
+    aviso: 'Quedó guardado en la conversación. Todavía no sale por WhatsApp: la línea de Meta no está encendida.',
+  })
+}
+
 // ── Nómina y RH ────────────────────────────────────────────────────────────
 //
 // Lo pidió el dueño el 2026-11-11: «Mi pago» en cada sucursal y «Nómina y RH»
@@ -1717,6 +1893,12 @@ export async function handler(evento) {
   const metodo = evento.requestContext?.http?.method || 'GET'
   const ruta   = (evento.rawPath || '/').replace(/\/+$/, '') || '/'
 
+  // El webhook de Meta va ANTES que todo lo demás, y no es un descuido: lo de
+  // abajo comprueba el origen, parsea el cuerpo como JSON y contesta JSON, y
+  // las tres cosas lo rompen. Meta no manda `Origin`, su firma se valida sobre
+  // los bytes crudos, y el enganche espera texto plano. Ver `meta.js`.
+  if (esRutaDeMeta(ruta)) return rutaMetaWebhook(evento)
+
   if (metodo === 'OPTIONS') return { statusCode: 204, headers: cabeceras(origen), body: '' }
 
   // Falla de entrada si falta configuración, en vez de comportarse raro
@@ -1764,6 +1946,11 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/caja/parametros') return await rutaGuardarParametros(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/caja/fondo')      return await rutaGuardarFondo(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/caja/movimiento') return await rutaGuardarMovimiento(evento, origen, cuerpo)
+    if (metodo === 'GET'  && ruta === '/crm/clientes')    return await rutaClientes(evento, origen)
+    if (metodo === 'GET'  && ruta === '/crm/cliente')     return await rutaCliente(evento, origen)
+    if (metodo === 'POST' && ruta === '/crm/cliente')     return await rutaGuardarCliente(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/crm/accion')      return await rutaAccionCliente(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/crm/responder')   return await rutaResponderCliente(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/diseno')     return await rutaSubirDiseno(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/config')     return await rutaGuardarConfig(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/inventario') return await rutaSubirInventario(evento, origen, cuerpo)

@@ -1,0 +1,51 @@
+{
+  "_leeme": "NO es una politica de IAM: son los parametros de las dos colas, de la funcion del trabajador y de su disparador, para aplicarlos a mano. Los pasos estan en crm/LEEME.md. Los numeros de aqui tienen que coincidir con crm/trabajador.js y hay una prueba que falla si se separan (crm/produccion.test.js). Sustituir REGION y CUENTA.",
+
+  "fallidos": {
+    "QueueName": "istuffs-crm-fallidos.fifo",
+    "Attributes": {
+      "FifoQueue": "true",
+      "MessageRetentionPeriod": "1209600"
+    }
+  },
+
+  "cola": {
+    "QueueName": "istuffs-crm-mensajes.fifo",
+    "Attributes": {
+      "FifoQueue": "true",
+      "ContentBasedDeduplication": "false",
+      "VisibilityTimeout": "180",
+      "MessageRetentionPeriod": "86400",
+      "RedrivePolicy": "{\"deadLetterTargetArn\":\"arn:aws:sqs:REGION:CUENTA:istuffs-crm-fallidos.fifo\",\"maxReceiveCount\":3}"
+    }
+  },
+
+  "funcion": {
+    "FunctionName": "istuffs-crm-trabajador",
+    "Runtime": "nodejs22.x",
+    "Handler": "index.handler",
+    "Timeout": 90,
+    "MemorySize": 512
+  },
+
+  "disparador": {
+    "EventSourceArn": "arn:aws:sqs:REGION:CUENTA:istuffs-crm-mensajes.fifo",
+    "FunctionName": "istuffs-crm-trabajador",
+    "BatchSize": 1,
+    "FunctionResponseTypes": ["ReportBatchItemFailures"],
+    "ScalingConfig": { "MaximumConcurrency": 2 }
+  },
+
+  "alarma": {
+    "AlarmName": "istuffs-crm-fallidos-con-mensajes",
+    "Namespace": "AWS/SQS",
+    "MetricName": "ApproximateNumberOfMessagesVisible",
+    "Dimensions": [{ "Name": "QueueName", "Value": "istuffs-crm-fallidos.fifo" }],
+    "Statistic": "Maximum",
+    "Period": 300,
+    "EvaluationPeriods": 1,
+    "Threshold": 0,
+    "ComparisonOperator": "GreaterThanThreshold",
+    "TreatMissingData": "notBreaching"
+  }
+}

@@ -2348,3 +2348,15 @@
     padding: 24px; color: #000; background: #fff; font-family: inherit;
   }
 }
+
+/* El CRM: la bandeja a la izquierda y la ficha abierta a la derecha. Por debajo
+   de 900px se apilan con la FICHA ARRIBA: si no, abrir un cliente obliga a bajar
+   por delante de toda la lista para verlo (la misma lección que Revisar). */
+.crm-columnas { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.crm-columnas > * { min-width: 0; }
+@media (min-width: 900px) {
+  .crm-columnas.con-ficha { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); }
+}
+@media (max-width: 899px) {
+  .crm-columnas .crm-ficha { order: -1; }
+}
