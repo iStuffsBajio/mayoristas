@@ -923,12 +923,23 @@ test('los horarios dicen lo que dictó el dueño', () => {
   for (const slug of ['leon', 'san-luis', 'aguascalientes']) {
     const h = datosDeSucursal({ plaza: slug }).horario
     assert.match(h, /10:30 am a 8:00 pm/, slug)
-    assert.match(h, /domingos en temporada alta cerramos a las 5:00 pm/, slug)
+    // Los domingos cierran a las 5 TODO el año: la primera versión lo entendió
+    // sólo de temporada alta y el dueño lo corrigió el mismo día.
+    assert.match(h, /los domingos cerramos a las 5:00 pm/, slug)
+    assert.doesNotMatch(h, /domingos en temporada alta/, slug)
     assert.match(h, /Navidad y Reyes/, slug)
   }
   const t = datosDeSucursal({ plaza: 'torreon' }).horario
   assert.match(t, /lunes a jueves de 10:00 am a 7:00 pm/)
-  assert.match(t, /viernes a domingo de 10:00 am a 7:30 pm/)
+  assert.match(t, /viernes y sábado de 10:00 am a 7:30 pm/)
+  assert.match(t, /domingos de 10:00 am a 5:00 pm/)
+  assert.match(t, /Navidad y Reyes/)
+})
+
+test('Torreón lleva «Centro» a secas, como aparece en Google', () => {
+  const d = datosDeSucursal({ plaza: 'torreon' })
+  assert.match(d.domicilio, /Hidalgo 1334, local 133, Centro, 27000/)
+  assert.doesNotMatch(d.domicilio, /Primitivo/)
 })
 
 test('los enlaces de mapa de cada tienda son distintos entre sí', () => {

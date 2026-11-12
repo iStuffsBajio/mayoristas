@@ -698,12 +698,15 @@ enlace de mapa y horario. La herramienta `datos_de_sucursal` lo entrega.
   hexadecimal tras los dos puntos de `!1s0x…:0x…`, pasada a decimal. El enlace
   copiado de Google Maps trae rastreadores (`entry=ttu&g_ep=…`).
 - **Las cuatro tiendas tienen datos** (dictados por el dueño el 2026-11-12).
-  León, San Luis y Aguascalientes comparten horario: 10:30 am a 8 pm, con cierre
-  a las 5 pm los domingos de temporada alta, y variable los días antes de Navidad
-  y Reyes. Torreón: 10 am a 7 pm de lunes a jueves y hasta las 7:30 pm de viernes
-  a domingo. **Torreón no tiene ficha en Google Maps**: su enlace es una búsqueda
-  por la dirección, que cae en la calle y no en la puerta; cuando exista la ficha,
-  se cambia por su enlace con `cid`.
+  León, San Luis y Aguascalientes: 10:30 am a 8 pm. **Los domingos todas cierran
+  a las 5 pm, todo el año** (la primera versión lo entendió sólo de temporada
+  alta y se corrigió el mismo día). Torreón: 10 am a 7 pm de lunes a jueves, hasta
+  las 7:30 pm viernes y sábado, y domingos hasta las 5 pm (el dueño dijo «todas»
+  y se aplicó también a Torreón: equivocarse hacia cerrar antes sólo hace llegar
+  temprano). En temporada alta, sobre todo antes de Navidad y Reyes, puede variar.
+  **Torreón no tiene ficha en Google Maps**: su enlace es una búsqueda por la
+  dirección, que cae en la calle y no en la puerta; cuando exista la ficha, se
+  cambia por su enlace con `cid`.
 
 **Emojis.** Permitidos con tope: uno o dos por mensaje, al saludar, celebrar o
 despedir; ninguno junto a un precio ni en una lista. El evaluador castiga más de

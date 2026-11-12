@@ -21,13 +21,15 @@
 //
 // Todo esto es información que cualquiera ve en Google. No lleva nada privado.
 
-// Dictado por el dueño el 2026-11-12. El horario va como lo dijo, sin
-// reinterpretarlo: «todas las sucursales, de 10:30 am a 8 pm; los domingos se
-// cierra a las 5 pm sólo en temporada alta, y los días antes de Navidad y Reyes
-// puede variar». Torreón tiene el suyo.
+// Dictado por el dueño el 2026-11-12 y corregido el mismo día: de 10:30 am a
+// 8 pm, y los DOMINGOS todas las tiendas cierran a las 5 pm todo el año (la
+// primera versión lo entendió sólo de temporada alta). En temporada alta, y
+// sobre todo los días antes de Navidad y Reyes, puede variar. Torreón tiene el
+// suyo entre semana.
+const AVISO_TEMPORADA =
+  'En temporada alta, sobre todo los días antes de Navidad y Reyes, el horario puede variar.'
 const HORARIO_GENERAL =
-  'De 10:30 am a 8:00 pm. Los domingos en temporada alta cerramos a las 5:00 pm, ' +
-  'y en los días antes de Navidad y Reyes el horario puede variar.'
+  'De 10:30 am a 8:00 pm; los domingos cerramos a las 5:00 pm. ' + AVISO_TEMPORADA
 
 export const INFO = {
   leon: {
@@ -46,14 +48,18 @@ export const INFO = {
     horario: HORARIO_GENERAL,
   },
   torreon: {
-    domicilio: 'Av. Hidalgo 1334, local 133, Primitivo Centro, 27000 Torreón, Coah.',
+    domicilio: 'Av. Hidalgo 1334, local 133, Centro, 27000 Torreón, Coah.',
     // Torreón no tiene ficha en Google Maps (2026-11-12). Este es un enlace de
     // BÚSQUEDA por la dirección: cae en esa calle, no en la puerta. Cuando exista
     // la ficha, se cambia por su enlace con `cid`.
     mapa: 'https://www.google.com/maps/search/?api=1&query=' +
-      encodeURIComponent('Av Hidalgo 1334, Primitivo Centro, 27000 Torreón, Coah.'),
+      encodeURIComponent('Av Hidalgo 1334, Centro, 27000 Torreón, Coah.'),
+    // Dictado: lunes a jueves de 10 a 7, y viernes a domingo hasta las 7:30. Luego
+    // dijo que TODOS cierran a las 5 los domingos; se aplicó a Torreón también,
+    // porque equivocarse hacia cerrar antes sólo hace llegar temprano.
     horario:
-      'De lunes a jueves de 10:00 am a 7:00 pm, y de viernes a domingo de 10:00 am a 7:30 pm.',
+      'De lunes a jueves de 10:00 am a 7:00 pm, viernes y sábado de 10:00 am a 7:30 pm, ' +
+      'y domingos de 10:00 am a 5:00 pm. ' + AVISO_TEMPORADA,
   },
 }
 

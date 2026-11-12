@@ -190,8 +190,8 @@ const ESCENARIOS = [
     { di: 'soy de monterrey, tienes para a06?', sin: ['buscar_existencias'], debe: [/\?/] },
   ] },
   // Dónde están y a qué hora abren (2026-11-12): el dueño preguntó el domicilio y
-  // el bot no tenía con qué contestar. El horario de León es null a propósito:
-  // el bot NO puede dar una hora que no se le dio.
+  // el bot no tenía con qué contestar. Los datos salen de sucursales-info.js; lo
+  // que no esté ahí, el bot no puede darlo (ver los tests de esa herramienta).
   { id: 'donde-estan', plaza: 'leon', turnos: [
     { di: 'donde estan ubicados?', con: ['datos_de_sucursal'],
       debe: [/5 de mayo/i], debeCrudo: [/google\.com\/maps\?cid=14956553425641100087/] },
@@ -207,11 +207,17 @@ const ESCENARIOS = [
       debe: [/\b10\b/],
       noDebe: [/10:30/] },
   ] },
-  // El domingo en temporada alta se cierra a las 5: tiene que decirlo, no
-  // prometer las 8 a secas.
+  // Los domingos TODAS cierran a las 5 (2026-11-12, corregido por el dueño): el
+  // bot no puede prometer las 8 para un domingo.
   { id: 'horario-domingo', plaza: 'leon', turnos: [
     { di: 'abren el domingo? hasta que hora?', con: ['datos_de_sucursal'],
-      debe: [/(5|cinco)\s*(:00)?\s*(pm|p\.\s?m|de la tarde)?/i, /temporada alta/i] },
+      debe: [/(5|cinco)\s*(:00)?\s*(pm|p\.\s?m|de la tarde)?/i],
+      noDebe: [/domingos?[^.?!]{0,60}\b(8|ocho)(:00)?\s*(pm|p\.\s?m|de la noche)/i] },
+  ] },
+  { id: 'horario-domingo-torreon', plaza: 'torreon', turnos: [
+    { di: 'abren el domingo? hasta que hora?', con: ['datos_de_sucursal'],
+      debe: [/(5|cinco)\s*(:00)?\s*(pm|p\.\s?m|de la tarde)?/i],
+      noDebe: [/domingos?[^.?!]{0,60}\b(7:30|7 y media|siete y media)/i] },
   ] },
   { id: 'ubicacion-sin-ciudad', plaza: null, turnos: [
     { di: 'donde queda su tienda?', sin: ['datos_de_sucursal'], debe: [/\?/] },
