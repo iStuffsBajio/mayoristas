@@ -185,7 +185,38 @@ export function registrarMensaje(c, { de, texto: t, quien = null, id = null, tip
     if (!botContesta(sig)) sig.noLeidos = (sig.noLeidos ?? 0) + 1
   }
   if (de === 'tienda') sig.noLeidos = 0
+  // Alguien le contestó —el bot en el siguiente mensaje, o la tienda—: ya no
+  // está sin respuesta. Ver `marcarSinRespuesta`.
+  if (de !== 'cliente' && sig.sinRespuesta) sig = sinMarca(sig)
   return sig
+}
+
+const sinMarca = c => { const { sinRespuesta, ...resto } = c; return resto }
+
+/**
+ * Marca que a este cliente NADIE le contestó.
+ *
+ * Pasa cuando el bot falla las veces que la cola le da (`MAX_ENTREGAS`, en
+ * `crm/trabajador.js`): Anthropic caído, WhatsApp rechazando el envío, un
+ * fallo nuestro. El mensaje se va a la cola de fallidos, y sin esto el cliente
+ * se quedaría esperando sin que nadie lo supiera: en la bandeja la
+ * conversación se vería «con el bot», como cualquier otra.
+ *
+ * **Se marca, no se cambia el estado.** El bot sigue pudiendo contestar el
+ * siguiente mensaje —si la caída fue de diez minutos, pasarlas todas a
+ * «pendiente» dejaría al bot callado con cada cliente que escribió en ese
+ * rato, hasta que alguien las devolviera una por una—. La marca sube la
+ * conversación al principio de la bandeja y se cuenta arriba; se quita sola
+ * cuando alguien contesta o la tienda la cierra.
+ *
+ * Si ya estaba marcada no se toca: lo que importa es DESDE cuándo espera.
+ */
+export function marcarSinRespuesta(c, { motivo = null, mensaje = null } = {}, { ahora } = {}) {
+  if (!c || c.sinRespuesta) return c
+  const hora = ahoraIso(ahora)
+  const nota = texto(motivo, 200) || null
+  const sig = { ...c, sinRespuesta: { desde: hora, motivo: nota, ...(mensaje && { mensaje }) }, actualizado: hora }
+  return conBitacora(sig, 'sistema', 'sin respuesta', nota, hora)
 }
 
 /** Errores que la bandeja le enseña a quien pulsa, tal cual. */
@@ -228,7 +259,9 @@ export function aplicarAccion(c, { accion, plaza, motivo } = {}, { quien, ahora 
     }
     case 'cerrar': {
       if (c.estado === 'cerrada') return { cliente: c }
-      const sig = { ...c, estado: 'cerrada', atiende: null, noLeidos: 0, actualizado: hora }
+      // Cerrarla es darla por resuelta —le llamaron, pasó a la tienda—: la marca
+      // de «sin respuesta» se va con ella.
+      const sig = { ...sinMarca(c), estado: 'cerrada', atiende: null, noLeidos: 0, actualizado: hora }
       return { cliente: conBitacora(sig, quien, 'cerrar', nota, hora) }
     }
     case 'devolver': {
@@ -316,6 +349,8 @@ export function resumen(c) {
     id: c.id, canal: c.canal, nombre: c.nombre, telefono: c.telefono, plaza: c.plaza, tipo: c.tipo,
     estado: c.estado, atiende: c.atiende, noLeidos: c.noLeidos ?? 0, etiquetas: c.etiquetas ?? [],
     fuente: c.origen?.fuente ?? null,
+    // Desde cuándo espera sin que nadie le conteste, o null.
+    sinRespuesta: c.sinRespuesta?.desde ?? null,
     ultimoMensaje: c.ultimoMensaje, actualizado: c.actualizado, creado: c.creado,
     ultimo: ultimo ? { de: ultimo.de, texto: String(ultimo.texto ?? '').slice(0, 140), hora: ultimo.hora } : null,
   }
@@ -334,6 +369,10 @@ const PESO_ESTADO = { pendiente: 0, atendiendo: 1, bot: 2, cerrada: 3 }
 export function ordenarBandeja(lista) {
   const t = r => Date.parse(r.ultimoMensaje ?? r.actualizado ?? r.creado ?? 0) || 0
   return [...lista].sort((a, b) => {
+    // Antes que nada, a quien nadie le contestó: escribió y está esperando. El
+    // que más lleva, primero.
+    if (!!a.sinRespuesta !== !!b.sinRespuesta) return a.sinRespuesta ? -1 : 1
+    if (a.sinRespuesta && b.sinRespuesta) return Date.parse(a.sinRespuesta) - Date.parse(b.sinRespuesta)
     const pa = PESO_ESTADO[a.estado] ?? 9, pb = PESO_ESTADO[b.estado] ?? 9
     if (pa !== pb) return pa - pb
     if (a.estado === 'pendiente') return t(a) - t(b)
@@ -365,5 +404,9 @@ export function aWhatsApp(c, { quien, ahora } = {}) {
 export function contar(lista) {
   const n = Object.fromEntries(ESTADOS.map(e => [e, 0]))
   for (const r of lista) if (r.estado in n) n[r.estado]++
-  return { ...n, total: lista.length, noLeidos: lista.reduce((s, r) => s + (r.noLeidos ?? 0), 0) }
+  return {
+    ...n, total: lista.length,
+    noLeidos: lista.reduce((s, r) => s + (r.noLeidos ?? 0), 0),
+    sinRespuesta: lista.filter(r => r.sinRespuesta).length,
+  }
 }

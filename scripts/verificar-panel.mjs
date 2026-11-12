@@ -735,6 +735,14 @@ const CRM_CLIENTES = new Map()
   alta({ id: CRM.idDe({ canal: 'whatsapp', telefono: '4449876543' }), canal: 'whatsapp', telefono: '4449876543',
          nombre: 'CLIENTE AJENO SLP', plaza: 'san-luis', quien: 'bot', origen: { fuente: 'meta' } },
        [{ de: 'cliente', texto: 'Hola', id: 'wamid.2' }])
+  // A éste el bot no pudo contestarle y se rindió: es la marca que pone el
+  // trabajador al agotar los reintentos (`crm/trabajador.js`). Está «con el
+  // bot» —que por orden iría al fondo— y aun así tiene que salir el primero.
+  alta({ id: CRM.idDe({ canal: 'whatsapp', telefono: '4775550000' }), canal: 'whatsapp', telefono: '4775550000',
+         nombre: 'Cliente sin respuesta', plaza: 'leon', quien: 'bot', origen: { fuente: 'meta' } },
+       [{ de: 'cliente', texto: '¿Tienen para Moto G84?', id: 'wamid.3' }])
+  const sr = CRM.idDe({ canal: 'whatsapp', telefono: '4775550000' })
+  CRM_CLIENTES.set(sr, CRM.marcarSinRespuesta(CRM_CLIENTES.get(sr), { motivo: 'el bot falló 3 veces', mensaje: 'wamid.3' }))
 }
 const POSTS_CRM = []
 
@@ -2945,7 +2953,7 @@ async function clientesDelPanel(window, donde, esAdmin) {
   await nuevaVuelta(window, 8)
   if (!doc.querySelector('[data-clientes]')) { errores.push(`${donde} · la bandeja de clientes no se dibujo`); return 0 }
   const ids = [...doc.querySelectorAll('[data-cliente]')].map(b => b.getAttribute('data-cliente'))
-  const esperados = esAdmin ? 3 : 2
+  const esperados = esAdmin ? 4 : 3
   if (ids.length !== esperados) errores.push(`${donde} · la bandeja trae ${ids.length} clientes y deberian ser ${esperados}`)
   if (!esAdmin && /AJENO/.test(doc.body.textContent)) errores.push(`${donde} · una tienda ve un cliente de otra plaza`)
   if (esAdmin && !doc.querySelector('[data-filtro-plaza]')) errores.push(`${donde} · el administrador no tiene filtro de plaza`)
@@ -2954,7 +2962,19 @@ async function clientesDelPanel(window, donde, esAdmin) {
   const id = 'wa:524771234567'
   const boton = doc.querySelector(`[data-cliente="${id}"]`)
   if (!boton) { errores.push(`${donde} · no esta el cliente de León que paso el bot (${ids.join(', ')})`); return 0 }
-  if (!esAdmin && ids[0] !== id) errores.push(`${donde} · el pendiente no va primero en la bandeja`)
+  // El que se quedó sin respuesta va ANTES que el pendiente, y se dice en tres
+  // sitios: el aviso de arriba, su renglón y su ficha. El silencio no puede
+  // parecerse a una conversación más «con el bot».
+  const SR = 'wa:524775550000'
+  const hayMarca = !!doc.querySelector(`[data-cliente="${SR}"] [data-sin-respuesta]`)
+  const marcado = !!CRM_CLIENTES.get(SR)?.sinRespuesta   // la tienda le contesta más abajo, y el administrador entra después
+  if (marcado && ids[0] !== SR) errores.push(`${donde} · el cliente sin respuesta no va primero en la bandeja (${ids[0]})`)
+  if (!hayMarca && CRM_CLIENTES.get(SR)?.sinRespuesta) errores.push(`${donde} · el renglon del cliente sin respuesta no lo dice`)
+  if (CRM_CLIENTES.get(SR)?.sinRespuesta && !/1 cliente al que nadie/.test(doc.querySelector('[data-aviso-sin-respuesta]')?.textContent ?? '')) {
+    errores.push(`${donde} · la bandeja no avisa de que hay un cliente sin respuesta`)
+  }
+  if (doc.querySelectorAll('[data-sin-respuesta]').length > 1) errores.push(`${donde} · hay clientes marcados sin respuesta que no lo estan`)
+  if (!esAdmin && marcado && ids[1] !== id) errores.push(`${donde} · el pendiente no va justo despues del que no tiene respuesta`)
   clic(window, boton)
   await nuevaVuelta(window, 8)
   const ficha = doc.querySelector(`[data-ficha="${id}"]`)
@@ -2976,6 +2996,21 @@ async function clientesDelPanel(window, donde, esAdmin) {
   if (!c?.mensajes?.some(m => m.de === 'tienda')) errores.push(`${donde} · la respuesta no quedo en la conversacion`)
   if (!doc.querySelector('[data-aviso-envio]')) errores.push(`${donde} · no dice que la respuesta todavia no sale por WhatsApp`)
   if (!doc.querySelector(`[data-ficha="${id}"] [data-mensaje="tienda"]`)) errores.push(`${donde} · la respuesta no se pinta en la conversacion`)
+
+  // Y al que nadie le contestó: su ficha lo dice, y contestarle QUITA el aviso
+  // —de la ficha, del renglón y de arriba—. Sin esa mitad, un aviso que no se
+  // apaga nunca deja de leerse.
+  clic(window, doc.querySelector(`[data-cliente="${SR}"]`))
+  await nuevaVuelta(window, 8)
+  if (!doc.querySelector(`[data-ficha="${SR}"] [data-ficha-sin-respuesta]`)) errores.push(`${donde} · la ficha del cliente sin respuesta no lo dice`)
+  escribir(window, doc.querySelector(`[data-ficha="${SR}"] [data-respuesta]`), 'Sí hay, disculpa la espera.')
+  await nuevaVuelta(window, 4)
+  clic(window, doc.querySelector(`[data-ficha="${SR}"] [data-mandar]`))
+  await nuevaVuelta(window, 10)
+  if (CRM_CLIENTES.get(SR)?.sinRespuesta) errores.push(`${donde} · contestarle no quito la marca de sin respuesta`)
+  if (doc.querySelector('[data-sin-respuesta], [data-ficha-sin-respuesta], [data-aviso-sin-respuesta]')) {
+    errores.push(`${donde} · el aviso de sin respuesta sigue en pantalla despues de contestarle`)
+  }
   return 1
 }
 
