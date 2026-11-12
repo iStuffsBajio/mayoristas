@@ -40,7 +40,7 @@
 import { build } from 'esbuild'
 import fs from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const RAIZ = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SALIDA = path.join(RAIZ, 'scripts', 'out', 'crm-trabajador')
@@ -105,7 +105,11 @@ for (const [o, v] of ajenos.sort((a, b) => b[1].bytes - a[1].bytes).slice(0, 4))
 // Compilar no es verificar: se CARGA el paquete. Un import que falta o un
 // `require` dinámico no fallan al empaquetar, fallan al arrancar la función.
 const paquete = path.join(SALIDA, 'index.mjs')
-const modulo = await import(`${paquete}?t=${Date.now()}`)
+// Con `file://` y no con la ruta a secas: en Windows una ruta absoluta empieza
+// por `C:\`, Node la lee como un esquema de URL y el import revienta con
+// ERR_UNSUPPORTED_ESM_URL_SCHEME. En Linux la ruta a secas funciona, así que
+// pasaba en CI y fallaba justo donde se hace el primer despliegue, a mano.
+const modulo = await import(`${pathToFileURL(paquete).href}?t=${Date.now()}`)
 if (typeof modulo.handler !== 'function') {
   console.error('El paquete no exporta `handler`: la Lambda no tendría qué llamar.')
   process.exit(1)
