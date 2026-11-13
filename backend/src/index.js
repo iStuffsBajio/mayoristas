@@ -21,6 +21,7 @@ import * as CRM from './clientes.js'
 import { almacenDeClientes, Conflicto } from './clientes-s3.js'
 import { esRutaDeMeta, rutaMetaWebhook, hayCola, encolarSalida } from './meta.js'
 import { responderDesdeElPanel, conSalida as fichaConSalida } from './crm-salida.js'
+import { borrarConversacion } from './crm-borrar.js'
 import { LLAVE_SALUD, saludParaElPanel } from './crm-salud.js'
 import {
   verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
@@ -1592,9 +1593,8 @@ async function rutaGuardarConteo(evento, origen, cuerpo) {
 // El guardado en sí vive en `clientes-s3.js`, porque el bot escribe las mismas
 // fichas y no puede haber dos copias.
 
-const {
-  leerCliente, escribirCliente, modificarCliente, listarClientes,
-} = almacenDeClientes({ s3, bucket: BUCKET })
+const almacenCrm = almacenDeClientes({ s3, bucket: BUCKET })
+const { leerCliente, escribirCliente, modificarCliente, listarClientes } = almacenCrm
 
 /** La ficha con su `salida`: ver `crm-salida.js`. */
 const conSalida = cliente => fichaConSalida(cliente, { cola: hayCola() })
@@ -1748,6 +1748,21 @@ async function rutaResponderCliente(evento, origen, cuerpo) {
   const r = await responderDesdeElPanel({
     sesion, quien: quienEs(sesion), id: cuerpo?.id, texto: cuerpo?.texto,
     modificarCliente, encolar: hayCola() ? encolarSalida : null,
+  })
+  return responder(origen, r.codigo, r.cuerpo)
+}
+
+/**
+ * `POST /crm/borrar { id, confirmar }`: borra una conversación de WhatsApp, con
+ * su ficha y lo que el bot recuerda. Sólo el administrador. Las condiciones y
+ * el orden viven en `crm-borrar.js`.
+ */
+async function rutaBorrarCliente(evento, origen, cuerpo) {
+  const { sesion, error } = sesionCrm(evento)
+  if (error) return responder(origen, 403, { error })
+  const r = await borrarConversacion({
+    sesion, quien: quienEs(sesion), id: cuerpo?.id, confirmar: cuerpo?.confirmar,
+    s3, bucket: BUCKET, almacen: almacenCrm,
   })
   return responder(origen, r.codigo, r.cuerpo)
 }
@@ -1957,6 +1972,7 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/crm/cliente')     return await rutaGuardarCliente(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/crm/accion')      return await rutaAccionCliente(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/crm/responder')   return await rutaResponderCliente(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/crm/borrar')      return await rutaBorrarCliente(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/diseno')     return await rutaSubirDiseno(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/config')     return await rutaGuardarConfig(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/inventario') return await rutaSubirInventario(evento, origen, cuerpo)

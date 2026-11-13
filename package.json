@@ -13,7 +13,8 @@
     "crm:simular": "node --env-file-if-exists=.env crm/simular.mjs",
     "crm:web": "node --env-file-if-exists=.env crm/servidor.mjs",
     "crm:evaluar": "node --env-file-if-exists=.env crm/evaluar.mjs",
-    "crm:empaquetar": "node scripts/empaquetar-crm.mjs"
+    "crm:empaquetar": "node scripts/empaquetar-crm.mjs",
+    "crm:doctor": "node --env-file-if-exists=.env scripts/crm-doctor.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.3.0",

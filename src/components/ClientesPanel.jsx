@@ -23,7 +23,7 @@ import { useAuth } from '../context/AuthContext'
 import { Seccion, Cifra, Cifras } from './Diseno'
 import { nombreSucursal } from '../lib/sucursales'
 import {
-  clientesCrm, clienteCrm, altaClienteCrm, editarClienteCrm, accionClienteCrm, responderClienteCrm, apiConfigurada,
+  clientesCrm, clienteCrm, altaClienteCrm, editarClienteCrm, accionClienteCrm, responderClienteCrm, borrarClienteCrm, apiConfigurada,
 } from '../lib/api'
 
 const PLAZAS = ['leon', 'san-luis', 'aguascalientes', 'torreon']
@@ -145,7 +145,7 @@ function Renglon({ c, activo, onAbrir, verPlaza }) {
 
 // ── La ficha ────────────────────────────────────────────────────────────────
 
-function Ficha({ cliente: c, salida, token, esAdmin, onCambio, onRecargar, onCerrar }) {
+function Ficha({ cliente: c, salida, token, esAdmin, onCambio, onRecargar, onCerrar, onBorrado }) {
   const [texto, setTexto] = useState('')
   const [aviso, setAviso] = useState(null)
   const [error, setError] = useState(null)
@@ -320,7 +320,47 @@ function Ficha({ cliente: c, salida, token, esAdmin, onCambio, onRecargar, onCer
           ))}
         </ul>
       </details>
+
+      {esAdmin && c.id.startsWith('wa:') && <Borrar c={c} token={token} onBorrado={onBorrado} />}
     </Seccion>
+  )
+}
+
+/**
+ * Borrar la conversación. Sólo la ve el administrador y va plegada, al final:
+ * existe para limpiar las pruebas que se hacen con el bot, no es parte de
+ * atender a nadie. Pide los últimos 4 de su número porque no se puede deshacer.
+ */
+function Borrar({ c, token, onBorrado }) {
+  const [clave, setClave] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+  const [error, setError] = useState(null)
+  useEffect(() => { setClave(''); setError(null) }, [c.id])
+  const pide = (c.telefono || c.usuario || '').replace(/[^A-Za-z0-9]/g, '').slice(-4)
+  const borrar = async () => {
+    setOcupado(true); setError(null)
+    try { const r = await borrarClienteCrm(c.id, clave.trim(), token); onBorrado?.(c.id, r.aviso) }
+    catch (e) { setError(e.message) } finally { setOcupado(false) }
+  }
+  return (
+    <details style={{ marginTop: 12 }} data-borrar>
+      <summary style={{ fontSize: 12, color: '#9F1239', cursor: 'pointer' }}>Borrar esta conversación</summary>
+      <p style={{ fontSize: 12, color: '#4A5A61', margin: '6px 0' }}>
+        Borra la ficha, los mensajes y lo que el bot recuerda de este número, para que la siguiente prueba empiece de cero.
+        <strong> No se puede deshacer</strong>, y no borra nada del WhatsApp del cliente. Queda apuntado quién lo borró y cuándo.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <label style={{ fontSize: 12 }}>Escribe los últimos 4 de su número ({'…'}{pide}):{' '}
+          <input data-borrar-clave value={clave} onChange={ev => setClave(ev.target.value)} maxLength={4} autoComplete="off"
+                 style={{ border: '1px solid #D6E0E4', borderRadius: 10, padding: '5px 8px', fontSize: 13, width: 70 }} />
+        </label>
+        <button type="button" data-borrar-confirmar disabled={ocupado || clave.trim() !== pide} onClick={borrar}
+                style={{ border: '1px solid #FDA4AF', background: '#FFF1F2', color: '#9F1239', borderRadius: 10, padding: '6px 12px', fontSize: 12.5, cursor: 'pointer', opacity: ocupado || clave.trim() !== pide ? 0.5 : 1 }}>
+          Borrar para siempre
+        </button>
+      </div>
+      {error && <p role="alert" style={{ fontSize: 12, color: '#9F1239', margin: '6px 0 0' }}>{error}</p>}
+    </details>
   )
 }
 
@@ -433,6 +473,14 @@ export default function ClientesPanel({ plazaFija = null }) {
       .filter(c => !q || (c.nombre ?? '').toLowerCase().includes(q) || (digitos.length >= 3 && (c.telefono ?? '').includes(digitos)))
   }, [lista, filtro, busca])
 
+  // La ficha ya no existe: se quita de la lista sin esperar a la recarga, o
+  // se quedaría un renglón que al abrirse sale en blanco.
+  const alBorrar = id => {
+    setAbierto(null); setFicha(null); setSalida(null)
+    setLista(l => (l ?? []).filter(c => c.id !== id))
+    cargar()
+  }
+
   const alCambiar = (c, s) => {
     setFicha(c)
     // Sólo las rutas del CRM mandan `salida`; el alta no. Sin ella, la ficha
@@ -518,7 +566,7 @@ export default function ClientesPanel({ plazaFija = null }) {
           </div>
         </Seccion>
 
-        {ficha && <div className="crm-ficha"><Ficha cliente={ficha} salida={salida} token={token} esAdmin={isAdmin} onCambio={alCambiar} onRecargar={recargarFicha} onCerrar={() => setAbierto(null)} /></div>}
+        {ficha && <div className="crm-ficha"><Ficha cliente={ficha} salida={salida} token={token} esAdmin={isAdmin} onCambio={alCambiar} onRecargar={recargarFicha} onCerrar={() => setAbierto(null)} onBorrado={alBorrar} /></div>}
       </div>
     </div>
   )

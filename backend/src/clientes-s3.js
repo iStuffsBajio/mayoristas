@@ -136,6 +136,34 @@ export function almacenDeClientes({ s3, bucket }) {
     return false
   }
 
+  /**
+   * Quita renglones de la lista. Sólo lo usa el borrado de una conversación
+   * (`crm-borrar.js`): una ficha que ya no existe y sigue en la lista se abre
+   * en blanco.
+   */
+  async function quitarDelIndice(ids) {
+    for (let intento = 0; intento < 6; intento++) {
+      const { indice, etag, existe } = await leerIndiceClientes()
+      if (!existe || !ids.some(id => id in indice.clientes)) return true
+      const clientes = { ...indice.clientes }
+      for (const id of ids) delete clientes[id]
+      try {
+        await s3.send(new PutObjectCommand({
+          Bucket: bucket, Key: CLAVE_INDICE_CLIENTES,
+          Body: Buffer.from(JSON.stringify({ clientes, actualizado: new Date().toISOString() })),
+          ContentType: 'application/json; charset=utf-8', CacheControl: 'no-cache',
+          IfMatch: etag,
+        }))
+        return true
+      } catch (err) {
+        const codigo = err?.$metadata?.httpStatusCode
+        if (!(codigo === 412 || codigo === 409 || err?.name === 'PreconditionFailed')) throw err
+      }
+    }
+    console.warn('crm: no se pudo quitar del índice tras 6 intentos')
+    return false
+  }
+
   async function listarClientes() {
     const { indice } = await leerIndiceClientes()
     return { clientes: Object.values(indice.clientes ?? {}) }
@@ -157,5 +185,5 @@ export function almacenDeClientes({ s3, bucket }) {
     return { id: r.id, de: ficha?.waId ?? r.telefono }
   }
 
-  return { leerCliente, escribirCliente, modificarCliente, leerIndiceClientes, actualizarIndice, listarClientes, clientePorUsuario }
+  return { leerCliente, escribirCliente, modificarCliente, leerIndiceClientes, actualizarIndice, quitarDelIndice, listarClientes, clientePorUsuario, claveCliente }
 }

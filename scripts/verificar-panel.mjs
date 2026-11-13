@@ -720,6 +720,7 @@ const CRM = await import('../backend/src/clientes.js')
 // Contestar pasa por la MISMA función que la ruta de verdad: la ventana de 24
 // horas, el «pendiente» y el aviso los decide ella, no una copia de aquí.
 const { responderDesdeElPanel, conSalida: fichaConSalida } = await import('../backend/src/crm-salida.js')
+const { confirmacionDe } = await import('../backend/src/crm-borrar.js')
 const CRM_CLIENTES = new Map()
 /** Lo que la «cola» tiene por mandar. La vacía `trabajadorDeMentira`. */
 const COLA_CRM = []
@@ -825,6 +826,15 @@ function respuestaDeCrm(u, opciones, sesionAdmin, plazaDeSesion) {
       if (r.codigo !== 200) { errores.push(`CRM · responder a ${cuerpo.id}: ${r.cuerpo.error}`); return null }
       return r.cuerpo
     })
+  }
+  if (/\/crm\/borrar/.test(u)) {
+    // La regla de verdad (permiso, llaves, orden) se prueba en
+    // `crm/borrar.test.js`; aquí importa que la pantalla mande lo que hay que
+    // mandar y que una tienda no llegue nunca.
+    if (!sesionAdmin) { errores.push(`CRM · ${plazaDeSesion} llegó a pedir un borrado`); return null }
+    if (cuerpo.confirmar !== confirmacionDe(c)) { errores.push('CRM · se pidió borrar sin la confirmación correcta'); return null }
+    CRM_CLIENTES.delete(c.id)
+    return { ok: true, borrado: c.id }
   }
   if (/\/crm\/accion/.test(u)) {
     const r = CRM.aplicarAccion(c, { accion: cuerpo.accion, plaza: cuerpo.plaza }, { quien })
@@ -3035,7 +3045,32 @@ async function clientesDelPanel(window, donde, esAdmin) {
   if (!ficha) { errores.push(`${donde} · la ficha no se abrio`); return 0 }
   if (!ficha.querySelector('[data-mensaje="cliente"]')) errores.push(`${donde} · la ficha no trae lo que escribio el cliente`)
   if (!/Fundas iPhone 17/.test(ficha.querySelector('[data-origen]')?.textContent ?? '')) errores.push(`${donde} · la ficha no dice de que anuncio llego`)
-  if (esAdmin) return 1
+  if (esAdmin) {
+    // Borrar una conversación: sólo aquí, plegado, y sólo con los últimos 4
+    // de su número. Se prueba con el de anteayer y se le devuelve al final,
+    // porque la sesión de la tienda lo necesita.
+    const BORRABLE = 'wa:524776660000'
+    const copia = CRM_CLIENTES.get(BORRABLE)
+    clic(window, doc.querySelector(`[data-cliente="${BORRABLE}"]`))
+    await nuevaVuelta(window, 8)
+    const zona = doc.querySelector(`[data-ficha="${BORRABLE}"] [data-borrar]`)
+    if (!zona) errores.push(`${donde} · el administrador no tiene como borrar una conversacion de prueba`)
+    else {
+      const boton = zona.querySelector('[data-borrar-confirmar]'), campo = zona.querySelector('[data-borrar-clave]')
+      if (!boton.disabled) errores.push(`${donde} · se puede borrar una conversacion sin escribir la confirmacion`)
+      escribir(window, campo, '1234')
+      await nuevaVuelta(window, 3)
+      if (!boton.disabled) errores.push(`${donde} · se puede borrar con una confirmacion equivocada`)
+      escribir(window, campo, '0000')
+      await nuevaVuelta(window, 3)
+      clic(window, boton)
+      await nuevaVuelta(window, 10)
+      if (CRM_CLIENTES.has(BORRABLE)) errores.push(`${donde} · borrar la conversacion no la borro`)
+      if (doc.querySelector(`[data-cliente="${BORRABLE}"], [data-ficha="${BORRABLE}"]`)) errores.push(`${donde} · la conversacion borrada sigue en pantalla`)
+    }
+    if (copia) CRM_CLIENTES.set(BORRABLE, copia)
+    return 1
+  }
 
   const caja = ficha.querySelector('[data-respuesta]')
   const mandar = ficha.querySelector('[data-mandar]')
@@ -3068,6 +3103,7 @@ async function clientesDelPanel(window, donde, esAdmin) {
   clic(window, doc.querySelector(`[data-cliente="${VIEJO}"]`))
   await nuevaVuelta(window, 8)
   const fichaVieja = doc.querySelector(`[data-ficha="${VIEJO}"]`)
+  if (doc.querySelector('[data-borrar]')) errores.push(`${donde} · una tienda ve el borrado de conversaciones`)
   if (!/plantilla/.test(fichaVieja?.querySelector('[data-salida-cerrada="ventana"]')?.textContent ?? '')) errores.push(`${donde} · pasadas 24 horas la ficha no dice que hace falta una plantilla`)
   if (!fichaVieja?.querySelector('[data-respuesta]')?.disabled) errores.push(`${donde} · pasadas 24 horas la caja de respuesta sigue encendida`)
   if (!/plantilla/.test(fichaVieja?.querySelector('[data-envio="fallido"]')?.textContent ?? '')) errores.push(`${donde} · el mensaje que Meta rechazo no dice por que no salio`)
