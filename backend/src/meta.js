@@ -37,6 +37,7 @@
 
 import crypto from 'node:crypto'
 import { recibir } from './meta-webhook.js'
+import { esBsuid } from './clientes.js'
 
 export const RUTA_META = '/meta/webhook'
 
@@ -64,6 +65,13 @@ export function entradasDeCola(mensajes) {
 const digitos = v => String(v ?? '').replace(/\D/g, '')
 
 /**
+ * El grupo de la cola para un remitente: su teléfono, o —si WhatsApp no lo
+ * dio— una huella de su identificador. Huella y no el identificador tal cual
+ * porque SQS limita el grupo a 128 caracteres y el identificador puede pasar.
+ */
+const grupoDe = v => (esBsuid(v) ? `u-${sha(v).slice(0, 40)}` : digitos(v))
+
+/**
  * Por la misma cola van TRES clases de cosa, y el trabajador las separa por
  * `clase`. Lo que escribe un cliente no lleva `clase` —así nació— y las otras
  * dos NO llevan `de` a propósito: un trabajador de una versión anterior, que
@@ -85,16 +93,17 @@ const digitos = v => String(v ?? '').replace(/\D/g, '')
 function entradaDe(m) {
   const cuerpo = JSON.stringify(m)
   if (m?.clase === 'salida') {
-    const a = digitos(m.para)
+    const a = grupoDe(m.para)
     if (!a || !m.idEnvio) return null
     return { grupo: `salida-${a}`, dedup: sha(`salida:${m.idEnvio}`), cuerpo }
   }
   if (m?.clase === 'estado') {
-    const a = digitos(m.destino)
+    const a = grupoDe(m.destino)
     if (!a || !m.id) return null
     return { grupo: `estado-${a}`, dedup: sha(`estado:${m.id}:${m.estado}`), cuerpo }
   }
-  const de = digitos(m?.de)
+  // Sin teléfono, quien escribe es su identificador de WhatsApp (`usuario`).
+  const de = grupoDe(m?.de) || grupoDe(m?.usuario)
   if (!de) return null
   return { grupo: de, dedup: sha(m.id || cuerpo), cuerpo }
 }

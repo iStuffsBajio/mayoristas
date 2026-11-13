@@ -88,6 +88,19 @@ export function firmaValida(cuerpoCrudo, cabecera, { secreto = process.env.META_
 
 // ── Lectura de lo que llega ─────────────────────────────────────────────────
 
+/**
+ * Lo que llega por `messages` y NO es algo que alguien escribió esperando
+ * respuesta. No se encola ni se contesta.
+ *
+ *   · `system`: avisos de Meta —«este usuario cambió de número»—.
+ *   · `reaction`: el cliente le puso 👍 a un mensaje.
+ *
+ * Sin esto caían en la respuesta fija de «no alcancé a leer eso», que a un
+ * pulgar arriba le contesta con una disculpa y a un aviso de Meta le escribe
+ * a un número que quizá ya no es de esa persona.
+ */
+export const TIPOS_SIN_RESPUESTA = new Set(['system', 'reaction'])
+
 /** Los tipos que el bot sabe atender hoy. */
 const TIPOS_ATENDIBLES = new Set(['text', 'interactive', 'button'])
 
@@ -109,17 +122,27 @@ export function leerCarga(carga) {
 
       // El nombre del perfil viene en `contacts`, no en el mensaje. Se indexa
       // por teléfono para pegárselo a cada uno.
+      // Desde abril de 2026 cada contacto trae además `user_id`, su
+      // identificador para este negocio, y `wa_id` puede FALTAR si la persona
+      // usa nombre de usuario. El nombre se indexa por los dos.
       const nombres = {}
-      for (const c of v.contacts ?? []) {
+      const contactos = v.contacts ?? []
+      for (const c of contactos) {
         if (c?.wa_id) nombres[c.wa_id] = c?.profile?.name ?? null
+        if (c?.user_id) nombres[c.user_id] = c?.profile?.name ?? null
       }
+      // Si la carga trae UN solo contacto, su `user_id` es el de quien escribe
+      // aunque el mensaje no lo repita.
+      const unico = contactos.length === 1 ? contactos[0]?.user_id ?? null : null
 
       for (const m of v.messages ?? []) {
-        mensajes.push(leerMensaje(m, nombres, v?.metadata))
+        mensajes.push(leerMensaje(m, nombres, v?.metadata, unico))
       }
       for (const e of v.statuses ?? []) {
         estados.push({
           id: e?.id, estado: e?.status, de: e?.recipient_id, cuando: e?.timestamp,
+          // A quien se le mandó por su identificador no trae `recipient_id`.
+          ...(e?.recipient_user_id && { usuario: e.recipient_user_id }),
           // Sólo viene en `failed`, y es lo único que dice POR QUÉ no llegó.
           ...(e?.errors?.[0] && { error: { codigo: e.errors[0].code ?? null, titulo: e.errors[0].title ?? e.errors[0].message ?? null } }),
         })
@@ -129,13 +152,16 @@ export function leerCarga(carga) {
   return { mensajes, estados }
 }
 
-function leerMensaje(m, nombres, metadata) {
+function leerMensaje(m, nombres, metadata, usuarioDelContacto = null) {
   const de = m?.from ?? null
+  const usuario = m?.from_user_id ?? usuarioDelContacto ?? null
 
   return {
     id: m?.id ?? null,
+    // El teléfono. Puede venir en null: entonces quien escribe es `usuario`.
     de,
-    nombre: nombres[de] ?? null,
+    ...(usuario && { usuario }),
+    nombre: nombres[de] ?? nombres[usuario] ?? null,
     cuando: m?.timestamp ? new Date(Number(m.timestamp) * 1000).toISOString() : null,
     tipo: m?.type ?? null,
     atendible: TIPOS_ATENDIBLES.has(m?.type),
@@ -213,7 +239,7 @@ export const anuncioParaElCerebro = a =>
  * `entradasDeCola` en `meta.js`.
  */
 export const estadoParaLaCola = e => ({
-  clase: 'estado', id: e.id, estado: e.estado, destino: e.de ?? null,
+  clase: 'estado', id: e.id, estado: e.estado, destino: e.de ?? e.usuario ?? null,
   codigo: e.error?.codigo ?? null, titulo: e.error?.titulo ?? null,
 })
 
@@ -303,7 +329,7 @@ export async function recibir(evento, { encolar } = {}) {
   // contestó bien y la ficha dice «enviado»— y después no lo entregó. Si no se
   // recoge aquí, la tienda cree que contestó y el cliente no recibió nada.
   const fallidos = estados.filter(e => e.estado === 'failed' && e.id).map(estadoParaLaCola)
-  const paraLaCola = [...mensajes, ...fallidos]
+  const paraLaCola = [...mensajes.filter(m => !TIPOS_SIN_RESPUESTA.has(m.tipo)), ...fallidos]
 
   if (paraLaCola.length && encolar) {
     try {

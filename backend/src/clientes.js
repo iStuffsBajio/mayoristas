@@ -73,18 +73,36 @@ export function telefonoMx(valor) {
 }
 
 /**
+ * ¿Es un identificador de usuario de WhatsApp (BSUID) y no un teléfono?
+ *
+ * Desde abril de 2026 Meta manda, junto al teléfono, un identificador propio
+ * de cada persona PARA ESTE NEGOCIO: el código del país, un punto y hasta 128
+ * letras y números —`MX.13491208655302741918`—. Y a quien active su nombre de
+ * usuario en WhatsApp, Meta puede dejar de mandarle el teléfono: entonces el
+ * identificador es lo ÚNICO que llega, y por él se le contesta.
+ *
+ * Un teléfono son sólo dígitos, así que no se confunden.
+ */
+export const esBsuid = v => /^[A-Z]{2}\.(?:ENT\.)?[A-Za-z0-9]{1,128}$/.test(String(v ?? ''))
+
+/**
  * La llave de un cliente.
  *
- * Por WhatsApp es el teléfono: es lo único que Meta garantiza y lo que la
- * persona reconoce. Instagram y Messenger no dan teléfono, dan un identificador
+ * Por WhatsApp es el teléfono: es lo que la persona reconoce. Si WhatsApp no
+ * lo da (ver `esBsuid`), la llave sale de su identificador: `wa:u-MX-1349…`.
+ *
+ * ⚠️ Un teléfono que no es mexicano de 10 dígitos NO da llave, ni ahora ni
+ * antes: ese cliente recibe respuesta del bot pero no tiene ficha. Instagram y Messenger no dan teléfono, dan un identificador
  * propio de la página, así que van con su canal delante. Un mayorista que sólo
  * existe en los tickets de Eleventa no tiene ninguno de los dos: va con su
  * plaza y su clave, hasta que alguien le capture el teléfono.
  */
-export function idDe({ canal, telefono, idCanal, plaza, clave }) {
+export function idDe({ canal, telefono, usuario, idCanal, plaza, clave }) {
   if (canal === 'whatsapp' || (!canal && telefono)) {
     const t = telefonoMx(telefono)
-    return t ? `wa:${t}` : ''
+    if (t) return `wa:${t}`
+    // Las mayúsculas se conservan: en una llave de S3 distinguen.
+    return esBsuid(usuario) ? `wa:u-${String(usuario).replace(/\./g, '-')}` : ''
   }
   if (canal === 'instagram' || canal === 'messenger') {
     const i = String(idCanal ?? '').replace(/[^0-9a-zA-Z_-]/g, '')
@@ -99,7 +117,7 @@ export function idDe({ canal, telefono, idCanal, plaza, clave }) {
 }
 
 /** Una llave que se puede usar como nombre de archivo sin sorpresas. */
-export const idValido = id => /^(wa|ig|fb|may|tda):[a-z0-9:_-]{3,90}$/i.test(String(id ?? ''))
+export const idValido = id => /^(wa|ig|fb|may|tda):[a-z0-9:_-]{3,160}$/i.test(String(id ?? ''))
 
 /** Nombre de archivo de un cliente. Los dos puntos no van en una llave de S3. */
 export const archivoDe = id => `${String(id).replace(/:/g, '_')}.json`
@@ -119,13 +137,16 @@ function origenLimpio(o) {
 }
 
 /** Un cliente nuevo. `id` sale de `idDe()`; si viene vacío, no hay cliente. */
-export function nuevoCliente({ id, canal, telefono, nombre, plaza, tipo, origen, quien = 'sistema' }, { ahora } = {}) {
+export function nuevoCliente({ id, canal, telefono, usuario, nombre, plaza, tipo, origen, quien = 'sistema' }, { ahora } = {}) {
   if (!idValido(id)) return null
   const hora = ahoraIso(ahora)
   return {
     id,
     canal: CANALES.includes(canal) ? canal : 'whatsapp',
     telefono: telefonoMx(telefono) || null,
+    // El identificador de WhatsApp de esta persona, si Meta lo mandó. Con él
+    // se la reconoce el día que escriba SIN teléfono, y por él se le contesta.
+    ...(esBsuid(usuario) && { usuario: String(usuario) }),
     nombre: texto(nombre, 120) || null,
     plaza: PLAZAS_CLIENTES.includes(plaza) ? plaza : null,
     tipo: TIPOS.includes(tipo) ? tipo : 'publico',
@@ -458,6 +479,9 @@ export function resumen(c) {
   const ultimo = c.mensajes?.at(-1) ?? null
   return {
     id: c.id, canal: c.canal, nombre: c.nombre, telefono: c.telefono, plaza: c.plaza, tipo: c.tipo,
+    // Va en la lista porque por él se busca la ficha de quien escribe sin
+    // teléfono (`porUsuario`, en la bandeja del bot).
+    ...(c.usuario && { usuario: c.usuario }),
     estado: c.estado, atiende: c.atiende, noLeidos: c.noLeidos ?? 0, etiquetas: c.etiquetas ?? [],
     fuente: c.origen?.fuente ?? null,
     // Desde cuándo espera sin que nadie le conteste, o null.

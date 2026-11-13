@@ -141,5 +141,21 @@ export function almacenDeClientes({ s3, bucket }) {
     return { clientes: Object.values(indice.clientes ?? {}) }
   }
 
-  return { leerCliente, escribirCliente, modificarCliente, leerIndiceClientes, actualizarIndice, listarClientes }
+  /**
+   * La ficha —con teléfono— de quien tiene este identificador de WhatsApp, o
+   * null. Se busca en el índice: sólo hace falta cuando alguien escribe SIN
+   * teléfono, que es raro, así que no merece un archivo de punteros.
+   */
+  async function clientePorUsuario(usuario) {
+    if (!CRM.esBsuid(usuario)) return null
+    const { clientes } = await listarClientes()
+    const r = clientes.find(c => c.usuario === usuario && c.telefono && !c.fusionadoEn)
+    if (!r) return null
+    // `waId` es el número tal como lo manda Meta, que es la llave de su
+    // conversación; no va en el índice, así que se lee de la ficha.
+    const ficha = (await leerCliente(r.id, { estricto: true }))?.cliente
+    return { id: r.id, de: ficha?.waId ?? r.telefono }
+  }
+
+  return { leerCliente, escribirCliente, modificarCliente, leerIndiceClientes, actualizarIndice, listarClientes, clientePorUsuario }
 }

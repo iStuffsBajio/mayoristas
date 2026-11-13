@@ -243,7 +243,10 @@ test('cada tipo que no se lee tiene su propia salida', async () => {
 
 test('un tipo que Meta estrene mañana cae en la salida genérica, no en blanco', async () => {
   const almacen = enMemoria(), e = enviarFalso()
-  await atender(mensaje({ tipo: 'reaction', atendible: false, texto: null }),
+  // Era 'reaction' hasta que las reacciones dejaron de contestarse (ver
+  // crm/bsuid.test.js): contestarle «no puedo ver eso» a un 👍 era ruido. El
+  // ejemplo tiene que ser un tipo que de verdad no exista.
+  await atender(mensaje({ tipo: 'holograma', atendible: false, texto: null }),
     { almacen, pensar: pensarFalso().pensar, enviar: e.enviar, leer: async () => {} })
   assert.equal(e.enviados[0].r.texto, RESPUESTAS_FIJAS.unknown)
 })

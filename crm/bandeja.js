@@ -19,7 +19,7 @@
 // escribió por un anuncio sin respuesta es peor, y además se paga.
 
 import {
-  idDe, nuevoCliente, registrarMensaje, aplicarAccion, botContesta,
+  idDe, nuevoCliente, registrarMensaje, aplicarAccion, botContesta, esBsuid,
 } from '../backend/src/clientes.js'
 
 /**
@@ -34,6 +34,10 @@ export function bandejaEnMemoria() {
   return {
     async leer(id) { return datos.get(id) ?? null },
     async leerEstricto(id) { return datos.get(id) ?? null },
+    async porUsuario(usuario) {
+      const c = [...datos.values()].find(x => x.usuario === usuario && x.telefono)
+      return c ? { id: c.id, de: c.waId ?? c.telefono } : null
+    },
     async modificar(id, fn) {
       const sig = fn(datos.get(id) ?? null)
       if (sig) datos.set(id, sig)
@@ -70,8 +74,66 @@ export function comoSeApunta(mensaje) {
   }
 }
 
-/** La llave del cliente que escribe por WhatsApp. */
-export const idWhatsApp = telefono => idDe({ canal: 'whatsapp', telefono })
+/**
+ * La llave del cliente que escribe por WhatsApp. `remitente` es su teléfono
+ * o, si WhatsApp no lo da, su identificador (ver `esBsuid`).
+ */
+export const idWhatsApp = remitente => (esBsuid(remitente)
+  ? idDe({ canal: 'whatsapp', usuario: remitente })
+  : idDe({ canal: 'whatsapp', telefono: remitente }))
+
+/**
+ * Deja el mensaje con un remitente por el que se le pueda atender.
+ *
+ * Casi siempre no hace nada: el mensaje trae teléfono en `de`. El caso que
+ * resuelve es el de quien escribe SIN teléfono —Meta sólo manda `usuario`—:
+ *
+ *   · Si esa persona ya tenía ficha con teléfono (escribió antes, cuando Meta
+ *     todavía lo mandaba), se la atiende en ESA ficha: `de` pasa a ser su
+ *     número TAL COMO LO MANDABA META (`waId`) y `responderA` su
+ *     identificador, que es por donde Meta deja contestarle ahora.
+ *   · Si no, su identificador es su remitente y se le abre ficha con él.
+ *
+ * Sin esto, a esa persona no se le contestaba: un mensaje sin `de` se
+ * descartaba como «sin remitente».
+ *
+ * Si la búsqueda falla, LANZA: el turno se reintenta. Tragarse el fallo le
+ * abriría una segunda ficha a un cliente que ya tiene una.
+ */
+export async function conRemitente(mensaje, bandeja) {
+  if (!mensaje || mensaje.de || !esBsuid(mensaje.usuario)) return mensaje
+  const conocido = await bandeja?.porUsuario?.(mensaje.usuario)
+  return conocido?.de
+    ? { ...mensaje, de: conocido.de, responderA: mensaje.usuario }
+    : { ...mensaje, de: mensaje.usuario }
+}
+
+/**
+ * Apunta en la ficha el identificador de WhatsApp en cuanto llega, y con él el
+ * número TAL COMO LO MANDA META (`waId`).
+ *
+ * Hacen falta los dos. La ficha guarda el teléfono ya arreglado (52 + 10) pero
+ * la conversación se guarda con el que manda Meta (521 + 10): el día que esta
+ * persona escriba sin teléfono, buscarla por el arreglado abriría una
+ * conversación NUEVA y el bot empezaría de cero con alguien a media compra.
+ * Lo cazó la prueba, no la lectura.
+ */
+export function conUsuario(c, mensaje) {
+  if (!c || !esBsuid(mensaje?.usuario) || esBsuid(mensaje.de) || !mensaje.de) return c
+  const waId = String(mensaje.de).replace(/\D/g, '')
+  if (c.usuario === mensaje.usuario && c.waId === waId) return c
+  // Un usuario ya apuntado no se pisa con otro: sería otra persona.
+  if (c.usuario && c.usuario !== mensaje.usuario) return c
+  return { ...c, usuario: mensaje.usuario, waId }
+}
+
+/** La ficha nueva de quien escribe, con lo que el mensaje dice de él. */
+export const clienteNuevoDe = (mensaje, extra = {}) => conUsuario(nuevoCliente({
+  id: idWhatsApp(mensaje.de), canal: 'whatsapp',
+  telefono: esBsuid(mensaje.de) ? null : mensaje.de,
+  usuario: mensaje.usuario ?? (esBsuid(mensaje.de) ? mensaje.de : null),
+  nombre: mensaje.nombre, quien: 'bot', ...extra,
+}), mensaje)
 
 /**
  * Apunta el mensaje del cliente y dice si el bot debe contestar.
@@ -85,12 +147,11 @@ export async function apuntarEntrada(bandeja, mensaje, { plaza, anuncio, registr
   if (!id) return { contesta: true, cliente: null }
   try {
     const cliente = await bandeja.modificar(id, actual => {
-      let c = actual ?? nuevoCliente({
-        id, canal: 'whatsapp', telefono: mensaje.de, nombre: mensaje.nombre,
-        plaza, origen: origenDelAnuncio(anuncio), quien: 'bot',
-      })
+      let c = actual ?? clienteNuevoDe(mensaje, { plaza, origen: origenDelAnuncio(anuncio) })
       if (!c) return null
       if (!c.nombre && mensaje.nombre) c = { ...c, nombre: mensaje.nombre }
+      // Con esto se le reconocerá el día que escriba sin teléfono.
+      c = conUsuario(c, mensaje)
       // El bot sabe la plaza —por la ciudad o por el anuncio— antes de que
       // nadie la haya repartido: se apunta, para que la tienda vea lo que el
       // bot está atendiendo en su plaza. Una plaza que ya puso una persona no

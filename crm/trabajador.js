@@ -45,13 +45,14 @@
 import { S3Client } from '@aws-sdk/client-s3'
 import { trabajar } from './handler.js'
 import { enS3, bandejaEnS3 } from './almacen-s3.js'
-import { idWhatsApp, comoSeApunta } from './bandeja.js'
+import { idWhatsApp, comoSeApunta, conRemitente, clienteNuevoDe } from './bandeja.js'
+import { esBsuid } from '../backend/src/clientes.js'
 import { bajarFoto, leerFotosActivo } from './medios.js'
 import { mandarRespuesta, mandarTexto } from './whatsapp-api.js'
 import { clasificarEnvio, motivoDeEstado } from './envio-errores.js'
 import { saludEnS3, vigilante } from './salud.js'
 import {
-  nuevoCliente, registrarMensaje, marcarSinRespuesta, botContesta,
+  registrarMensaje, marcarSinRespuesta, botContesta,
   salidaDe, marcarEnvio, envioFallidoPorWamid,
 } from '../backend/src/clientes.js'
 
@@ -142,9 +143,7 @@ export function creaTrabajador({
       await bandeja.modificar(id, actual => {
         // Puede no haber ficha: si el turno murió antes de apuntar la entrada,
         // este aviso es lo primero que se sabe de esa persona.
-        let c = actual ?? nuevoCliente({
-          id, canal: 'whatsapp', telefono: mensaje.de, nombre: mensaje.nombre, quien: 'bot',
-        })
+        let c = actual ?? clienteNuevoDe(mensaje)
         if (!c) return null
         // Lo que escribió tiene que estar a la vista de quien le va a
         // contestar. Si ya estaba apuntado, `registrarMensaje` no lo repite.
@@ -267,7 +266,10 @@ export function creaTrabajador({
    * la respuesta.
    */
   async function estado(m, { bandeja }) {
-    const id = idWhatsApp(m?.destino)
+    // A quien se le mandó por su identificador, Meta lo nombra por él; su
+    // ficha puede ser la de su teléfono.
+    const conocido = esBsuid(m?.destino) ? await bandeja.porUsuario?.(m.destino) : null
+    const id = conocido?.id ?? idWhatsApp(m?.destino)
     if (!id || !m?.id) return true
     const motivo = motivoDeEstado(m)
     registro.error?.('crm: Meta no entregó un mensaje', corto(m.destino), m.codigo ?? '')
@@ -301,6 +303,10 @@ export function creaTrabajador({
     // `backend/src/meta.js`. Lo que no lleva `clase` es un mensaje de cliente.
     if (mensaje?.clase === 'salida') return salida(mensaje, { bandeja, ultima })
     if (mensaje?.clase === 'estado') return estado(mensaje, { bandeja })
+
+    // Quien escribe sin teléfono queda con su remitente AQUÍ, antes de nada:
+    // todo lo de abajo —desmarcar, avisar en el panel— va por `mensaje.de`.
+    mensaje = await conRemitente(mensaje, bandeja)
 
     // Si el tiempo se acaba, el turno queda corriendo «por detrás» —no hay
     // forma de cancelarlo— y la Lambda puede descongelarlo en la siguiente

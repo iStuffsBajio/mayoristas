@@ -28,7 +28,7 @@
 // bot apunta un mensaje mientras alguien de la tienda está contestando—.
 
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
-import { conMetodos } from './conversaciones.js'
+import { conMetodos, llaveDeRemitente } from './conversaciones.js'
 import { almacenDeClientes, Conflicto } from '../backend/src/clientes-s3.js'
 
 export const PREFIJO_CONVERSACIONES = 'crm/conversaciones/'
@@ -66,9 +66,9 @@ const noExiste = err =>
 export function enS3({ s3, bucket, prefijo = PREFIJO_CONVERSACIONES } = {}) {
   if (!s3 || !bucket) throw new Error('enS3: hacen falta el cliente de S3 y el bucket')
 
-  // Sólo dígitos: el teléfono llega de Meta, pero una llave de S3 armada con
-  // lo que mande otro no se deja al azar.
-  const claveDe = t => `${prefijo}${String(t).replace(/\D/g, '')}.json`
+  // Sólo lo que `llaveDeRemitente` deja pasar: el remitente llega de Meta,
+  // pero una llave de S3 armada con lo que mande otro no se deja al azar.
+  const claveDe = t => `${prefijo}${llaveDeRemitente(t)}.json`
 
   // Lo último que se vio de cada teléfono: su etag, o `null` si no existía.
   // `undefined` es «todavía no lo he mirado».
@@ -136,12 +136,14 @@ export function enS3({ s3, bucket, prefijo = PREFIJO_CONVERSACIONES } = {}) {
  */
 export function bandejaEnS3({ s3, bucket, reintentos = REINTENTOS_FICHA } = {}) {
   if (!s3 || !bucket) throw new Error('bandejaEnS3: hacen falta el cliente de S3 y el bucket')
-  const { leerCliente, escribirCliente } = almacenDeClientes({ s3, bucket })
+  const { leerCliente, escribirCliente, clientePorUsuario } = almacenDeClientes({ s3, bucket })
 
   return {
     async leer(id) {
       return (await leerCliente(id))?.cliente ?? null
     },
+
+    porUsuario: clientePorUsuario,
 
     /** Como `leer`, pero un fallo de S3 LANZA en vez de parecer «no existe». */
     async leerEstricto(id) {

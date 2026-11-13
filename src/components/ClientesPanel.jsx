@@ -70,6 +70,11 @@ function EstadoEnvio({ m }) {
   return <strong data-envio="sin-canal" style={{ color: '#B45309' }}> · nota: no salió por WhatsApp</strong>
 }
 
+// Meta ya deja que alguien escriba SIN enseñar su número (usuario de WhatsApp):
+// esa ficha trae `usuario` y no `telefono`. «Sin nombre» a secas no decía por
+// qué falta el número ni que sí se le puede contestar desde aquí.
+const sinNumero = c => !c.telefono && !!c.usuario
+const comoSeLlama = c => c.nombre || telefonoBonito(c.telefono) || (sinNumero(c) ? 'WhatsApp sin número' : 'Sin nombre')
 const telefonoBonito = t => (t && /^52\d{10}$/.test(t) ? `${t.slice(2, 5)} ${t.slice(5, 8)} ${t.slice(8)}` : t ?? '')
 
 function Pastilla({ activa, onClick, children, ...resto }) {
@@ -102,7 +107,7 @@ function Renglon({ c, activo, onAbrir, verPlaza }) {
             }}>
       <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
         <strong style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {c.nombre || telefonoBonito(c.telefono) || 'Sin nombre'}
+          {comoSeLlama(c)}
         </strong>
         <span style={{ fontSize: 11, color: '#8598A1', whiteSpace: 'nowrap' }}>{hora(c.ultimoMensaje ?? c.actualizado)}</span>
       </span>
@@ -185,8 +190,8 @@ function Ficha({ cliente: c, salida, token, esAdmin, onCambio, onRecargar, onCer
 
   return (
     <Seccion tema={e.tema} data-ficha={c.id}
-             titulo={c.nombre || telefonoBonito(c.telefono) || 'Sin nombre'}
-             sub={[c.telefono && telefonoBonito(c.telefono), c.plaza ? nombreSucursal(c.plaza) : 'Sin plaza', c.tipo === 'mayorista' ? 'Mayorista' : 'Público'].filter(Boolean).join(' · ')}
+             titulo={comoSeLlama(c)}
+             sub={[c.telefono ? telefonoBonito(c.telefono) : sinNumero(c) && 'Sin número a la vista: se le contesta desde aquí', c.plaza ? nombreSucursal(c.plaza) : 'Sin plaza', c.tipo === 'mayorista' ? 'Mayorista' : 'Público'].filter(Boolean).join(' · ')}
              extra={<button type="button" className="rev-saltar" onClick={onCerrar}>Cerrar ficha</button>}>
       <p style={{ fontSize: 12, color: '#4A5A61', margin: '0 0 10px' }}>
         <Etiqueta estado={c.estado} /> {e.nota}{c.atiende ? ` · la tiene ${quienDijo(c.atiende)}` : ''}
