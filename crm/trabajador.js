@@ -45,7 +45,8 @@
 import { S3Client } from '@aws-sdk/client-s3'
 import { trabajar } from './handler.js'
 import { enS3, bandejaEnS3 } from './almacen-s3.js'
-import { idWhatsApp } from './bandeja.js'
+import { idWhatsApp, comoSeApunta } from './bandeja.js'
+import { bajarFoto, leerFotosActivo } from './medios.js'
 import { mandarRespuesta, mandarTexto } from './whatsapp-api.js'
 import { clasificarEnvio, motivoDeEstado } from './envio-errores.js'
 import { saludEnS3, vigilante } from './salud.js'
@@ -115,6 +116,7 @@ export function creaTrabajador({
   enviar: enviarCrudo = mandarRespuesta,
   enviarTexto: enviarTextoCrudo = mandarTextoConLimite,
   salud = null,
+  verFoto: verFotoCruda = null,
   leer,
   pensar,
   maxEntregas = MAX_ENTREGAS,
@@ -129,6 +131,8 @@ export function creaTrabajador({
   const { vigilar } = vigilante({ salud, registro })
   const enviar = vigilar(enviarCrudo)
   const enviarTexto = vigilar(enviarTextoCrudo)
+  // Bajar una foto también usa el token: si venció, se sabe igual.
+  const verFoto = verFotoCruda ? vigilar(verFotoCruda) : null
 
   /** Deja dicho en la ficha que a este cliente nadie le contestó. */
   async function avisarEnElPanel(bandeja, mensaje, motivo) {
@@ -144,12 +148,7 @@ export function creaTrabajador({
         if (!c) return null
         // Lo que escribió tiene que estar a la vista de quien le va a
         // contestar. Si ya estaba apuntado, `registrarMensaje` no lo repite.
-        c = registrarMensaje(c, {
-          de: 'cliente',
-          texto: mensaje.texto || `[${mensaje.tipo ?? 'mensaje'}]`,
-          tipo: mensaje.texto ? 'texto' : (mensaje.tipo ?? 'otro'),
-          id: mensaje.id,
-        })
+        c = registrarMensaje(c, { de: 'cliente', ...comoSeApunta(mensaje), id: mensaje.id })
         return marcarSinRespuesta(c, { motivo, mensaje: mensaje.id })
       })
       return true
@@ -321,8 +320,8 @@ export function creaTrabajador({
     try {
       ;[r] = await conLimite(
         trabajar([mensaje], {
-          almacen, bandeja, enviar: enviarSiSigue,
-          ...(leer && { leer }), ...(pensar && { pensar }),
+          almacen, bandeja, enviar: enviarSiSigue, registro,
+          ...(leer && { leer }), ...(pensar && { pensar }), ...(verFoto && { verFoto }),
         }),
         limite,
       )
@@ -398,6 +397,9 @@ export async function handler(evento, contexto) {
     deVerdad = creaTrabajador({
       almacenes: () => ({ almacen: enS3({ s3, bucket }), bandeja: bandejaEnS3({ s3, bucket }) }),
       salud: saludEnS3({ s3, bucket }),
+      // `CRM_LEER_FOTOS=0` lo apaga sin desplegar: las fotos vuelven a la
+      // respuesta fija.
+      ...(leerFotosActivo() && { verFoto: bajarFoto }),
     })
   }
   return deVerdad(evento, contexto)

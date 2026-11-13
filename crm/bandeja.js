@@ -55,6 +55,21 @@ export function origenDelAnuncio(anuncio) {
   }
 }
 
+/**
+ * Cómo queda en la ficha lo que mandó el cliente: `{ texto, tipo }`.
+ *
+ * Lo que no es texto se apunta con su tipo entre corchetes, para que quien
+ * abra la conversación sepa que ahí hubo una nota de voz o una foto. La foto
+ * NO se guarda (ver `medios.js`); lo que escribió junto a ella, sí.
+ */
+export function comoSeApunta(mensaje) {
+  if (mensaje?.tipo === 'image') return { texto: ['[foto]', mensaje.texto].filter(Boolean).join(' '), tipo: 'image' }
+  return {
+    texto: mensaje?.texto || `[${mensaje?.tipo ?? 'mensaje'}]`,
+    tipo: mensaje?.texto ? 'texto' : (mensaje?.tipo ?? 'otro'),
+  }
+}
+
 /** La llave del cliente que escribe por WhatsApp. */
 export const idWhatsApp = telefono => idDe({ canal: 'whatsapp', telefono })
 
@@ -81,12 +96,7 @@ export async function apuntarEntrada(bandeja, mensaje, { plaza, anuncio, registr
       // bot está atendiendo en su plaza. Una plaza que ya puso una persona no
       // se pisa.
       if (!c.plaza && plaza) c = { ...c, plaza }
-      return registrarMensaje(c, {
-        de: 'cliente',
-        texto: mensaje.texto || `[${mensaje.tipo ?? 'mensaje'}]`,
-        tipo: mensaje.texto ? 'texto' : (mensaje.tipo ?? 'otro'),
-        id: mensaje.id,
-      })
+      return registrarMensaje(c, { de: 'cliente', ...comoSeApunta(mensaje), id: mensaje.id })
     })
     return { contesta: botContesta(cliente), cliente }
   } catch (err) {

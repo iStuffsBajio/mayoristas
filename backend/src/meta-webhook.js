@@ -142,6 +142,9 @@ function leerMensaje(m, nombres, metadata) {
     texto: textoDe(m),
     // Lo que convierte esto en un CRM: de qué anuncio salió la conversación.
     anuncio: anuncioDe(m),
+    // Sólo en las fotos: lo que hace falta para bajarla. Meta no manda la
+    // imagen ni su dirección, manda un id (ver `crm/medios.js`).
+    ...(m?.type === 'image' && m?.image?.id && { medio: { id: String(m.image.id), mime: m.image.mime_type ?? null } }),
     // El número de la casa por el que entró. Si algún día hay uno por plaza,
     // esto dice cuál.
     numeroNuestro: metadata?.phone_number_id ?? null,
@@ -159,6 +162,9 @@ function leerMensaje(m, nombres, metadata) {
 function textoDe(m) {
   if (m?.type === 'text')   return m?.text?.body ?? null
   if (m?.type === 'button') return m?.button?.text ?? null
+  // Lo que la persona escribió JUNTO a la foto. Sigue sin ser «atendible»:
+  // «¿tienen para éste?» no dice nada si la foto no se pudo leer.
+  if (m?.type === 'image')  return m?.image?.caption || null
   if (m?.type === 'interactive') {
     const i = m.interactive
     return i?.list_reply?.title ?? i?.button_reply?.title ?? null
