@@ -10,9 +10,13 @@
 //     su plaza; esconderlos aquí no protegería nada.
 //   · **Contestar es tomar.** En cuanto alguien de la tienda escribe, la
 //     conversación queda a su nombre y el bot se calla. Lo decide el servidor.
-//   · **Mientras la línea de Meta no esté encendida, lo que se escribe aquí NO
-//     sale por WhatsApp**, y la pantalla lo dice en cada mensaje. Fingir que
-//     salió sería dejar a un cliente esperando una respuesta que nadie mandó.
+//   · **Lo que se escribe aquí sale por WhatsApp, y cada mensaje dice si
+//     salió.** El servidor lo encola y el bot lo manda; mientras tanto está
+//     «enviando», y acaba en «salió» o en «NO salió» con el motivo. Nunca se
+//     da por dicho lo que no se mandó: fingirlo sería dejar a un cliente
+//     esperando una respuesta que nadie recibió.
+//   · **La ventana de 24 horas la decide el servidor** (`salida`). Pasada,
+//     WhatsApp sólo acepta plantillas: la caja se apaga y dice por qué.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
@@ -45,6 +49,27 @@ const hora = iso => {
     : d.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
 }
 const quienDijo = q => QUIEN[q] ?? (PLAZAS.includes(q) ? nombreSucursal(q) : q)
+/**
+ * Cuánto se espera a que el bot diga qué pasó con un mensaje antes de dejar de
+ * llamarlo «enviando». Normalmente son dos o tres segundos; pasado este rato
+ * ya no es «enviando», es «no se sabe», y decirlo es mejor que el reloj eterno.
+ */
+const ESPERA_ENVIO_MS = 3 * 60 * 1000
+const sigueEnviando = m => m.envio === 'pendiente' && Date.now() - Date.parse(m.hora) < ESPERA_ENVIO_MS
+
+/** El pie de un mensaje de la tienda: si salió, y si no, por qué. */
+function EstadoEnvio({ m }) {
+  if (!m.envio) return null
+  if (m.envio === 'enviado') return <span data-envio="enviado" style={{ color: '#047857' }}> · salió por WhatsApp</span>
+  if (m.envio === 'pendiente') {
+    return sigueEnviando(m)
+      ? <span data-envio="pendiente"> · enviando…</span>
+      : <strong data-envio="sin-confirmar" style={{ color: '#B45309' }}> · no se confirmó el envío: revisa en su WhatsApp si le llegó</strong>
+  }
+  if (m.envio === 'fallido') return <strong data-envio="fallido" style={{ color: '#B91C1C' }}> · NO salió: {m.motivo || 'no se pudo mandar'}</strong>
+  return <strong data-envio="sin-canal" style={{ color: '#B45309' }}> · nota: no salió por WhatsApp</strong>
+}
+
 const telefonoBonito = t => (t && /^52\d{10}$/.test(t) ? `${t.slice(2, 5)} ${t.slice(5, 8)} ${t.slice(8)}` : t ?? '')
 
 function Pastilla({ activa, onClick, children, ...resto }) {
@@ -93,6 +118,11 @@ function Renglon({ c, activo, onAbrir, verPlaza }) {
             Sin respuesta
           </span>
         )}
+        {c.noSalio && (
+          <span data-no-salio style={{ fontSize: 10.5, fontWeight: 800, color: '#B91C1C', border: '1px solid #FCA5A5', borderRadius: 999, padding: '0 7px' }}>
+            No le llegó
+          </span>
+        )}
         {c.noLeidos > 0 && (
           <span data-no-leidos={c.noLeidos} style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: '#B45309', borderRadius: 999, padding: '0 7px' }}>
             {c.noLeidos} sin leer
@@ -110,7 +140,7 @@ function Renglon({ c, activo, onAbrir, verPlaza }) {
 
 // ── La ficha ────────────────────────────────────────────────────────────────
 
-function Ficha({ cliente: c, token, esAdmin, onCambio, onCerrar }) {
+function Ficha({ cliente: c, salida, token, esAdmin, onCambio, onRecargar, onCerrar }) {
   const [texto, setTexto] = useState('')
   const [aviso, setAviso] = useState(null)
   const [error, setError] = useState(null)
@@ -125,11 +155,14 @@ function Ficha({ cliente: c, token, esAdmin, onCambio, onCerrar }) {
     setOcupado(true); setError(null); setAviso(null)
     try {
       const r = await fn()
-      onCambio(r.cliente)
+      onCambio(r.cliente, r.salida)
       if (r.aviso) setAviso(r.aviso)
       exito?.(r)
     } catch (e) {
       setError(e.message)
+      // Lo que el servidor rechazó puede ser porque la ficha cambió —se cerró
+      // la ventana de 24 horas, o alguien más la tomó—: se vuelve a pedir.
+      onRecargar?.()
     } finally {
       setOcupado(false)
     }
@@ -144,7 +177,11 @@ function Ficha({ cliente: c, token, esAdmin, onCambio, onCerrar }) {
   }
 
   const e = ESTADO[c.estado] ?? ESTADO.bot
-  const sinCanal = c.mensajes?.some(m => m.envio === 'sin-canal')
+  // Sin ventana de WhatsApp la caja se apaga. Sin canal (un cliente de
+  // tickets, sin WhatsApp) sigue encendida: lo que se escriba es una nota.
+  const cerrada = !!salida && !salida.puede && salida.codigo !== 'sin-canal'
+  const esNota = salida?.codigo === 'sin-canal'
+  const sinCola = !!salida?.puede && salida.cola === false
 
   return (
     <Seccion tema={e.tema} data-ficha={c.id}
@@ -233,21 +270,40 @@ function Ficha({ cliente: c, token, esAdmin, onCambio, onCerrar }) {
             {m.imagenes > 0 && <span style={{ display: 'block', fontSize: 11, color: '#8598A1' }}>con {m.imagenes} foto{m.imagenes === 1 ? '' : 's'}</span>}
             <span style={{ display: 'block', fontSize: 10.5, color: '#8598A1', marginTop: 2, textAlign: m.de === 'cliente' ? 'left' : 'right' }}>
               {m.de === 'cliente' ? 'Cliente' : m.de === 'bot' ? 'Bot' : quienDijo(m.quien)} · {hora(m.hora)}
-              {m.envio === 'sin-canal' && <strong style={{ color: '#B45309' }}> · no salió por WhatsApp</strong>}
+              {m.de === 'tienda' && <EstadoEnvio m={m} />}
             </span>
           </div>
         )) : <p style={{ fontSize: 12.5, color: '#8598A1', margin: 0 }}>Todavía no hay mensajes con este cliente.</p>}
       </div>
 
+      {cerrada && (
+        <p data-salida-cerrada={salida.codigo} role="status"
+           style={{ fontSize: 12.5, color: '#7C2D12', background: '#FFF7ED', border: '1px solid #FDBA74', borderRadius: 10, padding: '8px 10px', margin: '10px 0 0' }}>
+          <strong>No se le puede escribir por WhatsApp ahora.</strong> {salida.motivo}
+        </p>
+      )}
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-        <textarea data-respuesta rows={2} value={texto} onChange={ev => setTexto(ev.target.value)}
-                  placeholder={c.estado === 'atendiendo' ? 'Escribe tu respuesta' : 'Escribir aquí toma la conversación: el bot deja de contestar'}
-                  style={{ flex: 1, border: '1px solid #D6E0E4', borderRadius: 12, padding: '8px 10px', fontSize: 13, resize: 'vertical' }} />
-        <button type="button" className="boton-tinta" data-mandar disabled={ocupado || !texto.trim()} onClick={mandar}>Mandar</button>
+        <textarea data-respuesta rows={2} value={texto} onChange={ev => setTexto(ev.target.value)} disabled={cerrada}
+                  placeholder={cerrada ? 'WhatsApp no deja escribirle ahora'
+                    : esNota ? 'Escribe una nota: este cliente no tiene WhatsApp'
+                    : c.estado === 'atendiendo' ? 'Escribe tu respuesta: le llega por WhatsApp'
+                    : 'Escribir aquí toma la conversación: el bot deja de contestar'}
+                  style={{ flex: 1, border: '1px solid #D6E0E4', borderRadius: 12, padding: '8px 10px', fontSize: 13, resize: 'vertical', background: cerrada ? '#F3F6F7' : undefined }} />
+        <button type="button" className="boton-tinta" data-mandar disabled={ocupado || cerrada || !texto.trim()} onClick={mandar}>
+          {esNota ? 'Guardar nota' : 'Mandar'}
+        </button>
       </div>
-      {sinCanal && (
-        <p style={{ fontSize: 11.5, color: '#8598A1', margin: '6px 0 0' }}>
-          Mientras la línea de WhatsApp de Meta no esté encendida, lo que se escribe aquí se guarda pero no le llega al cliente.
+      {salida?.puede && salida.hasta && !sinCola && (
+        <p data-salida-hasta style={{ fontSize: 11.5, color: '#8598A1', margin: '6px 0 0' }}>
+          Le llega por WhatsApp. Se le puede escribir hasta {hora(salida.hasta)}: WhatsApp da 24 horas desde su último mensaje.
+        </p>
+      )}
+      {esNota && (
+        <p data-salida-nota style={{ fontSize: 11.5, color: '#8598A1', margin: '6px 0 0' }}>{salida.motivo}</p>
+      )}
+      {sinCola && (
+        <p data-salida-sin-cola role="alert" style={{ fontSize: 12, color: '#B45309', margin: '6px 0 0' }}>
+          El servidor no tiene configurado el envío por WhatsApp: lo que escribas se guarda, pero NO le llega. Avisa al administrador.
         </p>
       )}
 
@@ -322,6 +378,7 @@ export default function ClientesPanel({ plazaFija = null }) {
   const [busca, setBusca] = useState('')
   const [abierto, setAbierto] = useState(null)
   const [ficha, setFicha] = useState(null)
+  const [salida, setSalida] = useState(null)
   const [alta, setAlta] = useState(false)
 
   const cargar = useCallback(async () => {
@@ -335,11 +392,32 @@ export default function ClientesPanel({ plazaFija = null }) {
   useEffect(() => { cargar() }, [cargar])
 
   useEffect(() => {
-    if (!abierto) { setFicha(null); return }
+    if (!abierto) { setFicha(null); setSalida(null); return }
     let vivo = true
-    clienteCrm(abierto, token).then(r => vivo && setFicha(r.cliente)).catch(e => vivo && setError(e.message))
+    clienteCrm(abierto, token)
+      .then(r => { if (vivo) { setFicha(r.cliente); setSalida(r.salida ?? null) } })
+      .catch(e => vivo && setError(e.message))
     return () => { vivo = false }
   }, [abierto, token])
+
+  const recargarFicha = useCallback(async () => {
+    if (!abierto) return
+    try {
+      const r = await clienteCrm(abierto, token)
+      setFicha(r.cliente); setSalida(r.salida ?? null)
+    } catch { /* la siguiente vuelta lo intenta otra vez */ }
+  }, [abierto, token])
+
+  // Mientras haya un mensaje «enviando», se vuelve a pedir la ficha: quien
+  // dice si salió es el bot, unos segundos después de que el servidor contestó.
+  // Se deja de preguntar cuando ya no hay ninguno, o cuando el mensaje lleva
+  // tanto esperando que deja de llamarse «enviando» (`ESPERA_ENVIO_MS`).
+  const enviando = !!ficha?.mensajes?.some(sigueEnviando)
+  useEffect(() => {
+    if (!enviando) return
+    const reloj = setTimeout(async () => { await recargarFicha(); cargar() }, 3000)
+    return () => clearTimeout(reloj)
+  }, [enviando, ficha, recargarFicha, cargar])
 
   const visibles = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -349,8 +427,11 @@ export default function ClientesPanel({ plazaFija = null }) {
       .filter(c => !q || (c.nombre ?? '').toLowerCase().includes(q) || (digitos.length >= 3 && (c.telefono ?? '').includes(digitos)))
   }, [lista, filtro, busca])
 
-  const alCambiar = c => {
+  const alCambiar = (c, s) => {
     setFicha(c)
+    // Sólo las rutas del CRM mandan `salida`; el alta no. Sin ella, la ficha
+    // se vuelve a pedir al abrirse, que es cuando hace falta.
+    setSalida(s ?? null)
     if (c.id !== abierto) setAbierto(c.id)
     cargar()
   }
@@ -417,7 +498,7 @@ export default function ClientesPanel({ plazaFija = null }) {
           </div>
         </Seccion>
 
-        {ficha && <div className="crm-ficha"><Ficha cliente={ficha} token={token} esAdmin={isAdmin} onCambio={alCambiar} onCerrar={() => setAbierto(null)} /></div>}
+        {ficha && <div className="crm-ficha"><Ficha cliente={ficha} salida={salida} token={token} esAdmin={isAdmin} onCambio={alCambiar} onRecargar={recargarFicha} onCerrar={() => setAbierto(null)} /></div>}
       </div>
     </div>
   )

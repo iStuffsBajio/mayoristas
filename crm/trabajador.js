@@ -46,9 +46,11 @@ import { S3Client } from '@aws-sdk/client-s3'
 import { trabajar } from './handler.js'
 import { enS3, bandejaEnS3 } from './almacen-s3.js'
 import { idWhatsApp } from './bandeja.js'
-import { mandarRespuesta } from './whatsapp-api.js'
+import { mandarRespuesta, mandarTexto } from './whatsapp-api.js'
+import { clasificarEnvio, motivoDeEstado } from './envio-errores.js'
 import {
   nuevoCliente, registrarMensaje, marcarSinRespuesta, botContesta,
+  salidaDe, marcarEnvio, envioFallidoPorWamid,
 } from '../backend/src/clientes.js'
 
 /** Entregas de SQS antes de la cola de fallidos (`maxReceiveCount`). */
@@ -67,6 +69,19 @@ export const VISIBILIDAD_S = 180
  * descarta por «repetido»: el cliente no recibe nada nunca.
  */
 export const MARGEN_MS = 10_000
+
+/**
+ * Lo que se espera a Meta al mandar lo que escribió la tienda.
+ *
+ * `fetch` no tiene tiempo límite propio. Sin éste, un envío colgado se
+ * llevaría la función entera, y al reintentarse no se sabría si el primero
+ * salió.
+ */
+export const LIMITE_ENVIO_MS = 15_000
+
+const mandarTextoConLimite = (a, texto) => mandarTexto(a, texto, {
+  fetchImpl: (url, opciones) => fetch(url, { ...opciones, signal: AbortSignal.timeout(LIMITE_ENVIO_MS) }),
+})
 
 class SeAcaboElTiempo extends Error {}
 
@@ -97,6 +112,7 @@ const corto = telefono => `…${String(telefono ?? '').slice(-4)}`
 export function creaTrabajador({
   almacenes,
   enviar = mandarRespuesta,
+  enviarTexto = mandarTextoConLimite,
   leer,
   pensar,
   maxEntregas = MAX_ENTREGAS,
@@ -163,6 +179,99 @@ export function creaTrabajador({
     }
   }
 
+  /**
+   * Manda lo que la tienda escribió en el panel (`clase: 'salida'`).
+   *
+   * El mensaje ya está en la ficha como `pendiente`; aquí sale y se apunta
+   * qué pasó. Devuelve true si SQS puede borrarlo.
+   *
+   * ── Lo que NO puede pasar: que salga dos veces ────────────────────────────
+   *
+   * SQS entrega «al menos una vez». Antes de mandar se mira la ficha: si el
+   * mensaje ya no está `pendiente`, alguien lo resolvió y no se toca. Y si el
+   * envío salió pero apuntarlo falló, se da por HECHO igual —devolver «falló»
+   * haría que SQS lo reintentara y el cliente lo recibiera otra vez—. Queda
+   * un hueco que no se puede cerrar desde aquí: que la función muera entre
+   * que Meta acepta y que se apunta. Es una ventana de milisegundos, y lo que
+   * deja es un mensaje repetido, no uno perdido.
+   */
+  async function salida(m, { bandeja, ultima }) {
+    if (!m?.cliente || !m?.idEnvio || !m?.para || !m?.cuerpo) {
+      registro.error?.('crm: salida mal formada; se descarta', m?.idEnvio)
+      return true
+    }
+    // Estricto: un S3 caído LANZA y SQS reintenta. Leído como «no existe»,
+    // el mensaje se tiraría.
+    const c = await (bandeja.leerEstricto ?? bandeja.leer)(m.cliente)
+    const guardado = c?.mensajes?.find(x => x.id === m.idEnvio)
+    if (!guardado) {
+      // La ficha o el mensaje ya no están (se borró la conversación). Sin
+      // ficha donde apuntar el resultado no se manda nada.
+      registro.warn?.('crm: salida sin mensaje en la ficha; no se manda', corto(m.para), m.idEnvio)
+      return true
+    }
+    if (guardado.envio !== 'pendiente') return true
+
+    const apuntar = async cambio => {
+      try {
+        await bandeja.modificar(m.cliente, actual => (actual ? marcarEnvio(actual, m.idEnvio, cambio) : null))
+        return true
+      } catch (err) {
+        registro.error?.('crm: no se pudo apuntar el envío de la tienda', corto(m.para), m.idEnvio, String(err?.message ?? err))
+        return false
+      }
+    }
+
+    // La ventana pudo cerrarse mientras el mensaje esperaba en la cola.
+    const s = salidaDe(c)
+    if (!s.puede) {
+      await apuntar({ envio: 'fallido', motivo: s.motivo })
+      return true
+    }
+
+    let r
+    try {
+      r = await enviarTexto(m.para, m.cuerpo)
+    } catch (err) {
+      const e = clasificarEnvio(err)
+      registro.error?.(`crm: no salió lo que escribió la tienda (${e.clase})`, corto(m.para), m.idEnvio, e.codigo ?? '')
+      // Lo pasajero se reintenta; lo que no tiene arreglo, y lo que ya se
+      // intentó todas las veces, se le DICE a la tienda en vez de reintentarlo.
+      if (!e.permanente && !ultima) return false
+      await apuntar({ envio: 'fallido', motivo: e.permanente ? e.motivo : `${e.motivo}; se intentó ${maxEntregas} veces` })
+      return true
+    }
+    // Pase lo que pase al apuntar, ya salió: no se reintenta.
+    await apuntar({ envio: 'enviado', wamid: r?.id ?? null })
+    return true
+  }
+
+  /**
+   * Meta avisa que NO entregó algo que antes aceptó (`clase: 'estado'`).
+   *
+   * Es la única forma de enterarse de algunos fallos: la ventana de 24 horas
+   * cerrada y el número sin WhatsApp no los rechaza la API al mandar —contesta
+   * bien y da un id— y el fallo llega después, por el webhook.
+   *
+   * Si el id es de algo que escribió la tienda, ese mensaje pasa a `fallido`.
+   * Si no, era del bot —sus respuestas no guardan el id de Meta—, y lo que hay
+   * que decir es lo mismo que cuando el bot se cae: a este cliente no le llegó
+   * la respuesta.
+   */
+  async function estado(m, { bandeja }) {
+    const id = idWhatsApp(m?.destino)
+    if (!id || !m?.id) return true
+    const motivo = motivoDeEstado(m)
+    registro.error?.('crm: Meta no entregó un mensaje', corto(m.destino), m.codigo ?? '')
+    await bandeja.modificar(id, actual => {
+      if (!actual) return null
+      const r = envioFallidoPorWamid(actual, m.id, motivo)
+      if (r.encontrado) return r.cliente
+      return marcarSinRespuesta(actual, { motivo: `no le llegó la respuesta del bot: ${motivo}` })
+    })
+    return true
+  }
+
   /** Atiende un registro de SQS. Devuelve true si SQS ya puede borrarlo. */
   async function uno(registroSqs, contexto) {
     const entrega = Number(registroSqs?.attributes?.ApproximateReceiveCount ?? 1)
@@ -179,6 +288,11 @@ export function creaTrabajador({
     }
 
     const { almacen, bandeja } = almacenes()
+
+    // Por la misma cola llegan tres clases de cosa: ver `entradasDeCola` en
+    // `backend/src/meta.js`. Lo que no lleva `clase` es un mensaje de cliente.
+    if (mensaje?.clase === 'salida') return salida(mensaje, { bandeja, ultima })
+    if (mensaje?.clase === 'estado') return estado(mensaje, { bandeja })
 
     // Si el tiempo se acaba, el turno queda corriendo «por detrás» —no hay
     // forma de cancelarlo— y la Lambda puede descongelarlo en la siguiente

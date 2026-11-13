@@ -118,7 +118,11 @@ export function leerCarga(carga) {
         mensajes.push(leerMensaje(m, nombres, v?.metadata))
       }
       for (const e of v.statuses ?? []) {
-        estados.push({ id: e?.id, estado: e?.status, de: e?.recipient_id, cuando: e?.timestamp })
+        estados.push({
+          id: e?.id, estado: e?.status, de: e?.recipient_id, cuando: e?.timestamp,
+          // Sólo viene en `failed`, y es lo único que dice POR QUÉ no llegó.
+          ...(e?.errors?.[0] && { error: { codigo: e.errors[0].code ?? null, titulo: e.errors[0].title ?? e.errors[0].message ?? null } }),
+        })
       }
     }
   }
@@ -197,6 +201,15 @@ export function anuncioDe(m) {
  */
 export const anuncioParaElCerebro = a =>
   !a ? null : [a.titular, a.cuerpo].filter(Boolean).join(' — ') || a.anuncio || null
+
+/**
+ * Un estado `failed`, como va a la cola. Lleva `destino` y NO `de`: ver
+ * `entradasDeCola` en `meta.js`.
+ */
+export const estadoParaLaCola = e => ({
+  clase: 'estado', id: e.id, estado: e.estado, destino: e.de ?? null,
+  codigo: e.error?.codigo ?? null, titulo: e.error?.titulo ?? null,
+})
 
 // ── Descarte de repetidos ───────────────────────────────────────────────────
 
@@ -279,9 +292,16 @@ export async function recibir(evento, { encolar } = {}) {
 
   const { mensajes, estados } = leerCarga(carga)
 
-  if (mensajes.length && encolar) {
+  // De los estados sólo se encola `failed`. «Entregado» y «leído» no cambian
+  // nada de lo que hace nadie; «fallido» sí: Meta ACEPTÓ el mensaje —la API
+  // contestó bien y la ficha dice «enviado»— y después no lo entregó. Si no se
+  // recoge aquí, la tienda cree que contestó y el cliente no recibió nada.
+  const fallidos = estados.filter(e => e.estado === 'failed' && e.id).map(estadoParaLaCola)
+  const paraLaCola = [...mensajes, ...fallidos]
+
+  if (paraLaCola.length && encolar) {
     try {
-      await encolar(mensajes)
+      await encolar(paraLaCola)
     } catch (err) {
       // Si la cola falla, SÍ conviene el error: Meta reintenta y el mensaje no
       // se pierde. Es el único caso donde reintentar es lo que queremos.

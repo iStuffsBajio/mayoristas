@@ -34,7 +34,28 @@ function noExiste(Key) {
 }
 
 /**
+ * Lo que S3 contesta al pedir una llave que NO existe cuando al rol le falta
+ * `s3:ListBucket`: un 403, no un 404. S3 no le dice a quien no puede listar
+ * si la llave existe o no.
+ */
+function sinPermiso() {
+  const e = new Error('Access Denied')
+  e.name = 'AccessDenied'
+  e.$metadata = { httpStatusCode: 403 }
+  return e
+}
+
+/**
  * Un S3 de memoria con la forma del cliente del SDK: `send(comando)`.
+ *
+ * `puedeListar` imita el permiso `s3:ListBucket` del rol. Con él en `false`,
+ * una llave que no existe da **AccessDenied** en vez de NoSuchKey, que es lo
+ * que hace S3 de verdad y lo que tumbó el primer mensaje de cada cliente
+ * nuevo en producción (2026-11-12): el almacén de conversaciones lee «no
+ * existe» como conversación nueva, y un 403 no es «no existe». Un falso que
+ * siempre contesta NoSuchKey deja ese fallo en verde.
+ *
+ * `puedeBorrar` imita `s3:DeleteObject`.
  *
  * `antesDeEscribir(Key, comando)` corre justo antes de aplicar un Put —después
  * de que quien escribe ya leyó—. Es el gancho para colar OTRA escritura en
@@ -50,6 +71,8 @@ export function s3Falso() {
     objetos,
     antesDeEscribir: null,
     fallar: null,
+    puedeListar: true,
+    puedeBorrar: true,
     escrituras: 0,
     rechazos: 0,
 
@@ -61,7 +84,7 @@ export function s3Falso() {
 
       if (tipo === 'GetObjectCommand') {
         const o = objetos.get(Key)
-        if (!o) throw noExiste(Key)
+        if (!o) throw (api.puedeListar ? noExiste(Key) : sinPermiso())
         return { ETag: o.etag, Body: { transformToString: async () => o.cuerpo } }
       }
 
@@ -83,6 +106,13 @@ export function s3Falso() {
         objetos.set(Key, { cuerpo: Buffer.from(comando.input.Body).toString('utf8'), etag })
         api.escrituras++
         return { ETag: etag }
+      }
+
+      if (tipo === 'DeleteObjectCommand') {
+        if (!api.puedeBorrar) throw sinPermiso()
+        // Borrar lo que no existe no es un error en S3.
+        objetos.delete(Key)
+        return {}
       }
 
       throw new Error(`s3Falso: no sé atender ${tipo}`)

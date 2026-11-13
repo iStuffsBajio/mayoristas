@@ -143,6 +143,11 @@ export function bandejaEnS3({ s3, bucket, reintentos = REINTENTOS_FICHA } = {}) 
       return (await leerCliente(id))?.cliente ?? null
     },
 
+    /** Como `leer`, pero un fallo de S3 LANZA en vez de parecer «no existe». */
+    async leerEstricto(id) {
+      return (await leerCliente(id, { estricto: true }))?.cliente ?? null
+    },
+
     async modificar(id, fn) {
       for (let intento = 0; intento < reintentos; intento++) {
         const leido = await leerCliente(id)

@@ -33,6 +33,7 @@ export function bandejaEnMemoria() {
   const datos = new Map()
   return {
     async leer(id) { return datos.get(id) ?? null },
+    async leerEstricto(id) { return datos.get(id) ?? null },
     async modificar(id, fn) {
       const sig = fn(datos.get(id) ?? null)
       if (sig) datos.set(id, sig)

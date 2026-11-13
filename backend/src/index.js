@@ -19,7 +19,8 @@ import {
 } from './cortes.js'
 import * as CRM from './clientes.js'
 import { almacenDeClientes, Conflicto } from './clientes-s3.js'
-import { esRutaDeMeta, rutaMetaWebhook } from './meta.js'
+import { esRutaDeMeta, rutaMetaWebhook, hayCola, encolarSalida } from './meta.js'
+import { responderDesdeElPanel, conSalida as fichaConSalida } from './crm-salida.js'
 import {
   verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
@@ -1594,6 +1595,9 @@ const {
   leerCliente, escribirCliente, modificarCliente, listarClientes,
 } = almacenDeClientes({ s3, bucket: BUCKET })
 
+/** La ficha con su `salida`: ver `crm-salida.js`. */
+const conSalida = cliente => fichaConSalida(cliente, { cola: hayCola() })
+
 /** Bodega no atiende clientes. Una tienda sí, la suya. El administrador, todas. */
 function sesionCrm(evento) {
   const sesion = sesionDe(evento)
@@ -1629,7 +1633,7 @@ async function rutaCliente(evento, origen) {
   if (!leido || leido.cliente.fusionadoEn || !CRM.puedeVer(sesion, leido.cliente)) {
     return responder(origen, 404, { error: 'No existe ese cliente.' })
   }
-  return responder(origen, 200, { cliente: leido.cliente })
+  return responder(origen, 200, conSalida(leido.cliente))
 }
 
 /**
@@ -1710,40 +1714,23 @@ async function rutaAccionCliente(evento, origen, cuerpo) {
     return CRM.aplicarAccion(c, { accion, plaza: cuerpo?.plaza, motivo: cuerpo?.motivo }, { quien: quienEs(sesion) })
   })
   if (r.error) return responder(origen, r.codigo, { error: r.error })
-  return responder(origen, 200, { ok: true, cliente: r.cliente })
+  return responder(origen, 200, { ok: true, ...conSalida(r.cliente) })
 }
 
 /**
- * `POST /crm/responder { id, texto }`.
- *
- * Contestar es tomar: si estaba pendiente, queda a nombre de quien contestó y
- * el bot se calla. El MENSAJE se guarda siempre; mandarlo por WhatsApp hace
- * falta la línea de Meta, que todavía no está encendida, y la respuesta lo dice
- * en vez de fingir que salió.
+ * `POST /crm/responder { id, texto }`: guarda lo que escribió la tienda y lo
+ * encola para que salga por WhatsApp. Todo lo que importa —la ventana de 24
+ * horas, el orden de guardar y encolar, qué pasa si la cola falla— vive y se
+ * explica en `crm-salida.js`.
  */
 async function rutaResponderCliente(evento, origen, cuerpo) {
   const { sesion, error } = sesionCrm(evento)
   if (error) return responder(origen, 403, { error })
-  const texto = String(cuerpo?.texto ?? '').trim()
-  if (!texto) return responder(origen, 400, { error: 'Escribe algo antes de mandar.' })
-  if (texto.length > CRM.MAX_TEXTO) return responder(origen, 400, { error: 'El mensaje es demasiado largo.' })
-  const quien = quienEs(sesion)
-
-  const r = await modificarCliente(String(cuerpo?.id ?? ''), c => {
-    if (!CRM.puedeVer(sesion, c)) return { error: 'No existe ese cliente.', codigo: 404 }
-    let sig = c
-    if (c.estado !== 'atendiendo' || c.atiende !== quien) {
-      const t = CRM.aplicarAccion(c, { accion: 'tomar' }, { quien })
-      if (t.error) return t
-      sig = t.cliente
-    }
-    return { cliente: CRM.registrarMensaje(sig, { de: 'tienda', texto, quien, envio: 'sin-canal' }) }
+  const r = await responderDesdeElPanel({
+    sesion, quien: quienEs(sesion), id: cuerpo?.id, texto: cuerpo?.texto,
+    modificarCliente, encolar: hayCola() ? encolarSalida : null,
   })
-  if (r.error) return responder(origen, r.codigo, { error: r.error })
-  return responder(origen, 200, {
-    ok: true, cliente: r.cliente, enviado: false,
-    aviso: 'Quedó guardado en la conversación. Todavía no sale por WhatsApp: la línea de Meta no está encendida.',
-  })
+  return responder(origen, r.codigo, r.cuerpo)
 }
 
 // ── Nómina y RH ────────────────────────────────────────────────────────────

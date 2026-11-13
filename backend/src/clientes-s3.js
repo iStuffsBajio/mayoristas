@@ -25,13 +25,23 @@ export function almacenDeClientes({ s3, bucket }) {
   const PREFIJO_CLIENTES = 'crm/clientes/'
   const claveCliente = id => `${PREFIJO_CLIENTES}${CRM.archivoDe(id)}`
 
-  async function leerCliente(id) {
+  /**
+   * Lee una ficha. Por omisión, CUALQUIER fallo se lee como «no existe»: es lo
+   * que hacía y el panel cuenta con ello.
+   *
+   * Con `estricto`, sólo «no existe» devuelve null y lo demás LANZA. Lo pide
+   * quien no puede confundir las dos cosas: el trabajador, antes de mandar lo
+   * que la tienda escribió. Si un S3 caído se leyera como «esa ficha ya no
+   * existe», el mensaje se tiraría en vez de reintentarse.
+   */
+  async function leerCliente(id, { estricto = false } = {}) {
     if (!CRM.idValido(id)) return null
     try {
       const r = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: claveCliente(id) }))
       const v = JSON.parse(await r.Body.transformToString())
       return v && typeof v === 'object' ? { cliente: v, etag: r.ETag ?? null } : null
-    } catch {
+    } catch (err) {
+      if (estricto && !(err?.name === 'NoSuchKey' || err?.$metadata?.httpStatusCode === 404)) throw err
       return null
     }
   }
