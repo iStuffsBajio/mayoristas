@@ -132,7 +132,7 @@ const ESCENARIOS = [
   ] },
   { id: 'no-existe', plaza: 'leon', turnos: [
     { di: 'tienes para un nokia 3310?',
-      debe: [/(no manejamos|no manejo|no tengo|no trabajamos|no cuento|no contamos|no hay|no la manejamos)/i],
+      debe: [/(no manejamos|no manejo|no lo manejamos|no lo manejo|no tengo|no trabajamos|no cuento|no contamos|no hay|no la manejamos)/i],
       noDebe: [/\$\s?\d/] },
   ] },
   { id: 'no-sustituir', plaza: 'leon', turnos: [
@@ -212,7 +212,10 @@ const ESCENARIOS = [
   { id: 'horario-domingo', plaza: 'leon', turnos: [
     { di: 'abren el domingo? hasta que hora?', con: ['datos_de_sucursal'],
       debe: [/(5|cinco)\s*(:00)?\s*(pm|p\.\s?m|de la tarde)?/i],
-      noDebe: [/domingos?[^.?!]{0,60}\b(8|ocho)(:00)?\s*(pm|p\.\s?m|de la noche)/i] },
+      // Decir «domingo hasta las 5; entre semana cerramos a las 8» es VERDAD: el
+      // «8» sólo cuenta como error si lo pega al domingo, sin «entre semana» ni
+      // otro día en medio.
+      noDebe: [/domingos?(?:(?!entre semana|lunes|s[aá]bado|resto)[^.?!]){0,60}\b(8|ocho)(:00)?\s*(pm|p\.\s?m|de la noche)/i] },
   ] },
   { id: 'horario-domingo-torreon', plaza: 'torreon', turnos: [
     { di: 'abren el domingo? hasta que hora?', con: ['datos_de_sucursal'],

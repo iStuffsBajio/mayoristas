@@ -868,12 +868,17 @@ test('las fotos se sirven por omisión de un dominio que sí contesta', () => {
 
 test('las reglas permiten emojis pero con tope, no «nada de emojis»', async () => {
   // El dueño los pidió el 2026-11-12: una atención menos plana. Lo que se
-  // fija es que haya tope y que no se vuelva a escribir la prohibición total.
+  // fija es que haya tope, que no se vuelva a escribir la prohibición total, y
+  // que la regla diga que se usan aunque los mensajes ANTERIORES no los lleven:
+  // el modelo copia el estilo de su propio historial y, sin esa frase, en una
+  // conversación larga dejaba de ponerlos (8 de 12 con historial plano; con la
+  // frase, 12 de 12).
   const { REGLAS } = await import('./cerebro.js')
   assert.doesNotMatch(REGLAS, /nada de emojis/i)
   assert.match(REGLAS, /Emojis:/)
-  assert.match(REGLAS, /nunca más/i)
-  assert.match(REGLAS, /ninguno junto a un precio/i)
+  assert.match(REGLAS, /dos como máximo/i)
+  assert.match(REGLAS, /pegado a un precio/i)
+  assert.match(REGLAS, /mensajes anteriores .* no hayan llevado/i)
 })
 
 // ── Los datos de cada tienda ────────────────────────────────────────────────
