@@ -21,6 +21,7 @@ import * as CRM from './clientes.js'
 import { almacenDeClientes, Conflicto } from './clientes-s3.js'
 import { esRutaDeMeta, rutaMetaWebhook, hayCola, encolarSalida } from './meta.js'
 import { responderDesdeElPanel, conSalida as fichaConSalida } from './crm-salida.js'
+import { LLAVE_SALUD, saludParaElPanel } from './crm-salud.js'
 import {
   verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
@@ -1620,7 +1621,25 @@ async function rutaClientes(evento, origen) {
   const visibles = clientes
     .filter(c => CRM.puedeVer(sesion, c))
     .filter(c => !pedida || (pedida === 'sin-plaza' ? !c.plaza : c.plaza === pedida))
-  return responder(origen, 200, { clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles) })
+  return responder(origen, 200, {
+    clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles),
+    // Si el bot no puede mandar por WhatsApp —el token venció—, lo tiene que
+    // saber quien está contestando, no sólo el correo del dueño.
+    salud: await saludDelCanal(),
+  })
+}
+
+/**
+ * Lo que apuntó el trabajador en `crm/salud.json`, listo para la pantalla.
+ * Si no se puede leer, lista vacía: un aviso roto no tumba la bandeja.
+ */
+async function saludDelCanal() {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: LLAVE_SALUD }))
+    return saludParaElPanel(JSON.parse(await r.Body.transformToString()))
+  } catch {
+    return []
+  }
 }
 
 /** `GET /crm/cliente?id=<id>`: la ficha entera, con la conversación. */

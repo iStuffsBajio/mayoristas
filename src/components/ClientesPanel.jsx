@@ -372,6 +372,7 @@ export default function ClientesPanel({ plazaFija = null }) {
   const { token, isAdmin } = useAuth()
   const [lista, setLista] = useState(null)
   const [cuenta, setCuenta] = useState(null)
+  const [salud, setSalud] = useState([])
   const [error, setError] = useState(null)
   const [filtro, setFiltro] = useState('todos')
   const [plaza, setPlaza] = useState('')
@@ -385,7 +386,7 @@ export default function ClientesPanel({ plazaFija = null }) {
     if (!apiConfigurada) { setError('El servidor no está configurado todavía.'); return }
     try {
       const r = await clientesCrm(isAdmin ? plaza : null, token)
-      setLista(r.clientes ?? []); setCuenta(r.cuenta ?? null); setError(null)
+      setLista(r.clientes ?? []); setCuenta(r.cuenta ?? null); setSalud(r.salud ?? []); setError(null)
     } catch (e) { setError(e.message) }
   }, [token, isAdmin, plaza])
 
@@ -444,6 +445,20 @@ export default function ClientesPanel({ plazaFija = null }) {
         <Cifra tema="neutro" titulo="Con el bot" valor={cuenta?.bot ?? '—'} />
         <Cifra tema="neutro" titulo="Clientes" valor={cuenta?.total ?? '—'} sub={isAdmin ? 'De todas las plazas' : `De ${nombreSucursal(plazaFija)}`} />
       </Cifras>
+
+      {/* El canal entero está mudo: el bot no puede mandar NADA. Va antes que
+          todo lo demás porque cambia qué hacer con cada cliente de la lista:
+          hay que escribirles desde el WhatsApp de la tienda hasta que vuelva. */}
+      {salud.map(p => (
+        <p key={p.clase} data-aviso-salud={p.clase} role="alert"
+           style={{ fontSize: 13, color: '#fff', background: '#B91C1C', borderRadius: 12, padding: '10px 12px', margin: 0 }}>
+          <strong>WhatsApp no está saliendo: {p.titulo.toLowerCase()}.</strong>{' '}
+          Desde {hora(p.desde)} el bot no puede contestarle a nadie y lo que se escriba aquí tampoco sale.{' '}
+          {isAdmin
+            ? `Meta contestó: ${p.motivo ?? 'sin detalle'}${p.codigo ? ` (código ${p.codigo})` : ''}. Los pasos están en crm/LEEME.md, «Cuando el token vence».`
+            : 'Avisa al administrador y, mientras tanto, contesta desde el WhatsApp de la tienda.'}
+        </p>
+      ))}
 
       {/* Sólo sale cuando hay alguno: un aviso rojo permanente en cero enseña a
           no mirarlo. */}

@@ -48,6 +48,7 @@ import { enS3, bandejaEnS3 } from './almacen-s3.js'
 import { idWhatsApp } from './bandeja.js'
 import { mandarRespuesta, mandarTexto } from './whatsapp-api.js'
 import { clasificarEnvio, motivoDeEstado } from './envio-errores.js'
+import { saludEnS3, vigilante } from './salud.js'
 import {
   nuevoCliente, registrarMensaje, marcarSinRespuesta, botContesta,
   salidaDe, marcarEnvio, envioFallidoPorWamid,
@@ -111,8 +112,9 @@ const corto = telefono => `…${String(telefono ?? '').slice(-4)}`
  */
 export function creaTrabajador({
   almacenes,
-  enviar = mandarRespuesta,
-  enviarTexto = mandarTextoConLimite,
+  enviar: enviarCrudo = mandarRespuesta,
+  enviarTexto: enviarTextoCrudo = mandarTextoConLimite,
+  salud = null,
   leer,
   pensar,
   maxEntregas = MAX_ENTREGAS,
@@ -120,6 +122,13 @@ export function creaTrabajador({
   registro = console,
 } = {}) {
   if (typeof almacenes !== 'function') throw new Error('creaTrabajador: hace falta `almacenes`')
+
+  // Todo lo que sale hacia Meta pasa por el vigilante: si Meta lo rechaza por
+  // algo que deja el canal mudo —el token vencido, sobre todo—, queda apuntado
+  // para el panel y para la alarma. Ver `salud.js`.
+  const { vigilar } = vigilante({ salud, registro })
+  const enviar = vigilar(enviarCrudo)
+  const enviarTexto = vigilar(enviarTextoCrudo)
 
   /** Deja dicho en la ficha que a este cliente nadie le contestó. */
   async function avisarEnElPanel(bandeja, mensaje, motivo) {
@@ -388,6 +397,7 @@ export async function handler(evento, contexto) {
     const s3 = new S3Client({ region: process.env.S3_REGION })
     deVerdad = creaTrabajador({
       almacenes: () => ({ almacen: enS3({ s3, bucket }), bandeja: bandejaEnS3({ s3, bucket }) }),
+      salud: saludEnS3({ s3, bucket }),
     })
   }
   return deVerdad(evento, contexto)

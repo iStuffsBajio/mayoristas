@@ -761,6 +761,8 @@ const HACE_30_HORAS = Date.now() - 30 * 3600_000
   CRM_CLIENTES.set(sr, CRM.marcarSinRespuesta(CRM_CLIENTES.get(sr), { motivo: 'el bot falló 3 veces', mensaje: 'wamid.3' }))
 }
 const POSTS_CRM = []
+const { anotarProblema, saludParaElPanel } = await import('../backend/src/crm-salud.js')
+const SALUD_CRM = saludParaElPanel(anotarProblema(null, 'token', { motivo: 'el acceso a WhatsApp venció (token de Meta)', codigo: 190 }))
 
 /**
  * Hace de trabajador: manda lo que hay en la cola y lo apunta como enviado.
@@ -798,7 +800,9 @@ function respuestaDeCrm(u, opciones, sesionAdmin, plazaDeSesion) {
       .filter(c => CRM.puedeVer(sesion, c))
       .filter(c => !pedida || (pedida === 'sin-plaza' ? !c.plaza : c.plaza === pedida))
       .map(CRM.resumen)
-    const r = { clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles) }
+    // El token de Meta «venció»: el aviso tiene que salir arriba para las dos
+    // sesiones, con el código sólo para el administrador.
+    const r = { clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles), salud: SALUD_CRM }
     if (!sesionAdmin && /AJENO|4449876543/.test(JSON.stringify(r))) {
       errores.push(`la bandeja que recibe ${plazaDeSesion} trae un cliente de otra plaza`)
     }
@@ -3001,6 +3005,13 @@ async function clientesDelPanel(window, donde, esAdmin) {
   if (!esAdmin && /AJENO/.test(doc.body.textContent)) errores.push(`${donde} · una tienda ve un cliente de otra plaza`)
   if (esAdmin && !doc.querySelector('[data-filtro-plaza]')) errores.push(`${donde} · el administrador no tiene filtro de plaza`)
   if (!esAdmin && doc.querySelector('[data-filtro-plaza]')) errores.push(`${donde} · una tienda tiene filtro de plaza`)
+
+  // El canal mudo se dice arriba, y a la tienda se le dice qué HACER, no el
+  // código de Meta, que no le sirve.
+  const mudo = doc.querySelector('[data-aviso-salud="token"]')?.textContent ?? ''
+  if (!/WhatsApp no está saliendo/.test(mudo)) errores.push(`${donde} · no avisa de que el token de Meta vencio`)
+  if (esAdmin && !/190/.test(mudo)) errores.push(`${donde} · el administrador no ve el codigo de Meta del token vencido`)
+  if (!esAdmin && (/190/.test(mudo) || !/Avisa al administrador/.test(mudo))) errores.push(`${donde} · a la tienda el aviso del token no le dice que hacer`)
 
   const id = 'wa:524771234567'
   const boton = doc.querySelector(`[data-cliente="${id}"]`)
