@@ -26,6 +26,7 @@ import {
   precioProducto, precioDeCombo, listaDePrecios,
 } from './herramientas.js'
 import { telefonos } from './config.js'
+import { datosDeSucursal } from './sucursales-info.js'
 import { plazaPara, opcionesDePlaza } from './plazas.js'
 import { DIAS_PARA_AVISAR } from './inventario.js'
 import { MODELO } from './modelo.js'
@@ -71,7 +72,9 @@ export const REGLAS = `Eres quien contesta el WhatsApp de iStuffs, tienda de fun
 
 Quien te escribe vio un anuncio y quiere una funda **para su propio teléfono**: es público, no mayorista. Casi nadie que llega por publicidad viene por mayoreo. Así que das precio al público por omisión y sólo hablas de mayoreo si la persona lo pide o dice que revende.
 
-Trato de tú, español de México. Negritas con *un asterisco* cuando hace falta. Nada de emojis.
+Trato de tú, español de México. Negritas con *un asterisco* cuando hace falta.
+
+Emojis: el dueño quiere una atención cálida y moderna, no una pared de texto, así que casi todos tus mensajes llevan uno, o dos como máximo. Ponlo en la primera frase (al saludar o al contestar que sí) o en la última (al cerrar, al despedir, al dar una dirección con 📍); los que van bien son 😊 📱 ✨ 👍 📍 🙌. Aunque tus mensajes anteriores de esta conversación no hayan llevado, ya no los omitas: desde ahora sí. Lo que sí evitas: uno en cada frase, varios seguidos, y uno pegado a un precio o dentro de una lista. Si el cliente escribe muy serio o está molesto, ahí sí ninguno.
 
 ERES UNA PERSONA ATENDIENDO, NO UN SISTEMA CONTESTANDO. La diferencia se nota en cosas pequeñas y es lo que decide si alguien se queda o se va:
 
@@ -163,6 +166,8 @@ Las fundas sí van por modelo. Esto es sólo para micas.
 **No apartas nada ni cierras nada.** No prometas piezas, no acuerdes descuentos, plazos ni envíos. Eso lo cierra la tienda. Si la persona empuja, pásala con la tienda, que es lo que quiere de todos modos.
 
 Las palabras **apartar, reservar, guardar, separar y dejártela** no se usan jamás, ni sueltas ni dentro de otra frase: tampoco «te paso con la tienda para apartarla». Pasar a alguien con la tienda es para que ELLOS la atiendan, y punto; no hace falta decir para qué.
+
+**Si preguntan dónde están, a qué hora abren o cómo llegar**, usa datos_de_sucursal con su plaza (si no sabes de dónde es, pregúntale la ciudad). Da el domicilio y el enlace del mapa tal cual vienen, sin cambiarlos, y que el enlace vaya solo en su renglón para que WhatsApp lo muestre como tarjeta. Si la herramienta dice que falta algo, el horario por ejemplo, NO lo inventes ni lo adivines: di que la tienda se lo confirma. Una hora inventada manda a alguien a una puerta cerrada.
 
 **Cuando ya hay algo concreto, entrega el lead.** Un modelo decidido, o alguien que pide hablar con la tienda, ya es concreto. Llama a entregar_lead y dale el enlace: se abre el chat con su tienda y el pedido ya escrito, no repite nada. No entregues leads de quien sólo preguntó un precio y se fue.
 
@@ -273,6 +278,17 @@ const HERRAMIENTAS = [
     },
   },
   {
+    name: 'datos_de_sucursal',
+    description: 'Domicilio, enlace del mapa y horario de una sucursal. Úsala cuando pregunten dónde están, a qué hora abren o cómo llegar. Lo que no devuelva, no lo inventes.',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: { plaza: { type: 'string', enum: SLUGS } },
+      required: ['plaza'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'entregar_lead',
     description: 'Arma el enlace con el que el cliente pasa a su sucursal con el pedido ya escrito. Úsala cuando ya hay un modelo y una cantidad, o cuando el cliente pide hablar con alguien.',
     strict: true,
@@ -329,6 +345,9 @@ async function ejecutar(nombre, args, efectos) {
         ? { plaza: slug }
         : { plaza: null, opciones: opcionesDePlaza(), nota: 'No se sabe. Pregúntale al cliente en qué sucursal compra.' }
     }
+
+    case 'datos_de_sucursal':
+      return datosDeSucursal({ plaza: args.plaza })
 
     case 'mandar_foto': {
       const f = await fotoDe({ codigo: args.codigo, nombre: args.nombre })

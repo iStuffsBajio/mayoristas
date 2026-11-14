@@ -34,7 +34,33 @@ export function recortar(texto, tope) {
   return t.slice(0, tope - 1) + '…'
 }
 
+/**
+ * Los números de México llegan en el webhook como `521` + 10 dígitos —con un
+ * «1» que ya no existe—, pero Meta guarda y acepta `52` + 10 dígitos. Mandando
+ * al `521...` tal cual, la API contesta (#131030) «Recipient phone number not
+ * in allowed list» para un número que SÍ está en la lista. Pasó en la primera
+ * prueba real, el 2026-11-12. Sólo se toca lo que tiene exactamente esa forma;
+ * cualquier otro número sale como llegó.
+ */
+export function paraEnvio(numero) {
+  const n = String(numero ?? '')
+  return /^521\d{10}$/.test(n) ? '52' + n.slice(3) : n
+}
+
+/**
+ * A quien WhatsApp no le comparte el teléfono se le manda por su identificador
+ * (BSUID), y eso NO va en `to`: va en `recipient`, sin `to`. Mandando los dos,
+ * Meta usa `to` e ignora el otro. Documentado por Meta para la Cloud API desde
+ * julio de 2026; ⚠️ no se ha probado en esta cuenta.
+ */
+const ES_BSUID = /^[A-Z]{2}\.(?:ENT\.)?[A-Za-z0-9]{1,128}$/
+
 async function mandar(cuerpo, { fetchImpl = fetch } = {}) {
+  if (cuerpo?.to && ES_BSUID.test(String(cuerpo.to))) {
+    const { to, ...resto } = cuerpo
+    cuerpo = { ...resto, recipient: to }
+  }
+  if (cuerpo?.to) cuerpo = { ...cuerpo, to: paraEnvio(cuerpo.to) }
   if (!configurada()) {
     throw new Error('Falta WHATSAPP_TOKEN o WHATSAPP_PHONE_NUMBER_ID')
   }

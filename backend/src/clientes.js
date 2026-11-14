@@ -73,18 +73,36 @@ export function telefonoMx(valor) {
 }
 
 /**
+ * ¿Es un identificador de usuario de WhatsApp (BSUID) y no un teléfono?
+ *
+ * Desde abril de 2026 Meta manda, junto al teléfono, un identificador propio
+ * de cada persona PARA ESTE NEGOCIO: el código del país, un punto y hasta 128
+ * letras y números —`MX.13491208655302741918`—. Y a quien active su nombre de
+ * usuario en WhatsApp, Meta puede dejar de mandarle el teléfono: entonces el
+ * identificador es lo ÚNICO que llega, y por él se le contesta.
+ *
+ * Un teléfono son sólo dígitos, así que no se confunden.
+ */
+export const esBsuid = v => /^[A-Z]{2}\.(?:ENT\.)?[A-Za-z0-9]{1,128}$/.test(String(v ?? ''))
+
+/**
  * La llave de un cliente.
  *
- * Por WhatsApp es el teléfono: es lo único que Meta garantiza y lo que la
- * persona reconoce. Instagram y Messenger no dan teléfono, dan un identificador
+ * Por WhatsApp es el teléfono: es lo que la persona reconoce. Si WhatsApp no
+ * lo da (ver `esBsuid`), la llave sale de su identificador: `wa:u-MX-1349…`.
+ *
+ * ⚠️ Un teléfono que no es mexicano de 10 dígitos NO da llave, ni ahora ni
+ * antes: ese cliente recibe respuesta del bot pero no tiene ficha. Instagram y Messenger no dan teléfono, dan un identificador
  * propio de la página, así que van con su canal delante. Un mayorista que sólo
  * existe en los tickets de Eleventa no tiene ninguno de los dos: va con su
  * plaza y su clave, hasta que alguien le capture el teléfono.
  */
-export function idDe({ canal, telefono, idCanal, plaza, clave }) {
+export function idDe({ canal, telefono, usuario, idCanal, plaza, clave }) {
   if (canal === 'whatsapp' || (!canal && telefono)) {
     const t = telefonoMx(telefono)
-    return t ? `wa:${t}` : ''
+    if (t) return `wa:${t}`
+    // Las mayúsculas se conservan: en una llave de S3 distinguen.
+    return esBsuid(usuario) ? `wa:u-${String(usuario).replace(/\./g, '-')}` : ''
   }
   if (canal === 'instagram' || canal === 'messenger') {
     const i = String(idCanal ?? '').replace(/[^0-9a-zA-Z_-]/g, '')
@@ -99,7 +117,7 @@ export function idDe({ canal, telefono, idCanal, plaza, clave }) {
 }
 
 /** Una llave que se puede usar como nombre de archivo sin sorpresas. */
-export const idValido = id => /^(wa|ig|fb|may|tda):[a-z0-9:_-]{3,90}$/i.test(String(id ?? ''))
+export const idValido = id => /^(wa|ig|fb|may|tda):[a-z0-9:_-]{3,160}$/i.test(String(id ?? ''))
 
 /** Nombre de archivo de un cliente. Los dos puntos no van en una llave de S3. */
 export const archivoDe = id => `${String(id).replace(/:/g, '_')}.json`
@@ -119,13 +137,16 @@ function origenLimpio(o) {
 }
 
 /** Un cliente nuevo. `id` sale de `idDe()`; si viene vacío, no hay cliente. */
-export function nuevoCliente({ id, canal, telefono, nombre, plaza, tipo, origen, quien = 'sistema' }, { ahora } = {}) {
+export function nuevoCliente({ id, canal, telefono, usuario, nombre, plaza, tipo, origen, quien = 'sistema' }, { ahora } = {}) {
   if (!idValido(id)) return null
   const hora = ahoraIso(ahora)
   return {
     id,
     canal: CANALES.includes(canal) ? canal : 'whatsapp',
     telefono: telefonoMx(telefono) || null,
+    // El identificador de WhatsApp de esta persona, si Meta lo mandó. Con él
+    // se la reconoce el día que escriba SIN teléfono, y por él se le contesta.
+    ...(esBsuid(usuario) && { usuario: String(usuario) }),
     nombre: texto(nombre, 120) || null,
     plaza: PLAZAS_CLIENTES.includes(plaza) ? plaza : null,
     tipo: TIPOS.includes(tipo) ? tipo : 'publico',
@@ -168,17 +189,20 @@ const conBitacora = (c, quien, accion, detalle, hora) => ({
  * `de` es quién lo dijo: `cliente`, `bot` o `tienda`. Un mensaje del cliente a
  * una conversación cerrada la reabre con el bot: viene por otra cosa.
  */
-export function registrarMensaje(c, { de, texto: t, quien = null, id = null, tipo = 'texto', imagenes = 0, envio = null }, { ahora } = {}) {
+export function registrarMensaje(c, { de, texto: t, quien = null, id = null, tipo = 'texto', imagenes = 0, envio = null, motivo = null }, { ahora } = {}) {
   if (!c || !['cliente', 'bot', 'tienda'].includes(de)) return c
   const hora = ahoraIso(ahora)
   const contenido = String(t ?? '').slice(0, MAX_TEXTO)
   // Meta reintenta: el mismo mensaje dos veces no son dos mensajes.
   if (id && c.mensajes.some(m => m.id === id)) return c
 
-  const m = { hora, de, texto: contenido, tipo, ...(id && { id }), ...(quien && { quien }), ...(imagenes && { imagenes }), ...(envio && { envio }) }
+  const m = { hora, de, texto: contenido, tipo, ...(id && { id }), ...(quien && { quien }), ...(imagenes && { imagenes }), ...(envio && { envio }), ...(envio && motivo && { motivo: texto(motivo, 200) }) }
   let sig = { ...c, mensajes: [...c.mensajes, m].slice(-MAX_MENSAJES), ultimoMensaje: hora, actualizado: hora }
 
   if (de === 'cliente') {
+    // De aquí cuelga la ventana de 24 horas (`salidaDe`). Va en la ficha y no
+    // se saca de la lista de mensajes porque la lista se recorta.
+    sig.ultimoDelCliente = hora
     if (sig.estado === 'cerrada') sig = conBitacora({ ...sig, estado: 'bot', atiende: null }, 'sistema', 'reabierta', 'volvió a escribir', hora)
     // Lo que escribe el cliente mientras lo atiende una persona es lo que la
     // tienda tiene que leer: se cuenta. Con el bot no, porque el bot contesta.
@@ -217,6 +241,114 @@ export function marcarSinRespuesta(c, { motivo = null, mensaje = null } = {}, { 
   const nota = texto(motivo, 200) || null
   const sig = { ...c, sinRespuesta: { desde: hora, motivo: nota, ...(mensaje && { mensaje }) }, actualizado: hora }
   return conBitacora(sig, 'sistema', 'sin respuesta', nota, hora)
+}
+
+// ── Lo que la tienda escribe desde el panel, y si le llegó al cliente ──────
+
+/**
+ * Horas que WhatsApp deja contestarle a alguien después de su último mensaje.
+ *
+ * No es nuestro: es la «ventana de servicio» de Meta. Dentro, se le escribe lo
+ * que sea. Fuera, sólo una PLANTILLA aprobada (y de pago), y la API rechaza
+ * cualquier otra cosa con el error 131047.
+ */
+export const VENTANA_HORAS = 24
+
+/**
+ * Por dónde va cada mensaje que la tienda escribe en el panel (`m.envio`).
+ *
+ * | envío     | qué significa                                               |
+ * |-----------|-------------------------------------------------------------|
+ * | pendiente | está en la cola; el trabajador todavía no lo manda          |
+ * | enviado   | Meta lo ACEPTÓ (no es «entregado»: eso llega después, o no) |
+ * | fallido   | no salió, y `m.motivo` dice por qué                         |
+ * | sin-canal | se guardó como nota: no había por dónde mandarlo            |
+ */
+export const ENVIOS = ['pendiente', 'enviado', 'fallido', 'sin-canal']
+
+/**
+ * ¿Se le puede escribir a este cliente desde el panel, ahora?
+ *
+ * Devuelve `{ puede, codigo, motivo, hasta }`. `motivo` es lo que la pantalla
+ * enseña TAL CUAL, así que dice qué hacer y no sólo que no se puede.
+ *
+ * La hora que se compara es la de cuando NOSOTROS apuntamos su mensaje, que
+ * va unos segundos por detrás de la de Meta. Por eso esto es un filtro y no la
+ * última palabra: si Meta ya cerró la ventana, el envío falla con 131047 y el
+ * mensaje queda como `fallido` con ese motivo.
+ */
+export function salidaDe(c, { ahora } = {}) {
+  if (!c) return { puede: false, codigo: 'sin-cliente', motivo: 'No existe ese cliente.', hasta: null }
+  const esDeWhatsApp = String(c.id ?? '').startsWith('wa:') && (c.telefono || c.usuario)
+  if (!esDeWhatsApp) {
+    return {
+      puede: false, codigo: 'sin-canal', hasta: null,
+      motivo: 'Este cliente no tiene WhatsApp registrado: lo que escribas se guarda como nota y no le llega.',
+    }
+  }
+  const ultimo = c.ultimoDelCliente ?? c.mensajes?.findLast?.(m => m.de === 'cliente')?.hora ?? null
+  if (!ultimo) {
+    return {
+      puede: false, codigo: 'sin-ventana', hasta: null,
+      motivo: 'Este cliente todavía no ha escrito por WhatsApp. Meta sólo deja iniciarle la conversación con una plantilla aprobada, y aquí todavía no hay plantillas.',
+    }
+  }
+  const hasta = new Date(Date.parse(ultimo) + VENTANA_HORAS * 3600_000).toISOString()
+  if (Date.parse(hasta) <= new Date(ahora ?? Date.now()).getTime()) {
+    return {
+      puede: false, codigo: 'ventana', hasta,
+      motivo: `Pasaron más de ${VENTANA_HORAS} horas desde su último mensaje. WhatsApp ya sólo deja escribirle con una plantilla aprobada, y aquí todavía no hay plantillas. Si vuelve a escribir, se abre otra vez.`,
+    }
+  }
+  return { puede: true, codigo: null, motivo: null, hasta }
+}
+
+/**
+ * Apunta qué pasó con un mensaje de la tienda: salió o no salió.
+ *
+ * `idMensaje` es el `id` con el que se guardó (lo pone el servidor al
+ * encolarlo). Un mensaje que ya salió NO vuelve a `pendiente` ni a `fallido`
+ * por esta vía: que Meta lo aceptó es un hecho, y lo único que puede venir
+ * después es que no lo entregue (`envioFallidoPorWamid`).
+ *
+ * Devuelve el MISMO objeto si no hay nada que cambiar, para que quien guarda
+ * sepa que no hace falta escribir.
+ */
+export function marcarEnvio(c, idMensaje, { envio, motivo = null, wamid = null } = {}, { ahora } = {}) {
+  if (!c || !idMensaje || !['enviado', 'fallido'].includes(envio)) return c
+  const i = c.mensajes?.findIndex(m => m.id === idMensaje && m.de === 'tienda') ?? -1
+  if (i < 0) return c
+  const m = c.mensajes[i]
+  if (m.envio === envio || m.envio === 'enviado') return c
+  const hora = ahoraIso(ahora)
+  const { motivo: _viejo, ...resto } = m
+  const nuevo = {
+    ...resto, envio,
+    ...(envio === 'fallido' && { motivo: texto(motivo, 200) || 'no se pudo mandar' }),
+    ...(wamid && { wamid }),
+  }
+  const sig = { ...c, mensajes: c.mensajes.map((x, n) => (n === i ? nuevo : x)), actualizado: hora }
+  return envio === 'fallido'
+    ? conBitacora(sig, 'sistema', 'no salió por WhatsApp', nuevo.motivo, hora)
+    : sig
+}
+
+/**
+ * Meta aceptó un mensaje y después avisó que NO lo entregó (estado `failed`
+ * del webhook). Llega con el id que Meta le puso (`wamid`), no con el nuestro.
+ *
+ * Devuelve `{ cliente, encontrado }`: si el `wamid` no es de ningún mensaje de
+ * la tienda, era una respuesta del bot, y eso lo resuelve quien llama.
+ */
+export function envioFallidoPorWamid(c, wamid, motivo, { ahora } = {}) {
+  const i = c?.mensajes?.findIndex(m => m.wamid && m.wamid === wamid && m.de === 'tienda') ?? -1
+  if (i < 0) return { cliente: c, encontrado: false }
+  const m = c.mensajes[i]
+  if (m.envio === 'fallido') return { cliente: c, encontrado: true }
+  const hora = ahoraIso(ahora)
+  const nota = texto(motivo, 200) || 'WhatsApp no lo entregó'
+  const sig = { ...c, mensajes: c.mensajes.map((x, n) => (n === i ? { ...x, envio: 'fallido', motivo: nota } : x)), actualizado: hora }
+  return { cliente: conBitacora(sig, 'sistema', 'no salió por WhatsApp', nota, hora), encontrado: true }
 }
 
 /** Errores que la bandeja le enseña a quien pulsa, tal cual. */
@@ -347,10 +479,16 @@ export function resumen(c) {
   const ultimo = c.mensajes?.at(-1) ?? null
   return {
     id: c.id, canal: c.canal, nombre: c.nombre, telefono: c.telefono, plaza: c.plaza, tipo: c.tipo,
+    // Va en la lista porque por él se busca la ficha de quien escribe sin
+    // teléfono (`porUsuario`, en la bandeja del bot).
+    ...(c.usuario && { usuario: c.usuario }),
     estado: c.estado, atiende: c.atiende, noLeidos: c.noLeidos ?? 0, etiquetas: c.etiquetas ?? [],
     fuente: c.origen?.fuente ?? null,
     // Desde cuándo espera sin que nadie le conteste, o null.
     sinRespuesta: c.sinRespuesta?.desde ?? null,
+    // Lo último que escribió la tienda NO le llegó. Sin esto en la lista, quien
+    // contestó cree que ya está y el cliente sigue esperando.
+    noSalio: c.mensajes?.findLast?.(m => m.de === 'tienda')?.envio === 'fallido',
     ultimoMensaje: c.ultimoMensaje, actualizado: c.actualizado, creado: c.creado,
     ultimo: ultimo ? { de: ultimo.de, texto: String(ultimo.texto ?? '').slice(0, 140), hora: ultimo.hora } : null,
   }
@@ -408,5 +546,6 @@ export function contar(lista) {
     ...n, total: lista.length,
     noLeidos: lista.reduce((s, r) => s + (r.noLeidos ?? 0), 0),
     sinRespuesta: lista.filter(r => r.sinRespuesta).length,
+    noSalio: lista.filter(r => r.noSalio).length,
   }
 }

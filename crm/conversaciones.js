@@ -30,6 +30,18 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { esBsuid } from '../backend/src/clientes.js'
+
+/**
+ * El nombre de archivo de una conversación.
+ *
+ * De un teléfono, sus dígitos —como siempre—. De quien escribe sin teléfono
+ * (su identificador de WhatsApp, ver `esBsuid`), `u-` y el identificador con
+ * guiones: quitándole todo lo que no es dígito, dos personas distintas
+ * podrían caer en el mismo archivo.
+ */
+export const llaveDeRemitente = t =>
+  (esBsuid(t) ? `u-${String(t).replace(/[^A-Za-z0-9]/g, '-')}` : String(t ?? '').replace(/\D/g, ''))
 
 /**
  * Cuánto se conserva una conversación antes de empezar de cero.
@@ -198,7 +210,7 @@ export function enMemoria() {
  */
 export function enArchivo(carpeta) {
   fs.mkdirSync(carpeta, { recursive: true })
-  const rutaDe = t => path.join(carpeta, `${String(t).replace(/\D/g, '')}.json`)
+  const rutaDe = t => path.join(carpeta, `${llaveDeRemitente(t)}.json`)
 
   return conMetodos(
     async t => {

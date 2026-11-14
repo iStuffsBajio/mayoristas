@@ -395,3 +395,7 @@ export const accionClienteCrm = ({ id, accion, plaza, motivo }, token) =>
 
 export const responderClienteCrm = (id, texto, token) =>
   pedir('/crm/responder', { metodo: 'POST', cuerpo: { id, texto }, token })
+
+/** Borra una conversación de WhatsApp. Sólo administrador; `confirmar` son los últimos 4 de su número. */
+export const borrarClienteCrm = (id, confirmar, token) =>
+  pedir('/crm/borrar', { metodo: 'POST', cuerpo: { id, confirmar }, token })

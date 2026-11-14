@@ -19,7 +19,10 @@ import {
 } from './cortes.js'
 import * as CRM from './clientes.js'
 import { almacenDeClientes, Conflicto } from './clientes-s3.js'
-import { esRutaDeMeta, rutaMetaWebhook } from './meta.js'
+import { esRutaDeMeta, rutaMetaWebhook, hayCola, encolarSalida } from './meta.js'
+import { responderDesdeElPanel, conSalida as fichaConSalida } from './crm-salida.js'
+import { borrarConversacion } from './crm-borrar.js'
+import { LLAVE_SALUD, saludParaElPanel } from './crm-salud.js'
 import {
   verificarContrasena, crearSesion, leerSesion, verificarTotp, tipoDeImagen,
   demasiadosIntentos, registrarIntentoFallido, limpiarIntentos,
@@ -1590,9 +1593,11 @@ async function rutaGuardarConteo(evento, origen, cuerpo) {
 // El guardado en sí vive en `clientes-s3.js`, porque el bot escribe las mismas
 // fichas y no puede haber dos copias.
 
-const {
-  leerCliente, escribirCliente, modificarCliente, listarClientes,
-} = almacenDeClientes({ s3, bucket: BUCKET })
+const almacenCrm = almacenDeClientes({ s3, bucket: BUCKET })
+const { leerCliente, escribirCliente, modificarCliente, listarClientes } = almacenCrm
+
+/** La ficha con su `salida`: ver `crm-salida.js`. */
+const conSalida = cliente => fichaConSalida(cliente, { cola: hayCola() })
 
 /** Bodega no atiende clientes. Una tienda sí, la suya. El administrador, todas. */
 function sesionCrm(evento) {
@@ -1616,7 +1621,25 @@ async function rutaClientes(evento, origen) {
   const visibles = clientes
     .filter(c => CRM.puedeVer(sesion, c))
     .filter(c => !pedida || (pedida === 'sin-plaza' ? !c.plaza : c.plaza === pedida))
-  return responder(origen, 200, { clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles) })
+  return responder(origen, 200, {
+    clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles),
+    // Si el bot no puede mandar por WhatsApp —el token venció—, lo tiene que
+    // saber quien está contestando, no sólo el correo del dueño.
+    salud: await saludDelCanal(),
+  })
+}
+
+/**
+ * Lo que apuntó el trabajador en `crm/salud.json`, listo para la pantalla.
+ * Si no se puede leer, lista vacía: un aviso roto no tumba la bandeja.
+ */
+async function saludDelCanal() {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: LLAVE_SALUD }))
+    return saludParaElPanel(JSON.parse(await r.Body.transformToString()))
+  } catch {
+    return []
+  }
 }
 
 /** `GET /crm/cliente?id=<id>`: la ficha entera, con la conversación. */
@@ -1629,7 +1652,7 @@ async function rutaCliente(evento, origen) {
   if (!leido || leido.cliente.fusionadoEn || !CRM.puedeVer(sesion, leido.cliente)) {
     return responder(origen, 404, { error: 'No existe ese cliente.' })
   }
-  return responder(origen, 200, { cliente: leido.cliente })
+  return responder(origen, 200, conSalida(leido.cliente))
 }
 
 /**
@@ -1710,40 +1733,38 @@ async function rutaAccionCliente(evento, origen, cuerpo) {
     return CRM.aplicarAccion(c, { accion, plaza: cuerpo?.plaza, motivo: cuerpo?.motivo }, { quien: quienEs(sesion) })
   })
   if (r.error) return responder(origen, r.codigo, { error: r.error })
-  return responder(origen, 200, { ok: true, cliente: r.cliente })
+  return responder(origen, 200, { ok: true, ...conSalida(r.cliente) })
 }
 
 /**
- * `POST /crm/responder { id, texto }`.
- *
- * Contestar es tomar: si estaba pendiente, queda a nombre de quien contestó y
- * el bot se calla. El MENSAJE se guarda siempre; mandarlo por WhatsApp hace
- * falta la línea de Meta, que todavía no está encendida, y la respuesta lo dice
- * en vez de fingir que salió.
+ * `POST /crm/responder { id, texto }`: guarda lo que escribió la tienda y lo
+ * encola para que salga por WhatsApp. Todo lo que importa —la ventana de 24
+ * horas, el orden de guardar y encolar, qué pasa si la cola falla— vive y se
+ * explica en `crm-salida.js`.
  */
 async function rutaResponderCliente(evento, origen, cuerpo) {
   const { sesion, error } = sesionCrm(evento)
   if (error) return responder(origen, 403, { error })
-  const texto = String(cuerpo?.texto ?? '').trim()
-  if (!texto) return responder(origen, 400, { error: 'Escribe algo antes de mandar.' })
-  if (texto.length > CRM.MAX_TEXTO) return responder(origen, 400, { error: 'El mensaje es demasiado largo.' })
-  const quien = quienEs(sesion)
+  const r = await responderDesdeElPanel({
+    sesion, quien: quienEs(sesion), id: cuerpo?.id, texto: cuerpo?.texto,
+    modificarCliente, encolar: hayCola() ? encolarSalida : null,
+  })
+  return responder(origen, r.codigo, r.cuerpo)
+}
 
-  const r = await modificarCliente(String(cuerpo?.id ?? ''), c => {
-    if (!CRM.puedeVer(sesion, c)) return { error: 'No existe ese cliente.', codigo: 404 }
-    let sig = c
-    if (c.estado !== 'atendiendo' || c.atiende !== quien) {
-      const t = CRM.aplicarAccion(c, { accion: 'tomar' }, { quien })
-      if (t.error) return t
-      sig = t.cliente
-    }
-    return { cliente: CRM.registrarMensaje(sig, { de: 'tienda', texto, quien, envio: 'sin-canal' }) }
+/**
+ * `POST /crm/borrar { id, confirmar }`: borra una conversación de WhatsApp, con
+ * su ficha y lo que el bot recuerda. Sólo el administrador. Las condiciones y
+ * el orden viven en `crm-borrar.js`.
+ */
+async function rutaBorrarCliente(evento, origen, cuerpo) {
+  const { sesion, error } = sesionCrm(evento)
+  if (error) return responder(origen, 403, { error })
+  const r = await borrarConversacion({
+    sesion, quien: quienEs(sesion), id: cuerpo?.id, confirmar: cuerpo?.confirmar,
+    s3, bucket: BUCKET, almacen: almacenCrm,
   })
-  if (r.error) return responder(origen, r.codigo, { error: r.error })
-  return responder(origen, 200, {
-    ok: true, cliente: r.cliente, enviado: false,
-    aviso: 'Quedó guardado en la conversación. Todavía no sale por WhatsApp: la línea de Meta no está encendida.',
-  })
+  return responder(origen, r.codigo, r.cuerpo)
 }
 
 // ── Nómina y RH ────────────────────────────────────────────────────────────
@@ -1951,6 +1972,7 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/crm/cliente')     return await rutaGuardarCliente(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/crm/accion')      return await rutaAccionCliente(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/crm/responder')   return await rutaResponderCliente(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/crm/borrar')      return await rutaBorrarCliente(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/diseno')     return await rutaSubirDiseno(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/config')     return await rutaGuardarConfig(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/inventario') return await rutaSubirInventario(evento, origen, cuerpo)

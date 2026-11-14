@@ -1,0 +1,15 @@
+{
+  "_leeme": "Permiso NUEVO para el rol del BACKEND (istuffs-backend-role-…), no para el del trabajador. Deja que el administrador borre una conversación de WhatsApp desde el panel (POST /crm/borrar). Sin él la ruta contesta 409 y no borra nada. Sólo bajo crm/clientes/ y crm/conversaciones/: no puede borrar inventarios, caja, nómina ni nada más. Quitar esta clave _leeme antes de aplicarlo: IAM no acepta claves que no conoce. Pasos en crm/LEEME.md.",
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "BorrarConversacionesDelCrm",
+      "Effect": "Allow",
+      "Action": "s3:DeleteObject",
+      "Resource": [
+        "arn:aws:s3:::istuffs-inventarios/crm/clientes/*",
+        "arn:aws:s3:::istuffs-inventarios/crm/conversaciones/*"
+      ]
+    }
+  ]
+}

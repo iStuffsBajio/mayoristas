@@ -26,7 +26,9 @@ import { anuncioParaElCerebro } from './webhook.js'
 import { conAnuncio } from './conversaciones.js'
 import { plazaPara } from './plazas.js'
 import { esPlazaPublica } from './inventario.js'
-import { apuntarEntrada, apuntarSalida } from './bandeja.js'
+import { apuntarEntrada, apuntarSalida, conRemitente } from './bandeja.js'
+import { TIPOS_SIN_RESPUESTA } from '../backend/src/meta-webhook.js'
+import { entradaConFoto, sinFotos } from './medios.js'
 
 /**
  * El cerebro se carga sólo cuando de verdad hace falta.
@@ -103,6 +105,10 @@ export function resolverPlaza(conversacion, anuncio) {
  * dijo y ahí se decide si el bot contesta o se calla porque atiende la tienda.
  * `enviar` y `leer` se inyectan para poder probar sin mandar nada.
  *
+ * `verFoto(medio)`, si viene, baja la foto que mandó el cliente para que el
+ * modelo la vea (`medios.js`). Sin él —o si falla— una foto se contesta con
+ * la respuesta fija, como antes.
+ *
  * Devuelve qué pasó, para el registro: `{ atendido, motivo, respuesta, lead }`.
  */
 export async function atender(mensaje, {
@@ -111,7 +117,13 @@ export async function atender(mensaje, {
   enviar = mandarRespuesta,
   leer = marcarLeido,
   pensar = pensarConElCerebro,
+  verFoto = null,
+  registro = console,
 } = {}) {
+  // Un pulgar arriba o un aviso de Meta no esperan respuesta.
+  if (TIPOS_SIN_RESPUESTA.has(mensaje?.tipo)) return { atendido: true, motivo: 'no-se-contesta' }
+  // Quien escribe sin teléfono se atiende por su identificador de WhatsApp.
+  mensaje = await conRemitente(mensaje, bandeja)
   if (!mensaje?.de) return { atendido: false, motivo: 'sin-remitente' }
 
   // 1. Repetidos primero. Meta reintenta y un repetido que llega al envío es
@@ -124,14 +136,35 @@ export async function atender(mensaje, {
   // tiene que desmarcarlo o el reintento de Meta se descarta y la persona no
   // recibe nada nunca.
   try {
-    return await procesar(mensaje, { almacen, bandeja, enviar, leer, pensar })
+    return await procesar(mensaje, { almacen, bandeja, enviar, leer, pensar, verFoto, registro })
   } catch (err) {
     await almacen.olvidarMensaje(mensaje.de, mensaje.id)
     throw err
   }
 }
 
-async function procesar(mensaje, { almacen, bandeja, enviar, leer, pensar }) {
+/**
+ * La foto del mensaje, lista para el modelo, o null.
+ *
+ * Null es «contesta lo fijo»: no venía foto, no hay con qué bajarla, o no se
+ * pudo. NUNCA lanza: una foto ilegible no puede dejar a nadie sin respuesta.
+ */
+async function fotoDelMensaje(mensaje, verFoto, registro) {
+  if (mensaje.tipo !== 'image' || !mensaje.medio?.id || !verFoto) return null
+  try {
+    const foto = await verFoto(mensaje.medio)
+    return foto?.base64 && foto?.mime ? foto : null
+  } catch (err) {
+    registro?.warn?.('crm: no se pudo leer la foto; va la respuesta fija', String(err?.message ?? err))
+    return null
+  }
+}
+
+async function procesar(mensaje, { almacen, bandeja, enviar, leer, pensar, verFoto, registro }) {
+  // A dónde se le contesta. Casi siempre es `de`; cambia sólo para quien ya
+  // tenía ficha con teléfono y ahora escribe sin él (ver `conRemitente`).
+  const destino = mensaje.responderA ?? mensaje.de
+
   // 2. Las palomitas antes de pensar. Pensar tarda segundos.
   if (mensaje.id) {
     try { await leer(mensaje.id) } catch { /* cosmético: no se cae por esto */ }
@@ -154,10 +187,14 @@ async function procesar(mensaje, { almacen, bandeja, enviar, leer, pensar }) {
     return { atendido: true, motivo: 'lo-atiende-la-tienda' }
   }
 
+  // Una foto se intenta leer DESPUÉS de saber que contesta el bot: si la
+  // conversación la tiene la tienda, no se baja nada.
+  const foto = await fotoDelMensaje(mensaje, verFoto, registro)
+
   // 3. Lo que no se sabe leer se contesta fijo. No gasta modelo ni inventa.
-  if (!mensaje.atendible || !mensaje.texto) {
+  if (!foto && (!mensaje.atendible || !mensaje.texto)) {
     const texto = RESPUESTAS_FIJAS[mensaje.tipo] ?? RESPUESTAS_FIJAS.unknown
-    const envio = await enviar(mensaje.de, { texto, imagenes: [] })
+    const envio = await enviar(destino, { texto, imagenes: [] })
     await almacen.guardar(conversacion)
     await apuntarSalida(bandeja, mensaje.de, { texto })
     return { atendido: true, motivo: 'respuesta-fija', respuesta: { texto }, envio }
@@ -166,7 +203,7 @@ async function procesar(mensaje, { almacen, bandeja, enviar, leer, pensar }) {
   // 4. Pensar.
   const r = await pensar({
     historial: conversacion.historial,
-    entrada: mensaje.texto,
+    entrada: foto ? entradaConFoto(foto, mensaje.texto) : mensaje.texto,
     contexto: {
       plaza: conversacion.plaza,
       nombre: conversacion.nombre,
@@ -180,7 +217,7 @@ async function procesar(mensaje, { almacen, bandeja, enviar, leer, pensar }) {
   // arrastre un turno roto.
   if (!r.texto) {
     const texto = 'Déjame pasarte con la tienda para que te atiendan bien. ¿De qué ciudad eres?'
-    const envio = await enviar(mensaje.de, { texto, imagenes: [] })
+    const envio = await enviar(destino, { texto, imagenes: [] })
     await almacen.guardar(conversacion)
     await apuntarSalida(bandeja, mensaje.de, { texto })
     return {
@@ -193,9 +230,11 @@ async function procesar(mensaje, { almacen, bandeja, enviar, leer, pensar }) {
   }
 
   // 5. Mandar, y sólo si salió bien dar el turno por hablado.
-  const envio = await enviar(mensaje.de, r)
+  const envio = await enviar(destino, r)
 
-  conversacion.historial = r.historial
+  // La imagen no se guarda: ni por privacidad ni por lo que costaría
+  // reenviarla al modelo en cada turno siguiente. Ver `sinFotos`.
+  conversacion.historial = foto ? sinFotos(r.historial) : r.historial
   if (r.entrega) {
     conversacion.ultimoLead = {
       plaza: r.entrega.plaza,

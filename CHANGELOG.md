@@ -3,6 +3,17 @@
 Este registro resume cambios relevantes del producto y de su documentación;
 no sustituye el historial completo de Git.
 
+## 2026-11-13
+
+- **CRM, Fase A** (rama `fable/fase-a`, sin desplegar). Lo que la tienda
+  escribe en Clientes ya sale por WhatsApp y cada mensaje dice si salió o por
+  qué no; pasadas 24 horas la caja se apaga. Si el acceso a WhatsApp vence,
+  salta una alarma y el panel lo avisa. El bot lee las fotos que manda el
+  cliente. Un cliente que escribe sin enseñar su número ya no se pierde. El
+  administrador puede borrar una conversación de prueba. `npm run crm:doctor`
+  revisa que todo esté en su sitio. Instagram y Messenger quedan diseñados, sin
+  construir.
+
 ## 2026-11-11
 
 - **Estructura de producción del CRM** (rama `fable/estructura-produccion`,

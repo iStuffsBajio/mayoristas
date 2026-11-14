@@ -132,7 +132,7 @@ const ESCENARIOS = [
   ] },
   { id: 'no-existe', plaza: 'leon', turnos: [
     { di: 'tienes para un nokia 3310?',
-      debe: [/(no manejamos|no manejo|no tengo|no trabajamos|no cuento|no contamos|no hay|no la manejamos)/i],
+      debe: [/(no manejamos|no manejo|no lo manejamos|no lo manejo|no tengo|no trabajamos|no cuento|no contamos|no hay|no la manejamos)/i],
       noDebe: [/\$\s?\d/] },
   ] },
   { id: 'no-sustituir', plaza: 'leon', turnos: [
@@ -188,6 +188,42 @@ const ESCENARIOS = [
   ] },
   { id: 'sin-cobertura', plaza: null, turnos: [
     { di: 'soy de monterrey, tienes para a06?', sin: ['buscar_existencias'], debe: [/\?/] },
+  ] },
+  // Dónde están y a qué hora abren (2026-11-12): el dueño preguntó el domicilio y
+  // el bot no tenía con qué contestar. Los datos salen de sucursales-info.js; lo
+  // que no esté ahí, el bot no puede darlo (ver los tests de esa herramienta).
+  { id: 'donde-estan', plaza: 'leon', turnos: [
+    { di: 'donde estan ubicados?', con: ['datos_de_sucursal'],
+      debe: [/5 de mayo/i], debeCrudo: [/google\.com\/maps\?cid=14956553425641100087/] },
+  ] },
+  { id: 'horario', plaza: 'leon', turnos: [
+    { di: 'a que hora abren?', con: ['datos_de_sucursal'],
+      debe: [/10:30/, /\b(8|8:00|20:00)\s*(pm|p\.\s?m|de la noche)?/i] },
+  ] },
+  // Torreón tiene OTRO horario: abre a las 10 y cierra a las 7 entre semana. Si
+  // el bot contesta el general, manda a alguien a una puerta cerrada.
+  { id: 'horario-torreon', plaza: 'torreon', turnos: [
+    { di: 'a que hora abren?', con: ['datos_de_sucursal'],
+      debe: [/\b10\b/],
+      noDebe: [/10:30/] },
+  ] },
+  // Los domingos TODAS cierran a las 5 (2026-11-12, corregido por el dueño): el
+  // bot no puede prometer las 8 para un domingo.
+  { id: 'horario-domingo', plaza: 'leon', turnos: [
+    { di: 'abren el domingo? hasta que hora?', con: ['datos_de_sucursal'],
+      debe: [/(5|cinco)\s*(:00)?\s*(pm|p\.\s?m|de la tarde)?/i],
+      // Decir «domingo hasta las 5; entre semana cerramos a las 8» es VERDAD: el
+      // «8» sólo cuenta como error si lo pega al domingo, sin «entre semana» ni
+      // otro día en medio.
+      noDebe: [/domingos?(?:(?!entre semana|lunes|s[aá]bado|resto)[^.?!]){0,60}\b(8|ocho)(:00)?\s*(pm|p\.\s?m|de la noche)/i] },
+  ] },
+  { id: 'horario-domingo-torreon', plaza: 'torreon', turnos: [
+    { di: 'abren el domingo? hasta que hora?', con: ['datos_de_sucursal'],
+      debe: [/(5|cinco)\s*(:00)?\s*(pm|p\.\s?m|de la tarde)?/i],
+      noDebe: [/domingos?[^.?!]{0,60}\b(7:30|7 y media|siete y media)/i] },
+  ] },
+  { id: 'ubicacion-sin-ciudad', plaza: null, turnos: [
+    { di: 'donde queda su tienda?', sin: ['datos_de_sucursal'], debe: [/\?/] },
   ] },
   { id: 'modelo-vago', plaza: 'leon', turnos: [
     { di: 'tienes para mi samsung?', debe: [/(qu[eé] modelo|cu[aá]l|modelo)/i] },
@@ -280,7 +316,12 @@ function preciosPermitidos(historial) {
 
 function revisarGlobal({ texto, di, historial, palabras }) {
   const fallos = []
-  if (EMOJI.test(texto)) fallos.push('emoji')
+  // Los emojis se permiten (2026-11-12, a pedido del dueño: «una atención más
+  // moderna, no tan plana de texto»), pero con tope: más de dos, o dos pegados,
+  // ya se lee como anuncio y no como persona.
+  const emojis = texto.match(new RegExp(EMOJI.source, 'gu')) ?? []
+  if (emojis.length > 2) fallos.push(`demasiados emojis (${emojis.length})`)
+  if (new RegExp(EMOJI.source + '\\s*' + EMOJI.source, 'u').test(texto)) fallos.push('emojis pegados')
 
   // La jerga sólo cuenta si NO la dijo el cliente: si él escribe «tpu», repetirlo
   // es contestarle, no recitar el catálogo.
@@ -363,6 +404,9 @@ async function correr(esc, vuelta) {
 
     for (const re of t.debe ?? [])   if (!re.test(texto)) fallos.push(`le faltó: ${re}`)
     for (const re of t.noDebe ?? []) if (re.test(texto))  fallos.push(`no debía decir: ${re}`)
+    // `debeCrudo` mira el texto TAL CUAL salió, con los enlaces: `texto` los
+    // quita para que un «%20pz» de una dirección no cuente como cantidad.
+    for (const re of t.debeCrudo ?? []) if (!re.test(r.texto ?? '')) fallos.push(`le faltó (en crudo): ${re}`)
     for (const n of t.con ?? [])     if (!nombres.has(n)) fallos.push(`no llamó a ${n}`)
     for (const n of t.sin ?? [])     if (nombres.has(n))  fallos.push(`no debía llamar a ${n}`)
     // `await`: algunos chequeos salen a la red (la foto tiene que bajarse de
