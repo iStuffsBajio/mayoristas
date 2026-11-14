@@ -37,6 +37,7 @@
 
 import crypto from 'node:crypto'
 import { recibir } from './meta-webhook.js'
+import { esBsuid } from './clientes.js'
 
 export const RUTA_META = '/meta/webhook'
 
@@ -58,16 +59,53 @@ const sha = t => crypto.createHash('sha256').update(String(t)).digest('hex')
  * grupo SQS rechazaría el lote ENTERO, con los mensajes buenos dentro.
  */
 export function entradasDeCola(mensajes) {
-  return (mensajes ?? [])
-    .filter(m => String(m?.de ?? '').replace(/\D/g, ''))
-    .map(m => {
-      const cuerpo = JSON.stringify(m)
-      return {
-        grupo: String(m.de).replace(/\D/g, ''),
-        dedup: sha(m.id || cuerpo),
-        cuerpo,
-      }
-    })
+  return (mensajes ?? []).map(entradaDe).filter(Boolean)
+}
+
+const digitos = v => String(v ?? '').replace(/\D/g, '')
+
+/**
+ * El grupo de la cola para un remitente: su teléfono, o —si WhatsApp no lo
+ * dio— una huella de su identificador. Huella y no el identificador tal cual
+ * porque SQS limita el grupo a 128 caracteres y el identificador puede pasar.
+ */
+const grupoDe = v => (esBsuid(v) ? `u-${sha(v).slice(0, 40)}` : digitos(v))
+
+/**
+ * Por la misma cola van TRES clases de cosa, y el trabajador las separa por
+ * `clase`. Lo que escribe un cliente no lleva `clase` —así nació— y las otras
+ * dos NO llevan `de` a propósito: un trabajador de una versión anterior, que
+ * no las conoce, las descarta como «sin remitente» en vez de pasárselas al
+ * bot como si las hubiera escrito alguien.
+ *
+ * | clase    | qué es                                    | grupo            |
+ * |----------|-------------------------------------------|------------------|
+ * | (nada)   | un mensaje de un cliente                  | su teléfono      |
+ * | `salida` | lo que la tienda escribió en el panel     | `salida-` + tel. |
+ * | `estado` | Meta avisa que NO entregó algo (`failed`) | `estado-` + tel. |
+ *
+ * **La salida y el estado van en grupos APARTE del teléfono, y eso importa.**
+ * En el mismo grupo, la respuesta de la tienda esperaría detrás de un turno
+ * del bot que esté fallando y reintentando —hasta nueve minutos—: justo el
+ * caso en que alguien de la tienda entra a contestar a mano. Entre sí, lo que
+ * la tienda le escribe a un mismo cliente sí sale en orden.
+ */
+function entradaDe(m) {
+  const cuerpo = JSON.stringify(m)
+  if (m?.clase === 'salida') {
+    const a = grupoDe(m.para)
+    if (!a || !m.idEnvio) return null
+    return { grupo: `salida-${a}`, dedup: sha(`salida:${m.idEnvio}`), cuerpo }
+  }
+  if (m?.clase === 'estado') {
+    const a = grupoDe(m.destino)
+    if (!a || !m.id) return null
+    return { grupo: `estado-${a}`, dedup: sha(`estado:${m.id}:${m.estado}`), cuerpo }
+  }
+  // Sin teléfono, quien escribe es su identificador de WhatsApp (`usuario`).
+  const de = grupoDe(m?.de) || grupoDe(m?.usuario)
+  if (!de) return null
+  return { grupo: de, dedup: sha(m.id || cuerpo), cuerpo }
 }
 
 /**
@@ -118,6 +156,26 @@ async function encolarConfigurado(mensajes) {
     })
   }
   return encolarDeVerdad(mensajes)
+}
+
+/** ¿Hay cola por la que mandar? Sin ella, el panel guarda y lo dice. */
+export const hayCola = () => !!process.env.CRM_COLA_URL
+
+/**
+ * Encola lo que la tienda escribió en el panel, para que lo mande el
+ * trabajador.
+ *
+ * El backend NO manda por WhatsApp él mismo, y no es por pereza: el token de
+ * Meta vive en el trabajador y en ningún otro sitio. Un secreto en dos
+ * funciones son dos sitios donde rotarlo y dos donde se puede quedar el viejo.
+ *
+ * `idEnvio` es el id con el que el mensaje quedó guardado en la ficha: con él
+ * el trabajador lo encuentra y apunta si salió. Lanza si la cola no lo acepta.
+ */
+export async function encolarSalida({ para, cuerpo, cliente, idEnvio }, { encolar = encolarConfigurado } = {}) {
+  const entrada = { clase: 'salida', para: String(para ?? ''), cuerpo: String(cuerpo ?? ''), cliente, idEnvio }
+  if (!entradasDeCola([entrada]).length) throw new Error('salida sin destinatario o sin id')
+  await encolar([entrada])
 }
 
 /**

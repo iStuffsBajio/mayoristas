@@ -717,11 +717,18 @@ function respuestaDeNomina(u, opciones, sesionAdmin, plazaDeSesion) {
 // conversación y el anuncio del que llegó), un mayorista de León y uno de San
 // Luis, que una tienda de León NO puede ver ni en los datos.
 const CRM = await import('../backend/src/clientes.js')
+// Contestar pasa por la MISMA función que la ruta de verdad: la ventana de 24
+// horas, el «pendiente» y el aviso los decide ella, no una copia de aquí.
+const { responderDesdeElPanel, conSalida: fichaConSalida } = await import('../backend/src/crm-salida.js')
+const { confirmacionDe } = await import('../backend/src/crm-borrar.js')
 const CRM_CLIENTES = new Map()
+/** Lo que la «cola» tiene por mandar. La vacía `trabajadorDeMentira`. */
+const COLA_CRM = []
+const HACE_30_HORAS = Date.now() - 30 * 3600_000
 {
   const alta = (datos, mensajes = [], entregar = null) => {
     let c = CRM.nuevoCliente(datos)
-    for (const m of mensajes) c = CRM.registrarMensaje(c, m)
+    for (const { ahora, ...m } of mensajes) c = CRM.registrarMensaje(c, m, { ahora })
     if (entregar) c = CRM.aplicarAccion(c, { accion: 'entregar', plaza: entregar }, { quien: 'bot' }).cliente
     CRM_CLIENTES.set(c.id, c)
   }
@@ -741,10 +748,42 @@ const CRM_CLIENTES = new Map()
   alta({ id: CRM.idDe({ canal: 'whatsapp', telefono: '4775550000' }), canal: 'whatsapp', telefono: '4775550000',
          nombre: 'Cliente sin respuesta', plaza: 'leon', quien: 'bot', origen: { fuente: 'meta' } },
        [{ de: 'cliente', texto: '¿Tienen para Moto G84?', id: 'wamid.3' }])
+  // Y éste escribió hace 30 horas: WhatsApp ya no deja contestarle sin una
+  // plantilla. La tienda le contestó tarde y Meta lo rechazó: el mensaje está
+  // en la conversación como «NO salió», con el motivo. La caja tiene que
+  // salir apagada y diciendo por qué.
+  alta({ id: CRM.idDe({ canal: 'whatsapp', telefono: '4776660000' }), canal: 'whatsapp', telefono: '4776660000',
+         nombre: 'Cliente de anteayer', plaza: 'leon', quien: 'bot', origen: { fuente: 'meta' } },
+       [{ de: 'cliente', texto: '¿Tienen para Redmi 13?', id: 'wamid.4', ahora: HACE_30_HORAS },
+        { de: 'bot', texto: 'Sí, dime tu ciudad.', ahora: HACE_30_HORAS },
+        { de: 'tienda', texto: 'Hola, ¿sigues interesado?', quien: 'leon', id: 'p:viejo', envio: 'fallido',
+          motivo: 'pasaron más de 24 horas desde su último mensaje: hace falta una plantilla aprobada', ahora: HACE_30_HORAS + 26 * 3600_000 }])
   const sr = CRM.idDe({ canal: 'whatsapp', telefono: '4775550000' })
   CRM_CLIENTES.set(sr, CRM.marcarSinRespuesta(CRM_CLIENTES.get(sr), { motivo: 'el bot falló 3 veces', mensaje: 'wamid.3' }))
 }
 const POSTS_CRM = []
+const { anotarProblema, saludParaElPanel } = await import('../backend/src/crm-salud.js')
+const SALUD_CRM = saludParaElPanel(anotarProblema(null, 'token', { motivo: 'el acceso a WhatsApp venció (token de Meta)', codigo: 190 }))
+
+/**
+ * Hace de trabajador: manda lo que hay en la cola y lo apunta como enviado.
+ * Corre cuando la pantalla VUELVE a pedir la ficha, no antes: así el primer
+ * dibujo es «enviando…» y el segundo «salió», que son los dos que hay que ver.
+ */
+function trabajadorDeMentira() {
+  for (const t of COLA_CRM.splice(0)) {
+    const c = CRM_CLIENTES.get(t.cliente)
+    if (c) CRM_CLIENTES.set(c.id, CRM.marcarEnvio(c, t.idEnvio, { envio: 'enviado', wamid: `wamid.salida.${t.idEnvio}` }))
+  }
+}
+const modificarClienteDeMentira = async (id, fn) => {
+  const c = CRM_CLIENTES.get(id)
+  if (!c) return { error: 'No existe ese cliente.', codigo: 404 }
+  const r = fn(c)
+  if (r.error) return { ...r, codigo: r.codigo ?? 400 }
+  CRM_CLIENTES.set(id, r.cliente)
+  return r
+}
 
 function respuestaDeCrm(u, opciones, sesionAdmin, plazaDeSesion) {
   const sesion = { admin: sesionAdmin, sucursal: plazaDeSesion }
@@ -756,34 +795,52 @@ function respuestaDeCrm(u, opciones, sesionAdmin, plazaDeSesion) {
   const cuerpo = JSON.parse(opciones?.body ?? '{}')
   if (/\/crm\/clientes/.test(u)) {
     const pedida = u.match(/plaza=([a-z-]+)/)?.[1]
+    // Con `resumen`, como la ruta de verdad: la lista NO lleva la conversación,
+    // y lo que el renglón enseña tiene que salir de lo que sí viaja.
     const visibles = [...CRM_CLIENTES.values()]
       .filter(c => CRM.puedeVer(sesion, c))
       .filter(c => !pedida || (pedida === 'sin-plaza' ? !c.plaza : c.plaza === pedida))
-    const r = { clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles) }
+      .map(CRM.resumen)
+    // El token de Meta «venció»: el aviso tiene que salir arriba para las dos
+    // sesiones, con el código sólo para el administrador.
+    const r = { clientes: CRM.ordenarBandeja(visibles), cuenta: CRM.contar(visibles), salud: SALUD_CRM }
     if (!sesionAdmin && /AJENO|4449876543/.test(JSON.stringify(r))) {
       errores.push(`la bandeja que recibe ${plazaDeSesion} trae un cliente de otra plaza`)
     }
     return r
   }
   if (/\/crm\/cliente\?/.test(u)) {
+    trabajadorDeMentira()
     const c = CRM_CLIENTES.get(decodeURIComponent(u.match(/id=([^&]+)/)?.[1] ?? ''))
-    return c && CRM.puedeVer(sesion, c) ? { cliente: c } : null
+    return c && CRM.puedeVer(sesion, c) ? fichaConSalida(c, { cola: true }) : null
   }
   POSTS_CRM.push({ ruta: u.replace(/^.*\/crm/, '/crm'), cuerpo })
   const c = CRM_CLIENTES.get(cuerpo.id)
   if (!c || !CRM.puedeVer(sesion, c)) return null
-  let sig = c
   if (/\/crm\/responder/.test(u)) {
-    if (c.estado !== 'atendiendo' || c.atiende !== quien) sig = CRM.aplicarAccion(c, { accion: 'tomar' }, { quien }).cliente
-    sig = CRM.registrarMensaje(sig, { de: 'tienda', texto: cuerpo.texto, quien, envio: 'sin-canal' })
-    CRM_CLIENTES.set(sig.id, sig)
-    return { ok: true, cliente: sig, enviado: false, aviso: 'Quedó guardado en la conversación. Todavía no sale por WhatsApp: la línea de Meta no está encendida.' }
+    // Devuelve una promesa: `fetch` de mentira la espera igual.
+    return responderDesdeElPanel({
+      sesion, quien, id: cuerpo.id, texto: cuerpo.texto,
+      modificarCliente: modificarClienteDeMentira, encolar: async t => { COLA_CRM.push(t) },
+    }).then(r => {
+      if (r.codigo !== 200) { errores.push(`CRM · responder a ${cuerpo.id}: ${r.cuerpo.error}`); return null }
+      return r.cuerpo
+    })
+  }
+  if (/\/crm\/borrar/.test(u)) {
+    // La regla de verdad (permiso, llaves, orden) se prueba en
+    // `crm/borrar.test.js`; aquí importa que la pantalla mande lo que hay que
+    // mandar y que una tienda no llegue nunca.
+    if (!sesionAdmin) { errores.push(`CRM · ${plazaDeSesion} llegó a pedir un borrado`); return null }
+    if (cuerpo.confirmar !== confirmacionDe(c)) { errores.push('CRM · se pidió borrar sin la confirmación correcta'); return null }
+    CRM_CLIENTES.delete(c.id)
+    return { ok: true, borrado: c.id }
   }
   if (/\/crm\/accion/.test(u)) {
     const r = CRM.aplicarAccion(c, { accion: cuerpo.accion, plaza: cuerpo.plaza }, { quien })
     if (r.error) { errores.push(`CRM · ${cuerpo.accion}: ${r.error}`); return null }
     CRM_CLIENTES.set(r.cliente.id, r.cliente)
-    return { ok: true, cliente: r.cliente }
+    return { ok: true, ...fichaConSalida(r.cliente, { cola: true }) }
   }
   return null
 }
@@ -2953,11 +3010,18 @@ async function clientesDelPanel(window, donde, esAdmin) {
   await nuevaVuelta(window, 8)
   if (!doc.querySelector('[data-clientes]')) { errores.push(`${donde} · la bandeja de clientes no se dibujo`); return 0 }
   const ids = [...doc.querySelectorAll('[data-cliente]')].map(b => b.getAttribute('data-cliente'))
-  const esperados = esAdmin ? 4 : 3
+  const esperados = esAdmin ? 5 : 4
   if (ids.length !== esperados) errores.push(`${donde} · la bandeja trae ${ids.length} clientes y deberian ser ${esperados}`)
   if (!esAdmin && /AJENO/.test(doc.body.textContent)) errores.push(`${donde} · una tienda ve un cliente de otra plaza`)
   if (esAdmin && !doc.querySelector('[data-filtro-plaza]')) errores.push(`${donde} · el administrador no tiene filtro de plaza`)
   if (!esAdmin && doc.querySelector('[data-filtro-plaza]')) errores.push(`${donde} · una tienda tiene filtro de plaza`)
+
+  // El canal mudo se dice arriba, y a la tienda se le dice qué HACER, no el
+  // código de Meta, que no le sirve.
+  const mudo = doc.querySelector('[data-aviso-salud="token"]')?.textContent ?? ''
+  if (!/WhatsApp no está saliendo/.test(mudo)) errores.push(`${donde} · no avisa de que el token de Meta vencio`)
+  if (esAdmin && !/190/.test(mudo)) errores.push(`${donde} · el administrador no ve el codigo de Meta del token vencido`)
+  if (!esAdmin && (/190/.test(mudo) || !/Avisa al administrador/.test(mudo))) errores.push(`${donde} · a la tienda el aviso del token no le dice que hacer`)
 
   const id = 'wa:524771234567'
   const boton = doc.querySelector(`[data-cliente="${id}"]`)
@@ -2981,7 +3045,32 @@ async function clientesDelPanel(window, donde, esAdmin) {
   if (!ficha) { errores.push(`${donde} · la ficha no se abrio`); return 0 }
   if (!ficha.querySelector('[data-mensaje="cliente"]')) errores.push(`${donde} · la ficha no trae lo que escribio el cliente`)
   if (!/Fundas iPhone 17/.test(ficha.querySelector('[data-origen]')?.textContent ?? '')) errores.push(`${donde} · la ficha no dice de que anuncio llego`)
-  if (esAdmin) return 1
+  if (esAdmin) {
+    // Borrar una conversación: sólo aquí, plegado, y sólo con los últimos 4
+    // de su número. Se prueba con el de anteayer y se le devuelve al final,
+    // porque la sesión de la tienda lo necesita.
+    const BORRABLE = 'wa:524776660000'
+    const copia = CRM_CLIENTES.get(BORRABLE)
+    clic(window, doc.querySelector(`[data-cliente="${BORRABLE}"]`))
+    await nuevaVuelta(window, 8)
+    const zona = doc.querySelector(`[data-ficha="${BORRABLE}"] [data-borrar]`)
+    if (!zona) errores.push(`${donde} · el administrador no tiene como borrar una conversacion de prueba`)
+    else {
+      const boton = zona.querySelector('[data-borrar-confirmar]'), campo = zona.querySelector('[data-borrar-clave]')
+      if (!boton.disabled) errores.push(`${donde} · se puede borrar una conversacion sin escribir la confirmacion`)
+      escribir(window, campo, '1234')
+      await nuevaVuelta(window, 3)
+      if (!boton.disabled) errores.push(`${donde} · se puede borrar con una confirmacion equivocada`)
+      escribir(window, campo, '0000')
+      await nuevaVuelta(window, 3)
+      clic(window, boton)
+      await nuevaVuelta(window, 10)
+      if (CRM_CLIENTES.has(BORRABLE)) errores.push(`${donde} · borrar la conversacion no la borro`)
+      if (doc.querySelector(`[data-cliente="${BORRABLE}"], [data-ficha="${BORRABLE}"]`)) errores.push(`${donde} · la conversacion borrada sigue en pantalla`)
+    }
+    if (copia) CRM_CLIENTES.set(BORRABLE, copia)
+    return 1
+  }
 
   const caja = ficha.querySelector('[data-respuesta]')
   const mandar = ficha.querySelector('[data-mandar]')
@@ -2994,8 +3083,34 @@ async function clientesDelPanel(window, donde, esAdmin) {
   const c = CRM_CLIENTES.get(id)
   if (c?.estado !== 'atendiendo') errores.push(`${donde} · contestar no tomo la conversacion (estado ${c?.estado})`)
   if (!c?.mensajes?.some(m => m.de === 'tienda')) errores.push(`${donde} · la respuesta no quedo en la conversacion`)
-  if (!doc.querySelector('[data-aviso-envio]')) errores.push(`${donde} · no dice que la respuesta todavia no sale por WhatsApp`)
   if (!doc.querySelector(`[data-ficha="${id}"] [data-mensaje="tienda"]`)) errores.push(`${donde} · la respuesta no se pinta en la conversacion`)
+  // Recién mandada está en la cola: la pantalla dice «enviando», NO «salió».
+  // Un mensaje que parece enviado y no lo está es peor que ninguno.
+  if (!doc.querySelector(`[data-ficha="${id}"] [data-envio="pendiente"]`)) errores.push(`${donde} · la respuesta recien mandada no dice que se esta enviando`)
+  if (doc.querySelector(`[data-ficha="${id}"] [data-envio="enviado"]`)) errores.push(`${donde} · la respuesta dice que salio antes de que el bot la mandara`)
+  if (!doc.querySelector(`[data-ficha="${id}"] [data-salida-hasta]`)) errores.push(`${donde} · la ficha no dice hasta cuando se le puede escribir`)
+  // La pantalla vuelve a preguntar sola a los tres segundos, y entonces el
+  // trabajador (de mentira) ya la mandó: tiene que pasar a «salió».
+  await new Promise(r => setTimeout(r, 3300))
+  await nuevaVuelta(window, 10)
+  if (!doc.querySelector(`[data-ficha="${id}"] [data-envio="enviado"]`)) errores.push(`${donde} · la respuesta no paso a «salio por WhatsApp» cuando el bot la mando`)
+  if (doc.querySelector(`[data-ficha="${id}"] [data-envio="pendiente"]`)) errores.push(`${donde} · la respuesta sigue «enviando» despues de salir`)
+
+  // El que escribió hace 30 horas: la caja apagada, con el porqué, y su
+  // mensaje rechazado a la vista —en la conversación y en su renglón—.
+  const VIEJO = 'wa:524776660000'
+  if (!doc.querySelector(`[data-cliente="${VIEJO}"] [data-no-salio]`)) errores.push(`${donde} · el renglon no dice que lo ultimo de la tienda no le llego`)
+  clic(window, doc.querySelector(`[data-cliente="${VIEJO}"]`))
+  await nuevaVuelta(window, 8)
+  const fichaVieja = doc.querySelector(`[data-ficha="${VIEJO}"]`)
+  if (doc.querySelector('[data-borrar]')) errores.push(`${donde} · una tienda ve el borrado de conversaciones`)
+  if (!/plantilla/.test(fichaVieja?.querySelector('[data-salida-cerrada="ventana"]')?.textContent ?? '')) errores.push(`${donde} · pasadas 24 horas la ficha no dice que hace falta una plantilla`)
+  if (!fichaVieja?.querySelector('[data-respuesta]')?.disabled) errores.push(`${donde} · pasadas 24 horas la caja de respuesta sigue encendida`)
+  if (!/plantilla/.test(fichaVieja?.querySelector('[data-envio="fallido"]')?.textContent ?? '')) errores.push(`${donde} · el mensaje que Meta rechazo no dice por que no salio`)
+  const postsAntes = POSTS_CRM.length
+  clic(window, fichaVieja?.querySelector('[data-mandar]'))
+  await nuevaVuelta(window, 4)
+  if (POSTS_CRM.length !== postsAntes) errores.push(`${donde} · con la ventana cerrada se pudo mandar`)
 
   // Y al que nadie le contestó: su ficha lo dice, y contestarle QUITA el aviso
   // —de la ficha, del renglón y de arriba—. Sin esa mitad, un aviso que no se
