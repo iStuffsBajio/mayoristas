@@ -360,9 +360,10 @@ Tres reglas que cambian cómo se comporta el bot:
   cliente se apunta y nadie más le contesta. Ni siquiera se llama al modelo.
 - **Un fallo de la bandeja no deja al cliente sin respuesta.** Si no se puede
   leer o escribir, el bot contesta igual y lo dice en el registro.
-- **Contestar desde el panel todavía NO sale por WhatsApp**, porque la línea de
-  Meta no está encendida. Se guarda en la conversación y la pantalla lo dice.
-  Fingir que salió sería peor que no tener el botón.
+- **Contestar desde el panel sale por WhatsApp** desde el 2026-11-13, y cada
+  mensaje dice si salió (ver «La Fase A»). Si el servidor no tiene la cola
+  configurada, se guarda y la pantalla dice que NO salió: fingir que salió
+  sería peor que no tener el botón.
 
 Una tienda ve sólo los clientes de su plaza, y uno ajeno responde igual que uno
 que no existe. Bodega no tiene sección. Dos escrituras a la vez (el bot y la
@@ -560,6 +561,7 @@ Hoy pesa unos 2.7 MB: 20 archivos de la casa y el resto, los dos SDK.
 | `istuffs-crm-trabajador` | `S3_BUCKET`, `S3_REGION` | dónde están las fichas y el inventario |
 | `istuffs-crm-trabajador` | `CRM_SITIO` | de dónde se sirven las fotos |
 | `istuffs-crm-trabajador` | `CRM_MODELO` | opcional; por omisión Haiku (`modelo.js`) |
+| `istuffs-crm-trabajador` | `CRM_LEER_FOTOS` | opcional; `0` apaga la lectura de fotos. Sin ponerla, está encendida |
 
 Ninguna lleva prefijo `VITE_`: Vite incrusta en el JavaScript público toda
 variable que empiece así. Y sin `CRM_COLA_URL` el webhook contesta **500**, no
@@ -575,6 +577,10 @@ Se aplican a mano. En los cuatro hay que sustituir `REGION` y `CUENTA`.
 | `crm-backend-encolar.json` | el rol del backend | `sqs:SendMessage` en la cola, nada más |
 | `crm-ci-desplegar.json` | el usuario que despliega desde GitHub | publicar el código de la función nueva |
 | `istuffs-s3-policy.json` | el usuario que sube inventarios | ahora también niega `crm/*`: la automatización no toca clientes |
+| `crm-backend-borrar.json` | el rol del backend | `s3:DeleteObject` sólo en `crm/clientes/*` y `crm/conversaciones/*`: borrar una conversación de prueba |
+
+`crm-alarmas.json` tampoco es una política: son las alarmas (abajo, «Las
+alarmas»).
 
 `crm-colas.json` no es una política: son los parámetros de las colas, de la
 función, del disparador y de la alarma. **Sus números tienen que coincidir con
@@ -642,7 +648,233 @@ habilitarlo. Para cortar del todo, quitar la suscripción del paso 14.
 - **Un turno abandonado por tiempo que estuviera justo mandando** en ese
   instante puede llegar además del reintento. La bandera lo evita antes y
   después del envío, no durante.
-- **Contestar desde el panel sigue sin salir por WhatsApp** (abajo, punto 2).
+- Lo de la salida desde el panel, las fotos y los clientes sin teléfono tiene
+  su propia lista: «Lo que la Fase A NO pudo comprobar», más abajo.
+
+---
+
+## La Fase A (2026-11-13): salida, salud, fotos y clientes sin teléfono
+
+### ⚠️ El orden de despliegue: PRIMERO el trabajador, DESPUÉS el backend
+
+El backend nuevo encola dos cosas que antes no existían —lo que la tienda
+escribe (`clase: 'salida'`) y los envíos que Meta rechaza (`clase: 'estado'`)—.
+Un trabajador viejo no las entiende. No rompe nada: van sin `de` a propósito y
+las descarta como «sin remitente». Pero la tienda vería su mensaje «enviando»
+y luego «sin confirmar», sin que nada saliera.
+
+Con el trabajador nuevo y el backend viejo todo sigue como antes. Por eso va
+primero.
+
+### Lo que la tienda escribe sale por WhatsApp
+
+```
+panel ─▶ POST /crm/responder ─▶ ficha «pendiente» ─▶ cola ─▶ trabajador ─▶ WhatsApp
+                                                              └▶ ficha «enviado» o «fallido: por qué»
+```
+
+- **Primero se guarda, luego se encola.** Al revés, un trabajador rápido
+  buscaría en la ficha un mensaje que todavía no está.
+- **Cada mensaje dice si salió**: enviando, salió, NO salió (con el motivo) o
+  nota (cliente sin WhatsApp). «Enviando» más de tres minutos pasa a «sin
+  confirmar»: no se afirma lo que no se sabe.
+- **La ventana de 24 horas la respeta el servidor**, no la pantalla: fuera de
+  ella contesta 409 **sin guardar nada**. La caja se apaga y dice hasta cuándo
+  se puede escribir. La cuenta sale de `ultimoDelCliente`, con NUESTRO reloj
+  (la hora en que el trabajador apuntó el mensaje), no con el de Meta: puede
+  haber segundos de diferencia, y si Meta ya la cerró, su rechazo (131047)
+  llega igual y el mensaje queda «NO salió».
+- **No sale dos veces.** Antes de mandar se mira si ese mensaje ya está
+  «enviado»; si salió y no se pudo apuntar, NO se reintenta.
+- **Lo que Meta rechaza después de aceptarlo** (el webhook manda `failed`)
+  también llega a la ficha, por la misma cola.
+- La salida va en **su propio grupo de la cola**, no en el del teléfono: un
+  turno del bot atorado con ese cliente no retiene lo que la tienda escribió.
+  El precio: no hay orden garantizado entre el bot y la tienda. Da igual,
+  porque escribir desde el panel toma la conversación y el bot se calla.
+
+Los motivos se traducen en `crm/envio-errores.js`, una sola vez.
+
+### Cuando el token vence
+
+El token temporal venció una vez y el único síntoma fue que el bot dejó de
+contestar. Ahora, cuando Meta rechaza un envío por algo que deja **todo el
+canal** sin salida —token (código 190), permiso, cuenta, credenciales sin
+poner— pasan tres cosas:
+
+1. El trabajador escribe en su registro un renglón con la marca `CRM_ALARMA`
+   (con la clase y el código, nunca el token). Un filtro de CloudWatch lo
+   cuenta y una alarma avisa al correo.
+2. Lo apunta en `crm/salud.json`, y el panel enseña un aviso arriba de
+   Clientes, a las tiendas también: «avisa al administrador y contesta desde
+   el WhatsApp de la tienda». El código sólo lo ve el administrador.
+3. El primer envío que vuelve a salir bien **borra el aviso**. Nadie tiene que
+   acordarse de quitarlo.
+
+**Qué hacer cuando salta:**
+
+1. `npm run crm:doctor`. Dice si es el token y si Meta lo acepta ahora.
+2. En Meta Business → Usuarios del sistema, generar un token nuevo para la app
+   (con `whatsapp_business_messaging` y `whatsapp_business_management`).
+3. `node backend/scripts/poner-secreto.js WHATSAPP_TOKEN`
+4. Escribirle al número desde un teléfono. Al salir la respuesta, el aviso del
+   panel se quita solo.
+
+Lo que Meta rechazó mientras tanto **no se reenvía solo**: quedó en cada ficha
+como «NO salió», y los turnos del bot que fallaron tres veces, como «sin
+respuesta».
+
+### Las alarmas
+
+Viven en `infra/crm-alarmas.json`. Se crean a mano, una vez. Primero, el tema
+de SNS que ya avisa al correo (su nombre real no está en el repositorio):
+
+```
+aws sns list-topics --region us-east-1
+```
+
+En los comandos de abajo, sustituir `ARN_DEL_TEMA` por el que salga.
+
+```
+aws logs put-metric-filter --region us-east-1 --log-group-name /aws/lambda/istuffs-crm-trabajador --filter-name istuffs-crm-canal-mudo --filter-pattern "\"CRM_ALARMA\"" --metric-transformations metricName=CanalMudo,metricNamespace=iStuffs/CRM,metricValue=1,defaultValue=0
+
+aws cloudwatch put-metric-alarm --region us-east-1 --alarm-name istuffs-crm-canal-mudo --namespace iStuffs/CRM --metric-name CanalMudo --statistic Sum --period 300 --evaluation-periods 1 --threshold 0 --comparison-operator GreaterThanThreshold --treat-missing-data notBreaching --alarm-actions ARN_DEL_TEMA
+
+aws cloudwatch put-metric-alarm --region us-east-1 --alarm-name istuffs-crm-trabajador-errores --namespace AWS/Lambda --metric-name Errors --dimensions Name=FunctionName,Value=istuffs-crm-trabajador --statistic Sum --period 300 --evaluation-periods 1 --threshold 0 --comparison-operator GreaterThanThreshold --treat-missing-data notBreaching --alarm-actions ARN_DEL_TEMA
+
+aws cloudwatch put-metric-alarm --region us-east-1 --alarm-name istuffs-crm-cola-atorada --namespace AWS/SQS --metric-name ApproximateAgeOfOldestMessage --dimensions Name=QueueName,Value=istuffs-crm-mensajes.fifo --statistic Maximum --period 300 --evaluation-periods 1 --threshold 600 --comparison-operator GreaterThanThreshold --treat-missing-data notBreaching --alarm-actions ARN_DEL_TEMA
+```
+
+La de la cola de fallidos (`istuffs-crm-fallidos-con-mensajes`) ya existe; el
+archivo la repite para tener las cuatro juntas.
+
+| Alarma | Qué significa |
+|---|---|
+| `canal-mudo` | El bot no puede mandar: token, permiso o cuenta. **No se arregla sola** |
+| `trabajador-errores` | La función revienta entera: no arranca, sin tiempo o sin memoria. Un turno que falla y se reintenta NO cuenta aquí |
+| `fallidos-con-mensajes` | A algún cliente el bot no pudo contestarle en tres intentos |
+| `cola-atorada` | El mensaje más viejo lleva demasiado esperando: el disparador está apagado o el trabajador no da abasto |
+
+En PowerShell el filtro lleva las comillas así: `--filter-pattern '\"CRM_ALARMA\"'`.
+**No se ha comprobado en una terminal de Windows**: si CloudWatch guarda el
+patrón sin comillas también sirve, porque la marca no tiene espacios.
+
+### El bot lee las fotos del cliente
+
+Mucha gente fotografía la parte de atrás de su teléfono o la pantalla de
+«Acerca del teléfono». Meta no manda la imagen, manda un id: `crm/medios.js`
+la baja con el token y se la pasa al modelo junto a lo que el cliente escribió.
+
+- **Si no se puede leer, cae a la respuesta fija de siempre. Nunca falla el
+  turno.** Vale para todo: Meta caído, foto de más de 3.5 MB, un tipo que no
+  es imagen, o que tarde más de 8 segundos.
+- **La imagen no se guarda.** Ni en el historial del bot ni en la ficha: en su
+  lugar queda una marca de texto. El panel dice «con foto», no la enseña.
+- El tipo se comprueba por los **bytes**, no por lo que dice Meta.
+- Sólo se baja de `https`.
+- Se apaga con `CRM_LEER_FOTOS=0` sin desplegar nada.
+- Una foto cuesta más que un texto. No se ha medido cuánto con fotos reales.
+
+Qué decir cuando la foto no deja ver el modelo es cosa de las reglas del bot
+(`cerebro.js`), que no se tocaron.
+
+### Un cliente puede llegar sin teléfono
+
+Meta estrenó los nombres de usuario de WhatsApp. El webhook trae ahora un
+identificador de usuario (`user_id`, `from_user_id`) junto al teléfono, y
+quien adopta un nombre de usuario puede llegar **sin teléfono**. Antes ese
+mensaje se descartaba como «sin remitente».
+
+| | Con teléfono | Sin teléfono |
+|---|---|---|
+| Ficha | `wa:524771234567` | `wa:u-MX-1349…` |
+| Conversación | `crm/conversaciones/5214771234567.json` | `crm/conversaciones/u-MX-1349….json` |
+| Se le contesta con | `to` | `recipient` |
+| En el panel | su número | «WhatsApp sin número»: se le contesta desde ahí |
+
+- **Quien ya tenía ficha con teléfono sigue en ella.** En cuanto Meta manda
+  las dos cosas, la ficha apunta el identificador (`usuario`) y el número tal
+  como lo manda Meta (`waId`). Hacen falta los dos: la ficha guarda el teléfono
+  arreglado (52…) y la conversación se llama con el de Meta (521…).
+- **El enlace `wa.me` del aviso a la tienda no se rompe**: va al número de la
+  TIENDA, no al del cliente. Lo que no existe para un cliente sin teléfono es
+  escribirle desde el WhatsApp de la tienda; la salida es contestarle desde el
+  panel.
+- `paraEnvio` (el 521 → 52 de México) no cambió, y tiene su prueba.
+- Las **reacciones** y los avisos del **sistema** ya no se contestan ni se
+  encolan. Antes un 👍 recibía «no puedo ver ese tipo de mensaje».
+
+Lo que queda sin resolver, a sabiendas:
+
+- Un cliente que llega primero **sin** teléfono y después **con** él tendrá
+  dos fichas. Se unen a mano. No se automatizó porque no se ha visto ni un
+  caso real.
+- El aviso de Meta de que alguien **cambió de número** no se procesa.
+- Un teléfono **no mexicano** sigue sin generar ficha (`telefonoMx`). Ya era
+  así; el bot le contesta, pero no aparece en Clientes.
+
+### `npm run crm:doctor`
+
+Mira, sin cambiar nada y sin mandar ningún mensaje, si el bot puede contestar:
+el enganche, la **forma** de las variables de las dos funciones (nunca imprime
+un valor), si Meta acepta el token, las colas y el disparador contra
+`infra/crm-colas.json`, la cola de fallidos, las alarmas y `crm/salud.json`.
+
+Usa el `aws` de la terminal: el usuario tiene que poder **leer** Lambda, SQS,
+CloudWatch y `crm/salud.json`. Sale con código 1 si algo está mal.
+
+- `--sin-meta` no le pregunta a Meta por el token.
+- `--api=https://…` si `VITE_API_URL` no está en `.env`.
+
+Las reglas viven en `scripts/lib/crm-doctor.js`, con pruebas. **El guion en sí
+no se ha corrido nunca contra AWS**: quien lo escribió no tiene acceso. La
+primera corrida es la prueba.
+
+### Borrar una conversación de prueba
+
+En la ficha de un cliente de WhatsApp, sólo para el administrador, plegado al
+final: «Borrar esta conversación». Pide los últimos 4 de su número. Borra lo
+que el bot recuerda, la ficha y su renglón, para que la siguiente prueba
+empiece de cero. Sirve también si un cliente pide que se borren sus datos.
+
+- Necesita un permiso nuevo en el **rol del backend**
+  (`infra/crm-backend-borrar.json`). Sin él contesta 409 y **no borra nada**.
+
+  Guardar el archivo sin la clave `_leeme` como `borrar.json` y:
+
+  ```
+  aws iam list-roles --query "Roles[?starts_with(RoleName,'istuffs-backend-role')].RoleName" --output text
+  aws iam put-role-policy --role-name NOMBRE_DEL_ROL --policy-name istuffs-crm-borrar --policy-document file://borrar.json
+  ```
+
+- Queda apuntado quién y cuándo en `crm/borrados.json`, sin el número ni lo
+  que se dijo.
+- **No borra nada de WhatsApp**, y el bucket tiene versionado: S3 conserva la
+  versión anterior. Para una prueba da igual. Para un borrado por privacidad
+  hay que purgar las versiones a mano.
+- La cola de fallidos no se toca: limpiarla sigue siendo decisión del dueño.
+
+### Lo que la Fase A NO pudo comprobar
+
+Todo se probó con S3, cola, Meta y modelo **de mentira**. Lo que se supone de
+los de verdad:
+
+| Supuesto | Dónde se apoya |
+|---|---|
+| Meta contesta el envío con `messages[0].id` y manda `statuses` con `failed` y `errors[].code` | documentación de Meta; el webhook ya recibía estados |
+| Los códigos 190, 131047, 131030 y 131026 significan lo que `envio-errores.js` dice | 190 y 131030 se vieron en producción; los otros, documentación |
+| Bajar una foto es `GET /{id}` y luego la `url` con el mismo token | documentación de Meta |
+| El webhook trae `user_id` / `from_user_id` y se contesta con `recipient` | documentación de Meta leída el 2026-11-13. **El número de prueba no tiene usuario: ningún mensaje real ha pasado por ahí** |
+| El filtro de CloudWatch casa el renglón `CRM_ALARMA` | la sintaxis de filtros; no se ha creado |
+| `s3:DeleteObject` basta para borrar con el versionado activo | sí para dejar de verlo; las versiones quedan |
+
+Y dos cosas que pueden pasar y no se han visto:
+
+- Un envío que se queda sin tiempo (15 s) **pudo haber salido**. Se marca «NO
+  salió» y la tienda puede repetirlo: el cliente lo recibiría dos veces.
+- El panel pregunta cada 3 segundos mientras hay un «enviando». Con muchas
+  fichas abiertas a la vez eso son llamadas a la Lambda del backend, que
+  comparte las 10 ejecuciones de la cuenta.
 
 ---
 
@@ -650,18 +882,8 @@ habilitarlo. Para cortar del todo, quitar la suscripción del paso 14.
 
 1. **Un anuncio por plaza** con `ref=plaza=<slug>`. Es lo que hace que el lead
    llegue direccionado sin preguntar.
-2. **Encender la respuesta desde el panel.** La bandeja ya existe (arriba); falta
-   que `POST /crm/responder` mande por la API de WhatsApp en vez de sólo guardar.
-   Hasta entonces, a un cliente «sin respuesta» hay que escribirle desde el
-   WhatsApp de la tienda.
-
-### Pendiente: leer las fotos
-
-Hoy una foto se contesta con la respuesta fija. Mucha gente fotografía la parte
-de atrás de su teléfono o la pantalla de «Acerca del teléfono», que es
-exactamente el dato que hace falta. Leerla requiere bajar el medio con el token
-—Meta da un `id`, no una URL— y pasárselo al modelo, que sí ve imágenes. Es la
-mejora de conversión más clara que queda.
+2. **Instagram y Messenger.** Diseñado, sin construir, y bloqueado por la
+   verificación del negocio y la revisión de Meta: `docs/crm-instagram-messenger.md`.
 
 ---
 
