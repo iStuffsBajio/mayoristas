@@ -307,16 +307,22 @@ test('ruta: una tienda recibe SÓLO sus clientes; bodega y sin sesión, nada', a
   } finally { s3.restaurar() }
 })
 
-test('ruta: contestar toma la conversación, y dice que todavía no sale por WhatsApp', async () => {
+test('ruta: contestar toma la conversación, y sin cola de envío dice que NO salió por WhatsApp', async () => {
+  // Este archivo corre sin `CRM_COLA_URL`: no hay por dónde mandar. Con cola,
+  // lo que pasa está en `responder-panel.test.js`.
   const s3 = s3DeMemoria()
   try {
-    const c = aplicarAccion(cliente({ plaza: 'leon' }), { accion: 'entregar', plaza: 'leon' }, { quien: 'bot' }).cliente
+    // El cliente acaba de escribir: sin eso no hay ventana de 24 horas y la
+    // ruta ni siquiera guarda.
+    const escrito = registrarMensaje(cliente({ plaza: 'leon' }), { de: 'cliente', texto: '¿tienes para iphone 13?' })
+    const c = aplicarAccion(escrito, { accion: 'entregar', plaza: 'leon' }, { quien: 'bot' }).cliente
     sembrarCliente(s3, c)
     const r = json(await pedir('POST', '/crm/responder', { token: tk('leon'), cuerpo: { id: c.id, texto: 'Hola, sí lo tenemos' } }))
     assert.equal(r.cliente.estado, 'atendiendo')
     assert.equal(r.cliente.atiende, 'leon', 'quién lo pone el servidor')
     assert.equal(r.enviado, false)
-    assert.match(r.aviso, /no sale por WhatsApp/)
+    assert.match(r.aviso, /NO salió por WhatsApp/)
+    assert.equal(r.salida.cola, false)
     assert.equal(r.cliente.mensajes.at(-1).envio, 'sin-canal')
     assert.equal(s3.leer('crm/indice.json').clientes[c.id].estado, 'atendiendo', 'la bandeja se entera')
   } finally { s3.restaurar() }
@@ -336,12 +342,13 @@ test('ruta: dos escrituras a la vez sobre el mismo cliente no se borran entre el
     },
   })
   try {
-    const c = aplicarAccion(cliente({ plaza: 'leon' }), { accion: 'entregar', plaza: 'leon' }, { quien: 'bot' }).cliente
+    const escrito = registrarMensaje(cliente({ plaza: 'leon' }), { de: 'cliente', texto: 'hola' })
+    const c = aplicarAccion(escrito, { accion: 'entregar', plaza: 'leon' }, { quien: 'bot' }).cliente
     sembrarCliente(s3, c)
     const r = await pedir('POST', '/crm/responder', { token: tk('leon'), cuerpo: { id: c.id, texto: 'respuesta de la tienda' } })
     assert.equal(r.statusCode, 200)
     const final = s3.leer(`crm/clientes/${archivoDe(c.id)}`)
-    assert.deepEqual(final.mensajes.map(m => m.texto), ['escrito en medio', 'respuesta de la tienda'])
+    assert.deepEqual(final.mensajes.map(m => m.texto), ['hola', 'escrito en medio', 'respuesta de la tienda'])
   } finally { s3.restaurar() }
 })
 
