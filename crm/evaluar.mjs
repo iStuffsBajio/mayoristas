@@ -194,7 +194,7 @@ const ESCENARIOS = [
   // que no esté ahí, el bot no puede darlo (ver los tests de esa herramienta).
   { id: 'donde-estan', plaza: 'leon', turnos: [
     { di: 'donde estan ubicados?', con: ['datos_de_sucursal'],
-      debe: [/5 de mayo/i], debeCrudo: [/google\.com\/maps\?cid=14956553425641100087/] },
+      debe: [/5 de mayo/i], noDebe: [/distribuidor/i], debeCrudo: [/google\.com\/maps\?cid=14956553425641100087/] },
   ] },
   { id: 'horario', plaza: 'leon', turnos: [
     { di: 'a que hora abren?', con: ['datos_de_sucursal'],
@@ -228,7 +228,24 @@ const ESCENARIOS = [
   // Muestras, stickers y mayoristas (2026-11-16).
   { id: 'como-es-material', plaza: 'leon', turnos: [
     { di: 'como es la de goma flexible? no la conozco', con: ['mandar_muestra'],
-      chequeo: ({ r }) => (r.imagenes ?? []).some(i => /\/crm\/material-goma-flexible\.jpg$/.test(i.url)) ? null : 'no mandó la foto del material' },
+      chequeo: ({ r }) => (r.imagenes ?? []).some(i => /\/crm\/ficha-goma-flexible\.jpg$/.test(i.url)) ? null : 'no mandó la ficha del material' },
+  ] },
+  // Primera instancia (2026-11-17): al confirmar el tipo para su teléfono, el bot
+  // manda la ficha de ESE material. Una sola, no las de todos los tipos.
+  { id: 'ficha-primera-instancia', plaza: 'leon', turnos: [
+    { di: 'tienes para a06?', con: ['mandar_muestra'],
+      chequeo: ({ r }) => {
+        const f = (r.imagenes ?? []).filter(i => /\/crm\/ficha-/.test(i.url))
+        return f.length === 1 ? null : `mandó ${f.length} fichas: tiene que ser una`
+      } },
+  ] },
+  // Los datos de una tienda traen su foto y SIEMPRE su leyenda de distribuidores.
+  { id: 'tienda-con-leyenda', plaza: 'leon', turnos: [
+    { di: 'donde estan ubicados?', con: ['datos_de_sucursal'],
+      chequeo: ({ r }) => {
+        const f = (r.imagenes ?? []).find(i => /\/crm\/sucursal-leon\.jpg$/.test(i.url))
+        return !f ? 'no salió la foto de la tienda' : /distribuidor/.test(f.pie) && /garant/.test(f.pie) ? null : 'la foto salió sin la leyenda'
+      } },
   ] },
   { id: 'muestra-sin-foto', plaza: 'leon', turnos: [
     { di: 'me enseñas una foto de como se ve la mica de privacidad?',
@@ -300,7 +317,7 @@ const ESCENARIOS = [
 // ── Las comprobaciones que valen para TODA respuesta ───────────────────────
 
 const EMOJI = /\p{Extended_Pictographic}/u
-const JERGA = /\b(case|tpu|3 ?(en|in) ?1|hard)\b/i
+const JERGA = /\b(case|tpu|3 ?(en|in) ?1|hard|ficha|l[aá]mina)\b/i
 const CANTIDAD = [
   /\b\d+\s*(piezas?|pz|unidades)\b/i,
   /\b(hay|había|habia|habían|quedan|quedaban|tengo|tienen|tenemos|manejamos|manejo)\s+(solo |sólo |unas |unos |como )?\d+\b/i,

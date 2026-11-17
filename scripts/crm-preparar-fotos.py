@@ -15,6 +15,15 @@
 import os, sys
 from PIL import Image, ImageOps
 
+# Las láminas con descripción (3072x5504, llevan texto pequeño) van a 1920 px de
+# alto: a 1280 el texto no se lee en el teléfono. Las fotos normales, a 1280.
+LAMINAS = {
+    'ficha-goma-flexible.jpg':        'IMAGEN POR MATERIAL CON DESCRIPCION/TPU DESCRIPCION.jpg',
+    'ficha-goma-flexible-color.jpg':  'IMAGEN POR MATERIAL CON DESCRIPCION/TPU COLORES DESCRIPCION.jpg',
+    'ficha-uso-rudo.jpg':             'IMAGEN POR MATERIAL CON DESCRIPCION/USO RUDO DESCRIPCION.jpg',
+}
+LADO_LAMINA = 1920
+
 SELECCION = {
     'material-goma-flexible.jpg':          'goma-flexible/TPU 5.jpg',
     'ejemplo-goma-flexible.jpg':           'goma-flexible/muestra personalizado/20261003_153022.jpg',
@@ -35,9 +44,10 @@ def main():
     origen = sys.argv[1]
     destino = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'public', 'crm')
     os.makedirs(destino, exist_ok=True)
-    for nombre, relativo in SELECCION.items():
+    todo = [(n, r, LADO) for n, r in SELECCION.items()] + [(n, r, LADO_LAMINA) for n, r in LAMINAS.items()]
+    for nombre, relativo, lado in todo:
         im = ImageOps.exif_transpose(Image.open(os.path.join(origen, relativo))).convert('RGB')
-        im.thumbnail((LADO, LADO))
+        im.thumbnail((lado, lado))
         salida = os.path.join(destino, nombre)
         im.save(salida, 'JPEG', quality=82, optimize=True)  # sin EXIF: no viaja la ubicación de la foto
         print(f'{nombre:38} {im.size[0]}x{im.size[1]}  {os.path.getsize(salida) // 1024} KB')

@@ -979,3 +979,38 @@ $230 (la lista vigente del bot dice $220); trae precios de mayoreo de micas y de
 exhibidores (hoy los cotiza la tienda); y pide en el CRM una ficha de mayorista con
 nivel, última compra y alertas a 45 y 60 días (es estructura nueva: ver
 `docs/crm-motor-comercial.md`).
+
+### Fichas de material como primera imagen, y la foto de la tienda con su leyenda (2026-11-17)
+
+El dueño dio tres láminas con la descripción de cada material (goma flexible, de
+color y uso rudo) y pidió dos cosas:
+
+- **La ficha es la PRIMERA foto.** Al confirmar para qué teléfono hay y de qué tipo,
+  el bot manda la lámina de ESE material (`mandar_muestra` con `cual: 'ficha'`),
+  una por mensaje. Los ejemplos de trabajos hechos (`cual: 'ejemplos'`) salen cuando
+  piden ver cómo queda. Un material sin lámina (rígida, cristal) usa su foto de
+  siempre. La foto del modelo (`mandar_foto`) sigue aparte. Las láminas van a
+  1072x1920 (llevan texto pequeño; a 1280 no se lee en el teléfono).
+- **Toda foto de tienda lleva la leyenda de distribuidores**, con las palabras del
+  dueño: «esta es nuestra sucursal… otro local con un exhibidor de nuestra marca
+  solo es un distribuidor y no podremos respaldar nuestra garantía ni las promociones
+  de la publicidad». **Sale SOLA con los datos de la sucursal** (`datos_de_sucursal`
+  la empuja en el código, no depende de que el modelo la pida) y va en el pie de la
+  foto, no en el texto. Torreón no tiene foto: no sale y el bot no dice que la manda.
+
+⚠️ **Lo que costó una regresión (de 99% a 85% en el evaluador, y por eso hay
+guardas):** al llegar la ficha el modelo daba todo por explicado con la imagen y
+(1) se quedaba SIN texto, o (2) escribía el precio ANTES de llamar a la herramienta
+y después sólo la pregunta. `contestar()` entrega únicamente el texto del último
+turno, así que lo escrito antes de una herramienta no llega al cliente. Tres capas:
+el resultado de `mandar_muestra` le dice que el mensaje completo va ahora, una regla
+del prompt lo repite, y una red de seguridad en `cerebro.js` (`callado`) pide UNA vez
+que escriba si el turno acaba sin texto. Con eso: 97% y 0 respuestas vacías.
+Queda ~1.4% de respuestas que callan el precio; es el costo medido de las fichas.
+
+El bot no dice «ficha» ni «lámina» al cliente (el evaluador lo castiga).
+
+🔒 **Por confirmar:** la lámina de TPU de color dice «Disponible para iPhone · todos
+los modelos» y la ficha técnica vieja decía «sólo iPhone 11 a iPhone 12 Pro Max».
+Mientras no lo aclare el dueño, el bot NO afirma para qué teléfonos hay de color:
+lo confirma con `buscar_existencias`.
