@@ -997,9 +997,13 @@ Tres cosas que hay que saber antes de tocarlo:
 - **Lo de antes no se borra.** Sigue entero en `caja/<plaza>.json` y se sigue
   extrayendo; lo único que cambia es que no cuenta como pendiente.
 
-El número de semanas crece solo cada lunes hasta toparse en las dos que se
-enseñan (`SEMANAS_A_LA_VISTA`). `verificar` lo calcula del mismo sitio en vez
-de escribirlo, o fallaría solo el lunes siguiente sin estar nada roto.
+El número de semanas crece solo cada lunes: las que se DIBUJAN se topan en
+dos (`SEMANAS_A_LA_VISTA`) y las que CUENTAN en lo que falta por depositar, en
+ocho (`SEMANAS`). `verificar` calcula las dos en vez de escribirlas, y compara
+el concentrado contra las que cuentan: comparándolo contra las que se dibujan
+falló solo el lunes 2026-11-16, la tercera semana, sin estar nada roto. Por lo
+mismo, las listas del ciclo de Torreón se miran en todas sus semanas y no en la
+primera, que deja de ser «esta semana» cada lunes.
 
 ### Bloques semanales, no un acumulado
 
@@ -2524,6 +2528,12 @@ otro usuario.
 - **Al autorizar una comisión, el monto se congela** (cambiar luego el 7% no la
   mueve) **y sale sola de la caja** como `Comisiones de ‹nombre›`, una salida
   por persona y semana en `caja/movimientos.json`. Rechazar la última la borra.
+  🔒 **La salida se fecha en la semana de la VENTA** (`fechaDeSalida`: su
+  domingo, o hoy si la semana todavía corre), no el día en que se autoriza. Lo
+  decidió el dueño el 2026-11-17: autorizando el lunes las de la semana
+  anterior, caían en la semana nueva y el corte y el depósito de la semana de la
+  venta salían con faltante —en San Luis, $88.90— y la siguiente con sobrante.
+  Las tres salidas guardadas con la regla vieja se corrigieron ese día en S3.
   Por eso **las tiendas NO capturan comisiones en el punto de venta**: se
   restarían dos veces. El sueldo sí se sigue registrando ahí.
 - **El corte también resta lo capturado en la página** (`datosDeCorte` junta

@@ -1865,10 +1865,12 @@ async function rutaAccionNomina(evento, origen, cuerpo) {
       if (!reg) continue
       const s = salidaDeComisiones(r.estado, reg, lunes, hoy)
       const dePlaza = { ...(movs[reg.plaza] ?? {}) }
-      // La fecha se conserva si ya existía: el dinero salió el día de la
-      // primera autorización y moverlo cambiaría de semana el corte.
+      // 🔒 La fecha la decide la semana de la venta (`fechaDeSalida`), no el
+      // día de la autorización: así el corte y el depósito de esa semana ya
+      // vienen sin las comisiones. Se recalcula siempre, lo que también
+      // corrige una salida guardada con la regla anterior.
       if (s.borrar) delete dePlaza[s.id]
-      else dePlaza[s.id] = { ...s.mov, f: dePlaza[s.id]?.f ?? s.mov.f }
+      else dePlaza[s.id] = s.mov
       movs[reg.plaza] = dePlaza
     }
     await escribirJson('caja/movimientos.json', movs)

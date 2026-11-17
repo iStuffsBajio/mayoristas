@@ -165,6 +165,11 @@ test('la salida de efectivo: una por persona y semana, «Comisiones de ‹nombre
   assert.equal(s.mov.concepto, 'Comisiones de Andrea Serrano Palacios')
   assert.equal(s.mov.tipo, 'otra-salida')
   assert.equal(N.salidaDeComisiones({}, andrea, '2026-11-09', '2026-11-11').borrar, true)
+  // 🔒 La fecha es de la semana de la VENTA: autorizando el lunes siguiente,
+  // la salida cae el domingo de esa semana, no en la nueva.
+  assert.equal(N.salidaDeComisiones(estado, andrea, '2026-11-09', '2026-11-17').mov.f, '2026-11-15')
+  assert.equal(s.mov.f, '2026-11-11', 'con la semana en curso, hoy: nunca una fecha futura')
+  assert.equal(N.salidaDeComisiones(estado, andrea, '2026-11-09', '2026-11-15').mov.f, '2026-11-15')
 })
 
 test('pagar, ajustar y vacaciones se validan', () => {
