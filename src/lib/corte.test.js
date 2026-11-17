@@ -168,7 +168,9 @@ test('EL EJEMPLO DEL DUEÑO: 3 fundas, 4 hidrogel y 10 stickers son 17 piezas', 
     semana: SEMANA, caja: SEMANA_TIPO, params: PARAMS,
     ventas: { porDiaTipo: [{ f: '2026-11-09', fundas: 3, hidrogel: 4, stickers: 10, otros: 6 }] },
   })
-  assert.deepEqual(r.piezas, { fundas: 3, hidrogel: 4, stickers: 10, total: 17, otros: 6 })
+  // Sin `fundasMayoreo` en el dato (un respaldo de antes de separarlas) el
+  // reparto es `null`: no se sabe, que no es «cero a mayoreo».
+  assert.deepEqual(r.piezas, { fundas: 3, fundasMayoreo: null, hidrogel: 4, stickers: 10, total: 17, otros: 6 })
   assert.equal(r.dias[0].piezas.total, 17, 'y por día')
   assert.equal(r.dias[1].piezas, null, 'un día sin desglose no es un día con cero')
 })
@@ -356,4 +358,84 @@ test('las incidencias de mayoreo y los cobros se reparten por semana; sin extrae
   assert.equal(v.mayoreo, null)
   assert.equal(v.cobros, null)
   assert.deepEqual(cuadreSemanal({ semana, ventas: { reglasMayoreo: { incidencias: [] } } }).mayoreo, [])
+})
+
+test('fundas de mayoreo: se suman sólo si TODOS los días las traen', () => {
+  const semana = semanaDe('2026-11-09')
+  const con = cuadreSemanal({ semana, ventas: { porDiaTipo: [
+    { f: '2026-11-09', fundas: 6, fundasMayoreo: 2 }, { f: '2026-11-10', fundas: 4, fundasMayoreo: 4 },
+  ] } })
+  assert.equal(con.piezas.fundas, 10)
+  assert.equal(con.piezas.fundasMayoreo, 6)
+  assert.equal(con.dias[0].piezas.fundasMayoreo, 2)
+  const aMedias = cuadreSemanal({ semana, ventas: { porDiaTipo: [
+    { f: '2026-11-09', fundas: 6, fundasMayoreo: 2 }, { f: '2026-11-10', fundas: 4 },
+  ] } })
+  assert.equal(aMedias.piezas.fundasMayoreo, null, 'una suma a medias pasaría por el factor de la semana')
+})
+
+// ── Los ajustes del administrador ───────────────────────────────────────────
+
+const cajaConMovs = movimientos => ({
+  dias: [{ f: '2026-11-09', efectivo: 10000 }],
+  movimientos,
+})
+const PARAMS_AJUSTE = { fondoFijo: 500, desdeControlSalidas: '2026-11-02' }
+
+test('AJUSTE: un gasto sin concepto sustituido por el sueldo de Brenda', () => {
+  const semana = semanaDe('2026-11-09')
+  const movimientos = [
+    { f: '2026-11-13', tipo: 'gasto', monto: 735, concepto: '', origen: 'eleventa' },
+    { f: '2026-11-11', tipo: 'gasto', monto: 100, concepto: 'para cloro', origen: 'eleventa' },
+  ]
+  const antes = cuadreSemanal({ semana, caja: cajaConMovs(movimientos), params: PARAMS_AJUSTE })
+  assert.equal(antes.gastos, 835)
+  assert.equal(antes.sueldo, 0)
+
+  const correcciones = [{
+    id: 'aj-1', semana: '2026-11-09', accion: 'sustituir', ref: 'e:2026-11-13|gasto|735||0',
+    original: { f: '2026-11-13', tipo: 'gasto', monto: 735, concepto: '' },
+    nuevo: { f: '2026-11-13', categoria: 'sueldo', monto: 735, concepto: 'Sueldo Brenda' },
+    motivo: 'sin-concepto', nota: 'era el sueldo', quien: 'admin', cuando: '2026-11-17T10:00:00Z',
+  }]
+  const r = cuadreSemanal({ semana, caja: cajaConMovs(movimientos), params: PARAMS_AJUSTE, correcciones })
+  assert.equal(r.gastos, 100)
+  assert.equal(r.sueldo, 735)
+  assert.equal(r.listas.sueldos[0].trabajador, 'Brenda')
+  assert.equal(r.listas.sueldos[0].origen, 'ajuste')
+  // Reclasificar no mueve lo esperado: sigue siendo una salida del mismo monto.
+  assert.equal(r.esperado, antes.esperado)
+  assert.equal(r.ajustes.length, 1)
+  assert.equal(r.ajustes[0].estado, 'aplicado')
+})
+
+test('AJUSTE: agregar el sueldo que no se registró BAJA lo esperado; anular un duplicado lo SUBE', () => {
+  const semana = semanaDe('2026-11-09')
+  const movimientos = [
+    { f: '2026-11-12', tipo: 'gasto', monto: 20, concepto: 'agua', origen: 'eleventa' },
+    { f: '2026-11-12', tipo: 'gasto', monto: 20, concepto: 'agua', origen: 'eleventa' },
+  ]
+  const base = cuadreSemanal({ semana, caja: cajaConMovs(movimientos), params: PARAMS_AJUSTE })
+  const correcciones = [
+    { id: 'a', semana: '2026-11-09', accion: 'agregar', nuevo: { f: '2026-11-15', categoria: 'sueldo', monto: 1500, concepto: 'Sueldo Ana' }, motivo: 'no-registrado', nota: 'x', cuando: '1' },
+    // El SEGUNDO de dos idénticos: la huella distingue cuál.
+    { id: 'b', semana: '2026-11-09', accion: 'anular', ref: 'e:2026-11-12|gasto|20|agua|1', original: { f: '2026-11-12', tipo: 'gasto', monto: 20, concepto: 'agua' }, motivo: 'duplicado', nota: 'y', cuando: '2' },
+  ]
+  const r = cuadreSemanal({ semana, caja: cajaConMovs(movimientos), params: PARAMS_AJUSTE, correcciones })
+  assert.equal(r.esperado, base.esperado - 1500 + 20)
+  assert.equal(r.gastos, 20)
+  assert.equal(r.sueldo, 1500)
+})
+
+test('AJUSTE: deshecho o huérfano NO se aplica, pero se queda como precedente', () => {
+  const semana = semanaDe('2026-11-09')
+  const movimientos = [{ f: '2026-11-12', tipo: 'gasto', monto: 50, concepto: 'x', origen: 'eleventa' }]
+  const correcciones = [
+    { id: 'd', semana: '2026-11-09', accion: 'anular', ref: 'e:2026-11-12|gasto|50|x|0', original: {}, motivo: 'otro', nota: 'n', cuando: '1', deshecho: { quien: 'admin', cuando: '2' } },
+    // La tienda corrigió el movimiento en su caja: el original ya no existe.
+    { id: 'h', semana: '2026-11-09', accion: 'sustituir', ref: 'e:2026-11-12|gasto|70|y|0', original: {}, nuevo: { f: '2026-11-12', categoria: 'gasto', monto: 70, concepto: 'z' }, motivo: 'otro', nota: 'n', cuando: '3' },
+  ]
+  const r = cuadreSemanal({ semana, caja: cajaConMovs(movimientos), params: PARAMS_AJUSTE, correcciones })
+  assert.equal(r.gastos, 50, 'ni el anulado deshecho ni la sustitución huérfana tocan la cuenta')
+  assert.deepEqual(r.ajustes.map(c => [c.id, c.estado]).sort(), [['d', 'deshecho'], ['h', 'huerfano']])
 })

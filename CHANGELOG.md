@@ -5,6 +5,16 @@ no sustituye el historial completo de Git.
 
 ## 2026-11-17
 
+- **Ajustes del administrador en el corte.** El administrador puede agregar un
+  movimiento que la tienda no registró, o anular o sustituir uno de Eleventa,
+  siempre con motivo y nota. Lo de Eleventa no se toca: el original sale
+  tachado, la semana lleva la marca «✏️ ajustes del administrador» y deshacer
+  un ajuste lo deja en la lista como deshecho. Cuenta igual en el corte y en
+  los depósitos, y la tienda lo ve.
+- **Fundas a mayoreo y a público en el corte.** Debajo de cada número de fundas
+  sale «mayoreo / público», y en el total, qué parte fue a mayoreo. Llega con
+  la próxima sincronización.
+
 - **Las comisiones se restan de la semana en que se vendieron.** Autorizándolas
   el lunes siguiente caían en la semana nueva, y el corte y el depósito de la
   semana de la venta salían descuadrados. Se corrigieron las tres salidas ya

@@ -303,6 +303,14 @@ export const guardarFondoCaja = ({ sucursal, fondoFijo }, token) =>
 export const guardarConteo = ({ plaza, semana, cantidades, observaciones = '' }, token) =>
   pedir('/corte/conteo', { metodo: 'POST', cuerpo: { plaza, semana, cantidades, observaciones }, token })
 
+/**
+ * Un ajuste del administrador al corte de una semana —agregar, anular o
+ * sustituir un movimiento, con motivo y nota—, o `{ plaza, deshacer: id }`.
+ * Devuelve todos los ajustes de la plaza tal como quedaron.
+ */
+export const ajustarCorte = (ajuste, token) =>
+  pedir('/corte/ajuste', { metodo: 'POST', cuerpo: ajuste, token })
+
 // ── Flujo de efectivo ────────────────────────────────────────────────────────
 //
 // SOLO ADMINISTRADOR. Lo decidio el dueño: las plazas hacen todo directo en

@@ -459,12 +459,32 @@ test('piezas por día y por tipo, con «otros» aparte', () => {
     detalleDias: 120,
   })
   assert.deepEqual(r.porDiaTipo, [
-    { f: '2026-10-31', fundas: 3, hidrogel: 4, stickers: 10, otros: 2 },
-    { f: '2026-11-01', fundas: 1, hidrogel: 0, stickers: 0, otros: 0 },
+    { f: '2026-10-31', fundas: 3, fundasMayoreo: 0, hidrogel: 4, stickers: 10, otros: 2 },
+    { f: '2026-11-01', fundas: 1, fundasMayoreo: 0, hidrogel: 0, stickers: 0, otros: 0 },
   ])
   // El ejemplo del dueño: 3 + 4 + 10 = 17, y lo de «otros» no suma.
   const d = r.porDiaTipo[0]
   assert.equal(d.fundas + d.hidrogel + d.stickers, 17)
+})
+
+test('las fundas de MAYOREO: con la casilla o en un ticket con mayorista', () => {
+  // Lo pidió el dueño el 2026-11-17: el renglón de fundas con «mayoreo / público».
+  // La regla es la de la comisión: «sin mayoreo ni mayorista» es público.
+  const marca = t => linea(t, { codigo: 'PT1', producto: 'LOCAL 12', depto: 'MAYORISTAS', cantidad: 1, total: 0.01, ganancia: 0 })
+  const r = agregarVentas({
+    tickets: [ticket(1), ticket(2), ticket(3), ticket(4, { cancelado: 't' })],
+    lineas: [
+      linea(1, { cantidad: 2, mayoreo: 't' }),                    // con la casilla
+      marca(2), linea(2, { cantidad: 3 }),                        // sin casilla, pero con mayorista
+      linea(3, { cantidad: 4 }),                                  // mostrador: público
+      linea(3, { codigo: 'HDA', producto: 'MICA HIDROGEL', depto: 'HIDROGEL', cantidad: 5, mayoreo: 't' }),  // no es funda
+      linea(4, { cantidad: 9, mayoreo: 't' }),                    // cancelado
+    ],
+    detalleDias: 120,
+  })
+  const d = r.porDiaTipo[0]
+  assert.equal(d.fundas, 9)
+  assert.equal(d.fundasMayoreo, 5, '2 con la casilla + 3 del mayorista; la mica no es funda y el cancelado no cuenta')
 })
 
 test('LO QUE COMPRA UN MAYORISTA es el ticket entero, no la etiqueta de $0.01', () => {
