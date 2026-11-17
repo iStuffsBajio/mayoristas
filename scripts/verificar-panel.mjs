@@ -299,8 +299,16 @@ const semanaAdelante = n => semanaAtras(-n)
  * que es lo que se enseña. Escrito a mano, la comprobacion fallaria sola el
  * lunes siguiente sin que nada estuviera roto.
  */
-const BLOQUES_HOY = Math.max(1, Math.min(
-  2, Math.round((new Date(LUNES_HOY) - new Date(`${INICIO_HISTORIAL}T00:00`)) / (7 * 864e5)) + 1))
+const SEMANAS_DESDE_INICIO = Math.round((new Date(LUNES_HOY) - new Date(`${INICIO_HISTORIAL}T00:00`)) / (7 * 864e5)) + 1
+const BLOQUES_HOY = Math.max(1, Math.min(2, SEMANAS_DESDE_INICIO))
+/**
+ * Las semanas que CUENTAN en «lo que falta por depositar»: todas desde el
+ * inicio del historial, hasta ocho (`SEMANAS` de `useCaja.js`). No son las dos
+ * que se DIBUJAN: una semana sin depositar que ya no se ve sigue siendo dinero
+ * que falta. La comprobación comparaba contra las dos y falló sola el lunes
+ * 2026-11-16, la tercera semana, sin que nada estuviera roto.
+ */
+const SEMANAS_QUE_CUENTAN = Math.max(1, Math.min(8, SEMANAS_DESDE_INICIO))
 /** Los siete dias de esa semana, con venta. */
 const diasDe = (n, efectivo) => {
   const l = new Date(LUNES_HOY)
@@ -2461,8 +2469,8 @@ async function revisarEfectivo(window, donde) {
   const dice = /(\d+)\s+semanas?\s+sin\s+marcar/.exec(texto())
   if (!dice) {
     errores.push(`${donde} · el concentrado no dice cuantas semanas quedan sin marcar`)
-  } else if (Number(dice[1]) > PLAZAS_VIVAS * BLOQUES_HOY) {
-    errores.push(`${donde} · el concentrado suma ${dice[1]} semanas sin marcar y como mucho caben ${PLAZAS_VIVAS * BLOQUES_HOY}: esta contando historial anterior al ${INICIO_HISTORIAL} como dinero pendiente`)
+  } else if (Number(dice[1]) > PLAZAS_VIVAS * SEMANAS_QUE_CUENTAN) {
+    errores.push(`${donde} · el concentrado suma ${dice[1]} semanas sin marcar y como mucho caben ${PLAZAS_VIVAS * SEMANAS_QUE_CUENTAN}: esta contando historial anterior al ${INICIO_HISTORIAL} como dinero pendiente`)
   }
 
   // ── El cuadro de la semana en curso ──
@@ -2880,11 +2888,15 @@ async function corteDelAdmin(window, donde) {
   if (!enPie(window, `${donde} · Torreon`)) return 1
   if (doc.querySelectorAll('[data-bloque-corte]').length !== 4) errores.push(`${donde} · Torreon no dibujo sus cuatro semanas`)
   if (!doc.querySelector('[data-bloque-global]')) errores.push(`${donde} · Torreon no tiene bloque global del ciclo`)
-  if (!/nomina/i.test(doc.querySelector('[data-lista-corte="Sueldo"]')?.textContent ?? '')) {
+  // Se mira en TODAS las semanas del ciclo, no en la primera: el ciclo empezó
+  // el 2026-11-09 y el dato de prueba es de esta semana, que deja de ser la
+  // primera cada lunes. Con `querySelector` falló sola el 2026-11-16.
+  const textoDeListas = nombre => [...doc.querySelectorAll(`[data-lista-corte="${nombre}"]`)].map(x => x.textContent).join(' ')
+  if (!/nomina/i.test(textoDeListas('Sueldo'))) {
     errores.push(`${donde} · el sueldo registrado como salida no salio en la lista de sueldos`)
   }
   if (doc.querySelectorAll('[data-mayoristas]').length !== 1) errores.push(`${donde} · Torreon enseña mas de un ranking`)
-  if (!/Felipe/.test(doc.querySelector('[data-lista-corte="Comisiones"]')?.textContent ?? '')) {
+  if (!/Felipe/.test(textoDeListas('Comisiones'))) {
     errores.push(`${donde} · la comision registrada como salida no salio en la lista de comisiones`)
   }
   if (!doc.querySelector('[data-lista-corte="Sueldo"] [data-sin-nombre]')) {

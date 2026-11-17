@@ -369,7 +369,19 @@ function lunesDeUTC(f) {
  * ‹nombre›», que es como el corte la reconoce (`esComision`) y de donde saca
  * el nombre (`trabajadorDe`). Se rehace entera cada vez que cambia una
  * autorización: si se rechaza la última, la salida desaparece.
+ *
+ * 🔒 Se fecha en la semana de la VENTA, no en la de la autorización (el dueño,
+ * 2026-11-17): autorizando el lunes las de la semana anterior, la salida caía
+ * en la semana nueva, así que el corte y el depósito de la semana de la venta
+ * salían con un faltante y la siguiente con un sobrante del mismo tamaño. Va el
+ * domingo de esa semana; si la semana todavía corre, hoy (nunca una fecha
+ * futura, que se leería como un dato roto).
  */
+export const fechaDeSalida = (lunes, hoy) => {
+  const domingo = masDia(lunes, 6)
+  return hoy && hoy >= lunes && hoy < domingo ? hoy : domingo
+}
+
 export function salidaDeComisiones(estado, reg, lunes, hoy) {
   const hasta = masDia(lunes, 6)
   const total = Object.values(estado.comisiones ?? {})
@@ -382,7 +394,7 @@ export function salidaDeComisiones(estado, reg, lunes, hoy) {
   return {
     id: idMov,
     mov: {
-      id: idMov, f: hoy, tipo: 'otra-salida', monto: Math.round(total * 100) / 100,
+      id: idMov, f: fechaDeSalida(lunes, hoy), tipo: 'otra-salida', monto: Math.round(total * 100) / 100,
       concepto: `Comisiones de ${reg.nombre}`,
       comprobante: false, origen: 'pagina', quien: 'admin', nomina: { registro: reg.id, lunes }, cuando: new Date().toISOString(),
     },

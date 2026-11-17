@@ -3,6 +3,13 @@
 Este registro resume cambios relevantes del producto y de su documentación;
 no sustituye el historial completo de Git.
 
+## 2026-11-17
+
+- **Las comisiones se restan de la semana en que se vendieron.** Autorizándolas
+  el lunes siguiente caían en la semana nueva, y el corte y el depósito de la
+  semana de la venta salían descuadrados. Se corrigieron las tres salidas ya
+  guardadas (San Luis, $88.90, y Torreón).
+
 ## 2026-11-13
 
 - **CRM, Fase A** (rama `fable/fase-a`, sin desplegar). Lo que la tienda

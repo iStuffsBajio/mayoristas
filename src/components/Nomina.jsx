@@ -619,7 +619,8 @@ function Comisiones({ n }) {
         Comisión = (precio del producto A + producto B) × {Math.round(n.config.parametros.pctComision * 100)}%, por el cruce de dos
         productos distintos en el mismo ticket: funda desde {pesos(n.config.parametros.minimos.funda)}, mica desde {pesos(n.config.parametros.minimos.hidrogel)},
         sticker desde {pesos(n.config.parametros.minimos.sticker)}. Una por ticket, el par más caro. <strong>Al autorizarla se registra sola como salida de
-        efectivo «Comisiones de ‹nombre›»</strong> en la caja de su sucursal: no hace falta capturarla en el punto de venta.
+        efectivo «Comisiones de ‹nombre›»</strong> en la caja de su sucursal, en la semana en que se VENDIÓ —aunque la autorices
+        el lunes siguiente, se resta del corte y del depósito de esa semana—: no hace falta capturarla en el punto de venta.
       </Aviso>
       {sinComisionables && <Aviso>Los tickets con cruce de productos se llenan con la próxima sincronización.</Aviso>}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
