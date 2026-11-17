@@ -28,7 +28,7 @@
 //    nadie puso es peor que un hueco.
 //  · No hay tolerancia. Un peso de más o de menos ya es sobrante o faltante.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useCorte } from '../lib/useCorte'
 import {
@@ -36,7 +36,10 @@ import {
 } from '../lib/corte'
 import { rankingDeMayoristas, RANGOS_DE_MAYORISTAS } from '../lib/mayoristas'
 import { MOTIVOS_DE_MAYOREO, FORMAS_ELECTRONICAS } from '../lib/reglasMayoreo'
-import { pesos } from '../lib/caja'
+import { pesos, diasDeSemana } from '../lib/caja'
+import {
+  MOTIVOS_DE_AJUSTE, CATEGORIAS_DE_AJUSTE, ACCIONES_DE_AJUSTE, textoMotivo, efectoDe,
+} from '../lib/correcciones'
 import { COLORES, FONDO_CABECERA } from '../lib/coloresCaja'
 
 const TINTA       = '#101619'
@@ -244,8 +247,32 @@ const ordenar = (xs, { campo, dir }) => [...xs].sort((a, b) => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Las ventas de la semana, día por día, tal como salen del punto de venta. */
+/**
+ * Las fundas de un día o de la semana, con su reparto entre mayoreo y público
+ * debajo. El factor —qué parte salió a mayoreo— va en el total.
+ */
+function Fundas({ p, conFactor = false }) {
+  const may = p.fundasMayoreo
+  if (may === null || may === undefined) return p.fundas
+  const pub = p.fundas - may
+  return (
+    <span data-fundas-mayoreo={may} data-fundas-publico={pub}>
+      {p.fundas}
+      <span style={{ display: 'block', fontSize: 10.5, fontWeight: 600, color: TINTA_SUAVE, whiteSpace: 'nowrap' }}>
+        {may} / {pub}
+      </span>
+      {conFactor && p.fundas > 0 && (
+        <span data-factor-mayoreo style={{ display: 'block', fontSize: 10, fontWeight: 700, color: C.piezas.fuerte, whiteSpace: 'nowrap' }}>
+          {Math.round((may / p.fundas) * 100)}% a mayoreo
+        </span>
+      )}
+    </span>
+  )
+}
+
 function VentasDeLaSemana({ b }) {
   const hayDesglose = !!b.piezas
+  const conMayoreo = b.dias.some(d => d.piezas && d.piezas.fundasMayoreo !== null && d.piezas.fundasMayoreo !== undefined)
   const maxVenta = Math.max(1, ...b.dias.map(d => num(d.ventaTotal)))
   const electronico = d => num(d.tarjeta) + num(d.transferencia)
   return (
@@ -260,7 +287,10 @@ function VentasDeLaSemana({ b }) {
               <Th num color={C.ventas.fuerte}>Ventas ($)</Th>
               <Th num color={C.ventas.fuerte}>Efectivo</Th>
               <Th num color={C.electronico.fuerte}>Tarjeta + transf.</Th>
-              <Th num color={C.piezas.fuerte} style={{ borderLeft: '1px solid ' + LINEA }}>Fundas</Th>
+              <Th num color={C.piezas.fuerte} style={{ borderLeft: '1px solid ' + LINEA }}>
+                Fundas
+                {conMayoreo && <span style={{ display: 'block', fontSize: 9.5, fontWeight: 600, color: TINTA_TENUE }}>mayoreo / público</span>}
+              </Th>
               <Th num color={C.piezas.fuerte}>Hidrogel</Th>
               <Th num color={C.piezas.fuerte}>Stickers</Th>
               <Th num color={C.piezas.fuerte}>Piezas</Th>
@@ -277,7 +307,9 @@ function VentasDeLaSemana({ b }) {
                   : <Td num color={TINTA_TENUE}>—</Td>}
                 <Td num color={TINTA_SUAVE}>{d.hayDato ? pesos(d.efectivo) : '—'}</Td>
                 <Td num color={C.electronico.fuerte}>{d.hayDato ? pesos(electronico(d)) : '—'}</Td>
-                <Td num style={{ borderLeft: '1px solid ' + LINEA }}>{d.piezas ? d.piezas.fundas : '—'}</Td>
+                <Td num style={{ borderLeft: '1px solid ' + LINEA }}>
+                  {d.piezas ? <Fundas p={d.piezas} /> : '—'}
+                </Td>
                 <Td num>{d.piezas ? d.piezas.hidrogel : '—'}</Td>
                 <Td num>{d.piezas ? d.piezas.stickers : '—'}</Td>
                 <Td num fuerte color={C.piezas.fuerte}>{d.piezas ? d.piezas.total : '—'}</Td>
@@ -290,7 +322,9 @@ function VentasDeLaSemana({ b }) {
               <Td num fuerte color={C.ventas.fuerte}>{pesos(b.ventaTotal)}</Td>
               <Td num fuerte color={C.ventas.fuerte}>{pesos(b.efectivoCobrado)}</Td>
               <Td num fuerte color={C.electronico.fuerte}>{pesos(b.ingresosElectronicos)}</Td>
-              <Td num fuerte style={{ borderLeft: '1px solid ' + LINEA }}>{hayDesglose ? b.piezas.fundas : '—'}</Td>
+              <Td num fuerte style={{ borderLeft: '1px solid ' + LINEA }}>
+                {hayDesglose ? <Fundas p={b.piezas} conFactor /> : '—'}
+              </Td>
               <Td num fuerte>{hayDesglose ? b.piezas.hidrogel : '—'}</Td>
               <Td num fuerte>{hayDesglose ? b.piezas.stickers : '—'}</Td>
               <Td num fuerte color={C.piezas.fuerte}>{hayDesglose ? b.piezas.total : '—'}</Td>
@@ -302,7 +336,9 @@ function VentasDeLaSemana({ b }) {
         {hayDesglose
           ? <>Sólo cuentan fundas, hidrogel y stickers
               {b.piezas.otros > 0 && ` (se vendieron además ${b.piezas.otros} de otros productos, que no suman)`}
-              ; lo cobrado a $0.01 es de un mayorista y no es una pieza.</>
+              ; lo cobrado a $0.01 es de un mayorista y no es una pieza.
+              {conMayoreo && <> Debajo de las fundas, <strong>mayoreo / público</strong>: es de mayoreo la cobrada con precio de
+                mayoreo o en un ticket con mayorista.</>}</>
           : 'El desglose de piezas se llena con la próxima sincronización.'}
       </p>
     </Seccion>
@@ -310,7 +346,7 @@ function VentasDeLaSemana({ b }) {
 }
 
 /** Una lista de movimientos de caja con el color de su concepto. */
-function Lista({ c, titulo, lista, total, vacio, conTrabajador = false }) {
+function Lista({ c, titulo, lista, total, vacio, conTrabajador = false, onAjustar = null }) {
   return (
     <Seccion c={c} titulo={titulo} total={pesos(total)} sinRelleno data-lista-corte={titulo}>
       {lista.length === 0
@@ -332,6 +368,23 @@ function Lista({ c, titulo, lista, total, vacio, conTrabajador = false }) {
                           ⚠ falta el nombre del trabajador
                         </span>
                       )}
+                      {m.origen === 'ajuste' && <MarcaDeAjuste />}
+                      {m.origen === 'pagina' && (
+                        <span style={{ display: 'block', fontSize: 10.5, color: TINTA_TENUE }}>capturado en la página</span>
+                      )}
+                      {/* Debajo del concepto y no en su propia columna: en cuatro
+                          listas lado a lado, una columna más se salía por la orilla. */}
+                      {onAjustar && m.origen !== 'ajuste' && (
+                        <button type="button" data-ajustar={m.ref} onClick={() => onAjustar(m)}
+                                title="Anular este movimiento o sustituirlo por el correcto"
+                                style={{
+                                  display: 'block', marginTop: 2, border: 0, background: 'none', padding: 0,
+                                  fontSize: 10.5, fontWeight: 700, color: C.alerta.fuerte, textDecoration: 'underline',
+                                  cursor: 'pointer', fontFamily: 'inherit',
+                                }}>
+                          ✏️ Ajustar
+                        </button>
+                      )}
                     </td>
                     <Td num fuerte color={c.fuerte}>{pesos(m.monto)}</Td>
                   </tr>
@@ -340,6 +393,240 @@ function Lista({ c, titulo, lista, total, vacio, conTrabajador = false }) {
             </table>
           </div>
         )}
+    </Seccion>
+  )
+}
+
+/** La marca de un movimiento que metió un ajuste del administrador. */
+const MarcaDeAjuste = () => (
+  <span data-marca-ajuste style={{
+    display: 'inline-block', marginTop: 3, fontSize: 10, fontWeight: 800, letterSpacing: 0.2,
+    color: C.alerta.fuerte, background: C.alerta.suave, border: '1px solid ' + C.alerta.borde,
+    borderRadius: 999, padding: '1px 7px',
+  }}>✏️ Ajuste del administrador</span>
+)
+
+const campo = {
+  border: '1px solid ' + LINEA, borderRadius: 10, padding: '7px 10px', fontSize: 12.5,
+  fontFamily: 'inherit', color: TINTA, background: '#fff', minWidth: 0, width: '100%', boxSizing: 'border-box',
+}
+const Etiqueta = ({ texto, children, ancho }) => (
+  <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: TINTA_SUAVE, flex: ancho ?? '1 1 160px', minWidth: 0 }}>
+    {texto}
+    {children}
+  </label>
+)
+
+/**
+ * El formulario de un ajuste. `original` es el movimiento que se ajusta, o
+ * `null` cuando se agrega uno que no se registró.
+ *
+ * Motivo y nota son obligatorios: lo pidió el dueño, «saber por qué se hizo».
+ */
+function FormularioDeAjuste({ b, plaza, original, onAjustar, onCerrar }) {
+  const [accion, setAccion] = useState(original ? 'sustituir' : 'agregar')
+  const [f, setF] = useState(original?.f ?? b.semana.desde)
+  const [categoria, setCategoria] = useState(original?.categoria ?? 'gasto')
+  const [monto, setMonto] = useState(original ? String(original.monto) : '')
+  const [concepto, setConcepto] = useState(original?.concepto ?? '')
+  const [motivo, setMotivo] = useState(original && !original.concepto ? 'sin-concepto' : '')
+  const [nota, setNota] = useState('')
+  const [estado, setEstado] = useState(null)
+  // Se abre debajo de las listas: que se vea sin tener que ir a buscarlo.
+  const caja = useRef(null)
+  useEffect(() => { caja.current?.scrollIntoView?.({ block: 'nearest', behavior: 'smooth' }) }, [])
+
+  const conNuevo = accion !== 'anular'
+  const montoOk = String(monto).trim() !== '' && Number.isFinite(Number(monto)) && Number(monto) > 0
+  const listo = !!motivo && !!nota.trim() && (!conNuevo || (montoOk && !!concepto.trim()))
+  const ayudaConcepto = categoria === 'sueldo' ? 'Sueldo y el nombre: «Sueldo Brenda»'
+    : categoria === 'comision' ? 'Comisión y el nombre: «Comisión Brenda»' : 'En qué se fue o de dónde vino'
+
+  const guardar = async () => {
+    setEstado({ guardando: true })
+    try {
+      await onAjustar({
+        plaza, semana: b.clave, accion, motivo, nota,
+        ...(original ? { ref: original.ref } : {}),
+        ...(conNuevo ? { nuevo: { f, categoria, monto, concepto } } : {}),
+      })
+      onCerrar()
+    } catch (e) {
+      setEstado({ error: e.message || 'No se pudo guardar el ajuste.' })
+    }
+  }
+
+  return (
+    <div ref={caja} data-formulario-ajuste style={{
+      border: '1px solid ' + C.alerta.borde, background: C.alerta.suave, borderRadius: 16,
+      padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10,
+    }}>
+      {original && (
+        <div style={{ fontSize: 12, color: TINTA_SUAVE, lineHeight: 1.5 }}>
+          <strong style={{ color: TINTA }}>Movimiento del punto de venta:</strong>{' '}
+          {diaCorto(original.f)} · {original.concepto || <em>sin concepto en la caja</em>} · <strong>{pesos(original.monto)}</strong>
+          <span style={{ display: 'block', fontSize: 10.5, color: TINTA_TENUE }}>
+            Se queda como está en Eleventa; aquí sale tachado y el corte cuenta el ajuste en su lugar.
+          </span>
+        </div>
+      )}
+      {original && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Pildora activa={accion === 'sustituir'} onClick={() => setAccion('sustituir')} data-accion-ajuste="sustituir">
+            Sustituir por el correcto
+          </Pildora>
+          <Pildora activa={accion === 'anular'} onClick={() => setAccion('anular')} data-accion-ajuste="anular">
+            Anular (no debió contar)
+          </Pildora>
+        </div>
+      )}
+      {conNuevo && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <Etiqueta texto="Qué es" ancho="1 1 140px">
+            <select value={categoria} onChange={e => setCategoria(e.target.value)} style={campo} data-categoria-ajuste>
+              {Object.entries(CATEGORIAS_DE_AJUSTE).map(([k, v]) => <option key={k} value={k}>{v.texto}</option>)}
+            </select>
+          </Etiqueta>
+          <Etiqueta texto="Día" ancho="1 1 120px">
+            <select value={f} onChange={e => setF(e.target.value)} style={campo} data-dia-ajuste>
+              {diasDeSemana(b.semana).map(d => <option key={d} value={d}>{diaMes(d)}</option>)}
+            </select>
+          </Etiqueta>
+          <Etiqueta texto="Monto" ancho="1 1 110px">
+            <input inputMode="decimal" value={monto} onChange={e => setMonto(e.target.value)} placeholder="0.00"
+                   style={{ ...campo, textAlign: 'right' }} data-monto-ajuste />
+          </Etiqueta>
+          <Etiqueta texto="Concepto" ancho="2 1 220px">
+            <input value={concepto} onChange={e => setConcepto(e.target.value)} placeholder={ayudaConcepto}
+                   maxLength={160} style={campo} data-concepto-ajuste />
+          </Etiqueta>
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <Etiqueta texto="Por qué se ajusta" ancho="1 1 200px">
+          <select value={motivo} onChange={e => setMotivo(e.target.value)} style={campo} data-motivo-ajuste>
+            <option value="">Elige un motivo…</option>
+            {MOTIVOS_DE_AJUSTE.map(m => <option key={m.id} value={m.id}>{m.texto}</option>)}
+          </select>
+        </Etiqueta>
+        <Etiqueta texto="Nota (obligatoria)" ancho="2 1 260px">
+          <input value={nota} onChange={e => setNota(e.target.value)} maxLength={500}
+                 placeholder="Qué pasó: «la tienda no registró el sueldo de Brenda»"
+                 style={campo} data-nota-ajuste />
+        </Etiqueta>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Boton tipo="primario" disabled={!listo || estado?.guardando} onClick={guardar} data-guardar-ajuste>
+          {estado?.guardando ? 'Guardando…' : 'Guardar ajuste'}
+        </Boton>
+        <Boton tipo="fantasma" onClick={onCerrar}>Cancelar</Boton>
+        {estado?.error && <span role="alert" style={{ fontSize: 11.5, color: ROJO }}>{estado.error}</span>}
+      </div>
+    </div>
+  )
+}
+
+const ESTADO_DE_AJUSTE = {
+  aplicado: null,
+  deshecho: { texto: 'Deshecho', color: TINTA_TENUE },
+  huerfano: { texto: 'Sin aplicar: el movimiento original ya no está en la caja', color: ROJO },
+}
+
+const quienTexto = q => (q === 'admin' ? 'Administración' : q)
+
+/**
+ * Los ajustes del administrador en la semana: el precedente.
+ *
+ * Cada uno con lo que había (tachado), lo que lo sustituye, el motivo, la nota,
+ * quién y cuándo, y cuánto movió lo que debe haber en caja. Uno deshecho no se
+ * borra: se queda tachado con quién lo deshizo.
+ */
+function AjustesDeLaSemana({ b, plaza, esAdmin, formulario, setFormulario, onAjustar }) {
+  const [deshaciendo, setDeshaciendo] = useState(null)
+  const [error, setError] = useState(null)
+  const lista = b.ajustes ?? []
+  const vigentes = lista.filter(c => c.estado === 'aplicado')
+  const efecto = vigentes.reduce((a, c) => a + efectoDe(c), 0)
+  if (!lista.length && !esAdmin) return null
+
+  const deshacer = async id => {
+    if (!window.confirm('¿Deshacer este ajuste? Se queda en la lista como deshecho, para que conste.')) return
+    setDeshaciendo(id); setError(null)
+    try { await onAjustar({ plaza, deshacer: id }) } catch (e) { setError(e.message || 'No se pudo deshacer.') }
+    setDeshaciendo(null)
+  }
+  const conSigno = v => `${v >= 0 ? '+' : '−'}${pesos(Math.abs(v))}`
+
+  return (
+    <Seccion c={C.alerta} titulo="Ajustes del administrador" data-ajustes-corte={vigentes.length}
+             total={vigentes.length ? `${conSigno(efecto)} en caja` : null}
+             sub={vigentes.length
+               ? `${vigentes.length} ${vigentes.length === 1 ? 'ajuste vigente' : 'ajustes vigentes'} · lo de Eleventa no cambia`
+               : 'Para corregir lo que la tienda no registró bien, sin tocar Eleventa'}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {lista.length === 0 && (
+          <p style={{ fontSize: 11.5, color: TINTA_TENUE, margin: 0, lineHeight: 1.5 }}>
+            Esta semana no tiene ajustes. Si la tienda dejó un gasto sin concepto, no registró un sueldo o capturó algo mal,
+            pulsa «Ajustar» en el movimiento o agrega el que falta. Cada ajuste queda aquí con su motivo y su nota.
+          </p>
+        )}
+        {lista.map(c => {
+          const e = ESTADO_DE_AJUSTE[c.estado]
+          const vivo = c.estado === 'aplicado'
+          return (
+            <div key={c.id} data-ajuste={c.id} data-estado-ajuste={c.estado} style={{
+              borderLeft: '3px solid ' + (vivo ? C.alerta.fuerte : LINEA), padding: '4px 0 4px 10px',
+              fontSize: 12, color: TINTA_SUAVE, lineHeight: 1.55, opacity: c.estado === 'deshecho' ? 0.65 : 1,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                <strong style={{ color: TINTA, textDecoration: c.estado === 'deshecho' ? 'line-through' : 'none' }}>
+                  {ACCIONES_DE_AJUSTE[c.accion] ?? c.accion} · {textoMotivo(c.motivo)}
+                </strong>
+                {vivo && (
+                  <span style={{ fontWeight: 800, color: C.alerta.fuerte, fontVariantNumeric: 'tabular-nums' }}>
+                    {efectoDe(c) === 0 ? 'no cambia lo esperado: sólo de lista' : `${conSigno(efectoDe(c))} en caja`}
+                  </span>
+                )}
+              </div>
+              {c.original && (
+                <div>
+                  <span style={{ textDecoration: 'line-through', color: TINTA_TENUE }}>
+                    {diaCorto(c.original.f)} · {c.original.concepto || 'sin concepto en la caja'} · {pesos(c.original.monto)}
+                  </span>
+                  <span style={{ fontSize: 10.5, color: TINTA_TENUE }}> (punto de venta)</span>
+                </div>
+              )}
+              {c.nuevo && (
+                <div>
+                  {c.original ? '→ ' : '+ '}{diaCorto(c.nuevo.f)} · <strong style={{ color: TINTA }}>{CATEGORIAS_DE_AJUSTE[c.nuevo.categoria]?.texto ?? c.nuevo.categoria}</strong>
+                  {' '}· {c.nuevo.concepto} · <strong style={{ color: TINTA }}>{pesos(c.nuevo.monto)}</strong>
+                </div>
+              )}
+              <div style={{ fontStyle: 'italic' }}>«{c.nota}»</div>
+              <div style={{ fontSize: 10.5, color: TINTA_TENUE }}>
+                {quienTexto(c.quien)} · {cuando(c.cuando)}
+                {c.deshecho && <> · deshecho por {quienTexto(c.deshecho.quien).toLowerCase()} · {cuando(c.deshecho.cuando)}</>}
+              </div>
+              {e && <div style={{ fontSize: 10.5, fontWeight: 700, color: e.color }}>{e.texto}</div>}
+              {esAdmin && c.estado !== 'deshecho' && (
+                <button type="button" data-deshacer-ajuste={c.id} disabled={deshaciendo === c.id} onClick={() => deshacer(c.id)}
+                        style={{ marginTop: 3, border: 0, background: 'none', padding: 0, fontSize: 11, fontWeight: 700, color: TINTA_SUAVE, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {deshaciendo === c.id ? 'Deshaciendo…' : 'Deshacer'}
+                </button>
+              )}
+            </div>
+          )
+        })}
+        {error && <span role="alert" style={{ fontSize: 11.5, color: ROJO }}>{error}</span>}
+        {esAdmin && (formulario
+          ? <FormularioDeAjuste key={formulario.original?.ref ?? 'nuevo'} b={b} plaza={plaza} original={formulario.original}
+                                onAjustar={onAjustar} onCerrar={() => setFormulario(null)} />
+          : (
+            <div>
+              <Boton data-agregar-ajuste onClick={() => setFormulario({ original: null })}>+ Agregar un movimiento que no se registró</Boton>
+            </div>
+          ))}
+      </div>
     </Seccion>
   )
 }
@@ -700,23 +987,34 @@ function CifrasDeLaSemana({ b }) {
   )
 }
 
-function BloqueDeSemana({ b, plaza, ciclo, editable, esAdmin, onGuardar }) {
+function BloqueDeSemana({ b, plaza, ciclo, editable, esAdmin, onGuardar, onAjustar }) {
+  // El formulario de ajuste es uno por semana: abrir otro cierra el anterior.
+  const [formulario, setFormulario] = useState(null)
+  const ajustar = esAdmin && onAjustar ? m => setFormulario({ original: m }) : null
+  const vigentes = (b.ajustes ?? []).filter(c => c.estado === 'aplicado').length
   return (
     <Tarjeta data-bloque-corte={b.clave} data-estado-corte={b.estado}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <h3 style={{ fontSize: 15.5, fontWeight: 800, color: TINTA, margin: 0 }}>
           Semana del {tituloSemana(b.semana)}
+          {vigentes > 0 && (
+            <span data-semana-ajustada={vigentes} style={{ marginLeft: 8, fontSize: 11, fontWeight: 800, color: C.alerta.fuerte, background: C.alerta.suave, border: '1px solid ' + C.alerta.borde, borderRadius: 999, padding: '2px 8px', verticalAlign: 'middle' }}>
+              ✏️ {vigentes} {vigentes === 1 ? 'ajuste' : 'ajustes'} del administrador
+            </span>
+          )}
         </h3>
         <Semaforo estado={b.estado} diferencia={b.diferencia} />
       </div>
       <CifrasDeLaSemana b={b} />
       <VentasDeLaSemana b={b} />
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12 }}>
-        <Lista c={C.entradas} titulo="Otras entradas" lista={b.listas.entradas} total={b.entradas} vacio="Ninguna entrada registrada en el punto de venta." />
-        <Lista c={C.gastos} titulo="Gastos de la semana" lista={b.listas.gastos} total={b.gastos} vacio="Ningún gasto registrado en el punto de venta." />
-        <Lista c={C.sueldo} titulo="Sueldo" lista={b.listas.sueldos} total={b.sueldo} vacio="Ningún sueldo registrado como salida." conTrabajador />
-        <Lista c={C.comisiones} titulo="Comisiones" lista={b.listas.comisiones ?? []} total={b.comisiones ?? 0} vacio="Ninguna comisión registrada como salida." conTrabajador />
+        <Lista c={C.entradas} titulo="Otras entradas" lista={b.listas.entradas} total={b.entradas} vacio="Ninguna entrada registrada en el punto de venta." onAjustar={ajustar} />
+        <Lista c={C.gastos} titulo="Gastos de la semana" lista={b.listas.gastos} total={b.gastos} vacio="Ningún gasto registrado en el punto de venta." onAjustar={ajustar} />
+        <Lista c={C.sueldo} titulo="Sueldo" lista={b.listas.sueldos} total={b.sueldo} vacio="Ningún sueldo registrado como salida." conTrabajador onAjustar={ajustar} />
+        <Lista c={C.comisiones} titulo="Comisiones" lista={b.listas.comisiones ?? []} total={b.comisiones ?? 0} vacio="Ninguna comisión registrada como salida." conTrabajador onAjustar={ajustar} />
       </div>
+      <AjustesDeLaSemana b={b} plaza={plaza} esAdmin={esAdmin && !!onAjustar}
+                         formulario={formulario} setFormulario={setFormulario} onAjustar={onAjustar} />
       <p style={{ fontSize: 10.5, color: TINTA_TENUE, margin: '-6px 0 0', lineHeight: 1.5 }}>
         Todo esto sale de las entradas y salidas de efectivo del punto de venta. <strong>El sueldo se registra ahí como
         salida, con la palabra «sueldo» y el nombre del trabajador</strong>; si no, lo esperado queda por encima de lo que
@@ -973,7 +1271,14 @@ function ResumenDeTodas({ plazas }) {
           <tbody>
             {g.filas.map((f, i) => (
               <tr key={f.slug} data-plaza-resumen={f.slug} style={fila(i)}>
-                <Td fuerte>{plazas.find(p => p.slug === f.slug)?.nombre}{f.ciclo ? ' · ciclo de 4 semanas' : ''}</Td>
+                <Td fuerte>
+                  {plazas.find(p => p.slug === f.slug)?.nombre}{f.ciclo ? ' · ciclo de 4 semanas' : ''}
+                  {(f.ajustes ?? []).some(c => c.estado === 'aplicado') && (
+                    <span data-plaza-ajustada style={{ display: 'block', fontSize: 10.5, fontWeight: 700, color: C.alerta.fuerte }}>
+                      ✏️ con ajustes del administrador
+                    </span>
+                  )}
+                </Td>
                 <Td num color={f.fondo === null || f.fondo === undefined ? AMBAR : TINTA}>{f.fondo === null || f.fondo === undefined ? 'sin asignar' : pesos(f.fondo)}</Td>
                 <ConBarra parte={num(f.ventaTotal) / maxVenta} c={C.ventas}>{pesos(f.ventaTotal)}</ConBarra>
                 <Td num>{f.esperadoEnCaja === null ? '—' : pesos(f.esperadoEnCaja)}</Td>
@@ -1006,7 +1311,7 @@ export default function CortePanel({ plazaFija = null }) {
   const [elegida, setElegida] = useState(null)
   const pedir = plazaFija ?? elegida
   const c = useCorte(token, isAdmin ? (elegida ?? 'todas') : pedir)
-  const { plazas, cargando, error, hoy, mover, esActual, hayAnterior, guardar, guardarFondo } = c
+  const { plazas, cargando, error, hoy, mover, esActual, hayAnterior, guardar, guardarFondo, ajustar } = c
 
   if (cargando && !plazas.length) return <p className="tablero-cargando">Leyendo el corte…</p>
 
@@ -1071,7 +1376,7 @@ export default function CortePanel({ plazaFija = null }) {
             )
             : (
               <BloqueDeSemana key={b.clave} b={b} plaza={p.slug} ciclo={!!p.ciclo} esAdmin={isAdmin}
-                              editable={!todas} onGuardar={guardar} />
+                              editable={!todas} onGuardar={guardar} onAjustar={isAdmin ? ajustar : null} />
             ))}
           {p.global && <BloqueGlobal g={p.global} ciclo={p.ciclo} />}
           <Mayoristas ventas={p.ventas} plaza={p.slug} hoy={hoy} />

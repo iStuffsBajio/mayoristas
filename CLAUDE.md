@@ -2328,6 +2328,46 @@ plaza no tuviera la columna, la venta de esa plaza sale igual. **No se ha
 comprobado** que Eleventa guarde ahí lo que se teclea al cobrar: se verá con la
 primera sincronización.
 
+### Los ajustes del administrador al corte (2026-11-17)
+
+Lo pidió el dueño con el corte de Aguascalientes delante: gastos «sin concepto
+en la caja» y el sueldo sin registrar. «Meter ajustes de administrador que
+quede registrado que son ajustes y agregar nota … sin alterar el registro del
+eleventa», y «dejando el precedente de que se hizo un ajuste en esa semana».
+
+- **Lo de Eleventa no se toca.** Viven en `caja/correcciones.json` (privado) y
+  se aplican AL LEER, como `caja/ajustes.json`: `caja/<plaza>.json` se
+  regenera del respaldo y lo escrito encima se borraría solo. Tres acciones:
+  agregar, anular y sustituir. Motivo de lista cerrada y **nota obligatoria**;
+  el autor, la hora y el original los pone el servidor.
+- **Un movimiento de Eleventa no trae identificador**: se le da una huella
+  (día, tipo, monto, concepto y, entre idénticos, cuál va primero). Está escrita
+  dos veces —`src/lib/correcciones.js` y `backend/src/correcciones.js`— y
+  `backend/test/correcciones.test.js` las pone frente a frente. Si la tienda
+  corrige el movimiento en su caja, el ajuste queda **huérfano**: no se aplica
+  ni la mitad —anular algo que ya no está y sumar su sustituto restaría dos
+  veces— y se dice en pantalla.
+- **Deshacer no borra**: el ajuste se queda tachado con quién y cuándo. Al
+  revés que las excepciones de Revisar, aquí el registro ES el punto.
+- **Cuentan en el corte Y en los depósitos** (`useCaja` también los aplica):
+  son el mismo dinero, y si sólo uno los contara las dos vistas de la misma
+  pestaña dirían cosas distintas.
+- **La tienda los ve**, con motivo y nota: sin ellos su corte cambiaría sin que
+  supiera por qué. Ajustar es sólo del administrador.
+- El movimiento del ajuste lleva su **categoría** (gasto, sueldo, comisión,
+  otra entrada) y va a esa lista sin depender de cómo esté escrito el concepto.
+
+### 🔒 Fundas a mayoreo y a público (2026-11-17)
+
+Lo pidió el dueño para ver el factor de cada plaza: debajo de las fundas de
+cada día, «mayoreo / público», y en el total, qué parte fue a mayoreo. **Es de
+mayoreo la funda cobrada con la casilla de mayoreo o en un ticket con
+mayorista apuntado** —la misma regla que deja una venta fuera de la comisión—.
+Recordar que el mostrador da precio de mayoreo sin marcar la casilla (ver «La
+lista de precios NO es el precio»): esas cuentan como público. Sale de
+`fundasMayoreo` en `porDiaTipo`, que llega con la próxima sincronización;
+mientras falte en algún día de la semana, no se pinta un reparto a medias.
+
 ### Cada concepto tiene su color, y no es adorno
 
 Lo pidió el dueño el 2026-11-09 viendo la primera versión: «se ve demasiado

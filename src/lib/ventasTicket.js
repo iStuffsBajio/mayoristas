@@ -382,8 +382,15 @@ export function agregarVentas({ tickets, lineas, desdeDia = null, detalleDias = 
 
       if (detalleDias > 0) {
         const tipo = tipoDePieza(l)
-        const ft = porDiaTipo.get(h.dia) ?? { fundas: 0, hidrogel: 0, stickers: 0, otros: 0 }
-        if (tipo === 'funda') ft.fundas += piezas
+        const ft = porDiaTipo.get(h.dia) ?? { fundas: 0, fundasMayoreo: 0, hidrogel: 0, stickers: 0, otros: 0 }
+        if (tipo === 'funda') {
+          ft.fundas += piezas
+          // 🔒 Una funda es de MAYOREO si se cobró con la casilla o si el
+          // ticket lleva apuntado a un mayorista: la misma regla que deja fuera
+          // de la comisión «sin mayoreo ni mayorista». Lo pidió el dueño el
+          // 2026-11-17 para ver el factor de cada plaza en el corte.
+          if (may || clienteDe.has(String(l.ticket))) ft.fundasMayoreo += piezas
+        }
         else if (tipo === 'hidrogel') ft.hidrogel += piezas
         else if (tipo === 'sticker') ft.stickers += piezas
         else ft.otros += piezas

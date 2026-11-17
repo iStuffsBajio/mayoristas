@@ -12,6 +12,7 @@ import {
 } from './api'
 import { PARAMETROS_VACIOS, bloquesSemanales, acumuladoPorDepositar, efectivoEnCaja, tieneDatos } from './caja'
 import { hoyLocal } from './fechas'
+import { aplicarCorrecciones } from './correcciones'
 
 /** Las cinco plazas que manejan efectivo, en el orden en que se miran. */
 export const PLAZAS_CAJA = [
@@ -105,10 +106,15 @@ export function useCaja(token, { semanas = SEMANAS, hasta = null } = {}) {
     // Lo que capturó el personal en Eleventa y lo que se capturó aquí, juntos.
     // Se distinguen por `origen` para poder decirlo en pantalla: uno lo teclea
     // quien cobra y el otro quien revisa.
-    const movimientos = [
+    //
+    // Y con los ajustes del administrador al corte ya aplicados: el depósito
+    // de una semana es el mismo dinero que su corte, y si uno los contara y el
+    // otro no, las dos pantallas de la misma pestaña dirían cosas distintas.
+    // Lo de Eleventa no se toca: ver `correcciones.js`.
+    const movimientos = aplicarCorrecciones([
       ...(flujo?.movimientos ?? []),
       ...Object.values(datos?.movimientos?.[p.slug] ?? {}),
-    ]
+    ], Object.values(datos?.correcciones?.[p.slug] ?? {})).movimientos
 
     // Las ocho semanas, para las cuentas que NO pueden olvidar lo viejo.
     const todos = bloquesSemanales({

@@ -554,6 +554,7 @@ const AJUSTES_GUARDADOS = new Map()
 const {
   diasParaTienda, movimientosParaTienda, ventasParaTienda, parametrosParaTienda,
 } = await import('../backend/src/cortes.js')
+const { validarAjuste, deshacerAjuste } = await import('../backend/src/correcciones.js')
 
 // La sesión de la ventana que corre: el servidor contesta distinto a una tienda
 // y al administrador, y el mock tiene que hacer lo mismo.
@@ -562,6 +563,11 @@ const CORTES_GUARDADOS = {}      // plaza -> { lunes -> registro }
 const POSTS_DE_CORTE = []
 const FONDOS_GUARDADOS = {}
 const POSTS_DE_FONDO = []
+// Los ajustes del administrador al corte, validados por el MISMO código del
+// servidor: si la huella de la pantalla y la del servidor se separaran, el
+// ajuste se rechazaría aquí igual que allá.
+const AJUSTES_DE_CORTE = {}     // plaza -> { id -> ajuste }
+const POSTS_DE_AJUSTE = []
 
 const PLAZAS_DEL_CORTE = ['leon', 'san-luis', 'aguascalientes', 'torreon']
 const CAJA_TORREON = {
@@ -589,7 +595,7 @@ function ventasDeCorte(slug) {
   }[slug] ?? []
   return {
     plaza: slug, detalleDias: 120, hasta: dias[6],
-    porDiaTipo: dias.map((f, i) => ({ f, fundas: 6 + i, hidrogel: 2, stickers: 3, otros: i === 2 ? 4 : 0 })),
+    porDiaTipo: dias.map((f, i) => ({ f, fundas: 6 + i, fundasMayoreo: 2 + i, hidrogel: 2, stickers: 3, otros: i === 2 ? 4 : 0 })),
     // Fechas contadas hacia ATRAS desde hoy: una venta de mañana no existe, y
     // el ranking descarta lo futuro. Con los dias de la semana en curso, un
     // lunes la mitad quedaba fuera y el «menos activo» no salia.
@@ -627,6 +633,7 @@ function datosDeCorteMock(slug, esAdmin) {
     parametros: parametrosParaTienda(slug in FONDOS_GUARDADOS ? { ...params, fondoFijo: FONDOS_GUARDADOS[slug] } : params),
     ventas: ventasParaTienda(ventasDeCorte(slug), { conCajero: esAdmin }),
     conteos: CORTES_GUARDADOS[slug] ?? {},
+    correcciones: Object.values(AJUSTES_DE_CORTE[slug] ?? {}),
   }
 }
 
@@ -636,6 +643,21 @@ function respuestaDeCorte(u, opciones, sesionAdmin, plazaDeSesion) {
     POSTS_DE_FONDO.push(c)
     FONDOS_GUARDADOS[c.sucursal] = c.fondoFijo
     return { ok: true, plaza: c.sucursal, fondoFijo: c.fondoFijo }
+  }
+  if (/\/corte\/ajuste/.test(u)) {
+    const c = JSON.parse(opciones?.body ?? '{}')
+    POSTS_DE_AJUSTE.push(c)
+    if (!sesionAdmin) { errores.push('una TIENDA mandó un ajuste del corte'); return { ok: false } }
+    const dePlaza = AJUSTES_DE_CORTE[c.plaza] ??= {}
+    const r = c.deshacer
+      ? deshacerAjuste(dePlaza[c.deshacer], { quien: 'admin' })
+      : validarAjuste(c, {
+        semana: c.semana, movimientos: (c.plaza === 'torreon' ? CAJA_TORREON : caja.flujos[c.plaza]).movimientos,
+        vigentes: Object.values(dePlaza), quien: 'admin', id: `aj-${POSTS_DE_AJUSTE.length}`,
+      })
+    if (r.error) { errores.push(`el servidor rechazaria el ajuste: ${r.error}`); return { ok: false } }
+    dePlaza[r.ajuste.id] = r.ajuste
+    return { ok: true, correcciones: Object.values(dePlaza) }
   }
   if (opciones?.method === 'POST') {
     const c = JSON.parse(opciones.body ?? '{}')
@@ -862,7 +884,7 @@ function respuesta(url, opciones) {
   if (/\/crm\//.test(u)) {
     return respuestaDeCrm(u, opciones, SESION_ACTUAL.isAdmin, SESION_ACTUAL.branch)
   }
-  if (/\/corte(\/conteo)?(\?|$)|\/caja\/fondo/.test(u)) {
+  if (/\/corte(\/conteo|\/ajuste)?(\?|$)|\/caja\/fondo/.test(u)) {
     return respuestaDeCorte(u, opciones, SESION_ACTUAL.isAdmin, SESION_ACTUAL.branch)
   }
   if (opciones?.method === 'POST' && /\/ajustes(\?|$)/.test(u)) {
@@ -2795,6 +2817,21 @@ async function corteDeLaTienda(window, donde) {
   for (const t of ['Fundas', 'Hidrogel', 'Stickers', 'Piezas']) {
     if (!cab.includes(t)) errores.push(`${donde} · la tabla de ventas no tiene la columna «${t}»`)
   }
+  // Las fundas con su reparto mayoreo / público: siete días y el total, y el
+  // factor de la semana en el total.
+  const repartos = [...b0.querySelectorAll('[data-fundas-mayoreo]')]
+  if (repartos.length !== 8) errores.push(`${donde} · las fundas traen el reparto mayoreo / público en ${repartos.length} celdas y debían ser 8`)
+  for (const r of repartos) {
+    const total = Number(r.firstChild?.textContent)
+    if (Number(r.dataset.fundasMayoreo) + Number(r.dataset.fundasPublico) !== total) {
+      errores.push(`${donde} · mayoreo + público no suma las fundas: ${r.textContent}`)
+    }
+  }
+  if (!b0.querySelector('[data-factor-mayoreo]')) errores.push(`${donde} · el total de fundas no dice qué parte fue a mayoreo`)
+  // Ajustar el corte es del administrador.
+  if (doc.querySelector('[data-ajustar], [data-agregar-ajuste], [data-deshacer-ajuste]')) {
+    errores.push(`${donde} · una tienda ve los botones para ajustar el corte`)
+  }
 
   // Lo que sale del punto de venta: gastos y sueldos, cada uno en su lista.
   const gastos = b0.querySelector('[data-lista-corte="Gastos de la semana"]')?.textContent ?? ''
@@ -2925,8 +2962,64 @@ async function corteDelAdmin(window, donde) {
     errores.push(`${donde} · guardar el fondo no mandó 1500 para León: ${JSON.stringify(enviado)}`)
   }
   if (!doc.querySelector('[data-fondo-caja="leon"] [data-fondo-guardado]')) errores.push(`${donde} · tras guardar el fondo no dice que se guardó`)
+
+  await ajustesDelAdmin(window, `${donde} · ajustes`)
   return 1
 }
+
+/**
+ * Los ajustes del administrador: el garrafón de León se SUSTITUYE por un
+ * sueldo, se comprueba que cambia de lista y deja precedente, se deshace —y se
+ * queda en la lista como deshecho— y se AGREGA un sueldo que no se registró.
+ */
+async function ajustesDelAdmin(window, donde) {
+  const doc = window.document
+  const bloque = () => doc.querySelector('[data-bloque-corte]')
+  const lista = nombre => bloque()?.querySelector(`[data-lista-corte="${nombre}"]`)?.textContent ?? ''
+  const boton = [...(bloque()?.querySelectorAll('[data-lista-corte="Gastos de la semana"] [data-ajustar]') ?? [])]
+    .find(b => /garrafon/.test(b.closest('tr')?.textContent ?? ''))
+  if (!boton) { errores.push(`${donde} · el garrafón de la semana no tiene botón «Ajustar»`); return }
+  clic(window, boton); await nuevaVuelta(window, 3)
+  const form = () => bloque().querySelector('[data-formulario-ajuste]')
+  if (!form()) { errores.push(`${donde} · «Ajustar» no abrió el formulario`); return }
+  elegir(window, form().querySelector('[data-categoria-ajuste]'), 'sueldo')
+  escribir(window, form().querySelector('[data-concepto-ajuste]'), 'Sueldo Ana Prueba')
+  elegir(window, form().querySelector('[data-motivo-ajuste]'), 'concepto-equivocado')
+  await nuevaVuelta(window, 2)
+  if (!form().querySelector('[data-guardar-ajuste]').disabled) errores.push(`${donde} · se puede guardar un ajuste SIN nota`)
+  escribir(window, form().querySelector('[data-nota-ajuste]'), 'era el sueldo, no el garrafón')
+  await nuevaVuelta(window, 2)
+  clic(window, form().querySelector('[data-guardar-ajuste]')); await nuevaVuelta(window, 6)
+  const enviado = POSTS_DE_AJUSTE.at(-1)
+  if (enviado?.accion !== 'sustituir' || !enviado.ref) errores.push(`${donde} · sustituir no mandó la acción con su huella: ${JSON.stringify(enviado)}`)
+  if (/garrafon/.test(lista('Gastos de la semana'))) errores.push(`${donde} · sustituido, el garrafón sigue contando como gasto`)
+  if (!/Ana Prueba/.test(lista('Sueldo'))) errores.push(`${donde} · el sueldo del ajuste no salió en la lista de sueldos`)
+  if (!bloque().querySelector('[data-lista-corte="Sueldo"] [data-marca-ajuste]')) errores.push(`${donde} · el movimiento del ajuste no lleva la marca de ajuste`)
+  if (!bloque().querySelector('[data-semana-ajustada]')) errores.push(`${donde} · la semana no dice que tiene ajustes`)
+  const precedente = bloque().querySelector('[data-estado-ajuste="aplicado"]')?.textContent ?? ''
+  if (!/garrafon/.test(precedente) || !/era el sueldo/.test(precedente)) {
+    errores.push(`${donde} · el ajuste no enseña el original tachado y la nota: «${precedente}»`)
+  }
+
+  // Deshacer: vuelve el garrafón y el ajuste se QUEDA, como deshecho.
+  window.confirm = () => true
+  clic(window, bloque().querySelector('[data-deshacer-ajuste]')); await nuevaVuelta(window, 6)
+  if (!/garrafon/.test(lista('Gastos de la semana'))) errores.push(`${donde} · deshecho el ajuste, el garrafón no volvió a gastos`)
+  if (!bloque().querySelector('[data-estado-ajuste="deshecho"]')) errores.push(`${donde} · deshacer borró el ajuste: no queda precedente`)
+
+  // Agregar el sueldo que la tienda no registró.
+  clic(window, bloque().querySelector('[data-agregar-ajuste]')); await nuevaVuelta(window, 3)
+  elegir(window, form().querySelector('[data-categoria-ajuste]'), 'sueldo')
+  escribir(window, form().querySelector('[data-monto-ajuste]'), '450')
+  escribir(window, form().querySelector('[data-concepto-ajuste]'), 'Sueldo Beto Prueba')
+  elegir(window, form().querySelector('[data-motivo-ajuste]'), 'no-registrado')
+  escribir(window, form().querySelector('[data-nota-ajuste]'), 'no lo registraron en la caja')
+  await nuevaVuelta(window, 2)
+  clic(window, form().querySelector('[data-guardar-ajuste]')); await nuevaVuelta(window, 6)
+  if (!/Beto Prueba/.test(lista('Sueldo'))) errores.push(`${donde} · el sueldo agregado no salió en la lista de sueldos`)
+  if (bloque().querySelectorAll('[data-ajuste]').length !== 2) errores.push(`${donde} · la semana debía listar 2 ajustes (uno deshecho y uno vigente)`)
+}
+
 
 // ── La nómina ───────────────────────────────────────────────────────────────
 

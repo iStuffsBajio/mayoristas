@@ -8,7 +8,7 @@
 // servidor (`GET /corte`): aquí no se filtra nada que haya que proteger.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { corte as pedirCorte, guardarConteo, guardarFondoCaja } from './api'
+import { corte as pedirCorte, guardarConteo, guardarFondoCaja, ajustarCorte } from './api'
 import { PLAZAS_CORTE, bloquesDeCorte } from './corte'
 import { hoyLocal } from './fechas'
 import { INICIO_HISTORIAL, semanaDe } from './caja'
@@ -54,6 +54,7 @@ export function useCorte(token, plaza = null) {
       const calculo = bloquesDeCorte({
         plaza: p, fecha: referencia,
         caja: d.caja, ventas: d.ventas, params: d.parametros, conteos: d.conteos ?? {},
+        correcciones: d.correcciones ?? [],
       })
       return {
         ...p, ...calculo,
@@ -100,8 +101,22 @@ export function useCorte(token, plaza = null) {
     return r.fondoFijo
   }, [token])
 
+  /**
+   * Un ajuste del administrador. Se pinta lo que devolvió el servidor —todos
+   * los ajustes de la plaza, con su autor y su hora— y el corte se recalcula
+   * solo con ellos.
+   */
+  const ajustar = useCallback(async ajuste => {
+    const r = await ajustarCorte(ajuste, token)
+    setDatos(d => ({
+      ...d,
+      plazas: { ...d.plazas, [ajuste.plaza]: { ...d.plazas[ajuste.plaza], correcciones: r.correcciones ?? [] } },
+    }))
+    return r
+  }, [token])
+
   const recargar = useCallback(() => setVuelta(v => v + 1), [])
 
-  return { plazas, cargando, error, hoy, referencia, mover, esActual, hayAnterior, guardar, guardarFondo, recargar, hoyServidor: datos?.hoy ?? null }
+  return { plazas, cargando, error, hoy, referencia, mover, esActual, hayAnterior, guardar, guardarFondo, ajustar, recargar, hoyServidor: datos?.hoy ?? null }
 }
 

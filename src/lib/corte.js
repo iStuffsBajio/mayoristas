@@ -46,6 +46,7 @@
 //    cuenta sale igual, pero no se puede saber a quién se le pagó.
 
 import { flujoSemana, semanaDe, correrSemana, diasDeSemana, nombreDia, conControl, INICIO_HISTORIAL } from './caja.js'
+import { aplicarCorrecciones, correccionesDeSemana } from './correcciones.js'
 
 const num = v => (Number.isFinite(Number(v)) ? Number(v) : 0)
 
@@ -159,9 +160,15 @@ export function clasificarMovimientos(movs = []) {
     const trabajador = trabajadorDe(m.concepto)
     return { ...m, trabajador, sinNombre: !trabajador }
   }
+  // Lo que el administrador ajustó trae su categoría puesta: va a su lista
+  // por ella, no por cómo esté escrito el concepto.
+  const porCategoria = { entrada: entradas, gasto: gastos }
   for (const m of movs ?? []) {
     if (m?.tipo === 'faltante') continue
-    if (m?.tipo === 'entrada') entradas.push(m)
+    if (m?.categoria === 'sueldo') sueldos.push(conNombre(m))
+    else if (m?.categoria === 'comision') comisiones.push(conNombre(m))
+    else if (porCategoria[m?.categoria]) porCategoria[m.categoria].push(m)
+    else if (m?.tipo === 'entrada') entradas.push(m)
     else if (esComision(m)) comisiones.push(conNombre(m))
     else if (esSueldo(m)) sueldos.push(conNombre(m))
     else gastos.push(m)
@@ -172,7 +179,7 @@ export function clasificarMovimientos(movs = []) {
     totalEntradas: suma(entradas), totalSueldos: suma(sueldos),
     totalComisiones: suma(comisiones), totalGastos: suma(gastos),
     // Cuántas líneas de sueldo o comisión no dicen a quién se le pagó.
-    sinNombre: [...sueldos, ...comisiones].filter(m => !trabajadorDe(m.concepto)).length,
+    sinNombre: [...sueldos, ...comisiones].filter(m => m.sinNombre).length,
   }
 }
 
@@ -202,9 +209,12 @@ export const alPeso = v => Math.round(num(v))
  *   · `sin-control` la semana es anterior a que la plaza registrara sus
  *                   salidas: el esperado es un techo, no una cifra
  */
-export function cuadreSemanal({ semana, caja = {}, ventas = {}, params = {}, conteo = null, acumuladoPrevio = 0 } = {}) {
+export function cuadreSemanal({ semana, caja = {}, ventas = {}, params = {}, conteo = null, acumuladoPrevio = 0, correcciones = [] } = {}) {
+  // Los ajustes del administrador se aplican AL LEER: lo de Eleventa no se
+  // toca. Ver `correcciones.js`.
+  const aplicado = aplicarCorrecciones(caja?.movimientos ?? [], correcciones)
   const flujo = flujoSemana(semana, {
-    dias: caja?.dias ?? [], movimientos: caja?.movimientos ?? [], params,
+    dias: caja?.dias ?? [], movimientos: aplicado.movimientos, params,
   })
 
   // Los movimientos de toda la semana, planos, para clasificarlos de una vez.
@@ -227,7 +237,10 @@ export function cuadreSemanal({ semana, caja = {}, ventas = {}, params = {}, con
       transferencia: f.transferencia, otras: f.otrasNoEfectivo,
       // `null` es «no hay desglose»; cero es «no se vendió nada de eso».
       piezas: p ? {
-        fundas: num(p.fundas), hidrogel: num(p.hidrogel), stickers: num(p.stickers),
+        fundas: num(p.fundas),
+        // `null`: el respaldo es anterior a que se separara. No es «cero a mayoreo».
+        fundasMayoreo: p.fundasMayoreo === undefined || p.fundasMayoreo === null ? null : num(p.fundasMayoreo),
+        hidrogel: num(p.hidrogel), stickers: num(p.stickers),
         total: num(p.fundas) + num(p.hidrogel) + num(p.stickers),
         otros: num(p.otros),
       } : null,
@@ -241,8 +254,12 @@ export function cuadreSemanal({ semana, caja = {}, ventas = {}, params = {}, con
   const cobros = Array.isArray(ventas?.cobrosElectronicos?.filas) ? enLaSemana(ventas.cobrosElectronicos.filas) : null
 
   const conPiezas = dias.filter(d => d.piezas)
+  // Las fundas de mayoreo de la semana sólo se suman si TODOS los días con
+  // piezas las traen: una suma a medias pasaría por el factor de la semana.
+  const mayoreoCompleto = conPiezas.length > 0 && conPiezas.every(d => d.piezas.fundasMayoreo !== null)
   const piezas = conPiezas.length ? {
     fundas: conPiezas.reduce((a, d) => a + d.piezas.fundas, 0),
+    fundasMayoreo: mayoreoCompleto ? conPiezas.reduce((a, d) => a + d.piezas.fundasMayoreo, 0) : null,
     hidrogel: conPiezas.reduce((a, d) => a + d.piezas.hidrogel, 0),
     stickers: conPiezas.reduce((a, d) => a + d.piezas.stickers, 0),
     total: conPiezas.reduce((a, d) => a + d.piezas.total, 0),
@@ -293,6 +310,8 @@ export function cuadreSemanal({ semana, caja = {}, ventas = {}, params = {}, con
     diasSinControl: flujo.diasSinControl,
     estado,
     conteo: conteo ?? null,
+    // El precedente: todo ajuste de esta semana, vigente, deshecho o huérfano.
+    ajustes: correccionesDeSemana(aplicado.correcciones, semana.desde),
   }
 }
 
@@ -350,7 +369,7 @@ export function cicloDe(plaza, fecha) {
  *
  * `conteos` va indexado por el lunes de cada semana.
  */
-export function bloquesDeCorte({ plaza, fecha, caja = {}, ventas = {}, params = {}, conteos = {} } = {}) {
+export function bloquesDeCorte({ plaza, fecha, caja = {}, ventas = {}, params = {}, conteos = {}, correcciones = [] } = {}) {
   const ciclo = cicloDe(plaza, fecha)
 
   if (!ciclo) {
@@ -359,10 +378,10 @@ export function bloquesDeCorte({ plaza, fecha, caja = {}, ventas = {}, params = 
     for (let i = 0; i < SEMANAS_DE_CORTE; i++) {
       const semana = correrSemana(ultima, -i)
       if (semana.desde < semanaDe(INICIO_HISTORIAL).desde) break
-      out.push(cuadreSemanal({ semana, caja, ventas, params, conteo: conteos[semana.desde] ?? null }))
+      out.push(cuadreSemanal({ semana, caja, ventas, params, correcciones, conteo: conteos[semana.desde] ?? null }))
     }
     // Nunca vacío: la semana en curso sale siempre.
-    if (!out.length) out.push(cuadreSemanal({ semana: ultima, caja, ventas, params, conteo: conteos[ultima.desde] ?? null }))
+    if (!out.length) out.push(cuadreSemanal({ semana: ultima, caja, ventas, params, correcciones, conteo: conteos[ultima.desde] ?? null }))
     return { ciclo: null, bloques: out, global: null }
   }
 
@@ -371,7 +390,7 @@ export function bloquesDeCorte({ plaza, fecha, caja = {}, ventas = {}, params = 
   let previo = 0
   const bloques = ciclo.semanas.map(semana => {
     const b = cuadreSemanal({
-      semana, caja, ventas, params, conteo: conteos[semana.desde] ?? null, acumuladoPrevio: previo,
+      semana, caja, ventas, params, correcciones, conteo: conteos[semana.desde] ?? null, acumuladoPrevio: previo,
     })
     previo += b.esperado
     return b
@@ -404,6 +423,7 @@ export function bloquesDeCorte({ plaza, fecha, caja = {}, ventas = {}, params = 
     diferencia: ultimaContada?.diferencia ?? null,
     estado: ultimaContada ? ultimaContada.estado : bloques.every(b => b.estado === 'sin-control') ? 'sin-control' : (fondo === null ? 'sin-fondo' : 'sin-conteo'),
     semanasConConteo: bloques.filter(b => b.contado !== null).length,
+    ajustes: bloques.flatMap(b => b.ajustes ?? []),
     semanas: bloques.length,
   }
   return { ciclo, bloques, global }
@@ -437,6 +457,8 @@ export function resumenGlobal(bloquesPorPlaza = {}) {
     } : null,
     // Tickets de la semana que rompen las reglas de mayoreo, en todas las plazas.
     mayoreo: filas.reduce((a, f) => a + (f.mayoreo?.length ?? 0), 0),
+    // Ajustes vigentes del administrador en lo que se está mirando.
+    ajustes: filas.reduce((a, f) => a + (f.ajustes ?? []).filter(c => c.estado === 'aplicado').length, 0),
     alertas: filas.filter(f => f.estado === 'faltante' || f.estado === 'sobrante'),
     faltantes: filas.filter(f => f.estado === 'faltante'),
   }

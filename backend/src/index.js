@@ -17,6 +17,7 @@ import {
   PLAZAS_CORTE, INICIO_DEL_CORTE, esLunes, lunesDe, validarConteo, diasParaTienda,
   movimientosParaTienda, ventasParaTienda, parametrosParaTienda, registroDeConteo,
 } from './cortes.js'
+import { validarAjuste, deshacerAjuste } from './correcciones.js'
 import * as CRM from './clientes.js'
 import { almacenDeClientes, Conflicto } from './clientes-s3.js'
 import { esRutaDeMeta, rutaMetaWebhook, hayCola, encolarSalida } from './meta.js'
@@ -1140,16 +1141,20 @@ async function rutaCaja(evento, origen) {
   const plazas = [...PLAZAS_CAJA]
   const flujos = await Promise.all(plazas.map(async p => [p, await leerJson(`caja/${p}.json`)]))
 
-  const [depositos, ajustes, parametros, movimientos] = await Promise.all([
+  const [depositos, ajustes, parametros, movimientos, correcciones] = await Promise.all([
     leerJson('caja/depositos.json'),
     leerJson('caja/ajustes.json'),
     leerJson('caja/parametros.json'),
     leerJson('caja/movimientos.json'),
+    leerJson('caja/correcciones.json'),
   ])
 
   return responder(origen, 200, {
     flujos: Object.fromEntries(flujos),
     depositos, ajustes, parametros, movimientos,
+    // Los ajustes del corte también mueven lo que debe llegar al banco: el
+    // depósito de una semana es el mismo dinero que su corte.
+    correcciones,
   })
 }
 
@@ -1462,11 +1467,12 @@ const claveCortes = plaza => `cortes/${plaza}.json`
 
 /** Todo lo que el corte de una plaza necesita, ya recortado para una tienda. */
 async function datosDeCorte(plaza, params, hoy, esAdmin = false) {
-  const [cajaPos, ventas, conteos, deLaPagina] = await Promise.all([
+  const [cajaPos, ventas, conteos, deLaPagina, correcciones] = await Promise.all([
     leerJson(`caja/${plaza}.json`),
     leerJson(claveVentas(plaza)),
     leerJson(claveCortes(plaza)),
     leerJson('caja/movimientos.json'),
+    leerJson('caja/correcciones.json'),
   ])
   // Las salidas capturadas en la página —«Registrar movimiento» de Efectivo y
   // las comisiones autorizadas en Nómina— salen de la caja igual que las del
@@ -1491,6 +1497,9 @@ async function datosDeCorte(plaza, params, hoy, esAdmin = false) {
     parametros: parametrosParaTienda(params?.[plaza]),
     ventas: ventasParaTienda(ventas, { conCajero: esAdmin }),
     conteos,
+    // Los ajustes del administrador, con su motivo y su nota. La tienda también
+    // los ve: sin ellos, su corte cambiaría sin que supiera por qué.
+    correcciones: Object.values(correcciones?.[plaza] ?? {}),
   }
 }
 
@@ -1574,6 +1583,54 @@ async function rutaGuardarConteo(evento, origen, cuerpo) {
     }))
   }
   return responder(origen, 200, { ok: true, registro })
+}
+
+/**
+ * `POST /corte/ajuste`: un ajuste del administrador a la semana de una plaza.
+ *
+ * Agregar lo que no se registró, anular lo que sobra o sustituirlo por lo
+ * correcto, siempre con motivo y nota. O deshacer uno (`deshacer: <id>`), que
+ * lo marca y NO lo borra. Lo de Eleventa no se toca: ver
+ * `src/lib/correcciones.js`.
+ */
+async function rutaAjusteDeCorte(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion?.admin) return responder(origen, 403, { error: 'Sólo el administrador ajusta el corte.' })
+
+  const plaza = String(cuerpo?.plaza ?? '').trim()
+  if (!PLAZAS_CORTE.includes(plaza)) return responder(origen, 400, { error: 'Esa plaza no lleva corte.' })
+
+  const todos = await leerJson('caja/correcciones.json')
+  const dePlaza = { ...(todos[plaza] ?? {}) }
+  const quien = quienEs(sesion)
+
+  if (cuerpo?.deshacer) {
+    const r = deshacerAjuste(dePlaza[String(cuerpo.deshacer)], { quien })
+    if (r.error) return responder(origen, 400, { error: r.error })
+    dePlaza[r.ajuste.id] = r.ajuste
+  } else {
+    const semana = String(cuerpo?.semana ?? '')
+    if (!esLunes(semana)) return responder(origen, 400, { error: 'La semana se identifica por su lunes, en formato AAAA-MM-DD.' })
+    if (semana < lunesDe(INICIO_DEL_CORTE)) return responder(origen, 400, { error: 'El corte arranca el 2 de noviembre de 2026.' })
+    if (semana > lunesDe(hoyMexico())) return responder(origen, 400, { error: 'Esa semana todavía no empieza.' })
+
+    // Los movimientos tal como los ve la pantalla: los del punto de venta y
+    // los capturados en la página, en ese orden. El orden importa: dos
+    // movimientos idénticos se distinguen por cuál va primero.
+    const [cajaPos, deLaPagina] = await Promise.all([leerJson(`caja/${plaza}.json`), leerJson('caja/movimientos.json')])
+    const movimientos = [...(Array.isArray(cajaPos?.movimientos) ? cajaPos.movimientos : []), ...Object.values(deLaPagina?.[plaza] ?? {})]
+
+    const r = validarAjuste(cuerpo, {
+      semana, movimientos, vigentes: Object.values(dePlaza), quien,
+      id: `aj-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
+    })
+    if (r.error) return responder(origen, 400, { error: r.error })
+    dePlaza[r.ajuste.id] = r.ajuste
+  }
+
+  if (Object.keys(dePlaza).length > 5000) return responder(origen, 413, { error: 'Demasiados ajustes guardados.' })
+  await escribirJson('caja/correcciones.json', { ...todos, [plaza]: dePlaza })
+  return responder(origen, 200, { ok: true, correcciones: Object.values(dePlaza) })
 }
 
 // ── Clientes y bandeja del CRM ─────────────────────────────────────────────
@@ -1963,6 +2020,7 @@ export async function handler(evento) {
     if (metodo === 'GET'  && ruta === '/nomina/foto')     return await rutaVerFotoNomina(evento, origen)
     if (metodo === 'GET'  && ruta === '/corte')           return await rutaCorte(evento, origen)
     if (metodo === 'POST' && ruta === '/corte/conteo')    return await rutaGuardarConteo(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/corte/ajuste')    return await rutaAjusteDeCorte(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/caja')            return await rutaCaja(evento, origen)
     if (metodo === 'POST' && ruta === '/caja/deposito')   return await rutaGuardarDeposito(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/caja/ajuste')     return await rutaGuardarAjusteCaja(evento, origen, cuerpo)
