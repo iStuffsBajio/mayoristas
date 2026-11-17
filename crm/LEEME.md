@@ -938,3 +938,79 @@ SIN emojis (se rompen al pasar por la URL del enlace de wa.me).
 **El evaluador quita los enlaces del texto** antes de revisar cantidades y
 precios (un «%20pz» de una dirección contaba como cantidad). Para comprobar un
 enlace hay `debeCrudo`, que mira el texto tal cual salió.
+
+---
+
+## Muestras de materiales, stickers y programa de mayoristas (2026-11-16)
+
+**Fotos de muestra** (`muestras.js`, herramienta `mandar_muestra`). Contestan
+«¿cómo es la de goma?» y «¿cómo reconozco la tienda?». No son las fotos por
+modelo (`mandar_foto`). Las dio el dueño; los originales viven fuera del
+repositorio (pesan hasta 23 MB) y `scripts/crm-preparar-fotos.py` saca la versión
+ligera a `public/crm/`: su mapa `SELECCION` decide qué se publica.
+
+- **JPEG, no WebP:** es lo que la Cloud API de WhatsApp documenta para imágenes.
+  ⚠️ Las fotos por modelo (`public/mockups/`) siguen en WebP y **no se ha
+  comprobado que WhatsApp las entregue**: mirar los avisos de envío fallido.
+- Hay muestra de: goma flexible, goma flexible de color (sólo iPhone 11 a 12 Pro
+  Max, según su ficha), cristal, rígida, uso rudo, y las tiendas de León, San
+  Luis y Aguascalientes. **Faltan:** las cuatro micas, los stickers y la tienda de
+  Torreón. De lo que falta el bot dice que no tiene foto; no manda otra parecida.
+- **No se publicaron**, a propósito: una muestra con una marca de cigarros, una con
+  el código QR de un tercero, y las de «hidrogel con diseño» (es producto exclusivo
+  de mayoristas, con mínimo de 25 piezas: el bot atiende público).
+- OneDrive borró 4 de las 12 fotos recién generadas, una vez. La prueba
+  `muestras.test.js` falla si falta alguna: correr de nuevo el guion las repone.
+
+**Stickers** (`STICKERS` en `precio.js`): grande $100 público / $60 mayoreo, mini
+$10. Salen en `lista_de_precios`. No tienen existencia —se hacen al momento—, así
+que el bot nunca dice que no hay. El sticker con diseño del cliente lo cotiza la
+tienda.
+
+**Programa de mayoristas** (`mayoristas-info.js`, herramienta `programa_mayorista`).
+Sólo lo firme del documento de afiliación: requisitos, cómo se pide y cómo se paga.
+El bot no da de alta: pasa con la tienda. **Queda fuera lo que el documento marca
+como pendiente o en conflicto**: la regla de inactividad (2 meses contra 1 funda al
+mes), los precios de locatario, la sanción, el pago con tarjeta, la prenda mínima y
+los prefijos M/PT.
+
+🔒 Por confirmar con el dueño, y NO aplicado: el documento dice rígida al público
+$230 (la lista vigente del bot dice $220); trae precios de mayoreo de micas y de
+exhibidores (hoy los cotiza la tienda); y pide en el CRM una ficha de mayorista con
+nivel, última compra y alertas a 45 y 60 días (es estructura nueva: ver
+`docs/crm-motor-comercial.md`).
+
+### Fichas de material como primera imagen, y la foto de la tienda con su leyenda (2026-11-17)
+
+El dueño dio tres láminas con la descripción de cada material (goma flexible, de
+color y uso rudo) y pidió dos cosas:
+
+- **La ficha es la PRIMERA foto.** Al confirmar para qué teléfono hay y de qué tipo,
+  el bot manda la lámina de ESE material (`mandar_muestra` con `cual: 'ficha'`),
+  una por mensaje. Los ejemplos de trabajos hechos (`cual: 'ejemplos'`) salen cuando
+  piden ver cómo queda. Un material sin lámina (rígida, cristal) usa su foto de
+  siempre. La foto del modelo (`mandar_foto`) sigue aparte. Las láminas van a
+  1072x1920 (llevan texto pequeño; a 1280 no se lee en el teléfono).
+- **Toda foto de tienda lleva la leyenda de distribuidores**, con las palabras del
+  dueño: «esta es nuestra sucursal… otro local con un exhibidor de nuestra marca
+  solo es un distribuidor y no podremos respaldar nuestra garantía ni las promociones
+  de la publicidad». **Sale SOLA con los datos de la sucursal** (`datos_de_sucursal`
+  la empuja en el código, no depende de que el modelo la pida) y va en el pie de la
+  foto, no en el texto. Torreón no tiene foto: no sale y el bot no dice que la manda.
+
+⚠️ **Lo que costó una regresión (de 99% a 85% en el evaluador, y por eso hay
+guardas):** al llegar la ficha el modelo daba todo por explicado con la imagen y
+(1) se quedaba SIN texto, o (2) escribía el precio ANTES de llamar a la herramienta
+y después sólo la pregunta. `contestar()` entrega únicamente el texto del último
+turno, así que lo escrito antes de una herramienta no llega al cliente. Tres capas:
+el resultado de `mandar_muestra` le dice que el mensaje completo va ahora, una regla
+del prompt lo repite, y una red de seguridad en `cerebro.js` (`callado`) pide UNA vez
+que escriba si el turno acaba sin texto. Con eso: 97% y 0 respuestas vacías.
+Queda ~1.4% de respuestas que callan el precio; es el costo medido de las fichas.
+
+El bot no dice «ficha» ni «lámina» al cliente (el evaluador lo castiga).
+
+🔒 **Por confirmar:** la lámina de TPU de color dice «Disponible para iPhone · todos
+los modelos» y la ficha técnica vieja decía «sólo iPhone 11 a iPhone 12 Pro Max».
+Mientras no lo aclare el dueño, el bot NO afirma para qué teléfonos hay de color:
+lo confirma con `buscar_existencias`.

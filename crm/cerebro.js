@@ -27,6 +27,8 @@ import {
 } from './herramientas.js'
 import { telefonos } from './config.js'
 import { datosDeSucursal } from './sucursales-info.js'
+import { muestraDe, CLAVES_DE_MUESTRA, CLASES_DE_MUESTRA, fotoDeSucursal } from './muestras.js'
+import { programaMayorista } from './mayoristas-info.js'
 import { plazaPara, opcionesDePlaza } from './plazas.js'
 import { DIAS_PARA_AVISAR } from './inventario.js'
 import { MODELO } from './modelo.js'
@@ -169,6 +171,14 @@ Las palabras **apartar, reservar, guardar, separar y dejártela** no se usan jam
 
 **Si preguntan dónde están, a qué hora abren o cómo llegar**, usa datos_de_sucursal con su plaza (si no sabes de dónde es, pregúntale la ciudad). Da el domicilio y el enlace del mapa tal cual vienen, sin cambiarlos, y que el enlace vaya solo en su renglón para que WhatsApp lo muestre como tarjeta. Si la herramienta dice que falta algo, el horario por ejemplo, NO lo inventes ni lo adivines: di que la tienda se lo confirma. Una hora inventada manda a alguien a una puerta cerrada.
 
+**La ficha del material es tu primera foto.** Cuando le confirmes a alguien que sí hay para su teléfono y de qué tipo, manda también la ficha de ESE material con mandar_muestra (cual='ficha'): es una lámina que ya explica qué es, y te ahorra escribirlo. Una por mensaje: si hay dos o tres tipos, manda la del que más le conviene o pregúntale cuál prefiere, no las tres. Si el material no tiene ficha, la herramienta manda su foto de siempre. Al cliente nunca le digas «ficha» ni «lámina», son palabras tuyas: para él es «la foto», y casi nunca hace falta decirlo porque se ve. Cuando pida ver cómo queda ya hecho, o dude, usa cual='ejemplos'. La foto del modelo de SU teléfono (mandar_foto) es otra cosa y sigue disponible: ofrécela después, o cuando la pida. **Tu mensaje completo va al FINAL, después de todas las herramientas: lo que escribas antes de llamar una herramienta NO le llega al cliente.** **La ficha acompaña tu mensaje, NUNCA lo reemplaza:** después de mandarla escribes igual el precio, el tipo y la pregunta de siempre; un mensaje que sólo trae la imagen es un fallo. Si mandas la ficha, no repitas en texto lo que ya dice (no digas que es flexible o antiderrapante si la lámina ya lo dice): una línea basta. Si la herramienta dice que no hay foto (de las micas todavía no hay), dilo con naturalidad y no describas una foto que no existe.
+
+**La foto de la tienda sale sola** cuando das los datos de una sucursal, ya con su leyenda sobre los distribuidores. No la pidas ni repitas la leyenda en tu mensaje. Si de esa tienda no hay foto (Torreón), simplemente no sale: no digas que se la mandas.
+
+**Stickers.** Sí los manejamos: lista_de_precios trae el sticker grande y el mini. No tienen existencia, se hacen al momento, así que nunca digas que no hay ni que están agotados. El sticker con el diseño del cliente lo cotiza la tienda, igual que cualquier personalizado.
+
+**Si preguntan cómo ser mayorista, o qué necesitan para comprar por mayoreo**, usa programa_mayorista. Di lo esencial en corto (hay que registrarse con la tienda y los pedidos van por un grupo de WhatsApp oficial) y ofrece pasarlo con su sucursal, que es quien da de alta. No recites la lista completa ni inventes condiciones que la herramienta no trae.
+
 **Cuando ya hay algo concreto, entrega el lead.** Un modelo decidido, o alguien que pide hablar con la tienda, ya es concreto. Llama a entregar_lead y dale el enlace: se abre el chat con su tienda y el pedido ya escrito, no repite nada. No entregues leads de quien sólo preguntó un precio y se fue.
 
 **El enlace NO manda nada.** Sólo abre el chat con el mensaje escrito: la persona tiene que tocarlo y darle enviar. Por eso nunca digas "ya les avisé", "ya les dejé tu pedido" ni "ya quedó": todavía no ha pasado nada. Di lo que sí es: "aquí tienes el enlace, ábrelo y mándaselo a la tienda".
@@ -289,6 +299,26 @@ const HERRAMIENTAS = [
     },
   },
   {
+    name: 'mandar_muestra',
+    description: 'Manda la imagen de muestra de un MATERIAL (cómo es la goma flexible, la rígida, la de uso rudo…). No es la foto de la funda de un modelo concreto: para eso está mandar_foto. Si devuelve sin-foto, no describas ninguna.',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: {
+        que:  { type: 'string', enum: CLAVES_DE_MUESTRA },
+        cual: { type: 'string', enum: CLASES_DE_MUESTRA, description: "ficha: la lámina con la descripción del material (la primera que se manda). ejemplos: fotos de trabajos ya hechos." },
+      },
+      required: ['que', 'cual'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'programa_mayorista',
+    description: 'Requisitos para ser mayorista, cómo se pide y cómo se paga. Úsala cuando pregunten cómo comprar por mayoreo o cómo registrarse. No trae precios: esos salen de precio y lista_de_precios.',
+    strict: true,
+    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+  },
+  {
     name: 'entregar_lead',
     description: 'Arma el enlace con el que el cliente pasa a su sucursal con el pedido ya escrito. Úsala cuando ya hay un modelo y una cantidad, o cuando el cliente pide hablar con alguien.',
     strict: true,
@@ -346,8 +376,32 @@ async function ejecutar(nombre, args, efectos) {
         : { plaza: null, opciones: opcionesDePlaza(), nota: 'No se sabe. Pregúntale al cliente en qué sucursal compra.' }
     }
 
-    case 'datos_de_sucursal':
-      return datosDeSucursal({ plaza: args.plaza })
+    case 'datos_de_sucursal': {
+      const d = datosDeSucursal({ plaza: args.plaza })
+      // La foto de la tienda y su leyenda salen SOLAS con los datos: que dependan
+      // de que el modelo se acuerde de pedirlas es dejar la leyenda al azar.
+      const f = d.error ? null : fotoDeSucursal(args.plaza)
+      if (f) {
+        efectos.imagenes.push({ url: f.url, pie: f.pie, exacta: true })
+        d.fotoDeLaTienda = 'La foto de la tienda ya se mandó con su leyenda. No la repitas ni la describas.'
+      } else if (!d.error) {
+        d.fotoDeLaTienda = 'De esta tienda todavía no hay foto: no digas que se la mandas.'
+      }
+      return d
+    }
+
+    case 'mandar_muestra': {
+      const m = muestraDe({ que: args.que, cual: args.cual })
+      if (m.error) return m
+      for (const f of m.fotos) efectos.imagenes.push({ url: f.url, pie: f.pie, exacta: true })
+      return {
+        mandadas: m.fotos.length, que: m.que, pies: m.fotos.map(f => f.pie), ...(m.nota && { nota: m.nota }),
+        siguiente: 'La imagen YA salió. Ahora escribe tu mensaje COMPLETO para el cliente: el precio, el tipo y la pregunta de siempre. Lo que hayas escrito ANTES de llamar a una herramienta no le llega al cliente: sólo le llega este último mensaje, así que no lo des por dicho. La imagen acompaña tu respuesta, no la reemplaza.',
+      }
+    }
+
+    case 'programa_mayorista':
+      return programaMayorista()
 
     case 'mandar_foto': {
       const f = await fotoDe({ codigo: args.codigo, nombre: args.nombre })
@@ -390,6 +444,7 @@ export async function contestar({ historial = [], entrada, contexto = {} }) {
   const mensajes = [...historial, { role: 'user', content: entrada }]
   const efectos = { imagenes: [], entrega: null }
   const uso = { entrada: 0, salida: 0, cacheLeido: 0, cacheEscrito: 0 }
+  let callado = false
 
   for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
     const res = await cliente.messages.create({
@@ -425,6 +480,16 @@ export async function contestar({ historial = [], entrada, contexto = {} }) {
 
     if (res.stop_reason !== 'tool_use') {
       const texto = res.content.filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
+      // Una respuesta SIN texto no puede salir: el cliente recibiría una imagen y
+      // ningún mensaje. Pasó en cuanto se añadieron las fichas de material: el
+      // modelo daba por explicado todo con la imagen y se callaba (13 de 98
+      // respuestas en la evaluación). Se le pide UNA vez que escriba; si aun así
+      // no hay texto, se devuelve vacío y atender.js usa su respuesta fija.
+      if (!texto && !callado && res.stop_reason === 'end_turn') {
+        callado = true
+        mensajes.push({ role: 'user', content: 'Escribe ahora tu mensaje para el cliente: lleva el precio y la pregunta de siempre. La imagen acompaña tu respuesta, no la reemplaza.' })
+        continue
+      }
       return { ...efectos, texto, historial: mensajes, uso, truncado: res.stop_reason === 'max_tokens' }
     }
 

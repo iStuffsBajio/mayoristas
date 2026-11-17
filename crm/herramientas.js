@@ -25,7 +25,7 @@ import { esProtector } from '../src/lib/familias.js'
 import { nombreSucursal, telefonoWhatsApp } from '../src/lib/sucursales.js'
 import { armarMensaje, enlaceWhatsApp } from '../src/lib/whatsapp.js'
 import { cargar, PLAZAS_PUBLICAS, esPlazaPublica } from './inventario.js'
-import { precioDe, precioCombo, tipoDe, TIPOS, DESCUENTO_COMBO, esMica } from './precio.js'
+import { precioDe, precioCombo, tipoDe, TIPOS, DESCUENTO_COMBO, esMica, STICKERS } from './precio.js'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -424,7 +424,14 @@ export function listaDePrecios({ cliente = 'publico' } = {}) {
       ...(t.remate && cliente === 'publico' && { remate: true, antes: t.antes }),
     })
   }
-  return { cliente, conIva: true, descuentoComboMica: DESCUENTO_COMBO, precios: out }
+  const stickers = Object.values(STICKERS).map(t => ({
+    tipo: t.nombre, monto: cliente === 'mayoreo' ? t.mayoreo : t.publico,
+  }))
+  return {
+    cliente, conIva: true, descuentoComboMica: DESCUENTO_COMBO, precios: out,
+    stickers,
+    notaStickers: 'Los stickers no tienen existencia: se hacen al momento, nunca digas que no hay. El sticker con el diseño del cliente lo cotiza la tienda.',
+  }
 }
 
 // ── Entrega del lead ────────────────────────────────────────────────────────
