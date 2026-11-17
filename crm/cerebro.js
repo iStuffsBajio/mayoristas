@@ -27,6 +27,8 @@ import {
 } from './herramientas.js'
 import { telefonos } from './config.js'
 import { datosDeSucursal } from './sucursales-info.js'
+import { muestraDe, CLAVES_DE_MUESTRA } from './muestras.js'
+import { programaMayorista } from './mayoristas-info.js'
 import { plazaPara, opcionesDePlaza } from './plazas.js'
 import { DIAS_PARA_AVISAR } from './inventario.js'
 import { MODELO } from './modelo.js'
@@ -169,6 +171,12 @@ Las palabras **apartar, reservar, guardar, separar y dejártela** no se usan jam
 
 **Si preguntan dónde están, a qué hora abren o cómo llegar**, usa datos_de_sucursal con su plaza (si no sabes de dónde es, pregúntale la ciudad). Da el domicilio y el enlace del mapa tal cual vienen, sin cambiarlos, y que el enlace vaya solo en su renglón para que WhatsApp lo muestre como tarjeta. Si la herramienta dice que falta algo, el horario por ejemplo, NO lo inventes ni lo adivines: di que la tienda se lo confirma. Una hora inventada manda a alguien a una puerta cerrada.
 
+**Si preguntan cómo es un material, o dudan entre dos**, enséñalo con mandar_muestra en vez de describirlo con muchas palabras: una foto vende más que un párrafo. Manda la muestra de UN material por mensaje (el que preguntó, o el que más le conviene), y acompáñala con una línea, no con la ficha técnica. Si la herramienta dice que no hay foto (de las micas todavía no hay), dilo con naturalidad y no describas una foto que no existe. No confundas: mandar_foto es la foto de la funda para SU modelo de teléfono; mandar_muestra es cómo es el material en general. Cuando des la dirección de una tienda puedes mandar también su foto (mandar_muestra con sucursal-...) para que la reconozca al llegar.
+
+**Stickers.** Sí los manejamos: lista_de_precios trae el sticker grande y el mini. No tienen existencia, se hacen al momento, así que nunca digas que no hay ni que están agotados. El sticker con el diseño del cliente lo cotiza la tienda, igual que cualquier personalizado.
+
+**Si preguntan cómo ser mayorista, o qué necesitan para comprar por mayoreo**, usa programa_mayorista. Di lo esencial en corto (hay que registrarse con la tienda y los pedidos van por un grupo de WhatsApp oficial) y ofrece pasarlo con su sucursal, que es quien da de alta. No recites la lista completa ni inventes condiciones que la herramienta no trae.
+
 **Cuando ya hay algo concreto, entrega el lead.** Un modelo decidido, o alguien que pide hablar con la tienda, ya es concreto. Llama a entregar_lead y dale el enlace: se abre el chat con su tienda y el pedido ya escrito, no repite nada. No entregues leads de quien sólo preguntó un precio y se fue.
 
 **El enlace NO manda nada.** Sólo abre el chat con el mensaje escrito: la persona tiene que tocarlo y darle enviar. Por eso nunca digas "ya les avisé", "ya les dejé tu pedido" ni "ya quedó": todavía no ha pasado nada. Di lo que sí es: "aquí tienes el enlace, ábrelo y mándaselo a la tienda".
@@ -289,6 +297,23 @@ const HERRAMIENTAS = [
     },
   },
   {
+    name: 'mandar_muestra',
+    description: 'Manda la foto de muestra de un MATERIAL (cómo es la goma flexible, la rígida, la de uso rudo…) o de una TIENDA. No es la foto de la funda de un modelo concreto: para eso está mandar_foto. Si devuelve sin-foto, no describas ninguna.',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: { que: { type: 'string', enum: CLAVES_DE_MUESTRA } },
+      required: ['que'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'programa_mayorista',
+    description: 'Requisitos para ser mayorista, cómo se pide y cómo se paga. Úsala cuando pregunten cómo comprar por mayoreo o cómo registrarse. No trae precios: esos salen de precio y lista_de_precios.',
+    strict: true,
+    input_schema: { type: 'object', properties: {}, required: [], additionalProperties: false },
+  },
+  {
     name: 'entregar_lead',
     description: 'Arma el enlace con el que el cliente pasa a su sucursal con el pedido ya escrito. Úsala cuando ya hay un modelo y una cantidad, o cuando el cliente pide hablar con alguien.',
     strict: true,
@@ -348,6 +373,16 @@ async function ejecutar(nombre, args, efectos) {
 
     case 'datos_de_sucursal':
       return datosDeSucursal({ plaza: args.plaza })
+
+    case 'mandar_muestra': {
+      const m = muestraDe({ que: args.que })
+      if (m.error) return m
+      for (const f of m.fotos) efectos.imagenes.push({ url: f.url, pie: f.pie, exacta: true })
+      return { mandadas: m.fotos.length, que: m.que, pies: m.fotos.map(f => f.pie), ...(m.nota && { nota: m.nota }) }
+    }
+
+    case 'programa_mayorista':
+      return programaMayorista()
 
     case 'mandar_foto': {
       const f = await fotoDe({ codigo: args.codigo, nombre: args.nombre })

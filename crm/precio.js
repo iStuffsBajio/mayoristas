@@ -59,6 +59,20 @@ export const TIPOS = {
 }
 
 /**
+ * 🔒 CONFIRMAR — Stickers. Del documento de afiliación del dueño, 2026-11-16:
+ * «grande $60 mayorista / $100 público · mini $10 para todos».
+ *
+ * Van aparte de TIPOS porque no son funda ni mica y NO tienen existencia:
+ * bodega los imprime cuando hacen falta (ver src/lib/produccion.js). Un sticker
+ * nunca está «agotado»: se manda hacer. El personalizado con el diseño del
+ * cliente no tiene precio en lista: lo cotiza la tienda.
+ */
+export const STICKERS = {
+  grande: { nombre: 'Sticker grande', publico: 100, mayoreo: 60 },
+  mini:   { nombre: 'Sticker mini',   publico: 10,  mayoreo: 10 },
+}
+
+/**
  * 🔒 Lo que baja la mica al llevarla junto con una funda, en cualquiera de sus
  * presentaciones. El descuento va sobre la MICA, no sobre el total.
  */

@@ -938,3 +938,44 @@ SIN emojis (se rompen al pasar por la URL del enlace de wa.me).
 **El evaluador quita los enlaces del texto** antes de revisar cantidades y
 precios (un «%20pz» de una dirección contaba como cantidad). Para comprobar un
 enlace hay `debeCrudo`, que mira el texto tal cual salió.
+
+---
+
+## Muestras de materiales, stickers y programa de mayoristas (2026-11-16)
+
+**Fotos de muestra** (`muestras.js`, herramienta `mandar_muestra`). Contestan
+«¿cómo es la de goma?» y «¿cómo reconozco la tienda?». No son las fotos por
+modelo (`mandar_foto`). Las dio el dueño; los originales viven fuera del
+repositorio (pesan hasta 23 MB) y `scripts/crm-preparar-fotos.py` saca la versión
+ligera a `public/crm/`: su mapa `SELECCION` decide qué se publica.
+
+- **JPEG, no WebP:** es lo que la Cloud API de WhatsApp documenta para imágenes.
+  ⚠️ Las fotos por modelo (`public/mockups/`) siguen en WebP y **no se ha
+  comprobado que WhatsApp las entregue**: mirar los avisos de envío fallido.
+- Hay muestra de: goma flexible, goma flexible de color (sólo iPhone 11 a 12 Pro
+  Max, según su ficha), cristal, rígida, uso rudo, y las tiendas de León, San
+  Luis y Aguascalientes. **Faltan:** las cuatro micas, los stickers y la tienda de
+  Torreón. De lo que falta el bot dice que no tiene foto; no manda otra parecida.
+- **No se publicaron**, a propósito: una muestra con una marca de cigarros, una con
+  el código QR de un tercero, y las de «hidrogel con diseño» (es producto exclusivo
+  de mayoristas, con mínimo de 25 piezas: el bot atiende público).
+- OneDrive borró 4 de las 12 fotos recién generadas, una vez. La prueba
+  `muestras.test.js` falla si falta alguna: correr de nuevo el guion las repone.
+
+**Stickers** (`STICKERS` en `precio.js`): grande $100 público / $60 mayoreo, mini
+$10. Salen en `lista_de_precios`. No tienen existencia —se hacen al momento—, así
+que el bot nunca dice que no hay. El sticker con diseño del cliente lo cotiza la
+tienda.
+
+**Programa de mayoristas** (`mayoristas-info.js`, herramienta `programa_mayorista`).
+Sólo lo firme del documento de afiliación: requisitos, cómo se pide y cómo se paga.
+El bot no da de alta: pasa con la tienda. **Queda fuera lo que el documento marca
+como pendiente o en conflicto**: la regla de inactividad (2 meses contra 1 funda al
+mes), los precios de locatario, la sanción, el pago con tarjeta, la prenda mínima y
+los prefijos M/PT.
+
+🔒 Por confirmar con el dueño, y NO aplicado: el documento dice rígida al público
+$230 (la lista vigente del bot dice $220); trae precios de mayoreo de micas y de
+exhibidores (hoy los cotiza la tienda); y pide en el CRM una ficha de mayorista con
+nivel, última compra y alertas a 45 y 60 días (es estructura nueva: ver
+`docs/crm-motor-comercial.md`).

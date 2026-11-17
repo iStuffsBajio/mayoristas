@@ -225,6 +225,23 @@ const ESCENARIOS = [
   { id: 'ubicacion-sin-ciudad', plaza: null, turnos: [
     { di: 'donde queda su tienda?', sin: ['datos_de_sucursal'], debe: [/\?/] },
   ] },
+  // Muestras, stickers y mayoristas (2026-11-16).
+  { id: 'como-es-material', plaza: 'leon', turnos: [
+    { di: 'como es la de goma flexible? no la conozco', con: ['mandar_muestra'],
+      chequeo: ({ r }) => (r.imagenes ?? []).some(i => /\/crm\/material-goma-flexible\.jpg$/.test(i.url)) ? null : 'no mandó la foto del material' },
+  ] },
+  { id: 'muestra-sin-foto', plaza: 'leon', turnos: [
+    { di: 'me enseñas una foto de como se ve la mica de privacidad?',
+      chequeo: ({ r }) => (r.imagenes ?? []).length ? 'mandó una foto que no es de la mica' : null },
+  ] },
+  { id: 'sticker-precio', plaza: 'leon', turnos: [
+    { di: 'tienen stickers? cuanto cuestan', con: ['lista_de_precios'], debe: [/100/, /\b10\b/],
+      noDebe: [/(agotad|no hay|no tengo|sin existencia)/i] },
+  ] },
+  { id: 'ser-mayorista', plaza: 'leon', turnos: [
+    { di: 'que necesito para ser mayorista?', con: ['programa_mayorista'],
+      debe: [/registr/i, /grupo/i], noDebe: [/2 meses|cada mes|locatario|famili|amig/i] },
+  ] },
   { id: 'modelo-vago', plaza: 'leon', turnos: [
     { di: 'tienes para mi samsung?', debe: [/(qu[eé] modelo|cu[aá]l|modelo)/i] },
   ] },
@@ -308,6 +325,11 @@ function preciosPermitidos(historial) {
       for (const n of String(b.content).match(/\b\d{2,3}\b/g) ?? []) {
         const v = Number(n)
         if (v >= 100) ok.add(v)
+      }
+      // Los stickers valen menos de 100 (mini 10, grande de mayoreo 60): sólo
+      // cuentan si la herramienta los devolvió en ESTE resultado.
+      if (/Sticker/.test(String(b.content))) {
+        for (const n of String(b.content).match(/"monto":(\d{1,3})\b/g) ?? []) ok.add(Number(n.split(':')[1]))
       }
     }
   }
