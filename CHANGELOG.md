@@ -14,6 +14,10 @@ no sustituye el historial completo de Git.
   suma en el total, que sigue siendo sólo de las tiendas.
 - La marca de color de los avisos de filtro salía como una barra de media
   pantalla; ya es la raya fina que debía ser.
+- **La ✕ de dar de baja en Surtido, Bodega y Ventas**, la misma de Inventarios.
+  En Surtido y Bodega lo dado de baja sale de las listas y de sus totales
+  (antes «Comprar al proveedor» seguía proponiendo comprarlo); en Ventas se
+  queda marcado, porque lo vendido no se esconde.
 
 ## 2026-11-17
 

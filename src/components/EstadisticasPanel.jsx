@@ -1,4 +1,6 @@
 import { Seccion, TEMAS } from './Diseno'
+import { ContextoBaja, BotonBaja, AvisoBaja } from './BotonBaja'
+import { useBajas } from '../lib/useBajas'
 import { useState, useEffect, useMemo } from 'react'
 // La bodega queda fuera: lo que sale de ahi son envios a las sucursales,
 // no ventas, y mezclarlo falsearia el ranking.
@@ -252,7 +254,7 @@ function Modelo({ producto, codigo }) {
       </span>
       {codigo && (
         <span style={{ fontSize: 10.5, color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', flexShrink: 0 }}>
-          {codigo}
+          {codigo}<BotonBaja fila={{ codigo, producto }} />
         </span>
       )}
     </div>
@@ -1623,6 +1625,8 @@ export default function EstadisticasPanel() {
   // nombres de los mayoristas y el de quien cobro cada ticket, asi que una
   // sucursal recibe 403 y la seccion simplemente no se dibuja.
   const { token } = useAuth()
+  // La ✕ de dar de baja. Aquí el renglón NO desaparece: es venta que ocurrió.
+  const bajas = useBajas()
   const { porPlaza: ventasPorPlaza } = useVentas(token, activas.map(x => x.slug))
 
   // La brecha entre la lista de precios y lo cobrado, por plaza. Hace falta
@@ -1921,7 +1925,9 @@ export default function EstadisticasPanel() {
   )
 
   return (
+    <ContextoBaja.Provider value={bajas}>
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
+      <AvisoBaja />
 
       {/* Una sola línea. El detalle de cómo se calcula ya estaba al pie del
           panel, repetirlo arriba empujaba la gráfica fuera de la pantalla. */}
@@ -2118,5 +2124,6 @@ export default function EstadisticasPanel() {
         </div>
       )}
     </div>
+    </ContextoBaja.Provider>
   )
 }

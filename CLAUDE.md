@@ -2055,6 +2055,22 @@ Tres detalles que no son cosméticos:
 - **«Deshacer» sólo sale en lo pendiente.** Devolver a los recuadros un código
   que ya no existe no devolvería nada, y ese renglón ya es historia.
 
+### La ✕ está en todas las pestañas con modelos (2026-11-19)
+
+Lo pidió el dueño: «a veces estoy en Surtido o en Bodega y necesito dar de baja
+un modelo y tengo que ir a Inventarios». Hay UNA forma de dar de baja
+—`useBajas` en `src/lib/useBajas.js` y `BotonBaja` en `src/components/`— y la
+usan Inventarios, Surtido, Bodega y Ventas.
+
+- **En Surtido y Bodega lo dado de baja SALE de las listas y de sus totales**
+  —pedir, surtir, comprar, agotados, depurar—. Antes no: «Comprar al
+  proveedor» seguía proponiendo comprar lo que ya se había quitado del
+  catálogo. No desaparece en silencio: se dice cuántos se apartaron y dónde se
+  devuelven, y el aviso de la baja trae «Deshacer».
+- **En Ventas el renglón SE QUEDA** con la marca «dado de baja · deshacer». Lo
+  vendido es un hecho: esconderlo haría mentir a lo facturado.
+- Sólo el administrador ve la ✕, igual que en Inventarios.
+
 El Excel de Revisar sigue llevando **sólo lo pendiente**, y así tiene que
 seguir: es una lista de tareas para la tienda, no un archivo histórico. Son
 dos preguntas distintas —«qué me falta borrar» y «qué he quitado»— y

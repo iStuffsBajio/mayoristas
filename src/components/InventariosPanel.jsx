@@ -4,12 +4,11 @@ import { useState, useEffect, useMemo } from 'react'
 import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA, BODEGA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl, estadisticasUrl, historialUrl } from '../lib/s3'
 import { clasePorModelo, CLASES } from '../lib/clases'
-import { useAuth } from '../context/AuthContext'
-import { useAjustes } from '../lib/useAjustes'
+import { useBajas } from '../lib/useBajas'
+import { ContextoBaja, BotonBaja, AvisoBaja } from './BotonBaja'
 import { historialDeBajas, resumenDeBajas } from '../lib/ajustes'
 import { descargarArchivoDeBajas } from '../lib/exportarBajas'
 import { sinOcultos, MOTIVOS } from '../lib/ajustes'
-import { guardarAjuste } from '../lib/api'
 import { salidasPorCodigo, sumarSalidas } from '../lib/estadisticas'
 import { seProduce } from '../lib/produccion'
 import { filtrarYBuscar, hayBusqueda } from '../lib/buscar'
@@ -356,19 +355,14 @@ export default function InventariosPanel() {
   // cola de revisión: no hay dos formas de dar de baja, hay una. Lo que se
   // marca aquí deja de contarse en los recuadros y aparece en Revisar como
   // pendiente de borrar en la caja de cada plaza.
-  const { token, isAdmin } = useAuth()
-  const { correcciones, ocultos, setCorrecciones } = useAjustes(token)
-  const [bajando, setBajando] = useState(null)
-  const [avisoBaja, setAvisoBaja] = useState(null)
+  const bajas = useBajas()
+  const { correcciones, ocultos, deshacerBaja } = bajas
 
   // Filtrar por clase. Un agotado de clase A y uno de clase C son dos
   // problemas distintos y hasta ahora caían en la misma lista.
   const [clase, setClase] = useState('todas')
 
-  // Dar de baja es una decision de negocio: solo el administrador. Una tienda
-  // ve su inventario, pero no decide que sale del catalogo de la red. El
-  // backend lo vuelve a comprobar; esto solo evita enseñar el boton.
-  const puedeDarDeBaja = isAdmin
+  // Dar de baja es una decision de negocio: solo el administrador (`useBajas`).
   const [cargando, setCargando]       = useState(true)
 
   useEffect(() => {
@@ -525,31 +519,6 @@ export default function InventariosPanel() {
     return sinProduccion.filter(f => clases[String(f.codigo ?? '').trim().toUpperCase()] === clase)
   }, [sinProduccion, clases, clase])
 
-  const darDeBaja = async fila => {
-    setAvisoBaja(null)
-    setBajando(fila.codigo)
-    try {
-      await guardarAjuste({
-        codigo: fila.codigo, motivo: 'dado-de-baja', producto: fila.producto,
-      }, token)
-      // Se refleja de inmediato sin esperar a recargar: la clave es la misma
-      // que arma `claveDe` en `ajustes.js`.
-      setCorrecciones(prev => ({
-        ...prev,
-        [`ocultar|${String(fila.codigo).trim().toUpperCase()}`]: {
-          clave: `ocultar|${String(fila.codigo).trim().toUpperCase()}`,
-          tipo: 'ocultar', codigo: String(fila.codigo).trim().toUpperCase(),
-          producto: fila.producto, motivo: 'dado-de-baja',
-          cuando: new Date().toISOString(),
-        },
-      }))
-      setAvisoBaja(`${fila.codigo} dado de baja. Deja de contar aquí, y en Revisar queda pendiente de borrarlo en la caja de cada plaza.`)
-    } catch (e) {
-      setAvisoBaja(e?.mensaje || 'No se pudo dar de baja. Comprueba la sesión.')
-    }
-    setBajando(null)
-  }
-
   const buscando = hayBusqueda(busqueda)
 
   // Los que cumplen el filtro de existencia, antes de mirar la venta. Sirve
@@ -594,27 +563,10 @@ export default function InventariosPanel() {
     else descargarInventario(visibles, sucursal.nombre, etiquetaFiltro)
   }
 
-  /**
-   * Devuelve un código a los recuadros.
-   *
-   * Se pinta al momento y se manda después, igual que la baja: el trabajo va
-   * al ritmo de quien decide, no al de la red.
-   */
-  const deshacerBaja = async codigo => {
-    const clave = `ocultar|${String(codigo).toUpperCase()}`
-    setCorrecciones(prev => {
-      const s = { ...prev }
-      delete s[clave]
-      return s
-    })
-    // Sin motivo, el backend retira el ajuste. Es la misma puerta por la que
-    // se dio de baja, al revés.
-    if (token) await guardarAjuste({ codigo, motivo: null }, token).catch(() => {})
-  }
-
   const faltantes = inventarios ? tiendas.filter(s => !inventarios[s.slug]).map(s => s.nombre) : []
 
   return (
+    <ContextoBaja.Provider value={bajas}>
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
       <div style={{ marginBottom: 16, borderLeft: '5px solid ' + TEMAS.inventario.fuerte, background: TEMAS.inventario.suave,
@@ -700,13 +652,7 @@ export default function InventariosPanel() {
             )}
           </div>
 
-          {avisoBaja && (
-            <p style={{ fontSize: 11.5, color: '#0A5B73', background: 'rgba(2,136,173,0.07)',
-                        border: '1px solid #BAE6FD', borderRadius: 12, padding: '8px 12px',
-                        margin: '0 0 10px' }}>
-              {avisoBaja}
-            </p>
-          )}
+          <AvisoBaja />
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
             <input
@@ -820,20 +766,7 @@ export default function InventariosPanel() {
                                   color: k === 'A' ? '#5E9422' : k === 'B' ? '#0288AD' : '#B45309',
                                 }}>{k}</span>
                               )}
-                              {puedeDarDeBaja && (
-                                <button type="button"
-                                        data-baja={f.codigo}
-                                        disabled={bajando === f.codigo}
-                                        onClick={() => darDeBaja(f)}
-                                        title={`Dar de baja ${f.codigo} en todas las plazas. Deja de contar en los recuadros y pasa a Revisar como pendiente de borrarlo en la caja.`}
-                                        style={{
-                                          marginInlineStart: 6, border: 'none', background: 'none',
-                                          cursor: bajando === f.codigo ? 'wait' : 'pointer',
-                                          color: TINTA_TENUE, fontSize: 11, padding: '0 2px',
-                                        }}>
-                                  {bajando === f.codigo ? '…' : '✕'}
-                                </button>
-                              )}
+                              <BotonBaja fila={f} />
                             </>
                           )
                         })()}
@@ -903,5 +836,6 @@ export default function InventariosPanel() {
         </>
       )}
     </div>
+    </ContextoBaja.Provider>
   )
 }
