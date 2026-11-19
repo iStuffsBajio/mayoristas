@@ -368,7 +368,12 @@ export default function DashboardPanel({ onIrA }) {
       <div className="tablero-rejilla">
 
         {/* ── Agotados por ubicación ────────────────────────────────── */}
-        {porUbicacion && <BarrasAgotados datos={porUbicacion} />}
+        {/* Pulsar una ubicación lleva a «Agotados que duelen» con esa
+            ubicación puesta: ahí está la lista de cuáles son. */}
+        {porUbicacion && (
+          <BarrasAgotados datos={porUbicacion}
+            onElegir={onIrA ? sel => sel && onIrA('bodega', { vista: 'agotados', ubicacion: sel.slug, clase: sel.clase }) : null} />
+        )}
 
         {/* ── Lo que más sale ───────────────────────────────────────── */}
         {topVentas.length > 0 && (

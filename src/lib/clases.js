@@ -200,3 +200,19 @@ export function agotadosPorUbicacion(filas, clases, ubicaciones, bodega = null) 
   const filasSalida = ubicaciones.map(u => ({ ...u, ...cuenta[u.slug] }))
   return bodega ? [...filasSalida, { ...bodega, ...enBodega }] : filasSalida
 }
+
+/**
+ * Los agotados de UNA ubicación (y, si se pide, de una clase): lo que se ve al
+ * pulsar su barra. Cuenta con la MISMA regla que `agotadosPorUbicacion` —en
+ * una tienda, que esté en su `enCero`; en bodega, que bodega lo maneje y lo
+ * tenga en cero—, porque si la barra dijera 55 y la lista trajera otro número
+ * ninguno de los dos se creería. `clases.test.js` las pone frente a frente.
+ */
+export function agotadosDeUbicacion(filas, { slug, clase = null } = {}, clases = {}, bodegaSlug = 'bodega') {
+  if (!slug) return filas ?? []
+  return (filas ?? []).filter(f =>
+    (slug === bodegaSlug
+      ? f.existeEnBodega && (Number(f.bodega) || 0) <= 0
+      : (f.enCero ?? []).includes(slug)) &&
+    (!clase || (clases[f.codigo] ?? 'C') === clase))
+}

@@ -1891,7 +1891,9 @@
     background: var(--magenta);
     flex-shrink: 0;
   }
-  .foco-aviso > span { flex: 1; }
+  /* Sin el :not, la marca —que también es un span— crecía igual que el texto
+     y salía como una barra de media pantalla. */
+  .foco-aviso > span:not(.foco-marca) { flex: 1; }
   .foco-nota { color: var(--muted); }
   .foco-aviso button {
     border: 0;
@@ -1906,6 +1908,11 @@
     flex-shrink: 0;
   }
   .foco-aviso button:hover { text-decoration: underline; }
+  /* En un teléfono el botón sin partir se comía el ancho y dejaba el texto en
+     una columna de dos palabras. */
+  @media (max-width: 640px) {
+    .foco-aviso button { white-space: normal; max-width: 8.5em; text-align: right; }
+  }
 }
 
 /* Sesión caducada. Va arriba del todo y en el acento, porque no es un error

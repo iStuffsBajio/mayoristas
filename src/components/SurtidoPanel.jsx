@@ -11,11 +11,11 @@ import {
   mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
-import { calcularCompraBodega, analizarAgotados, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS, DIAS_SIN_COMPRAR, piezasPerdidas } from '../lib/compras'
+import { calcularCompraBodega, analizarAgotados, ESTADO_AGOTADO, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS, DIAS_SIN_COMPRAR, piezasPerdidas } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
 import { useOrdenTabla } from '../lib/orden'
-import { clasePorModelo, agotadosPorUbicacion } from '../lib/clases'
-import BarrasAgotados from './BarrasAgotados'
+import { clasePorModelo, agotadosPorUbicacion, agotadosDeUbicacion } from '../lib/clases'
+import BarrasAgotados, { TONOS as TONOS_CLASE } from './BarrasAgotados'
 import { useAuth } from '../context/AuthContext'
 import { useSurtidos } from '../lib/useSurtidos'
 import { cuadrar, lineasDesdeSurtido, resumirFolios, puedeSurtir, veBodega, ESTADOS as ESTADOS_SURTIDO, DIAS_PARA_DAR_DE_ALTA } from '../lib/surtidos'
@@ -415,6 +415,9 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   // El filtro que pidio la alerta. Se puede quitar desde la pantalla: una vez
   // visto lo senalado, lo normal es querer ver el resto.
   const [filtroFoco, setFiltroFoco] = useState(foco?.filtro ?? null)
+  // La ubicación (y la clase) que se pulsó en la gráfica de agotados. Puede
+  // llegar desde el tablero, que tiene la misma gráfica.
+  const [ubicacionAg, setUbicacionAg] = useState(foco?.ubicacion ? { slug: foco.ubicacion, clase: foco.clase ?? null } : null)
 
   // Si llega un foco nuevo -se pulsa otra alerta sin salir del panel- manda el
   // nuevo, no el que estaba puesto.
@@ -422,6 +425,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     if (!foco) return
     if (foco.vista) setVistaCruda(foco.vista)
     setFiltroFoco(foco.filtro ?? null)
+    setUbicacionAg(foco.ubicacion ? { slug: foco.ubicacion, clase: foco.clase ?? null } : null)
   }, [foco])
   const [altaManual, setAltaManual] = useState(null)   // null = automático
   const [margen, setMargen] = useState(MARGEN_FERIA)
@@ -688,12 +692,43 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   // Cuantos modelos en cero tiene cada ubicacion, repartidos por clase de
   // venta. Ferias queda fuera a proposito: cierra ocho meses al ano, asi que
   // su «agotado» no significa lo mismo que el de una tienda abierta.
+  const clasesAg = useMemo(() => {
+    if (!datos) return {}
+    return clasePorModelo([...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist])
+  }, [datos, sucursales])
+
   const porUbicacion = useMemo(() => {
     if (!agotados || !datos) return null
-    const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
-    const clases = clasePorModelo(historiales)
-    return agotadosPorUbicacion(agotados.filas, clases, sucursales, BODEGA)
-  }, [agotados, datos, sucursales])
+    return agotadosPorUbicacion(agotados.filas, clasesAg, sucursales, BODEGA)
+  }, [agotados, datos, sucursales, clasesAg])
+
+  // Lo agotado de la ubicación pulsada, con la MISMA regla que cuenta la barra
+  // (`agotadosPorUbicacion`): si la tabla y la barra contaran distinto, León
+  // diría 55 y la lista traería otro número.
+  const filasDeUbicacion = useMemo(() => {
+    if (!agotados) return []
+    if (!ubicacionAg) return agotados.filas
+    return agotadosDeUbicacion(agotados.filas, ubicacionAg, clasesAg, BODEGA?.slug)
+  }, [agotados, ubicacionAg, clasesAg])
+
+  // El aviso y los recuadros hablan de lo que se está viendo: con León
+  // elegido, «163 piezas perdidas» de toda la red no diría nada de León.
+  const resumenAg = useMemo(() => {
+    if (!agotados) return null
+    if (!ubicacionAg) return agotados
+    const filas = filasDeUbicacion
+    const fugas = filas.filter(f => piezasPerdidas(f) > 0).sort((a, b) => piezasPerdidas(b) - piezasPerdidas(a))
+    return {
+      filas, fugas,
+      perdidas: filas.reduce((a, f) => a + piezasPerdidas(f), 0),
+      inactivos: filas.filter(f => f.bodegaDias !== null && f.bodegaDias >= DIAS_SIN_COMPRAR && f.vendiaAlMes > 0),
+      compra:  filas.filter(f => f.estado === ESTADO_AGOTADO.COMPRA),
+      reparto: filas.filter(f => f.estado === ESTADO_AGOTADO.REPARTO),
+      normal:  filas.filter(f => f.estado === ESTADO_AGOTADO.NORMAL),
+    }
+  }, [agotados, ubicacionAg, filasDeUbicacion])
+
+  const nombreDe = useMemo(() => Object.fromEntries([...SUCURSALES, BODEGA].filter(Boolean).map(s => [s.slug, s.nombre])), [])
 
   // Lo que la alerta queria ensenar. Cada filtro dice tambien POR QUE, para
   // que quien llega desde el tablero entienda que esta mirando.
@@ -719,11 +754,9 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   const focoActivo = filtroFoco ? FOCOS[filtroFoco] : null
 
   const filasAgotados = useMemo(() => {
-    if (!agotados) return []
-    if (!focoActivo) return agotados.filas
-    const historiales = [...sucursales.map(s => datos?.[s.slug]?.hist), datos?.[FERIAS?.slug]?.hist]
-    return focoActivo.filtrar(agotados.filas, clasePorModelo(historiales))
-  }, [agotados, focoActivo, datos, sucursales])
+    if (!focoActivo) return filasDeUbicacion
+    return focoActivo.filtrar(filasDeUbicacion, clasesAg)
+  }, [filasDeUbicacion, focoActivo, clasesAg])
 
   const comprasVenta = useMemo(
     () => (compras ? separarProduccion(compras.filas).compra.filter(f => f.sugerido > 0) : []),
@@ -1107,7 +1140,26 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
 
             {porUbicacion && (
               <div style={{ marginBottom: 14 }}>
-                <BarrasAgotados datos={porUbicacion} />
+                <BarrasAgotados datos={porUbicacion} elegido={ubicacionAg} onElegir={setUbicacionAg} />
+              </div>
+            )}
+
+            {/* Lo que se pulsó en la gráfica: se dice qué se está viendo y se
+                deja quitar, igual que el filtro que llega de una alerta. */}
+            {ubicacionAg && (
+              <div className="foco-aviso" data-filtro-ubicacion={ubicacionAg.slug}>
+                <span className="foco-marca" style={{ background: ubicacionAg.clase ? TONOS_CLASE[ubicacionAg.clase] : undefined }} />
+                <span>
+                  <strong>{filasDeUbicacion.length}</strong> {filasDeUbicacion.length === 1 ? 'modelo' : 'modelos'} en cero
+                  en <strong>{nombreDe[ubicacionAg.slug] ?? ubicacionAg.slug}</strong>
+                  {ubicacionAg.clase && <> · clase <strong>{ubicacionAg.clase}</strong></>}.
+                  <br /><span className="foco-nota">
+                    {ubicacionAg.slug === BODEGA?.slug
+                      ? 'Los que bodega maneja y tiene en cero.'
+                      : 'Los demás números de esta pestaña ya son sólo de esta ubicación.'}
+                  </span>
+                </span>
+                <button type="button" data-quitar-ubicacion onClick={() => setUbicacionAg(null)}>Ver todas las ubicaciones</button>
               </div>
             )}
 
@@ -1121,23 +1173,23 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
                   Mostrando <strong>{filasAgotados.length}</strong> {focoActivo.texto}.
                   <br /><span className="foco-nota">{focoActivo.nota}</span>
                 </span>
-                <button type="button" onClick={() => setFiltroFoco(null)}>Ver los {agotados.filas.length}</button>
+                <button type="button" onClick={() => setFiltroFoco(null)}>Ver los {filasDeUbicacion.length}</button>
               </div>
             )}
 
-            {agotados.perdidas > 0 && (
+            {resumenAg.perdidas > 0 && (
               <div style={{ marginBottom: 14, padding: '13px 15px', borderRadius: 16, background: 'rgba(196,21,111,0.06)', border: '1.5px solid rgba(196,21,111,0.28)' }}>
                 <p style={{ fontSize: 13.5, fontWeight: 800, color: ROSA, margin: 0 }}>
-                  ⚠ Unas {agotados.perdidas} piezas perdidas por estar agotado
+                  ⚠ Unas {resumenAg.perdidas} piezas perdidas por estar agotado
                 </p>
                 <p style={{ fontSize: 12, color: TINTA_SUAVE, margin: '5px 0 0', lineHeight: 1.55 }}>
-                  Repartidas en {agotados.fugas.length} modelos.
-                  {agotados.fugas[0] && (
-                    <> El más caro es <strong style={{ color: TINTA }}>{agotados.fugas[0].producto}</strong>:
-                    {' '}{agotados.fugas[0].diasAgotado} días en cero vendiendo {agotados.fugas[0].vendiaAlMes.toFixed(1)} al mes.</>
+                  Repartidas en {resumenAg.fugas.length} modelos.
+                  {resumenAg.fugas[0] && (
+                    <> El más caro es <strong style={{ color: TINTA }}>{resumenAg.fugas[0].producto}</strong>:
+                    {' '}{resumenAg.fugas[0].diasAgotado} días en cero vendiendo {resumenAg.fugas[0].vendiaAlMes.toFixed(1)} al mes.</>
                   )}
-                  {agotados.inactivos.length > 0 && (
-                    <> De todos ellos, <strong style={{ color: ROSA }}>{agotados.inactivos.length} llevan
+                  {resumenAg.inactivos.length > 0 && (
+                    <> De todos ellos, <strong style={{ color: ROSA }}>{resumenAg.inactivos.length} llevan
                     más de {DIAS_SIN_COMPRAR} días sin que bodega los mueva</strong>: ahí la fuga no es de
                     surtido, es que nadie los ha comprado.</>
                   )}
@@ -1146,15 +1198,16 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
             )}
 
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-              <Dato valor={agotados.perdidas} etiqueta="piezas perdidas" nota="por estar en cero" color={ROSA} />
-              <Dato valor={agotados.compra.length} etiqueta="bodega no puede surtir" nota="comprar o mover entre plazas" color={ROSA} />
-              <Dato valor={agotados.reparto.length} etiqueta="solo repartir" nota="bodega sí tiene" color={AMBAR} />
-              <Dato valor={agotados.normal.length} etiqueta="con relevo" nota="ya hay generación nueva" color={TINTA_TENUE} />
+              <Dato valor={resumenAg.perdidas} etiqueta="piezas perdidas" nota="por estar en cero" color={ROSA} />
+              <Dato valor={resumenAg.compra.length} etiqueta="bodega no puede surtir" nota="comprar o mover entre plazas" color={ROSA} />
+              <Dato valor={resumenAg.reparto.length} etiqueta="solo repartir" nota="bodega sí tiene" color={AMBAR} />
+              <Dato valor={resumenAg.normal.length} etiqueta="con relevo" nota="ya hay generación nueva" color={TINTA_TENUE} />
             </div>
 
             <Tabla encabezados={<>
               <Th campo="producto" orden={ord}>Modelo</Th><Th campo="codigo" orden={ord}>Código</Th>
-              <Th campo="plazasEnCero" orden={ord} num style={{ textAlign: 'right' }}>En cero</Th>
+              <Th campo="clase" valor={a => 'ABC'.indexOf(clasesAg[a.codigo] ?? 'C')} orden={ord} title="Clase de venta: A 5+ piezas al mes, B de 2 a 5, C menos de 2">Clase</Th>
+              <Th campo="plazasEnCero" orden={ord} title="Las tiendas donde está en cero">En cero en</Th>
               <Th campo="diasAgotado" orden={ord} num style={{ textAlign: 'right' }} title="Días desde el último movimiento">Días</Th>
               <Th campo="vendioCorto" orden={ord} num style={{ textAlign: 'right' }} title={`Piezas vendidas en los últimos ${MESES_CORTOS} meses`}>Vendió 3 m</Th>
               <Th campo="vendiaAlMes" orden={ord} num style={{ textAlign: 'right' }} title="Piezas al mes en los tres meses previos a quedarse sin stock. Es lo que se está perdiendo cada mes que sigue agotado.">Vendía/mes</Th>
@@ -1163,10 +1216,31 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
               <Th>Qué hacer</Th>
             </>}>
               {ord.ordenar(filasAgotados).slice(0, TOPE).map((a, i) => (
-                <tr key={a.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
+                <tr key={a.codigo + i} data-fila-agotado={a.codigo} data-en-cero={(a.enCero ?? []).join(' ')}
+                    style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
                   <Modelo f={a} />
-                  <Celda num color={a.plazasConStock === 0 ? ROSA : AMBAR}>
-                    {a.plazasEnCero}/{a.plazasEnCero + a.plazasConStock}
+                  <Celda>
+                    <span style={{
+                      display: 'inline-block', minWidth: 20, textAlign: 'center', padding: '1px 6px', borderRadius: 999,
+                      fontSize: 10.5, fontWeight: 800, color: '#fff', background: TONOS_CLASE[clasesAg[a.codigo] ?? 'C'],
+                    }}>{clasesAg[a.codigo] ?? 'C'}</span>
+                  </Celda>
+                  {/* Los NOMBRES, no «1/3»: la pregunta es dónde falta, y un
+                      número obligaba a ir a buscarlo a otra pantalla. */}
+                  <Celda color={a.plazasConStock === 0 ? ROSA : AMBAR}>
+                    <span style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+                      {(a.enCero ?? []).map(slug => (
+                        <span key={slug} style={{
+                          padding: '1px 7px', borderRadius: 999, fontSize: 10.5, fontWeight: 700, whiteSpace: 'nowrap',
+                          background: slug === ubicacionAg?.slug ? TEMAS.agotado.fuerte : TEMAS.agotado.suave,
+                          color: slug === ubicacionAg?.slug ? '#fff' : TEMAS.agotado.fuerte,
+                          border: '1px solid ' + TEMAS.agotado.borde,
+                        }}>{nombreDe[slug] ?? slug}</span>
+                      ))}
+                    </span>
+                    <span style={{ display: 'block', fontSize: 10, marginTop: 2 }}>
+                      {a.plazasConStock === 0 ? 'en todas las tiendas' : `${a.plazasEnCero} de ${a.plazasEnCero + a.plazasConStock} tiendas`}
+                    </span>
                   </Celda>
                   <Celda num color={a.diasAgotado > 30 ? ROSA : TINTA_SUAVE}>{a.diasAgotado ?? '—'}</Celda>
                   <Celda num fuerte color={'#0288AD'}>{a.vendioCorto}</Celda>

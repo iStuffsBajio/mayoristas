@@ -3,6 +3,18 @@
 Este registro resume cambios relevantes del producto y de su documentación;
 no sustituye el historial completo de Git.
 
+## 2026-11-19
+
+- **Agotados por ubicación, pulsable.** En «Agotados que duelen», pulsar una
+  ubicación (o un tramo de clase) deja en la tabla sólo sus modelos, y el aviso
+  y los recuadros pasan a hablar de esa ubicación. La tabla dice ahora EN QUÉ
+  tiendas está en cero cada modelo, con su nombre, y su clase. Desde el tablero,
+  pulsar una barra lleva a esa lista ya filtrada.
+- **Bodega en el inventario de «Todas».** Primera columna, como referencia: no
+  suma en el total, que sigue siendo sólo de las tiendas.
+- La marca de color de los avisos de filtro salía como una barra de media
+  pantalla; ya es la raya fina que debía ser.
+
 ## 2026-11-17
 
 - **Ajustes del administrador en el corte.** El administrador puede agregar un
