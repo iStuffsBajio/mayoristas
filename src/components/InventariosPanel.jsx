@@ -1,7 +1,7 @@
 import { TEMAS } from './Diseno'
 import { useState, useEffect, useMemo } from 'react'
 // Aqui si entra la bodega: es inventario y el panel es solo de administrador.
-import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA, nombreSucursal } from '../lib/sucursales'
+import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA, BODEGA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl, estadisticasUrl, historialUrl } from '../lib/s3'
 import { clasePorModelo, CLASES } from '../lib/clases'
 import { useAuth } from '../context/AuthContext'
@@ -458,10 +458,23 @@ export default function InventariosPanel() {
         porClave.set(clave, fila)
       }
     }
-    return [...porClave.values()]
+    // Bodega va al lado como REFERENCIA y no entra en el total: el consolidado
+    // es de mostrador, y sumándole el almacén un modelo en cero en las tres
+    // tiendas salía «con existencia». Lo pidió el dueño el 2026-11-19 para ver
+    // de un vistazo si lo que falta en tienda se puede surtir. Sólo se añade a
+    // los modelos que ya están en alguna tienda: lo que sólo tiene bodega no es
+    // una existencia de mostrador.
+    const enBodega = new Map()
+    for (const p of inventarios[BODEGA?.slug]?.productos ?? []) {
+      const codigo = String(p.Codigo ?? '').trim()
+      if (codigo) enBodega.set(codigo, Number(p.Existencia) || 0)
+    }
+    const hayBodega = !!inventarios[BODEGA?.slug]
+    return [...porClave.values()].map(f => (hayBodega ? { ...f, bodega: enBodega.get(f.codigo) } : f))
   }, [inventarios, sel, esTodas, tiendas, ventas])
 
   const valorDe = f => (esTodas ? f.total : f.existencia)
+  const hayBodegaInv = esTodas && !!inventarios?.[BODEGA?.slug]
 
   // Un sticker en cero no es un agotado: se imprime cuando hace falta. Si se
   // cuenta como existencia, ensucia el semaforo y la lista de resurtido.
@@ -753,6 +766,15 @@ export default function InventariosPanel() {
                     <ThOrd campo="codigo" orden={ord} extra={{ padding: '9px 8px' }}>Código</ThOrd>
                     {esTodas
                       ? <>
+                          {/* Bodega primero y apartada con una raya: es de donde
+                              se surte, y NO suma en el total. */}
+                          {hayBodegaInv && (
+                            <ThOrd num orden={ord} campo="bodega" valor={f => f.bodega ?? -1}
+                                   title="Existencia en bodega. Es referencia: no suma en el total, que es de las tiendas"
+                                   extra={{ borderRight: '1px solid ' + LINEA }}>
+                              Bodega
+                            </ThOrd>
+                          )}
                           {tiendas.map(s => (
                             <ThOrd key={s.slug} num orden={ord} campo={'suc:' + s.slug} valor={f => f.porSucursal?.[s.slug] ?? 0}>
                               {s.nombre.split(' ')[0]}
@@ -818,6 +840,11 @@ export default function InventariosPanel() {
                       </td>
                       {esTodas
                         ? <>
+                            {hayBodegaInv && (
+                              <td data-bodega-consolidado style={{ padding: '7px 8px', textAlign: 'right', borderRight: '1px solid ' + LINEA, background: 'rgba(15,23,42,0.025)' }}>
+                                <Existencia n={f.bodega} />
+                              </td>
+                            )}
                             {tiendas.map(s => (
                               <td key={s.slug} style={{ padding: '7px 8px', textAlign: 'right' }}>
                                 <Existencia n={f.porSucursal[s.slug]} />

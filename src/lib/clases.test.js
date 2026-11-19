@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  claseDe, ritmoPorModelo, clasePorModelo, agotadosPorUbicacion, CLASE_A, CLASE_B,
+  claseDe, ritmoPorModelo, clasePorModelo, agotadosPorUbicacion, agotadosDeUbicacion, CLASE_A, CLASE_B,
   bajarClase, ultimaVentaPorModelo, diasDesdeElMes, ESCALONES_SIN_VENDER,
 } from './clases.js'
 
@@ -153,4 +153,29 @@ test('el mes en curso cuenta como cero días', () => {
   const hoy = new Date('2026-11-20T12:00:00Z')
   assert.equal(diasDesdeElMes('2026-11', hoy), 0)
   assert.ok(diasDesdeElMes('2026-08', hoy) > 80)
+})
+
+test('pulsar una barra trae justo los modelos que esa barra cuenta, plaza por plaza y clase por clase', () => {
+  const filas = [
+    { codigo: 'A1', enCero: ['leon'], existeEnBodega: true, bodega: 4 },
+    { codigo: 'A2', enCero: ['leon', 'san-luis'], existeEnBodega: true, bodega: 0 },
+    { codigo: 'B1', enCero: ['san-luis'], existeEnBodega: false, bodega: 0 },
+    { codigo: 'C1', enCero: ['aguascalientes', 'leon'], existeEnBodega: true, bodega: 0 },
+    { codigo: 'C2', enCero: ['aguascalientes'], existeEnBodega: true, bodega: 2 },
+  ]
+  const clases = { A1: 'A', A2: 'A', B1: 'B' }   // C1 y C2 sin clase: cuentan como C
+  const ubicaciones = [{ slug: 'leon' }, { slug: 'san-luis' }, { slug: 'aguascalientes' }]
+  const barras = agotadosPorUbicacion(filas, clases, ubicaciones, { slug: 'bodega' })
+  for (const b of barras) {
+    assert.equal(agotadosDeUbicacion(filas, { slug: b.slug }, clases).length, b.total, `${b.slug} total`)
+    for (const c of ['A', 'B', 'C']) {
+      assert.equal(agotadosDeUbicacion(filas, { slug: b.slug, clase: c }, clases).length, b[c], `${b.slug} clase ${c}`)
+    }
+  }
+  // Y lo de otra plaza no se cuela.
+  assert.deepEqual(agotadosDeUbicacion(filas, { slug: 'leon' }, clases).map(f => f.codigo), ['A1', 'A2', 'C1'])
+  // Bodega: sólo lo que bodega maneja y tiene en cero (B1 no es suyo).
+  assert.deepEqual(agotadosDeUbicacion(filas, { slug: 'bodega' }, clases).map(f => f.codigo), ['A2', 'C1'])
+  // Sin ubicación, todo.
+  assert.equal(agotadosDeUbicacion(filas, null ?? undefined, clases).length, 5)
 })

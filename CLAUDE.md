@@ -553,7 +553,11 @@ en sus tres casos —León censurada, Aguascalientes de fiar, San Luis sin
 archivo—, más la marca ⚠ en «Pedir», y **«Depurar»** con sus dos estados
 reales: Torreón sin inventario (todo bloqueado, con el motivo a la vista) y
 Torreón publicado (elegir, confirmar y dar de baja), más que marcar un modelo
-como descontinuado lo saque de Revisar Y que al quitar la marca vuelva. Si alguno de esos números baja, algo
+como descontinuado lo saque de Revisar Y que al quitar la marca vuelva, y que pulsar una
+ubicación en «Agotados que duelen» deje sólo sus modelos —con los datos de mentira las
+tres tiendas tienen los mismos agotados, así que lo que fija que la tabla cuente lo mismo
+que la barra es `clases.test.js` (`agotadosDeUbicacion`)—, y que en el inventario de
+«Todas» bodega vaya PRIMERA y no sume en el total. Si alguno de esos números baja, algo
 dejó de pintarse.
 
 **Y para escribir en un campo controlado por React, el rastreador se siembra

@@ -1699,6 +1699,22 @@ async function clasesEnRecuadros(window, donde) {
   const todos = doc.querySelector('[data-filtro="todos"]')
   if (todos) { clic(window, todos); await nuevaVuelta(window, 6) }
 
+  // En «Todas», bodega va de PRIMERA columna y como referencia: no suma en el
+  // total. Lo pidió el dueño el 2026-11-19.
+  const cabeza = [...doc.querySelectorAll('thead th')].map(th => th.textContent.replace(/[▲▼⇅↕\s]+/g, ' ').trim())
+  const iBodega = cabeza.findIndex(t => /^Bodega/.test(t)), iLeon = cabeza.findIndex(t => /^León/.test(t))
+  if (iBodega < 0) errores.push(`${donde} · el consolidado no tiene la columna de bodega`)
+  else if (iLeon >= 0 && iBodega > iLeon) errores.push(`${donde} · bodega va detrás de León: tenía que ir primero`)
+  const renglon = doc.querySelector('[data-bodega-consolidado]')?.closest('tr')
+  if (renglon) {
+    const celdas = [...renglon.querySelectorAll('td')].map(td => Number(td.textContent.trim()) || 0)
+    // Modelo, código, bodega, las tiendas y el total: el total es la suma de las tiendas, sin bodega.
+    const tiendas = celdas.slice(3, -3), total = celdas.at(-3)
+    if (cabeza.at(-3)?.startsWith('Total') && tiendas.reduce((a, b) => a + b, 0) !== total) {
+      errores.push(`${donde} · el total del consolidado no es la suma de las tiendas: ¿se le sumó bodega?`)
+    }
+  } else if (iBodega >= 0) errores.push(`${donde} · la columna de bodega no pinta ninguna celda`)
+
   const baja = doc.querySelector('[data-baja]')
   if (!baja) errores.push(`${donde} · no hay forma de dar de baja un codigo desde el inventario`)
 
@@ -2335,6 +2351,46 @@ async function consultaModelo(window, donde) {
  * 🔒 Se marca y no se corrige, así que lo único que hay que ver es que la
  * marca salga. Sin ella el X8D vuelve a ser un número que no se sabe si creer.
  */
+/**
+ * «Agotados que duelen»: pulsar una ubicación en la gráfica deja en la tabla
+ * SÓLO lo que está en cero ahí. Lo pidió el dueño el 2026-11-19: la barra decía
+ * 55 y no había forma de ver cuáles eran. Si el filtro se suelta, la tabla
+ * sigue llena y bonita —con todas las plazas revueltas— y nada más falla.
+ */
+async function agotadosPorUbicacion(window, donde) {
+  // Con los datos de mentira las tres tiendas tienen en cero los MISMOS
+  // modelos, así que aquí no se nota si el filtro se ignora: eso lo fija
+  // `clases.test.js` (la tabla cuenta lo mismo que la barra, plaza por plaza).
+  // Lo que se comprueba aquí es que la pantalla esté conectada.
+  const doc = window.document
+  const pastilla = [...doc.querySelectorAll('button')].find(b => /Agotados que duelen/.test(b.textContent))
+  if (!pastilla) return 0
+  clic(window, pastilla); await nuevaVuelta(window, 6)
+  const filas = () => [...doc.querySelectorAll('[data-fila-agotado]')]
+  const antes = filas().length
+  const barra = [...doc.querySelectorAll('[data-ubicacion-agotados]')].find(b => b.dataset.ubicacionAgotados !== 'bodega' &&
+    Number(b.closest('[data-fila-ubicacion]')?.querySelector('.grafica-cifra')?.textContent) > 0)
+  if (!antes || !barra) { errores.push(`${donde} · «Agotados que duelen» sin renglones o sin una ubicación con agotados que pulsar`); return 0 }
+  const slug = barra.dataset.ubicacionAgotados
+  const total = Number(barra.closest('[data-fila-ubicacion]').querySelector('.grafica-cifra').textContent)
+  clic(window, barra); await nuevaVuelta(window, 6)
+  if (!doc.querySelector(`[data-filtro-ubicacion="${slug}"]`)) errores.push(`${donde} · pulsar ${slug} no dice qué se está viendo`)
+  const ahora = filas()
+  const ajenas = ahora.filter(f => !f.dataset.enCero.split(' ').includes(slug))
+  if (ajenas.length) errores.push(`${donde} · con ${slug} elegido salen ${ajenas.length} modelos que ahí NO están en cero`)
+  if (ahora.length !== Math.min(total, 150) && ahora.length !== total) {
+    errores.push(`${donde} · la barra de ${slug} dice ${total} y la tabla trae ${ahora.length}`)
+  }
+  if (!ahora.length) errores.push(`${donde} · con ${slug} elegido la tabla se quedó vacía`)
+  clic(window, doc.querySelector('[data-quitar-ubicacion]')); await nuevaVuelta(window, 6)
+  if (filas().length !== antes) errores.push(`${donde} · al quitar la ubicación la tabla no volvió a sus ${antes} renglones`)
+  // Se deja la sección como estaba: las comprobaciones de la compra que vienen
+  // detrás esperan la vista con la que abre.
+  const compra = [...doc.querySelectorAll('button')].find(b => /Comprar al proveedor/.test(b.textContent))
+  if (compra) { clic(window, compra); await nuevaVuelta(window, 6) }
+  return 1
+}
+
 function marcaDeCensura(window, donde) {
   const doc = window.document
   if (!doc.querySelector('[data-pedir]')) return 0
@@ -3268,6 +3324,7 @@ let archivosDeBaja = 0
 let salidasVistas = 0
 let consultasVistas = 0
 let censurasVistas = 0
+let agotadosFiltrados = 0
 let depuradosVistos = 0
 let cortesVistos = 0
 let nominasVistas = 0
@@ -3329,6 +3386,10 @@ for (const [nombre, sesion] of SESIONES) {
           preciosPorPlaza += precioPorPlaza(window, `${nombre} · admin · ${t}`)
           nuevosVistos += await modelosNuevos(window, `${nombre} · admin · ${t}`)
           bandejasDePrecio += preciosARevisar(window, `${nombre} · admin · ${t}`)
+        }
+        // «Agotados que duelen» vive en la sección de Bodega del administrador.
+        if (/bodega/i.test(t) && nombre === 'admin' && !agotadosFiltrados) {
+          agotadosFiltrados += await agotadosPorUbicacion(window, `${nombre} · ${t}`)
         }
         if (/surtido|surtir/i.test(t)) {
           censurasVistas += marcaDeCensura(window, `${nombre} · ${t}`)
@@ -3468,6 +3529,8 @@ if (clientesVistos < 2) errores.push(`la bandeja de clientes se recorrio ${clien
 console.log(`  consultar modelo de bodega: ${consultasVistas} dibujado`)
 if (!consultasVistas) errores.push('«Consultar modelo» de bodega no se recorrió: bodega se queda sin poder mirar un modelo de cerca')
 console.log(`  marca de venta censurada en «Pedir»: ${censurasVistas} vista`)
+console.log(`  agotados filtrados por ubicación: ${agotadosFiltrados}`)
+if (!agotadosFiltrados) errores.push('nadie pulsó una ubicación en «Agotados que duelen»: el filtro por plaza quedó sin comprobar')
 if (!censurasVistas) errores.push('ninguna lista de «Pedir» marcó un modelo que estuvo en cero: vuelve a no saberse si un número bajo es de fiar')
 console.log(`  lotes dibujados: ${lotesVistos.size}`)
 for (const l of lotesVistos) console.log('    · ' + l)
