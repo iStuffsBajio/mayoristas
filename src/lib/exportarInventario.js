@@ -29,20 +29,25 @@ const COLS_VENTA = ['Vendidos 7 d', 'Vendidos 30 d']
 const hayVenta = filas => filas.some(f => f.v30 !== undefined)
 
 /** Una sucursal: código, modelo, existencia y, si las hay, las ventas. */
-export function descargarInventario(filas, nombreSucursal, etiquetaFiltro) {
+// La nota y los cambios registrados de cada modelo, al final de la fila.
+const COLS_MARCAS = ['Nota', 'Cambios registrados']
+const conMarcas = (marcas, codigo) => (marcas ? [marcas(codigo).nota, marcas(codigo).cambios] : [])
+
+export function descargarInventario(filas, nombreSucursal, etiquetaFiltro, marcas = null) {
   const libro = XLSX.utils.book_new()
   const conVenta = hayVenta(filas)
   const datos = filas.map(f => [
     f.codigo, f.producto, f.existencia,
     ...(conVenta ? [f.v7 ?? 0, f.v30 ?? 0] : []),
+    ...conMarcas(marcas, f.codigo),
   ])
-  const encabezados = ['Código', 'Modelo', 'Existencia', ...(conVenta ? COLS_VENTA : [])]
+  const encabezados = ['Código', 'Modelo', 'Existencia', ...(conVenta ? COLS_VENTA : []), ...(marcas ? COLS_MARCAS : [])]
   XLSX.utils.book_append_sheet(libro, hojaDe(datos, encabezados), 'Inventario')
   XLSX.writeFile(libro, `inventario-${limpio(nombreSucursal)}-${limpio(etiquetaFiltro)}.xlsx`)
 }
 
 /** Vista consolidada: una columna por sucursal más el total. */
-export function descargarInventarioConsolidado(filas, sucursales, etiquetaFiltro) {
+export function descargarInventarioConsolidado(filas, sucursales, etiquetaFiltro, marcas = null) {
   const libro = XLSX.utils.book_new()
   const conVenta = hayVenta(filas)
   const datos = filas.map(f => [
@@ -55,12 +60,14 @@ export function descargarInventarioConsolidado(filas, sucursales, etiquetaFiltro
     ...sucursales.map(s => (f.porSucursal[s.slug] === undefined ? null : f.porSucursal[s.slug])),
     f.total,
     ...(conVenta ? [f.v7 ?? 0, f.v30 ?? 0] : []),
+    ...conMarcas(marcas, f.codigo),
   ])
   XLSX.utils.book_append_sheet(
     libro,
     hojaDe(datos, [
       'Código', 'Modelo', ...sucursales.map(s => s.nombre), 'Total',
       ...(conVenta ? COLS_VENTA : []),
+      ...(marcas ? COLS_MARCAS : []),
     ]),
     'Consolidado',
   )

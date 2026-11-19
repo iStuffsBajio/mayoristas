@@ -14,6 +14,13 @@ no sustituye el historial completo de Git.
   suma en el total, que sigue siendo sólo de las tiendas.
 - La marca de color de los avisos de filtro salía como una barra de media
   pantalla; ya es la raya fina que debía ser.
+- **Editar un modelo desde la tabla, con bitácora.** Un ✏️ junto a cada código
+  (Surtido, Bodega, Inventarios, Ventas) abre su ficha: nota, nombre, código,
+  costo y precios por tienda. Nada cambia Eleventa: queda pendiente hasta que el
+  respaldo lo trae. Todo cambio —también la ✕, descontinuar y la cantidad a
+  pedir— queda en una bitácora que escribe el servidor. «Bajar todos los
+  cambios» da el Excel general, y los Excel de cada pantalla traen la nota y los
+  cambios de cada modelo. Editan administración y bodega.
 - **La ✕ de dar de baja en Surtido, Bodega y Ventas**, la misma de Inventarios.
   En Surtido y Bodega lo dado de baja sale de las listas y de sus totales
   (antes «Comprar al proveedor» seguía proponiendo comprarlo); en Ventas se

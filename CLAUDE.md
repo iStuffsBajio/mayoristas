@@ -2071,6 +2071,45 @@ usan Inventarios, Surtido, Bodega y Ventas.
   vendido es un hecho: esconderlo haría mentir a lo facturado.
 - Sólo el administrador ve la ✕, igual que en Inventarios.
 
+### El ✏️: editar un modelo desde la tabla, y la bitácora de TODO (2026-11-19)
+
+Lo pidió el dueño el mismo día: «en todas las secciones me gustaría que las
+tablas y menús pueda editar cosas y todo lo que edite se registre en el
+reporte». Bajaba un Excel y, al volver a él, ya no se acordaba de qué tenía
+que hacer. Eligió todo: nota, nombre, código, costo, precios y cantidades, y el
+reporte de las dos formas.
+
+- **Junto a la ✕ va un ✏️** (en `BotonBaja`, así que sale en las mismas tablas).
+  Abre la ficha del modelo: nota, nombre correcto, código correcto, costo de
+  bodega y precio público y de mayoreo por tienda, con lo que hoy dice Eleventa
+  como referencia y el historial del modelo. Un solo Guardar manda SÓLO lo que
+  cambió, en UNA petición —varias a la vez se pisarían el archivo—.
+- **Nada de eso cambia Eleventa.** Se guarda en `ediciones/<quien>.json`
+  (privado) como una instrucción PENDIENTE que se cierra sola cuando el
+  respaldo trae el valor (`estadoEdicion`), igual que la ✕. La nota no está
+  pendiente de nada.
+- 🔒 **El costo capturado aquí NO entra en ninguna cuenta.** La utilidad y el
+  dinero parado siguen saliendo del costo de bodega en Eleventa (ver «El COSTO
+  sale de bodega»): el capturado es lo que hay que poner allí. Usarlo en las
+  cuentas mientras llega sería decisión del dueño.
+- **La bitácora la escribe el SERVIDOR** (`bitacora/<quien>.json`, privado):
+  quién, cuándo, qué había antes y qué quedó, y desde qué pantalla. Sólo apunta
+  lo que cambia. Entran las ediciones, la ✕, «descontinuado», la baja
+  definitiva y la cantidad a pedir —que sigue viviendo en el navegador
+  (`ajusteCompra.js`) pero se apunta por `POST /bitacora`—.
+- **Edita administración y bodega** (`PUEDE_EDITAR`, en `backend/src/ediciones.js`;
+  bodega es quien sabe el costo). La ✕ sigue siendo sólo del administrador. Una
+  tienda no ve ni el ✏️ ni la bitácora, y `GET /ediciones` le da 403.
+- **El reporte, de las dos formas:** «📋 Bajar todos los cambios» (barra encima
+  de las tablas) baja un libro con lo pendiente en Eleventa, las notas y la
+  bitácora; y los Excel de Surtido, Bodega e Inventarios traen al final de cada
+  hoja las columnas «Nota» y «Cambios registrados».
+- Los tipos están escritos dos veces —`src/lib/ediciones.js` y
+  `backend/src/ediciones.js`— y `backend/test/ediciones.test.js` los pone frente
+  a frente.
+- **Lo que todavía no tiene ✏️:** el Dashboard y las listas de Ventas que no usan
+  el renglón de modelo; Revisar y Depurar tienen sus propias acciones.
+
 El Excel de Revisar sigue llevando **sólo lo pendiente**, y así tiene que
 seguir: es una lista de tareas para la tienda, no un archivo histórico. Son
 dos preguntas distintas —«qué me falta borrar» y «qué he quitado»— y

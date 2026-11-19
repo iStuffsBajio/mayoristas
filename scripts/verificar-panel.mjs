@@ -555,6 +555,13 @@ const {
   diasParaTienda, movimientosParaTienda, ventasParaTienda, parametrosParaTienda,
 } = await import('../backend/src/cortes.js')
 const { validarAjuste, deshacerAjuste } = await import('../backend/src/correcciones.js')
+// Las ediciones de modelo, validadas y aplicadas por el MISMO código del
+// servidor: un formulario que mandara algo que el servidor rechaza se vería
+// guardado aquí y fallaría en producción.
+const { validarEdicion, aplicarEdicion, validarApunte, PUEDE_EDITAR } = await import('../backend/src/ediciones.js')
+const EDICIONES_GUARDADAS = {}   // quien -> { clave -> edicion }
+const BITACORA = []
+const POSTS_DE_EDICION = []
 
 // La sesión de la ventana que corre: el servidor contesta distinto a una tienda
 // y al administrador, y el mock tiene que hacer lo mismo.
@@ -929,6 +936,32 @@ function respuesta(url, opciones) {
   if (/turnos/i.test(u)) return turnos
   // Las respuestas de la cola viven en el backend, no en S3 publico.
   if (/revisiones/i.test(u)) return { marcas: {} }
+  if (/\/ediciones|\/bitacora/.test(u)) {
+    const quien = SESION_ACTUAL.isAdmin ? 'admin' : SESION_ACTUAL.branch
+    if (!PUEDE_EDITAR.has(quien)) { errores.push(`una sesión de ${quien} pidió ${u}`); return { ok: false } }
+    if (opciones?.method === 'POST') {
+      const c = JSON.parse(opciones.body ?? '{}')
+      if (/\/bitacora/.test(u)) {
+        const v = validarApunte(c)
+        if (v.error) { errores.push(`el servidor rechazaría el apunte: ${v.error}`); return { ok: false } }
+        BITACORA.push({ ...v, quien, cuando: new Date().toISOString() })
+        return { ok: true, renglon: { ...v, quien } }
+      }
+      POSTS_DE_EDICION.push(c)
+      const v = validarEdicion(c)
+      if (v.error) { errores.push(`el servidor rechazaría la edición: ${v.error}`); return { ok: false } }
+      const mias = EDICIONES_GUARDADAS[quien] ??= {}
+      const renglones = aplicarEdicion(mias, v, { cuando: new Date().toISOString() })
+      BITACORA.push(...renglones.map(r => ({ ...r, quien })))
+      return { ok: true, cambios: renglones.length,
+        ediciones: Object.values(mias).filter(e => e.codigo === v.codigo).map(e => ({ ...e, quien })),
+        renglones: renglones.map(r => ({ ...r, quien })) }
+    }
+    return {
+      ediciones: Object.entries(EDICIONES_GUARDADAS).flatMap(([q, m]) => Object.values(m).map(e => ({ ...e, quien: q }))),
+      bitacora: [...BITACORA].reverse(),
+    }
+  }
   if (/\/ajustes/i.test(u)) return { ajustes: [...BAJAS, ...AJUSTES_GUARDADOS.values()] }
   if (/surtidos/i.test(u)) return { surtidos: SURTIDOS }
   if (/\/ventas\b/i.test(u)) return VENTAS_DE(u.match(/plaza=([a-z-]+)/)?.[1] ?? 'leon')
@@ -2417,6 +2450,44 @@ async function bajaFueraDeInventarios(window, donde) {
   return 1
 }
 
+/**
+ * Editar un modelo desde la tabla (2026-11-19): el ✏️ abre la ficha, guardar
+ * manda SÓLO lo cambiado, el renglón queda marcado y el cambio sale en la
+ * barra de la bitácora con su Excel. Sin esto el lápiz podría pintarse y no
+ * guardar nada, y se vería igual.
+ */
+async function editarUnModelo(window, donde) {
+  const doc = window.document
+  const lapiz = doc.querySelector('tbody [data-editar]:not([data-editado])')
+  if (!lapiz) { errores.push(`${donde} · no hay ✏️ para editar un modelo en la tabla`); return 0 }
+  const codigo = lapiz.dataset.editar
+  clic(window, lapiz); await nuevaVuelta(window, 4)
+  const ficha = () => doc.querySelector(`[data-editor-modelo="${codigo}"]`)
+  if (!ficha()) { errores.push(`${donde} · el ✏️ de ${codigo} no abrió la ficha`); return 0 }
+  if (!ficha().querySelector('[data-guardar-edicion]').disabled) errores.push(`${donde} · se puede guardar la ficha sin haber cambiado nada`)
+  escribir(window, ficha().querySelector('[data-campo-edicion="nota"]'), 'pedir en diciembre')
+  escribir(window, ficha().querySelector('[data-campo-edicion="costo"]'), '58')
+  await nuevaVuelta(window, 2)
+  const antes = POSTS_DE_EDICION.length
+  clic(window, ficha().querySelector('[data-guardar-edicion]')); await nuevaVuelta(window, 8)
+  const enviado = POSTS_DE_EDICION.at(-1)
+  if (POSTS_DE_EDICION.length !== antes + 1) errores.push(`${donde} · guardar la ficha no llegó al servidor`)
+  else if (enviado.cambios?.length !== 2) errores.push(`${donde} · la ficha mandó ${enviado.cambios?.length} cambios y eran 2: ${JSON.stringify(enviado.cambios)}`)
+  if (ficha()) errores.push(`${donde} · tras guardar, la ficha sigue abierta`)
+  if (!doc.querySelector(`[data-editar="${codigo}"][data-editado]`)) errores.push(`${donde} · ${codigo} editado y su lápiz no dice que tiene cambios`)
+  const barra = doc.querySelector('[data-barra-cambios]')?.textContent ?? ''
+  if (!/cambios? registrados?/.test(barra) || !doc.querySelector('[data-bajar-cambios]')) {
+    errores.push(`${donde} · no está la barra de la bitácora con su Excel: «${barra}»`)
+  }
+  // Volver a abrirla enseña lo guardado y su historial.
+  clic(window, doc.querySelector(`[data-editar="${codigo}"]`)); await nuevaVuelta(window, 4)
+  if (ficha()?.querySelector('[data-campo-edicion="nota"]')?.value !== 'pedir en diciembre') errores.push(`${donde} · la ficha no trae la nota guardada`)
+  if (!ficha()?.querySelector('[data-historia-modelo]')) errores.push(`${donde} · la ficha no enseña el historial del modelo`)
+  window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })); await nuevaVuelta(window, 3)
+  if (ficha()) errores.push(`${donde} · Escape no cierra la ficha`)
+  return 1
+}
+
 function marcaDeCensura(window, donde) {
   const doc = window.document
   if (!doc.querySelector('[data-pedir]')) return 0
@@ -3352,6 +3423,7 @@ let consultasVistas = 0
 let censurasVistas = 0
 let agotadosFiltrados = 0
 let bajasFuera = 0
+let edicionesHechas = 0
 let bajaEnVentas = 0
 let depuradosVistos = 0
 let cortesVistos = 0
@@ -3420,6 +3492,15 @@ for (const [nombre, sesion] of SESIONES) {
         if (/bodega/i.test(t) && nombre === 'admin' && !agotadosFiltrados) {
           agotadosFiltrados += await agotadosPorUbicacion(window, `${nombre} · ${t}`)
           bajasFuera += await bajaFueraDeInventarios(window, `${nombre} · ${t}`)
+          edicionesHechas += await editarUnModelo(window, `${nombre} · ${t}`)
+        }
+        // Bodega edita (es quien sabe el costo) pero NO da de baja.
+        if (/surtir/i.test(t) && nombre === 'bodega') {
+          if (doc.querySelector('[data-baja]')) errores.push(`${nombre} · ${t} · bodega ve la ✕ de dar de baja`)
+          if (doc.querySelector('[data-editar]')) edicionesHechas += await editarUnModelo(window, `${nombre} · ${t}`)
+        }
+        if (nombre === 'sucursal' && doc.querySelector('[data-editar], [data-barra-cambios]')) {
+          errores.push(`${nombre} · ${t} · una tienda ve el ✏️ o la bitácora de cambios`)
         }
         if (/surtido|surtir/i.test(t)) {
           censurasVistas += marcaDeCensura(window, `${nombre} · ${t}`)
@@ -3562,6 +3643,8 @@ console.log(`  marca de venta censurada en «Pedir»: ${censurasVistas} vista`)
 console.log(`  agotados filtrados por ubicación: ${agotadosFiltrados}`)
 console.log(`  ✕ de dar de baja fuera de Inventarios: bodega ${bajasFuera} · ventas ${bajaEnVentas}`)
 if (!bajasFuera) errores.push('no se comprobó la ✕ de dar de baja en Bodega')
+console.log(`  editar un modelo desde la tabla: ${edicionesHechas} (admin y bodega)`)
+if (edicionesHechas < 2) errores.push(`editar un modelo se comprobó ${edicionesHechas} veces y eran 2: administrador y bodega`)
 if (!bajaEnVentas) errores.push('la pestaña de Ventas no tiene la ✕ de dar de baja')
 if (!agotadosFiltrados) errores.push('nadie pulsó una ubicación en «Agotados que duelen»: el filtro por plaza quedó sin comprobar')
 if (!censurasVistas) errores.push('ninguna lista de «Pedir» marcó un modelo que estuvo en cero: vuelve a no saberse si un número bajo es de fiar')

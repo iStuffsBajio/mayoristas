@@ -1,6 +1,6 @@
 import { TEMAS } from './Diseno'
 import { useState, useEffect, useMemo } from 'react'
-import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA } from '../lib/sucursales'
+import { SUCURSALES_ACTIVAS, SUCURSALES, BODEGA, nombreSucursal } from '../lib/sucursales'
 import { inventarioJsonUrl, historialUrl, estadisticasUrl, agotadosUrl } from '../lib/s3'
 import { censuraEn, DIAS_AGOTADOS } from '../lib/agotados'
 import {
@@ -18,6 +18,7 @@ import { clasePorModelo, agotadosPorUbicacion, agotadosDeUbicacion } from '../li
 import BarrasAgotados, { TONOS as TONOS_CLASE } from './BarrasAgotados'
 import { ContextoBaja, BotonBaja, AvisoBaja } from './BotonBaja'
 import { useBajas } from '../lib/useBajas'
+import { marcasDe } from '../lib/ediciones'
 import { sinOcultos } from '../lib/ajustes'
 import { useAuth } from '../context/AuthContext'
 import { useSurtidos } from '../lib/useSurtidos'
@@ -231,7 +232,7 @@ function CeldaPedir({ fila, ambito, onCambiar, color = VERDE }) {
     if (!guardando) { setEditando(false); setError(null); return }
     const r = interpretar(texto)
     if (!r.ok) { setError(r.porque); return }
-    onCambiar(ambito, fila.codigo, r.quitar ? null : r.valor)
+    onCambiar(ambito, fila.codigo, r.quitar ? null : r.valor, fila)
     setEditando(false)
     setError(null)
   }
@@ -452,7 +453,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   // TODAS las listas de aquí —pedir, surtir, comprar, agotados— y de sus
   // totales: seguir proponiendo comprar un código que se decidió quitar del
   // catálogo era la contradicción que esto resuelve.
-  const bajas = useBajas()
+  const bajas = useBajas({ pantalla: vista })
   const { ocultos } = bajas
   const { folios, registrar, cerrar, sinRed: sinRedSurtidos } = useSurtidos(token)
 
@@ -471,7 +472,13 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   const [ajustes, setAjustes] = useState(() =>
     leerGuardado(typeof window === 'undefined' ? null : window.localStorage))
 
-  const cambiarAjuste = (ambito, codigo, valor) => {
+  const cambiarAjuste = (ambito, codigo, valor, fila = null) => {
+    // La cantidad vive en el navegador de quien compra, pero el cambio queda
+    // en la bitácora igual: «todo lo que edite se registre».
+    if (fila) {
+      const original = fila.sugeridoOriginal ?? fila.sugerido
+      bajas.apuntarCantidad(fila, Number(fila.sugerido) || 0, valor === null ? Number(original) || 0 : valor, ambito)
+    }
     setAjustes(previos => {
       const nuevos = conAjuste(previos, ambito, codigo, valor)
       guardar(typeof window === 'undefined' ? null : window.localStorage, nuevos)
@@ -814,6 +821,9 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   // Se baja el libro entero, no solo la vista que se está mirando: las cuatro
   // hojas se leen juntas al decidir un pedido.
   const exportar = () => descargarSurtido({
+    marcas: bajas.puedeEditar
+      ? marcasDe(bajas.edicionesPorCodigo, datos ? Object.fromEntries(Object.entries(datos).map(([k, d]) => [k, d?.inv]).filter(([, v]) => v)) : {}, nombreSucursal)
+      : null,
     sucursal: nombreSel,
     meta: esFeria
       ? { cobertura: feria?.diasRestantes ?? 0, esAlta: false, diasHistorial, margen }
@@ -865,8 +875,12 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     )
   }
 
+  // Lo que dice Eleventa hoy, para que el editor lo enseñe y el reporte sepa
+  // qué ya quedó hecho.
+  const invsDeBaja = datos ? Object.fromEntries(Object.entries(datos).map(([k, d]) => [k, d?.inv]).filter(([, v]) => v)) : {}
+
   return (
-    <ContextoBaja.Provider value={bajas}>
+    <ContextoBaja.Provider value={{ ...bajas, inventarios: invsDeBaja }}>
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
       {/* La cabecera de la pestaña, con la franja de su tema: surtir es
