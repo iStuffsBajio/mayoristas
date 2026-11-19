@@ -1626,7 +1626,7 @@ export default function EstadisticasPanel() {
   // sucursal recibe 403 y la seccion simplemente no se dibuja.
   const { token } = useAuth()
   // La ✕ de dar de baja. Aquí el renglón NO desaparece: es venta que ocurrió.
-  const bajas = useBajas()
+  const bajas = useBajas({ pantalla: 'ventas' })
   const { porPlaza: ventasPorPlaza } = useVentas(token, activas.map(x => x.slug))
 
   // La brecha entre la lista de precios y lo cobrado, por plaza. Hace falta
@@ -1925,7 +1925,7 @@ export default function EstadisticasPanel() {
   )
 
   return (
-    <ContextoBaja.Provider value={bajas}>
+    <ContextoBaja.Provider value={{ ...bajas, inventarios: porSucursal ? Object.fromEntries(Object.entries(porSucursal).map(([k, d]) => [k, d?.inv]).filter(([, v]) => v)) : {} }}>
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
       <AvisoBaja />
 

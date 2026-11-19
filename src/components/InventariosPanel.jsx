@@ -5,6 +5,7 @@ import { SUCURSALES_CON_INVENTARIO, SUCURSALES_TIENDA, BODEGA, nombreSucursal } 
 import { inventarioJsonUrl, estadisticasUrl, historialUrl } from '../lib/s3'
 import { clasePorModelo, CLASES } from '../lib/clases'
 import { useBajas } from '../lib/useBajas'
+import { marcasDe } from '../lib/ediciones'
 import { ContextoBaja, BotonBaja, AvisoBaja } from './BotonBaja'
 import { historialDeBajas, resumenDeBajas } from '../lib/ajustes'
 import { descargarArchivoDeBajas } from '../lib/exportarBajas'
@@ -355,7 +356,7 @@ export default function InventariosPanel() {
   // cola de revisión: no hay dos formas de dar de baja, hay una. Lo que se
   // marca aquí deja de contarse en los recuadros y aparece en Revisar como
   // pendiente de borrar en la caja de cada plaza.
-  const bajas = useBajas()
+  const bajas = useBajas({ pantalla: 'inventarios' })
   const { correcciones, ocultos, deshacerBaja } = bajas
 
   // Filtrar por clase. Un agotado de clase A y uno de clase C son dos
@@ -559,14 +560,16 @@ export default function InventariosPanel() {
   const etiquetaFiltro = FILTROS.find(f => f.id === filtro)?.etiqueta ?? 'todos'
 
   const exportar = () => {
-    if (esTodas) descargarInventarioConsolidado(visibles, tiendas, etiquetaFiltro)
-    else descargarInventario(visibles, sucursal.nombre, etiquetaFiltro)
+    // Con quien edita, el Excel trae la nota y los cambios de cada modelo.
+    const marcas = bajas.puedeEditar ? marcasDe(bajas.edicionesPorCodigo, inventarios ?? {}, nombreSucursal) : null
+    if (esTodas) descargarInventarioConsolidado(visibles, tiendas, etiquetaFiltro, marcas)
+    else descargarInventario(visibles, sucursal.nombre, etiquetaFiltro, marcas)
   }
 
   const faltantes = inventarios ? tiendas.filter(s => !inventarios[s.slug]).map(s => s.nombre) : []
 
   return (
-    <ContextoBaja.Provider value={bajas}>
+    <ContextoBaja.Provider value={{ ...bajas, inventarios: inventarios ?? {} }}>
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
       <div style={{ marginBottom: 16, borderLeft: '5px solid ' + TEMAS.inventario.fuerte, background: TEMAS.inventario.suave,

@@ -18,6 +18,9 @@ import {
   movimientosParaTienda, ventasParaTienda, parametrosParaTienda, registroDeConteo,
 } from './cortes.js'
 import { validarAjuste, deshacerAjuste } from './correcciones.js'
+import {
+  PUEDE_EDITAR, MAX_EDICIONES, validarEdicion, aplicarEdicion, validarApunte, renglon, anotar,
+} from './ediciones.js'
 import * as CRM from './clientes.js'
 import { almacenDeClientes, Conflicto } from './clientes-s3.js'
 import { esRutaDeMeta, rutaMetaWebhook, hayCola, encolarSalida } from './meta.js'
@@ -776,11 +779,22 @@ async function rutaGuardarAjuste(evento, origen, cuerpo) {
 
   const mios = await leerJson(claveAjustes(quien))
   const cuando = new Date().toISOString()
+  // Lo que cambió, para la bitácora: dar de baja y descontinuar también son
+  // cambios, y el reporte tiene que traerlos con los demás.
+  const renglones = []
 
   // Sin motivo se retira. Toda correccion lleva motivo: es lo que hace que el
   // reporte que baja a cada sucursal se pueda ordenar y contar.
-  for (const { codigo, producto } of items) {
+  for (const [i, { codigo, producto }] of items.entries()) {
     const clave = `${tipo}|${codigo}`
+    const antes = mios[clave]?.motivo ?? null
+    if (antes !== motivo) {
+      renglones.push(renglon({
+        id: `${cuando}-a${i}`, cuando, codigo, producto,
+        tipo: tipo === 'descontinuado' ? 'descontinuado' : 'baja',
+        antes, despues: motivo, pantalla: cuerpo?.pantalla, nota: cuerpo?.nota,
+      }))
+    }
     if (motivo === null) {
       delete mios[clave]
     } else {
@@ -803,7 +817,77 @@ async function rutaGuardarAjuste(evento, origen, cuerpo) {
     ContentType:  'application/json; charset=utf-8',
     CacheControl: 'no-cache',
   }))
+  if (renglones.length) await apuntarEnBitacora(quien, renglones)
   return responder(origen, 200, { ok: true, por: quien, cantidad: items.length })
+}
+
+// ── Ediciones y bitácora ────────────────────────────────────────────────────
+//
+// Las reglas viven en `ediciones.js`. Van bajo `ediciones/` y `bitacora/`, que
+// la política del bucket NO abre al público. Cada quien escribe SÓLO su
+// archivo y al leer se juntan, igual que los ajustes.
+
+const claveEdiciones = quien => `ediciones/${quien}.json`
+const claveBitacora  = quien => `bitacora/${quien}.json`
+
+async function apuntarEnBitacora(quien, renglones) {
+  const previa = await leerJson(claveBitacora(quien))
+  await escribirJson(claveBitacora(quien), anotar(previa, renglones))
+}
+
+/** Las ediciones y la bitácora de todos. Sólo quien edita las lee. */
+async function rutaEdiciones(evento, origen) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
+  if (!PUEDE_EDITAR.has(quienEs(sesion))) return responder(origen, 403, { error: 'Sólo administración y bodega.' })
+  const archivos = await Promise.all(QUIENES_ESCRIBEN.map(async q =>
+    [q, await leerJson(claveEdiciones(q)), await leerJson(claveBitacora(q))]))
+  const ediciones = [], bitacora = []
+  for (const [quien, eds, bit] of archivos) {
+    for (const e of Object.values(eds)) ediciones.push({ ...e, quien })
+    for (const r of Array.isArray(bit.entradas) ? bit.entradas : []) bitacora.push({ ...r, quien })
+  }
+  bitacora.sort((a, b) => String(b.cuando).localeCompare(String(a.cuando)))
+  return responder(origen, 200, { ediciones, bitacora })
+}
+
+/** Guarda lo editado de un modelo, y apunta en la bitácora lo que cambió. */
+async function rutaGuardarEdicion(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
+  const quien = quienEs(sesion)
+  if (!PUEDE_EDITAR.has(quien)) return responder(origen, 403, { error: 'Sólo administración y bodega editan.' })
+  const v = validarEdicion(cuerpo)
+  if (v.error) return responder(origen, 400, { error: v.error })
+
+  const mias = await leerJson(claveEdiciones(quien))
+  const cuando = new Date().toISOString()
+  const renglones = aplicarEdicion(mias, v, { cuando, idBase: `${cuando}-${crypto.randomBytes(3).toString('hex')}` })
+  if (Object.keys(mias).length > MAX_EDICIONES) return responder(origen, 413, { error: 'Demasiadas ediciones guardadas.' })
+  // Nada cambió: ni se escribe ni se apunta.
+  if (renglones.length) {
+    await escribirJson(claveEdiciones(quien), mias)
+    await apuntarEnBitacora(quien, renglones)
+  }
+  return responder(origen, 200, {
+    ok: true, cambios: renglones.length,
+    ediciones: Object.values(mias).filter(e => e.codigo === v.codigo).map(e => ({ ...e, quien })),
+    renglones: renglones.map(r => ({ ...r, quien })),
+  })
+}
+
+/** Apunta un cambio cuyo estado vive en el navegador (la cantidad a pedir). */
+async function rutaApuntar(evento, origen, cuerpo) {
+  const sesion = sesionDe(evento)
+  if (!sesion) return responder(origen, 403, { error: 'Requiere sesion.' })
+  const quien = quienEs(sesion)
+  if (!PUEDE_EDITAR.has(quien)) return responder(origen, 403, { error: 'Sólo administración y bodega.' })
+  const v = validarApunte(cuerpo)
+  if (v.error) return responder(origen, 400, { error: v.error })
+  const cuando = new Date().toISOString()
+  const r = renglon({ id: `${cuando}-${crypto.randomBytes(3).toString('hex')}`, cuando, ...v })
+  await apuntarEnBitacora(quien, [r])
+  return responder(origen, 200, { ok: true, renglon: { ...r, quien } })
 }
 
 /** Lee un JSON de S3 y devuelve NULL si no está: aquí «no hay» es un dato. */
@@ -899,6 +983,10 @@ async function rutaGuardarBajas(evento, origen, cuerpo) {
       ContentType:  'application/json; charset=utf-8',
       CacheControl: 'no-cache',
     }))
+    await apuntarEnBitacora(quien, guardados.map((g, i) => renglon({
+      id: `${ahora}-b${i}`, cuando: ahora, codigo: g.codigo, producto: g.producto,
+      tipo: 'baja', antes: null, despues: MOTIVO_BAJA_DEFINITIVA, pantalla: 'depurar', nota,
+    })))
   }
 
   return responder(origen, 200, { ok: true, dias: v.dias, aceptados: guardados, rechazados })
@@ -2010,6 +2098,9 @@ export async function handler(evento) {
     if (metodo === 'POST' && ruta === '/revisiones') return await rutaGuardarRevision(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/ajustes')    return await rutaAjustes(evento, origen)
     if (metodo === 'POST' && ruta === '/ajustes')    return await rutaGuardarAjuste(evento, origen, cuerpo)
+    if (metodo === 'GET'  && ruta === '/ediciones')  return await rutaEdiciones(evento, origen)
+    if (metodo === 'POST' && ruta === '/ediciones')  return await rutaGuardarEdicion(evento, origen, cuerpo)
+    if (metodo === 'POST' && ruta === '/bitacora')   return await rutaApuntar(evento, origen, cuerpo)
     if (metodo === 'POST' && ruta === '/ajustes/bajas') return await rutaGuardarBajas(evento, origen, cuerpo)
     if (metodo === 'GET'  && ruta === '/surtidos')   return await rutaSurtidos(evento, origen)
     if (metodo === 'POST' && ruta === '/surtidos')   return await rutaGuardarSurtido(evento, origen, cuerpo)

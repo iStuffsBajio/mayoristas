@@ -207,8 +207,21 @@ export const guardarRevision = (id, estado, nota, token) =>
 export const ajustes = token => pedir('/ajustes', { token })
 
 /** Guarda una corrección. `motivo` en null la deshace. */
-export const guardarAjuste = ({ codigo, tipo = 'ocultar', motivo, producto = '', nota = '' }, token) =>
-  pedir('/ajustes', { metodo: 'POST', cuerpo: { codigo, tipo, motivo, producto, nota }, token })
+export const guardarAjuste = ({ codigo, tipo = 'ocultar', motivo, producto = '', nota = '', pantalla = '' }, token) =>
+  pedir('/ajustes', { metodo: 'POST', cuerpo: { codigo, tipo, motivo, producto, nota, pantalla }, token })
+
+// ── Ediciones de modelo y bitácora de cambios ─────────────────────────────
+// Lo que se edita desde las tablas (nota, nombre, código, costo, precios) y
+// el registro de todo lo que se cambia. Ver `src/lib/ediciones.js`.
+
+/** Las ediciones y la bitácora de todos. Administración y bodega. */
+export const ediciones = token => pedir('/ediciones', { token })
+
+/** `{ codigo, producto, pantalla, nota, cambios: [{ tipo, plaza?, valor }] }`; valor vacío lo quita. */
+export const guardarEdicion = (cuerpo, token) => pedir('/ediciones', { metodo: 'POST', cuerpo, token })
+
+/** Apunta un cambio cuyo estado vive en el navegador (la cantidad a pedir). */
+export const apuntarCambio = (cuerpo, token) => pedir('/bitacora', { metodo: 'POST', cuerpo, token })
 
 /**
  * Guarda o retira el MISMO ajuste para varios códigos, en una sola petición.

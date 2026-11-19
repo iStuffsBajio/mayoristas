@@ -5,6 +5,7 @@
 // que quien lo abra entienda qué está viendo sin que nadie se lo explique.
 
 import XLSX from 'xlsx-js-style'
+import { columnasDeMarcas } from './ediciones.js'
 import { diasEnCatalogo } from './surtido.js'
 import { queHacerCon, piezasPerdidas, DIAS_SIN_COMPRAR } from './compras.js'
 import {
@@ -305,8 +306,10 @@ const COLS_NUEVOS = [
 
 // ── Entrada ──────────────────────────────────────────────────────────────────
 
-export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], agotados = [], compras = [], candidatos = null, bodegaStock = null, esFeria = false, fuga = null }) {
+export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, depurar, nuevos = [], agotados = [], compras = [], candidatos = null, bodegaStock = null, esFeria = false, fuga = null, marcas = null }) {
   const libro = XLSX.utils.book_new()
+  // Cada hoja trae, al final, la nota y los cambios registrados de cada modelo.
+  const m = cols => [...cols, ...columnasDeMarcas(marcas)]
 
   const conteos = {
     modelos:  porVenta.length,
@@ -331,14 +334,14 @@ export function descargarSurtido({ sucursal, meta, porVenta, muestras, bodega, d
   ]
 
   XLSX.utils.book_append_sheet(libro, hojaPortada({ sucursal, meta, conteos, notas, fuga }), 'Panel')
-  XLSX.utils.book_append_sheet(libro, hojaDeTabla(colsVenta(bodegaStock, esFeria), porVenta), 'Pedir por venta')
-  XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_MUESTRA, muestras), 'Sin venta y agotados')
-  if (candidatos) XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_CANDIDATOS, candidatos), 'Se venden en tienda')
-  XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_BODEGA, bodega), 'Bodega')
-  if (compras.length) XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_COMPRA, compras), 'Comprar para bodega')
-  XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_AGOTADOS, agotados), 'Agotados que duelen')
-  XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_NUEVOS, nuevos), 'Recién llegados')
-  XLSX.utils.book_append_sheet(libro, hojaDeTabla(COLS_DEPURAR, depurar), 'Depurar')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(m(colsVenta(bodegaStock, esFeria)), porVenta), 'Pedir por venta')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(m(COLS_MUESTRA), muestras), 'Sin venta y agotados')
+  if (candidatos) XLSX.utils.book_append_sheet(libro, hojaDeTabla(m(COLS_CANDIDATOS), candidatos), 'Se venden en tienda')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(m(COLS_BODEGA), bodega), 'Bodega')
+  if (compras.length) XLSX.utils.book_append_sheet(libro, hojaDeTabla(m(COLS_COMPRA), compras), 'Comprar para bodega')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(m(COLS_AGOTADOS), agotados), 'Agotados que duelen')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(m(COLS_NUEVOS), nuevos), 'Recién llegados')
+  XLSX.utils.book_append_sheet(libro, hojaDeTabla(m(COLS_DEPURAR), depurar), 'Depurar')
 
   const fecha = new Date().toISOString().slice(0, 10)
   XLSX.writeFile(libro, `surtido-${nombreArchivo(sucursal)}-${fecha}.xlsx`)
