@@ -614,6 +614,18 @@ export function analizarAgotados({ inventarios, historiales, productosBodega, ho
     b.vendioReciente - a.vendioReciente ||
     b.plazasEnCero - a.plazasEnCero)
 
+  return resumenDeAgotados(filas, desde)
+}
+
+/**
+ * Los totales de una lista de agotados: cuánto se pierde, qué hay que comprar,
+ * qué sólo repartir. Aparte de `analizarAgotados` para poder recalcularlos
+ * sobre un SUBCONJUNTO —una ubicación elegida, o sin lo dado de baja— con la
+ * misma cuenta: si cada pantalla sumara por su lado, el aviso diría una cifra
+ * y la tabla otra.
+ */
+export function resumenDeAgotados(filas, desde = null) {
+  filas = filas ?? []
   // ── Fugas de ingresos ──────────────────────────────────────────────────
   //
   // Dos cosas distintas que conviene separar. Una es cuánto se lleva perdido

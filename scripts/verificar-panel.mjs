@@ -2391,6 +2391,32 @@ async function agotadosPorUbicacion(window, donde) {
   return 1
 }
 
+/**
+ * La ✕ fuera de Inventarios (2026-11-19): en «Comprar al proveedor» dar de
+ * baja un código lo saca de la lista —seguir proponiendo comprar lo que se
+ * quitó del catálogo era la contradicción— y el aviso deja deshacerlo ahí
+ * mismo. Sin esto, la ✕ podría pintarse y no hacer nada, y se vería igual.
+ */
+async function bajaFueraDeInventarios(window, donde) {
+  const doc = window.document
+  const compra = [...doc.querySelectorAll('button')].find(b => /Comprar al proveedor/.test(b.textContent))
+  if (compra) { clic(window, compra); await nuevaVuelta(window, 6) }
+  const boton = doc.querySelector('tbody [data-baja]')
+  if (!boton) { errores.push(`${donde} · «Comprar al proveedor» no tiene la ✕ para dar de baja`); return 0 }
+  const codigo = boton.dataset.baja
+  clic(window, boton); await nuevaVuelta(window, 8)
+  // Se busca el renglón por la ✕ Y por la marca «dado de baja»: si la lista no
+  // lo apartara, la ✕ se volvería marca y buscando sólo la ✕ pasaría por bueno.
+  if (doc.querySelector(`tbody [data-baja="${codigo}"], tbody [data-dado-de-baja="${codigo}"]`)) {
+    errores.push(`${donde} · ${codigo} dado de baja y sigue en la lista de compra`)
+  }
+  const deshacer = doc.querySelector(`[data-deshacer-aviso-baja="${codigo}"]`)
+  if (!deshacer) { errores.push(`${donde} · tras dar de baja ${codigo} no hay aviso con «Deshacer»`); return 0 }
+  clic(window, deshacer); await nuevaVuelta(window, 8)
+  if (!doc.querySelector(`tbody [data-baja="${codigo}"]`)) errores.push(`${donde} · deshecha la baja, ${codigo} no volvió a la lista de compra`)
+  return 1
+}
+
 function marcaDeCensura(window, donde) {
   const doc = window.document
   if (!doc.querySelector('[data-pedir]')) return 0
@@ -3325,6 +3351,8 @@ let salidasVistas = 0
 let consultasVistas = 0
 let censurasVistas = 0
 let agotadosFiltrados = 0
+let bajasFuera = 0
+let bajaEnVentas = 0
 let depuradosVistos = 0
 let cortesVistos = 0
 let nominasVistas = 0
@@ -3386,10 +3414,12 @@ for (const [nombre, sesion] of SESIONES) {
           preciosPorPlaza += precioPorPlaza(window, `${nombre} · admin · ${t}`)
           nuevosVistos += await modelosNuevos(window, `${nombre} · admin · ${t}`)
           bandejasDePrecio += preciosARevisar(window, `${nombre} · admin · ${t}`)
+          if (nombre === 'admin') bajaEnVentas += doc.querySelector('[data-baja]') ? 1 : 0
         }
         // «Agotados que duelen» vive en la sección de Bodega del administrador.
         if (/bodega/i.test(t) && nombre === 'admin' && !agotadosFiltrados) {
           agotadosFiltrados += await agotadosPorUbicacion(window, `${nombre} · ${t}`)
+          bajasFuera += await bajaFueraDeInventarios(window, `${nombre} · ${t}`)
         }
         if (/surtido|surtir/i.test(t)) {
           censurasVistas += marcaDeCensura(window, `${nombre} · ${t}`)
@@ -3530,6 +3560,9 @@ console.log(`  consultar modelo de bodega: ${consultasVistas} dibujado`)
 if (!consultasVistas) errores.push('«Consultar modelo» de bodega no se recorrió: bodega se queda sin poder mirar un modelo de cerca')
 console.log(`  marca de venta censurada en «Pedir»: ${censurasVistas} vista`)
 console.log(`  agotados filtrados por ubicación: ${agotadosFiltrados}`)
+console.log(`  ✕ de dar de baja fuera de Inventarios: bodega ${bajasFuera} · ventas ${bajaEnVentas}`)
+if (!bajasFuera) errores.push('no se comprobó la ✕ de dar de baja en Bodega')
+if (!bajaEnVentas) errores.push('la pestaña de Ventas no tiene la ✕ de dar de baja')
 if (!agotadosFiltrados) errores.push('nadie pulsó una ubicación en «Agotados que duelen»: el filtro por plaza quedó sin comprobar')
 if (!censurasVistas) errores.push('ninguna lista de «Pedir» marcó un modelo que estuvo en cero: vuelve a no saberse si un número bajo es de fiar')
 console.log(`  lotes dibujados: ${lotesVistos.size}`)

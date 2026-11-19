@@ -11,11 +11,14 @@ import {
   mesesActivos, proximaFeria, calcularSurtidoFeria, MARGENES, MARGEN_FERIA,
 } from '../lib/surtido'
 import { descargarSurtido } from '../lib/exportarSurtido'
-import { calcularCompraBodega, analizarAgotados, ESTADO_AGOTADO, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS, DIAS_SIN_COMPRAR, piezasPerdidas } from '../lib/compras'
+import { calcularCompraBodega, analizarAgotados, resumenDeAgotados, MESES_COBERTURA, MESES_RECIENTES, MESES_CORTOS, DIAS_SIN_COMPRAR, piezasPerdidas } from '../lib/compras'
 import { separarProduccion } from '../lib/produccion'
 import { useOrdenTabla } from '../lib/orden'
 import { clasePorModelo, agotadosPorUbicacion, agotadosDeUbicacion } from '../lib/clases'
 import BarrasAgotados, { TONOS as TONOS_CLASE } from './BarrasAgotados'
+import { ContextoBaja, BotonBaja, AvisoBaja } from './BotonBaja'
+import { useBajas } from '../lib/useBajas'
+import { sinOcultos } from '../lib/ajustes'
 import { useAuth } from '../context/AuthContext'
 import { useSurtidos } from '../lib/useSurtidos'
 import { cuadrar, lineasDesdeSurtido, resumirFolios, puedeSurtir, veBodega, ESTADOS as ESTADOS_SURTIDO, DIAS_PARA_DAR_DE_ALTA } from '../lib/surtidos'
@@ -289,7 +292,9 @@ const Modelo = ({ f }) => (
     <Celda>
       <span style={{ display: 'block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.producto}</span>
     </Celda>
-    <td style={{ padding: '7px 10px', color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{f.codigo}</td>
+    <td style={{ padding: '7px 10px', color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', fontSize: 11, whiteSpace: 'nowrap' }}>
+      {f.codigo}<BotonBaja fila={f} />
+    </td>
   </>
 )
 
@@ -443,6 +448,12 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   // El registro de lo que ya salio. Va por capacidad y no por «admin»: cuando
   // exista el usuario del encargado de bodega lo hereda sin tocar esto.
   const { token, isAdmin, session } = useAuth()
+  // La ✕ de dar de baja, la misma de Inventarios. Lo dado de baja sale de
+  // TODAS las listas de aquí —pedir, surtir, comprar, agotados— y de sus
+  // totales: seguir proponiendo comprar un código que se decidió quitar del
+  // catálogo era la contradicción que esto resuelve.
+  const bajas = useBajas()
+  const { ocultos } = bajas
   const { folios, registrar, cerrar, sinRed: sinRedSurtidos } = useSurtidos(token)
 
   // Por CAPACIDAD, no por «admin». Estaba atado a admin y con eso el usuario
@@ -569,7 +580,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   // Sumar las filas ya calculadas es coherente por construcción: lo que dice
   // «Todas» es exactamente lo que dicen las tres juntas, y de paso se ve de
   // dónde sale cada pieza.
-  const filas = useMemo(() => {
+  const filasBrutas = useMemo(() => {
     if (!datos) return []
     if (esFeria) return feria ? separarProduccion(feria.filas).compra : []
     if (sel !== TODAS.slug) return porSucursal[sel] ?? []
@@ -601,6 +612,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
 
     return separarProduccion(filasJuntas).compra
   }, [datos, sel, porSucursal, sucursales, esFeria, feria])
+  const filas = useMemo(() => sinOcultos(filasBrutas, ocultos), [filasBrutas, ocultos])
 
   // Cuántos se dejaron fuera por fabricarse, para decirlo en vez de que
   // desaparezcan sin explicación.
@@ -625,7 +637,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     }
     return m
   }, [bodegaInv])
-  const bodega    = useMemo(() => bodegaInv ? analizarBodega(porSucursal, bodegaInv) : [], [porSucursal, bodegaInv])
+  const bodega    = useMemo(() => bodegaInv ? sinOcultos(analizarBodega(porSucursal, bodegaInv), ocultos) : [], [porSucursal, bodegaInv, ocultos])
 
   // Desde cuándo existe cada modelo en la empresa: la fecha más temprana de
   // todas las plazas, marcando cuáles son sólo una cota inferior. El detalle
@@ -638,7 +650,10 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     return mapaDeAltas(porSuc)
   }, [datos, sucursales, bodegaInv])
 
-  const depurar = useMemo(() => candidatosADepurar(porSucursal, diasHistorial, altas), [porSucursal, diasHistorial, altas])
+  const depurar = useMemo(() => {
+    const d = candidatosADepurar(porSucursal, diasHistorial, altas)
+    return { ...d, filas: sinOcultos(d.filas, ocultos), nuevos: sinOcultos(d.nuevos, ocultos) }
+  }, [porSucursal, diasHistorial, altas, ocultos])
 
   // Bodega, recien llegados y depurar se calculan sobre las tiendas fijas. Con
   // Ferias elegida no vienen a cuento, asi que se esconden en vez de enseñar
@@ -669,7 +684,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     const inventarios = Object.fromEntries(sucursales.map(s => [s.slug, datos[s.slug]?.inv]))
     const r = calcularCompraBodega({ historiales, inventarios, productosBodega: bodegaInv.productos })
     // Lo mismo aqui: el ajuste entra antes de la tabla y del Excel.
-    const conAjustes = aplicarAjustes(r.filas, ajustes, 'compra')
+    const conAjustes = aplicarAjustes(sinOcultos(r.filas, ocultos), ajustes, 'compra')
     // Y el total se vuelve a sumar de las filas AJUSTADAS. La libreria lo
     // calculo con las originales, asi que dejarlo tal cual ponia la cabecera
     // a decir una cifra y la tabla otra, sin que nada avisara.
@@ -678,7 +693,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
       filas: conAjustes,
       totalPiezas: conAjustes.reduce((a, f) => a + (Number(f.sugerido) || 0), 0),
     }
-  }, [datos, sucursales, bodegaInv, ajustes])
+  }, [datos, sucursales, bodegaInv, ajustes, ocultos])
 
   // Modelos en cero que siguen vendiéndose y siguen vigentes. No es lo mismo
   // que algo se acabe porque ya nadie lo pide que porque se surtió mal.
@@ -686,8 +701,9 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
     if (!datos || !bodegaInv) return null
     const inventarios = Object.fromEntries(sucursales.map(s => [s.slug, datos[s.slug]?.inv]))
     const historiales = [...sucursales.map(s => datos[s.slug]?.hist), datos[FERIAS?.slug]?.hist]
-    return analizarAgotados({ inventarios, historiales, productosBodega: bodegaInv.productos })
-  }, [datos, sucursales, bodegaInv])
+    const base = analizarAgotados({ inventarios, historiales, productosBodega: bodegaInv.productos })
+    return resumenDeAgotados(sinOcultos(base.filas, ocultos), base.desde)
+  }, [datos, sucursales, bodegaInv, ocultos])
 
   // Cuantos modelos en cero tiene cada ubicacion, repartidos por clase de
   // venta. Ferias queda fuera a proposito: cierra ocho meses al ano, asi que
@@ -715,17 +731,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   // elegido, «163 piezas perdidas» de toda la red no diría nada de León.
   const resumenAg = useMemo(() => {
     if (!agotados) return null
-    if (!ubicacionAg) return agotados
-    const filas = filasDeUbicacion
-    const fugas = filas.filter(f => piezasPerdidas(f) > 0).sort((a, b) => piezasPerdidas(b) - piezasPerdidas(a))
-    return {
-      filas, fugas,
-      perdidas: filas.reduce((a, f) => a + piezasPerdidas(f), 0),
-      inactivos: filas.filter(f => f.bodegaDias !== null && f.bodegaDias >= DIAS_SIN_COMPRAR && f.vendiaAlMes > 0),
-      compra:  filas.filter(f => f.estado === ESTADO_AGOTADO.COMPRA),
-      reparto: filas.filter(f => f.estado === ESTADO_AGOTADO.REPARTO),
-      normal:  filas.filter(f => f.estado === ESTADO_AGOTADO.NORMAL),
-    }
+    return ubicacionAg ? resumenDeAgotados(filasDeUbicacion, agotados.desde) : agotados
   }, [agotados, ubicacionAg, filasDeUbicacion])
 
   const nombreDe = useMemo(() => Object.fromEntries([...SUCURSALES, BODEGA].filter(Boolean).map(s => [s.slug, s.nombre])), [])
@@ -860,6 +866,7 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
   }
 
   return (
+    <ContextoBaja.Provider value={bajas}>
     <div style={{ backgroundColor: '#fff', borderRadius: 30, border: '1px solid ' + LINEA, padding: '24px 22px', boxShadow: '0 2px 12px rgba(16,22,25,0.04)' }}>
 
       {/* La cabecera de la pestaña, con la franja de su tema: surtir es
@@ -967,6 +974,16 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
             El número se sigue usando por dentro, para el aviso de historial
             corto y para no proponer depurar sin medición suficiente. */}
       </div>
+
+      <AvisoBaja />
+      {/* Lo dado de baja no desaparece en silencio: se dice cuántos se
+          apartaron y dónde se deshace. */}
+      {ocultos.size > 0 && (
+        <p data-apartados-baja={ocultos.size} style={{ fontSize: 11, color: TINTA_TENUE, margin: '0 0 10px' }}>
+          {ocultos.size} {ocultos.size === 1 ? 'código dado de baja no sale' : 'códigos dados de baja no salen'} en
+          estas listas. Se devuelven desde Inventarios, en «Lo que has dado de baja».
+        </p>
+      )}
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         {vistasVisibles.map(v => (
@@ -1361,7 +1378,9 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
             </>}>
               {ord.ordenar(compras.filas).slice(0, TOPE).map((f, i) => (
                 <tr key={f.codigo + i} style={{ background: i % 2 ? '#FBFDFD' : '#fff' }}>
-                  <td style={{ padding: '7px 10px', color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', fontSize: 11 }}>{f.codigo}</td>
+                  <td style={{ padding: '7px 10px', color: TINTA_TENUE, fontFamily: 'ui-monospace, monospace', fontSize: 11, whiteSpace: 'nowrap' }}>
+                    {f.codigo}<BotonBaja fila={f} />
+                  </td>
                   <Celda>
                     <span style={{ display: 'block', maxWidth: 230, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {f.producto}
@@ -1582,5 +1601,6 @@ export default function SurtidoPanel({ ambito = 'todo', foco = null, plaza = nul
         sincronización son un piso, porque un resurtido el mismo día tapa la salida.
       </p>
     </div>
+    </ContextoBaja.Provider>
   )
 }
